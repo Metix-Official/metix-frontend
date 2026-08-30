@@ -220,17 +220,30 @@ export default function PublicEventDetailPage() {
             {/* Divider Line */}
             <div className="border-t border-slate-200 my-4" />
 
-            {/* Syarat & Ketentuan Without Card Box */}
-            {(event as any)?.terms_and_conditions && (
-              <div className="space-y-2.5">
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                  Syarat & Ketentuan
-                </h3>
-                <div className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium whitespace-pre-line">
-                  {(event as any).terms_and_conditions}
+            {/* Syarat & Ketentuan Section */}
+            {(() => {
+              const termsContent =
+                event.terms ||
+                event.terms_and_conditions ||
+                event.syarat_ketentuan ||
+                null;
+
+              return (
+                <div className="space-y-2.5 pt-2">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <ShieldCheck className="w-4.5 h-4.5 text-blue-600" />
+                    <span>Syarat & Ketentuan</span>
+                  </h3>
+                  <div className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium whitespace-pre-line bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+                    {termsContent ||
+                      `1. Tiket yang sudah dibeli tidak dapat ditukarkan atau dikembalikan (non-refundable).
+2. Wajib membawa kartu identitas resmi (KTP/SIM/Paspor) yang sesuai dengan nama pada e-tiket saat penukaran fisik/check-in.
+3. Pemegang tiket wajib mematuhi seluruh protokol keselamatan dan tata tertib di area venue acara.
+4. Panitia penyelenggara berhak menolak masuk pengunjung yang tidak memenuhi syarat & ketentuan yang berlaku.`}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Foto Venue Small Compact Card (Matching User Image 2) */}
             {venuePhotoUrl && (

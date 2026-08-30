@@ -73,6 +73,10 @@ export interface ApiEvent {
   title: string;
   slug: string;
   description?: string | null;
+  desc?: string | null;
+  terms?: string | null;
+  terms_and_conditions?: string | null;
+  syarat_ketentuan?: string | null;
   location?: string | null;
   address?: string | null;
   event_start_at: string;

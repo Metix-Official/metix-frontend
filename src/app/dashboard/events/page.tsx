@@ -852,7 +852,7 @@ export default function EventsPage() {
             )}
 
             {/* Form Modal */}
-            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <div className="space-y-1.5">
                 <label className="text-xs font-extrabold text-slate-700">Judul Event / Konser</label>
                 <input
@@ -862,6 +862,28 @@ export default function EventsPage() {
                   defaultValue={editingEvent.title}
                   placeholder="e.g. Soundwave Music Fest 2026"
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-extrabold text-slate-700">Deskripsi Event / Detail Acara</label>
+                <textarea
+                  name="description"
+                  rows={3}
+                  defaultValue={editingEvent.description || editingEvent.desc || ''}
+                  placeholder="Tuliskan deskripsi lengkap mengenai event, guest star, rundown, dan informasi acara..."
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none resize-y"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-extrabold text-slate-700">Syarat & Ketentuan (Terms & Conditions)</label>
+                <textarea
+                  name="terms"
+                  rows={3}
+                  defaultValue={editingEvent.terms || editingEvent.terms_and_conditions || editingEvent.syarat_ketentuan || ''}
+                  placeholder="Tuliskan syarat & ketentuan penukaran tiket, batasan usia, aturan barang bawaan, dll..."
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none resize-y"
                 />
               </div>
 
@@ -1218,7 +1240,7 @@ export default function EventsPage() {
             )}
 
             {/* Form Modal */}
-            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <div className="space-y-1.5">
                 <label className="text-xs font-extrabold text-slate-700">Judul Event / Konser</label>
                 <input
@@ -1227,6 +1249,26 @@ export default function EventsPage() {
                   required
                   placeholder="e.g. Soundwave Music Fest 2026"
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-extrabold text-slate-700">Deskripsi Event / Detail Acara</label>
+                <textarea
+                  name="description"
+                  rows={3}
+                  placeholder="Tuliskan deskripsi lengkap mengenai event, guest star, rundown, dan informasi acara..."
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none resize-y"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-extrabold text-slate-700">Syarat & Ketentuan (Terms & Conditions)</label>
+                <textarea
+                  name="terms"
+                  rows={3}
+                  placeholder="Tuliskan syarat & ketentuan penukaran tiket, batasan usia, aturan barang bawaan, dll..."
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none resize-y"
                 />
               </div>
 

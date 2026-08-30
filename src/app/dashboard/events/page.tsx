@@ -239,6 +239,17 @@ export default function EventsPage() {
         formData.set('event_end_at', `${dateVal} 23:59:59`);
       }
 
+      const descVal = formData.get('description');
+      if (descVal) {
+        formData.set('desc', String(descVal));
+      }
+
+      const termsVal = formData.get('terms');
+      if (termsVal) {
+        formData.set('terms_and_conditions', String(termsVal));
+        formData.set('syarat_ketentuan', String(termsVal));
+      }
+
       await createEvent(formData);
 
       setIsModalOpen(false);
@@ -274,6 +285,17 @@ export default function EventsPage() {
       if (!formData.get('event_end_at') || formData.get('event_end_at') === '') {
         const dateVal = startDate ? String(startDate) : new Date().toISOString().split('T')[0];
         formData.set('event_end_at', `${dateVal} 23:59:59`);
+      }
+
+      const descVal = formData.get('description');
+      if (descVal) {
+        formData.set('desc', String(descVal));
+      }
+
+      const termsVal = formData.get('terms');
+      if (termsVal) {
+        formData.set('terms_and_conditions', String(termsVal));
+        formData.set('syarat_ketentuan', String(termsVal));
       }
 
       await updateEvent(editingEvent.id, formData);

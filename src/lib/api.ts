@@ -1,7 +1,8 @@
 'use me';
 
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'https://metix-backend.lufexa.id/api';
+export const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_URL || 'https://metix-backend.lufexa.id/api'
+).trim().replace(/\/+$/, '');
 
 export function getPhotoUrl(photoUrl?: string | null): string | null {
   if (!photoUrl) return null;

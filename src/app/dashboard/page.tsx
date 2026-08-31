@@ -27,11 +27,66 @@ export default function DashboardPage() {
     loadData();
   }, []);
 
-  const currentRole = dashboardData?.role || 'pembeli';
+  const storedUser = React.useMemo(() => {
+    if (typeof window !== 'undefined') {
+      const u = localStorage.getItem('metix_user');
+      if (u) {
+        try { return JSON.parse(u); } catch {}
+      }
+    }
+    return null;
+  }, []);
+
+  const isScannerAdmin = React.useMemo(() => {
+    return storedUser?.roles?.some((r: any) => r.name === 'admin');
+  }, [storedUser]);
+
+  const currentRole = isScannerAdmin ? 'admin' : (dashboardData?.role || 'pembeli');
 
   // Compute stat cards values based on authenticated role
   const statsToDisplay: StatMetric[] = React.useMemo(() => {
     const s = dashboardData?.stats;
+
+    if (currentRole === 'admin') {
+      return [
+        {
+          id: 's1',
+          title: 'Peran Akun',
+          value: 'Admin Scanner',
+          change: 'Active Staff',
+          isPositive: true,
+          period: 'penjaga pintu masuk',
+          iconName: 'Ticket',
+        },
+        {
+          id: 's2',
+          title: 'Status Scanner',
+          value: 'Siap Melayani',
+          change: 'Online',
+          isPositive: true,
+          period: 'kamera & manual input',
+          iconName: 'ShieldCheck',
+        },
+        {
+          id: 's3',
+          title: 'Tugas Utama',
+          value: 'Scan QR Code',
+          change: 'Gatekeeping',
+          isPositive: true,
+          period: 'verifikasi tiket pengunjung',
+          iconName: 'TrendingUp',
+        },
+        {
+          id: 's4',
+          title: 'Fitur Akses',
+          value: 'Scanner Only',
+          change: 'Terbatas',
+          isPositive: true,
+          period: 'akses khusus pintu masuk',
+          iconName: 'CalendarDays',
+        },
+      ];
+    }
 
     if (currentRole === 'owner') {
       return [
@@ -239,6 +294,14 @@ export default function DashboardPage() {
 
   // Dynamic Banner Content based on Role
   const bannerContent = React.useMemo(() => {
+    if (currentRole === 'admin') {
+      return {
+        badge: 'Admin Scanner Staff',
+        title: 'Gatekeeping Check-In & Validasi Tiket Entrance',
+        desc: 'Modul khusus petugas pintu masuk. Lakukan pemindaian QR Code atau input manual kode tiket pengunjung.',
+        icon: UserCheck,
+      };
+    }
     if (currentRole === 'owner') {
       return {
         badge: 'Platform Owner Dashboard',
@@ -266,12 +329,13 @@ export default function DashboardPage() {
   const BannerIcon = bannerContent.icon;
 
   const formattedPageTitle = React.useMemo(() => {
+    if (currentRole === 'admin') return 'Dashboard Admin Scanner';
     const r = dashboardData?.roleLabel;
     if (!r) return 'Dashboard Overview';
     if (r.startsWith('Event Organizer')) return 'Dashboard Event Organizer';
     if (r.startsWith('Super Admin')) return 'Dashboard Super Admin';
     return `Dashboard ${r}`;
-  }, [dashboardData]);
+  }, [dashboardData, currentRole]);
 
   return (
     <DashboardLayout pageTitle={formattedPageTitle} activeNav="Dashboard">
@@ -292,26 +356,37 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <button
-              onClick={() => window.print()}
-              className="px-5 py-3 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold flex items-center gap-2 transition-all shadow-2xs cursor-pointer"
-            >
-              <Download className="w-4 h-4" /> Export Report
-            </button>
-            {currentRole !== 'pembeli' ? (
+            {currentRole === 'admin' ? (
               <a
-                href="/dashboard/events"
-                className="px-5 py-3 rounded-xl bg-white hover:bg-blue-50 text-blue-700 text-xs font-extrabold flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all cursor-pointer"
+                href="/dashboard/checkin"
+                className="px-6 py-3.5 rounded-2xl bg-white hover:bg-blue-50 text-blue-800 text-xs sm:text-sm font-black flex items-center gap-2.5 shadow-xl shadow-blue-950/20 transition-all cursor-pointer hover:scale-105"
               >
-                <Plus className="w-4 h-4" /> Create Event
+                <UserCheck className="w-5 h-5 text-blue-600" /> Buka Scanner QR Code
               </a>
             ) : (
-              <a
-                href="/dashboard/tickets"
-                className="px-5 py-3 rounded-xl bg-white hover:bg-blue-50 text-blue-700 text-xs font-extrabold flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all cursor-pointer"
-              >
-                <Ticket className="w-4 h-4" /> Lihat E-Tiket Saya
-              </a>
+              <>
+                <button
+                  onClick={() => window.print()}
+                  className="px-5 py-3 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold flex items-center gap-2 transition-all shadow-2xs cursor-pointer"
+                >
+                  <Download className="w-4 h-4" /> Export Report
+                </button>
+                {currentRole !== 'pembeli' ? (
+                  <a
+                    href="/dashboard/events"
+                    className="px-5 py-3 rounded-xl bg-white hover:bg-blue-50 text-blue-700 text-xs font-extrabold flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Create Event
+                  </a>
+                ) : (
+                  <a
+                    href="/dashboard/tickets"
+                    className="px-5 py-3 rounded-xl bg-white hover:bg-blue-50 text-blue-700 text-xs font-extrabold flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all cursor-pointer"
+                  >
+                    <Ticket className="w-4 h-4" /> Lihat E-Tiket Saya
+                  </a>
+                )}
+              </>
             )}
           </div>
         </div>

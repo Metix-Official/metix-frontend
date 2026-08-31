@@ -1386,3 +1386,121 @@ export async function fetchAuditLogs(params?: {
   }
   return { logs: [], actionsList: [] };
 }
+
+export interface EoAdminUser {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string | null;
+  created_by?: number | null;
+  created_at?: string;
+  roles?: Array<{ id: number; name: string }>;
+}
+
+export interface CreateEoAdminPayload {
+  name: string;
+  email: string;
+  password?: string;
+  phone?: string;
+}
+
+export async function fetchEoAdmins(): Promise<EoAdminUser[]> {
+  const token = getStoredToken();
+  if (!token) return [];
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/eo/admins`, {
+      headers: {
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    return data?.admins || [];
+  } catch (error) {
+    console.warn('Failed to fetch EO admins:', error);
+    return [];
+  }
+}
+
+export async function createEoAdmin(payload: CreateEoAdminPayload): Promise<EoAdminUser> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/eo/admins`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal menambahkan admin scan baru.';
+    throw new Error(errorMsg);
+  }
+
+  return data?.admin;
+}
+
+export async function updateEoAdmin(adminId: number, payload: CreateEoAdminPayload): Promise<EoAdminUser> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/eo/admins/${adminId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal memperbarui admin scan.';
+    throw new Error(errorMsg);
+  }
+
+  return data?.admin;
+}
+
+export async function deleteEoAdmin(adminId: number): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/eo/admins/${adminId}`, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data?.message || 'Gagal menghapus admin scan.');
+  }
+
+  return true;
+}
+

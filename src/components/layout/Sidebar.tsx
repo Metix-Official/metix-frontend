@@ -64,6 +64,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       if (user.email === 'lutfifahri175@gmail.com' || roleNames.includes('mitra')) {
         return 'Event Organizer (EO)';
       }
+      if (roleNames.includes('admin')) {
+        return 'Admin Scanner Staff';
+      }
     }
     return 'Pembeli Tiket';
   }, [user]);
@@ -71,11 +74,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const planBadge = React.useMemo(() => {
     if (userRoleLabel === 'Super Admin Platform') return 'Platform Owner';
     if (userRoleLabel === 'Event Organizer (EO)') return 'EO Partner';
+    if (userRoleLabel === 'Admin Scanner Staff') return 'Staff Scanner';
     return 'Pembeli Tiket';
   }, [userRoleLabel]);
 
   // Dynamic Navigation Items per Role with distinct Href routes
   const roleNavItems = React.useMemo(() => {
+    if (userRoleLabel === 'Admin Scanner Staff') {
+      return [
+        { name: 'Dashboard', href: '/dashboard', iconName: 'LayoutDashboard' },
+        { name: 'Check-In QR (Scanner)', href: '/dashboard/checkin', iconName: 'QrCode' },
+      ];
+    }
     if (userRoleLabel === 'Super Admin Platform') {
       return [
         { name: 'Dashboard Owner', href: '/dashboard', iconName: 'LayoutDashboard' },
@@ -94,6 +104,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { name: 'Tiket & Kuota', href: '/dashboard/tickets', iconName: 'Ticket' },
         { name: 'Kasir Offline (POS)', href: '/dashboard/pos', iconName: 'CreditCard' },
         { name: 'Check-In QR', href: '/dashboard/checkin', iconName: 'QrCode' },
+        { name: 'Kelola Admin Scan', href: '/dashboard/admins', iconName: 'Users' },
         { name: 'Cetak Gelang', href: '/dashboard/wristbands', iconName: 'Printer' },
         { name: 'Laporan Penjualan', href: '/dashboard/reports', iconName: 'Send' },
         { name: 'Pengaturan', href: '/dashboard/settings', iconName: 'Settings' },

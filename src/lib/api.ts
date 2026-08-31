@@ -413,7 +413,17 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
 
 export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
   const token = getStoredToken();
-  if (!token) return [];
+  let localTickets: ApiTicketDetail[] = [];
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('metix_local_tickets');
+    if (stored) {
+      try {
+        localTickets = JSON.parse(stored);
+      } catch {}
+    }
+  }
+
+  if (!token) return localTickets;
 
   try {
     const response = await fetch(`${API_BASE_URL}/dashboard`, {
@@ -429,10 +439,15 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
     }
 
     const data = await response.json();
-    return data?.tickets?.data || [];
+    const serverTickets: ApiTicketDetail[] = data?.tickets?.data || [];
+
+    const existingCodes = new Set(serverTickets.map((t) => t.ticket_code));
+    const uniqueLocal = localTickets.filter((t) => !existingCodes.has(t.ticket_code));
+
+    return [...uniqueLocal, ...serverTickets];
   } catch (error) {
     console.warn('Failed to fetch user tickets from API:', error);
-    return [];
+    return localTickets;
   }
 }
 

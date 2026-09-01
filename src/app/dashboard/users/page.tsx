@@ -19,6 +19,13 @@ import { getUserRole, ROLES } from '@/lib/roles';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/sonner';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Building2,
   Users,
   Search,
@@ -271,17 +278,18 @@ export default function UserManagementPage() {
             {/* Filter & Search Bar */}
             <div className="flex items-center gap-3">
               {activeTab === 'organizers' && (
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                >
-                  <option value="all">Semua Status</option>
-                  <option value="PENDING_APPROVAL">Pending Approval</option>
-                  <option value="ACTIVE">Active (Approved)</option>
-                  <option value="REJECTED">Rejected</option>
-                  <option value="INACTIVE">Inactive</option>
-                </select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[180px] bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600">
+                    <SelectValue placeholder="Semua Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Status</SelectItem>
+                    <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
+                    <SelectItem value="ACTIVE">Active (Approved)</SelectItem>
+                    <SelectItem value="REJECTED">Rejected</SelectItem>
+                    <SelectItem value="INACTIVE">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
               )}
 
               <div className="relative flex-1 sm:w-64">

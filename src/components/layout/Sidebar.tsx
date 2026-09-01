@@ -190,8 +190,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={item.name}
                   href={item.href}
                   className={`flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs sm:text-sm font-bold transition-all duration-200 group ${isActive
-                    ? 'bg-blue-700 text-white shadow-md shadow-blue-700/20'
-                    : 'text-slate-700 hover:text-blue-700 hover:bg-blue-50/70'
+                      ? 'bg-blue-700 text-white shadow-md shadow-blue-700/20'
+                      : 'text-slate-700 hover:text-blue-700 hover:bg-blue-50/70'
                     }`}
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
@@ -205,8 +205,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {item.badge && (
                     <span
                       className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${isActive
-                        ? 'bg-white/20 text-white'
-                        : 'bg-blue-50 text-blue-700 border border-blue-200'
+                          ? 'bg-white/20 text-white'
+                          : 'bg-blue-50 text-blue-700 border border-blue-200'
                         }`}
                     >
                       {item.badge}

@@ -1593,3 +1593,85 @@ export async function saveOrganizerProfile(formData: FormData): Promise<ApiOrgan
   return data?.data || data;
 }
 
+// ----------------------------------------------------------------------
+// OWNER ORGANIZER APPROVAL APIs
+// ----------------------------------------------------------------------
+
+export async function fetchOwnerOrganizers(params?: {
+  search?: string;
+  status?: string;
+  page?: number;
+}): Promise<{
+  organizers: ApiOrganizerProfile[];
+  meta?: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}> {
+  const token = getStoredToken();
+  if (!token) return { organizers: [] };
+
+  try {
+    const url = new URL(`${API_BASE_URL}/owner/organizers`);
+    if (params?.search) url.searchParams.append('search', params.search);
+    if (params?.status) url.searchParams.append('status', params.status);
+    if (params?.page) url.searchParams.append('page', String(params.page));
+
+    const response = await fetch(url.toString(), {
+      headers: getHeaders(token),
+    });
+
+    if (!response.ok) return { organizers: [] };
+
+    const data = await response.json();
+    return {
+      organizers: data?.data || [],
+      meta: data?.meta,
+    };
+  } catch (error) {
+    console.warn('Failed to fetch owner organizers:', error);
+    return { organizers: [] };
+  }
+}
+
+export async function approveOwnerOrganizer(profileId: number): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/owner/organizers/${profileId}/approve`, {
+    method: 'POST',
+    headers: getHeaders(token),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data?.message || 'Gagal menyetujui profil organizer.');
+  }
+
+  return true;
+}
+
+export async function rejectOwnerOrganizer(profileId: number, reason: string): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/owner/organizers/${profileId}/reject`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getHeaders(token),
+    },
+    body: JSON.stringify({ reason }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data?.message || 'Gagal menolak profil organizer.');
+  }
+
+  return true;
+}
+
+

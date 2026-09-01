@@ -99,7 +99,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (currentRole === ROLES.OWNER) {
       return [
         { name: 'Dashboard Owner', href: '/dashboard', iconName: 'LayoutDashboard' },
-        { name: 'Profil Organisasi', href: '/dashboard/organization', iconName: 'Building2' },
         { name: 'Kelola Semua Akun', href: '/dashboard/users', iconName: 'Users', badge: 'Users' },
         { name: 'Persetujuan Dana', href: '/dashboard/withdrawals', iconName: 'CreditCard' },
         { name: 'Event Platform', href: '/dashboard/events', iconName: 'Calendar' },
@@ -145,9 +144,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-slate-200/90 text-slate-800 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        } flex flex-col justify-between shadow-xs`}
+        className={`fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-slate-200/90 text-slate-800 transition-transform duration-300 ease-in-out lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'
+          } flex flex-col justify-between shadow-xs`}
       >
         {/* Top Header / Branding */}
         <div>
@@ -181,7 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {roleNavItems.map((item) => {
               const IconComponent = ICON_MAP[item.iconName] || LayoutDashboard;
-              
+
               // Only highlight the single item matching current route pathname exactly
               const isActive =
                 pathname === item.href ||
@@ -191,28 +189,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs sm:text-sm font-bold transition-all duration-200 group ${
-                    isActive
-                      ? 'bg-blue-700 text-white shadow-md shadow-blue-700/20'
-                      : 'text-slate-700 hover:text-blue-700 hover:bg-blue-50/70'
-                  }`}
+                  className={`flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs sm:text-sm font-bold transition-all duration-200 group ${isActive
+                    ? 'bg-blue-700 text-white shadow-md shadow-blue-700/20'
+                    : 'text-slate-700 hover:text-blue-700 hover:bg-blue-50/70'
+                    }`}
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
                     <IconComponent
-                      className={`w-5 h-5 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
-                        isActive ? 'text-white' : 'text-slate-500 group-hover:text-blue-700'
-                      }`}
+                      className={`w-5 h-5 shrink-0 transition-transform duration-200 group-hover:scale-105 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-blue-700'
+                        }`}
                     />
                     <span className="whitespace-nowrap truncate">{item.name}</span>
                   </div>
 
                   {item.badge && (
                     <span
-                      className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
-                        isActive
-                          ? 'bg-white/20 text-white'
-                          : 'bg-blue-50 text-blue-700 border border-blue-200'
-                      }`}
+                      className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${isActive
+                        ? 'bg-white/20 text-white'
+                        : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        }`}
                     >
                       {item.badge}
                     </span>

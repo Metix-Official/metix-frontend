@@ -14,8 +14,11 @@ import {
   fetchTicketTypes,
   createTicketType,
   deleteTicketType,
+  fetchEventSetting,
+  updateEventSetting,
   ApiEvent,
   ApiTicketType,
+  ApiEventSetting,
   getPhotoUrl,
 } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -54,6 +57,14 @@ import {
   AlertCircle,
   Globe,
   AlertTriangle,
+  Settings,
+  ShieldCheck,
+  Sliders,
+  UserCheck,
+  Repeat,
+  FileCheck,
+  QrCode,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 export default function EventsPage() {
@@ -116,6 +127,87 @@ export default function EventsPage() {
   // Custom Delete Ticket Type Confirmation Modal State
   const [deletingTicketTypeTarget, setDeletingTicketTypeTarget] = useState<{ id: number; name: string } | null>(null);
   const [isDeletingTicketType, setIsDeletingTicketType] = useState(false);
+
+  // Event Settings Modal State
+  const [selectedEventForSettings, setSelectedEventForSettings] = useState<ApiEvent | null>(null);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isSettingsLoading, setIsSettingsLoading] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingAllowTransfer, setSettingAllowTransfer] = useState(true);
+  const [settingTransferFee, setSettingTransferFee] = useState<number>(0);
+  const [settingMaxPerOrder, setSettingMaxPerOrder] = useState<number>(5);
+  const [settingReservationTimeout, setSettingReservationTimeout] = useState<number>(15);
+  const [settingRequireIdentity, setSettingRequireIdentity] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+
+  const handleOpenSettingsModal = async (evt: ApiEvent) => {
+    setSelectedEventForSettings(evt);
+    setSettingsError(null);
+    setIsSettingsLoading(true);
+    setIsSettingsModalOpen(true);
+
+    try {
+      const settingData = await fetchEventSetting(evt.id);
+      if (settingData) {
+        setSettingAllowTransfer(settingData.allow_ticket_transfer);
+        setSettingTransferFee(settingData.transfer_fee || 0);
+        setSettingMaxPerOrder(settingData.max_ticket_per_order || 5);
+        setSettingReservationTimeout(settingData.reservation_timeout || 15);
+        setSettingRequireIdentity(settingData.require_identity);
+      } else if (evt.setting) {
+        setSettingAllowTransfer(evt.setting.allow_ticket_transfer);
+        setSettingTransferFee(evt.setting.transfer_fee || 0);
+        setSettingMaxPerOrder(evt.setting.max_ticket_per_order || 5);
+        setSettingReservationTimeout(evt.setting.reservation_timeout || 15);
+        setSettingRequireIdentity(evt.setting.require_identity);
+      } else {
+        setSettingAllowTransfer(true);
+        setSettingTransferFee(0);
+        setSettingMaxPerOrder(5);
+        setSettingReservationTimeout(15);
+        setSettingRequireIdentity(false);
+      }
+    } catch {
+      setSettingAllowTransfer(true);
+      setSettingTransferFee(0);
+      setSettingMaxPerOrder(5);
+      setSettingReservationTimeout(15);
+      setSettingRequireIdentity(false);
+    } finally {
+      setIsSettingsLoading(false);
+    }
+  };
+
+  const handleSaveSettingsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEventForSettings) return;
+
+    setIsSavingSettings(true);
+    setSettingsError(null);
+
+    try {
+      await updateEventSetting(selectedEventForSettings.id, {
+        allow_ticket_transfer: settingAllowTransfer,
+        transfer_fee: Number(settingTransferFee),
+        max_ticket_per_order: Number(settingMaxPerOrder),
+        reservation_timeout: Number(settingReservationTimeout),
+        require_identity: settingRequireIdentity,
+      });
+
+      toast.success('Pengaturan Event Berhasil Disimpan! ⚙️', {
+        description: `Pengaturan untuk event "${selectedEventForSettings.title}" telah diperbarui.`,
+      });
+
+      setIsSettingsModalOpen(false);
+      loadData();
+    } catch (err: any) {
+      const msg = err?.message || 'Gagal menyimpan pengaturan event.';
+      setSettingsError(msg);
+      toast.error('Gagal Menyimpan Pengaturan', { description: msg });
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
 
   const handleTicketPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/\D/g, '');
@@ -625,13 +717,11 @@ export default function EventsPage() {
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
               />
             </div>
-          </div>
-
-          {/* Events Grid */}
+              {/* Events Ticket-Style Grid */}
           {isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
               {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-72 w-full rounded-3xl" />
+                <Skeleton key={i} className="h-80 w-full rounded-3xl" />
               ))}
             </div>
           ) : filteredEvents.length > 0 ? (
@@ -642,9 +732,10 @@ export default function EventsPage() {
                 const venue = item.location || 'Jakarta International Expo';
 
                 let dateStr = '15 Sep 2026';
-                if (item.event_start_at) {
+                if (item.event_start_at || item.start_at) {
                   try {
-                    dateStr = new Date(item.event_start_at).toLocaleDateString('id-ID', {
+                    const rawDate = item.event_start_at || item.start_at;
+                    dateStr = new Date(rawDate!).toLocaleDateString('id-ID', {
                       day: '2-digit',
                       month: 'short',
                       year: 'numeric',
@@ -657,10 +748,14 @@ export default function EventsPage() {
                 return (
                   <div
                     key={item.id}
-                    className="overflow-hidden rounded-3xl bg-white border border-slate-200/90 shadow-xs hover:shadow-lg transition-all duration-300 flex flex-col justify-between group"
+                    className="relative overflow-hidden rounded-3xl bg-white border border-slate-200/90 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between group"
                   >
-                    {/* Banner Image */}
-                    <div className="relative h-40 bg-gradient-to-r from-blue-700 to-indigo-600 overflow-hidden">
+                    {/* Side Half-Moon Notches for Karcis / Ticket Cutout Effect */}
+                    <div className="absolute -left-3.5 top-[152px] w-7 h-7 rounded-full bg-slate-100 border-r border-slate-300 z-20 shadow-inner" />
+                    <div className="absolute -right-3.5 top-[152px] w-7 h-7 rounded-full bg-slate-100 border-l border-slate-300 z-20 shadow-inner" />
+
+                    {/* Ticket Header Banner */}
+                    <div className="relative h-44 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 overflow-hidden">
                       {bannerUrl ? (
                         <img
                           src={bannerUrl}
@@ -674,17 +769,25 @@ export default function EventsPage() {
                         </div>
                       )}
 
-                      <div className="absolute top-3 left-3 flex items-center gap-2">
-                        {getStatusBadge(item.status)}
+                      {/* Top Badges */}
+                      <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
+                        <div>{getStatusBadge(item.status)}</div>
+                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-black tracking-widest uppercase px-2.5 py-1 rounded-full border border-white/30">
+                          VIP TICKET PASS
+                        </span>
                       </div>
 
-                      <div className="absolute bottom-3 left-3 bg-slate-900/60 backdrop-blur-md text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 border border-white/20">
+                      {/* Bottom Category Badge */}
+                      <div className="absolute bottom-3 left-3 bg-slate-900/70 backdrop-blur-md text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 border border-white/20">
                         <Tag className="w-3 h-3 text-amber-400" /> {categoryName}
                       </div>
                     </div>
 
+                    {/* Dashed Perforated Ticket Coupon Line */}
+                    <div className="relative border-b-2 border-dashed border-slate-200 z-10 px-4 bg-white" />
+
                     {/* Body Content */}
-                    <div className="p-5 space-y-3 flex-1 bg-white">
+                    <div className="p-5 space-y-3 flex-1 bg-white relative">
                       <h3 className="text-base font-extrabold text-slate-900 tracking-tight leading-snug line-clamp-2 group-hover:text-blue-700 transition-colors">
                         {item.title}
                       </h3>
@@ -692,28 +795,63 @@ export default function EventsPage() {
                       <div className="space-y-2 text-xs text-slate-600 font-medium">
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
-                          <span>{dateStr}</span>
+                          <span className="font-bold text-slate-800">{dateStr}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
                           <span className="truncate">{venue}</span>
                         </div>
                       </div>
+
+                      {/* Event Settings Quick Badges */}
+                      <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-[10px] font-extrabold">
+                        {item.setting?.allow_ticket_transfer !== false ? (
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                            <Repeat className="w-3 h-3 text-emerald-600" /> Transfer Active
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200 flex items-center gap-1">
+                            <Repeat className="w-3 h-3 text-slate-400" /> No Transfer
+                          </span>
+                        )}
+
+                        <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                          Max: {item.setting?.max_ticket_per_order || 5} Tiket
+                        </span>
+
+                        <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                          Timeout: {item.setting?.reservation_timeout || 15}m
+                        </span>
+
+                        {item.setting?.require_identity && (
+                          <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                            <UserCheck className="w-3 h-3 text-amber-600" /> KTP Req.
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Manage Ticket Types Button (Harga & Kuota) */}
-                    <div className="px-4 pt-2">
-                      <button
-                        onClick={() => handleOpenTicketTypesModal(item)}
-                        className="w-full py-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                      >
-                        <Ticket className="w-4 h-4 text-blue-600" /> Kelola Harga & Kuota Tiket API
-                      </button>
+                    {/* Ticket Stub Action Buttons */}
+                    <div className="px-4 space-y-2 pb-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => handleOpenTicketTypesModal(item)}
+                          className="py-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                        >
+                          <Ticket className="w-4 h-4 text-blue-600" /> Tiket & Kuota
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenSettingsModal(item)}
+                          className="py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                        >
+                          <Settings className="w-4 h-4 text-slate-600" /> Settings
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Actions Footer (Publish/Archive, Copy, Edit, Delete) */}
-                    <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-1.5 mt-3">
-                      {/* Publish / Archive Dynamic Action */}
+                    {/* Actions Footer */}
+                    <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-1.5">
                       {item.status !== 'published' ? (
                         <button
                           disabled={actionEventId === item.id}
@@ -757,7 +895,7 @@ export default function EventsPage() {
                         className="py-2 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
                         title="Hapus Event"
                       >
-                        <Trash2 className="w-3.5 h-3.5" /> Hapus
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -1456,6 +1594,173 @@ export default function EventsPage() {
           </div>
         </div>
       )}
+
+      {/* ================= MODAL EVENT SETTINGS ================= */}
+      {isSettingsModalOpen && selectedEventForSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
+            {/* Header Modal */}
+            <div className="bg-gradient-to-r from-blue-700 to-indigo-700 p-6 text-white relative">
+              <button
+                type="button"
+                onClick={() => setIsSettingsModalOpen(false)}
+                className="absolute right-4 top-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-2 mb-1">
+                <Settings className="w-4 h-4 text-blue-200" />
+                <span className="text-xs font-extrabold uppercase tracking-wider text-blue-100">
+                  Pengaturan Event & Aturan Tiket
+                </span>
+              </div>
+              <h3 className="text-lg font-extrabold tracking-tight truncate">
+                {selectedEventForSettings.title}
+              </h3>
+            </div>
+
+            {settingsError && (
+              <div className="p-4 bg-rose-50 border-b border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{settingsError}</span>
+              </div>
+            )}
+
+            {isSettingsLoading ? (
+              <div className="p-8 space-y-4">
+                <Skeleton className="h-6 w-48 rounded-xl" />
+                <Skeleton className="h-24 w-full rounded-2xl" />
+                <Skeleton className="h-12 w-full rounded-xl" />
+              </div>
+            ) : (
+              <form onSubmit={handleSaveSettingsSubmit} className="p-6 space-y-5">
+                {/* Allow Ticket Transfer Switch */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <label className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5 cursor-pointer">
+                      <Repeat className="w-4 h-4 text-blue-600" /> Izinkan Transfer Tiket
+                    </label>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Pembeli tiket dapat mentransfer tiket ke pengguna lain secara online.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settingAllowTransfer}
+                    onChange={(e) => setSettingAllowTransfer(e.target.checked)}
+                    className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                  />
+                </div>
+
+                {/* Transfer Fee Input */}
+                {settingAllowTransfer && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 block">
+                      Biaya Layanan Transfer Tiket (Rp)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">
+                        Rp
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={settingTransferFee}
+                        onChange={(e) => setSettingTransferFee(Number(e.target.value))}
+                        placeholder="0"
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      Set 0 jika biaya transfer tiket gratis untuk pembeli.
+                    </p>
+                  </div>
+                )}
+
+                {/* Grid: Max Tickets per Order & Timeout */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 block">
+                      Maksimal Tiket / Order
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      required
+                      value={settingMaxPerOrder}
+                      onChange={(e) => setSettingMaxPerOrder(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="text-[10px] text-slate-400 font-medium">Default: 5 tiket per transaksi.</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 block">
+                      Timeout Reservasi (Menit)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="60"
+                      required
+                      value={settingReservationTimeout}
+                      onChange={(e) => setSettingReservationTimeout(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="text-[10px] text-slate-400 font-medium">Batas waktu bayar checkout.</p>
+                  </div>
+                </div>
+
+                {/* Require Identity Switch */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <label className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5 cursor-pointer">
+                      <UserCheck className="w-4 h-4 text-amber-600" /> Wajibkan Pengisian KTP / NIK
+                    </label>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Pembeli wajib mengisi nomor NIK/KTP dan data pemegang tiket saat checkout.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settingRequireIdentity}
+                    onChange={(e) => setSettingRequireIdentity(e.target.checked)}
+                    className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                  />
+                </div>
+
+                {/* Actions Footer */}
+                <div className="pt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsSettingsModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingSettings}
+                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {isSavingSettings ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" /> Simpan Pengaturan
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+      </div>
     </DashboardLayout>
   );
 }

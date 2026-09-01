@@ -82,14 +82,19 @@ export interface ApiTicketType {
 export interface ApiEvent {
   id: number;
   user_id?: number;
+  organizer_id?: number;
+  venue_id?: number;
   title: string;
   slug: string;
   description?: string | null;
   desc?: string | null;
-  venue?: string | null;
+  venue?: string | any | null;
   city?: string | null;
   location?: string | null;
   address?: string | null;
+  start_at?: string | null;
+  end_at?: string | null;
+  published_at?: string | null;
   start_time?: string;
   end_time?: string;
   event_start_at?: string;
@@ -103,6 +108,8 @@ export interface ApiEvent {
   syarat_ketentuan?: string | null;
   ticket_types?: ApiTicketType[];
   require_holder_name?: boolean;
+  setting?: ApiEventSetting | null;
+  organizer?: any;
 }
 
 export interface ApiTicketDetail {
@@ -1913,6 +1920,73 @@ export async function fetchWithdrawalDetail(withdrawalId: number): Promise<ApiWi
     return null;
   }
 }
+
+// ----------------------------------------------------------------------
+// EVENT SETTING APIs (EO PARTNER)
+// ----------------------------------------------------------------------
+
+export interface ApiEventSetting {
+  allow_ticket_transfer: boolean;
+  transfer_fee: number;
+  max_ticket_per_order: number;
+  reservation_timeout: number;
+  require_identity: boolean;
+}
+
+export async function fetchEventSetting(eventId: number): Promise<ApiEventSetting | null> {
+  const token = getStoredToken();
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/settings`, {
+      headers: getHeaders(token),
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    return data?.data?.setting || data?.data || data?.setting || null;
+  } catch (error) {
+    console.warn('Failed to fetch event setting:', error);
+    return null;
+  }
+}
+
+export async function updateEventSetting(
+  eventId: number,
+  payload: {
+    allow_ticket_transfer?: boolean;
+    transfer_fee?: number;
+    max_ticket_per_order?: number;
+    reservation_timeout?: number;
+    require_identity?: boolean;
+  }
+): Promise<ApiEventSetting> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/settings`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getHeaders(token),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal memperbarui pengaturan event.';
+    throw new Error(errorMsg);
+  }
+
+  return data?.data?.setting || data?.data || data;
+}
+
 
 
 

@@ -56,6 +56,7 @@ import {
 
 const COMMON_BANKS = [
   'Bank BCA',
+  'Bank BTN',
   'Bank Mandiri',
   'Bank BNI',
   'Bank BRI',
@@ -527,11 +528,10 @@ export default function WithdrawalManagementPage() {
               {bankAccounts.map((acc) => (
                 <div
                   key={acc.id}
-                  className={`p-5 rounded-2xl border transition-all duration-300 relative flex flex-col justify-between space-y-4 ${
-                    acc.is_primary
-                      ? 'bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-white border-blue-300 shadow-md shadow-blue-600/5'
-                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
-                  }`}
+                  className={`p-5 rounded-2xl border transition-all duration-300 relative flex flex-col justify-between space-y-4 ${acc.is_primary
+                    ? 'bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-white border-blue-300 shadow-md shadow-blue-600/5'
+                    : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
+                    }`}
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -1086,36 +1086,33 @@ export default function WithdrawalManagementPage() {
                   {/* Visual Stepper */}
                   <div className="grid grid-cols-3 gap-2 text-center pt-2">
                     <div
-                      className={`p-2 rounded-xl border text-[10px] font-extrabold ${
-                        selectedWithdrawalDetail.status === 'PENDING' ||
+                      className={`p-2 rounded-xl border text-[10px] font-extrabold ${selectedWithdrawalDetail.status === 'PENDING' ||
                         selectedWithdrawalDetail.status === 'APPROVED' ||
                         selectedWithdrawalDetail.status === 'COMPLETED'
-                          ? 'bg-blue-50 border-blue-300 text-blue-800'
-                          : 'bg-slate-100 border-slate-200 text-slate-400'
-                      }`}
+                        ? 'bg-blue-50 border-blue-300 text-blue-800'
+                        : 'bg-slate-100 border-slate-200 text-slate-400'
+                        }`}
                     >
                       1. Pengajuan
                     </div>
                     <div
-                      className={`p-2 rounded-xl border text-[10px] font-extrabold ${
-                        selectedWithdrawalDetail.status === 'APPROVED' ||
+                      className={`p-2 rounded-xl border text-[10px] font-extrabold ${selectedWithdrawalDetail.status === 'APPROVED' ||
                         selectedWithdrawalDetail.status === 'COMPLETED'
-                          ? 'bg-blue-50 border-blue-300 text-blue-800'
-                          : selectedWithdrawalDetail.status === 'PENDING'
+                        ? 'bg-blue-50 border-blue-300 text-blue-800'
+                        : selectedWithdrawalDetail.status === 'PENDING'
                           ? 'bg-amber-50 border-amber-300 text-amber-800'
                           : 'bg-slate-100 border-slate-200 text-slate-400'
-                      }`}
+                        }`}
                     >
                       2. Review Owner
                     </div>
                     <div
-                      className={`p-2 rounded-xl border text-[10px] font-extrabold ${
-                        selectedWithdrawalDetail.status === 'COMPLETED'
-                          ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                          : selectedWithdrawalDetail.status === 'REJECTED'
+                      className={`p-2 rounded-xl border text-[10px] font-extrabold ${selectedWithdrawalDetail.status === 'COMPLETED'
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                        : selectedWithdrawalDetail.status === 'REJECTED'
                           ? 'bg-rose-50 border-rose-300 text-rose-800'
                           : 'bg-slate-100 border-slate-200 text-slate-400'
-                      }`}
+                        }`}
                     >
                       3. Transfer Dana
                     </div>

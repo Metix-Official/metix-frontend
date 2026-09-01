@@ -30,6 +30,9 @@ import {
   getStoredToken,
   getStoredUser,
   fetchUserProfile,
+  createReservation,
+  checkoutOrder,
+  initiateOrderPayment,
   API_BASE_URL,
   ApiEvent,
   ApiTicketType,
@@ -192,15 +195,17 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
 
   const updateQuantity = (type: ApiTicketType, delta: number) => {
     const defaultHolder = buyerName || currentUser?.name || currentUser?.first_name || 'Pemegang Tiket';
+    const maxPerOrder = type.max_per_order || 5;
+    const currentStock = type.available_quota !== undefined ? type.available_quota : Math.max(0, (type.quota || 100) - (type.sold_quantity || 0));
+    const maxAllowed = Math.min(maxPerOrder, currentStock);
 
     setSelectedTickets((prev) => {
       const existing = prev.find((item) => item.ticketType.id === type.id);
-      const availableStock = Math.max(0, (type.quota || 100) - (type.sold_quantity || 0));
 
       if (existing) {
         const newQty = existing.quantity + delta;
-        if (newQty > availableStock) {
-          alert(`Stok tiket "${type.name}" tidak mencukupi.`);
+        if (newQty > maxAllowed) {
+          alert(`Maksimal pemesanan tiket "${type.name}" adalah ${maxAllowed} tiket.`);
           return prev;
         }
         if (newQty <= 0) {
@@ -218,7 +223,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
         );
       } else {
         if (delta <= 0) return prev;
-        if (availableStock < 1) {
+        if (maxAllowed < 1) {
           alert(`Stok tiket "${type.name}" telah habis.`);
           return prev;
         }
@@ -285,109 +290,28 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
     setIsSubmitting(true);
     setErrorMessage(null);
 
-    const token = getStoredToken();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const payload = {
-      buyer_name: buyerName,
-      buyer_email: buyerEmail,
-      buyer_phone: buyerPhone,
-      buyer_nik: buyerNik || undefined,
-      items: selectedTickets.map((st) => ({
-        ticket_type_id: st.ticketType.id,
-        quantity: st.quantity,
-        holder_names: st.holderNames.map((n) => (n && n.trim() ? n.trim() : buyerName)),
-      })),
-    };
-
     try {
-      const response = await fetch(`${API_BASE_URL}/events/${event.id}/orders`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
+      const firstSelection = selectedTickets[0];
+      const reservation = await createReservation({
+        event_id: event.id,
+        ticket_type_id: firstSelection.ticketType.id,
+        quantity: firstSelection.quantity,
       });
 
-      let data: any = {};
+      const orderData = await checkoutOrder({
+        reservation_id: reservation.id,
+      });
+
       try {
-        data = await response.json();
-      } catch {}
-
-      if (!response.ok) {
-        if (response.status === 500 || data?.message === 'Server Error') {
-          console.warn('Backend returned 500 Internal Server Error. Triggering resilient order fallback.');
-          const fallbackOrderNumber = `ORD-${Math.floor(100000 + Math.random() * 900000)}`;
-
-          if (typeof window !== 'undefined') {
-            let existingLocalTickets: any[] = [];
-            try {
-              const raw = localStorage.getItem('metix_local_tickets');
-              if (raw) existingLocalTickets = JSON.parse(raw);
-            } catch {}
-
-            const createdTickets: any[] = [];
-            selectedTickets.forEach((st) => {
-              for (let i = 0; i < st.quantity; i++) {
-                const holderName =
-                  st.holderNames[i] && st.holderNames[i].trim() ? st.holderNames[i].trim() : buyerName;
-                createdTickets.push({
-                  id: Date.now() + Math.floor(Math.random() * 10000),
-                  ticket_code: `TKT-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-                  status: 'active',
-                  created_at: new Date().toISOString(),
-                  event: {
-                    id: event.id,
-                    title: event.title,
-                    location: event.location || undefined,
-                    address: event.address || undefined,
-                    event_start_at: event.event_start_at,
-                    event_end_at: event.event_end_at,
-                    banner: event.banner || undefined,
-                    venue_photo: event.venue_photo || undefined,
-                  },
-                  ticket_type: {
-                    name: st.ticketType.name,
-                    price: st.ticketType.price,
-                  },
-                  order: {
-                    order_number: fallbackOrderNumber,
-                    buyer_name: holderName,
-                    buyer_email: buyerEmail,
-                  },
-                });
-              }
-            });
-
-            localStorage.setItem(
-              'metix_local_tickets',
-              JSON.stringify([...createdTickets, ...existingLocalTickets])
-            );
-          }
-
-          setCompletedOrder({
-            order_number: fallbackOrderNumber,
-            buyer_name: buyerName,
-            buyer_email: buyerEmail,
-            total_price: totalPrice,
-          });
-          return;
+        const paymentRes = await initiateOrderPayment(orderData.id);
+        if (paymentRes.payment_url) {
+          orderData.payment_url = paymentRes.payment_url;
         }
-
-        const msg =
-          data?.message ||
-          (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
-          'Gagal memproses pemesanan tiket.';
-        throw new Error(msg);
+      } catch (e) {
+        console.warn('Payment init info:', e);
       }
 
-      setCompletedOrder(data.order || data);
+      setCompletedOrder(orderData);
     } catch (err: any) {
       setErrorMessage(err?.message || 'Pemesanan gagal. Silakan coba kembali.');
     } finally {

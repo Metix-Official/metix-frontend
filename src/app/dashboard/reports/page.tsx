@@ -10,6 +10,7 @@ import {
   ReportOrderItem,
   ApiEvent,
 } from '@/lib/api';
+import { getUserRole, ROLES } from '@/lib/roles';
 import { Skeleton } from '@/components/ui/Skeleton';
 import {
   Select,
@@ -56,26 +57,7 @@ export default function ReportsPage() {
 
   // Role Determination
   const currentRole = useMemo(() => {
-    if (!user) return 'mitra';
-    const roleNames = user.roles ? user.roles.map((r: any) => r.name.toLowerCase()) : [];
-    if (
-      user.email === 'admin@metix.com' ||
-      roleNames.includes('owner') ||
-      roleNames.includes('admin') ||
-      roleNames.includes('superadmin')
-    ) {
-      return 'owner';
-    }
-    if (
-      roleNames.includes('mitra') ||
-      roleNames.includes('eo') ||
-      roleNames.includes('organizer') ||
-      user.mitra_status === 'approved' ||
-      user.email === 'lutfifahri175@gmail.com'
-    ) {
-      return 'mitra';
-    }
-    return 'pembeli';
+    return getUserRole(user) || ROLES.EO;
   }, [user]);
 
   const loadData = async () => {
@@ -197,7 +179,7 @@ export default function ReportsPage() {
 
   // Header Banner Content per Role
   const headerInfo = useMemo(() => {
-    if (currentRole === 'owner') {
+    if (currentRole === ROLES.OWNER) {
       return {
         badge: 'PLATFORM FINANCIAL & AUDIT REPORT',
         title: 'Laporan Keuangan & Penjualan Platform Nasional',
@@ -205,7 +187,7 @@ export default function ReportsPage() {
         icon: ShieldCheck,
       };
     }
-    if (currentRole === 'mitra') {
+    if (currentRole === ROLES.EO) {
       return {
         badge: 'REKAPITULASI PENJUALAN EO',
         title: 'Laporan Penjualan Tiket Event EO',
@@ -268,7 +250,7 @@ export default function ReportsPage() {
           
           <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
             <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">
-              {currentRole === 'owner' ? 'Omzet Platform Nasional' : 'Total Omzet Penjualan'}
+              {currentRole === ROLES.OWNER ? 'Omzet Platform Nasional' : 'Total Omzet Penjualan'}
             </span>
             <div className="flex items-center justify-between">
               <h4 className="text-2xl font-black text-slate-900">

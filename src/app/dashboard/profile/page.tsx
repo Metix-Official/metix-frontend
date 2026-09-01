@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { fetchUserProfile, updateUserProfile, UserProfile, getPhotoUrl } from '@/lib/api';
+import { getUserRole, ROLES } from '@/lib/roles';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { User, Mail, Phone, ShieldCheck, MapPin, CheckCircle2, Save, BadgeCheck, Camera, Loader2 } from 'lucide-react';
 
@@ -31,7 +32,7 @@ export default function ProfilePage() {
     loadProfile();
   }, []);
 
-  const displayName = profile?.name || profile?.first_name || 'Guest User';
+  const displayName = profile?.name || profile?.first_name || 'Pengguna Metix';
   const displayEmail = profile?.email || 'guest@gmail.com';
   const initials = displayName
     .split(' ')
@@ -41,16 +42,18 @@ export default function ProfilePage() {
     .toUpperCase();
 
   const roleLabel = React.useMemo(() => {
-    if (profile) {
-      const roleNames = profile.roles ? profile.roles.map((r) => r.name) : [];
-      if (profile.email === 'admin@metix.com' || roleNames.includes('owner')) {
+    const role = getUserRole(profile);
+    switch (role) {
+      case ROLES.OWNER:
         return 'Super Admin Platform';
-      }
-      if (profile.email === 'lutfifahri175@gmail.com' || roleNames.includes('mitra')) {
+      case ROLES.EO:
         return 'Event Organizer (EO)';
-      }
+      case ROLES.SCANNER:
+        return 'Admin Scanner Staff';
+      case ROLES.BUYER:
+      default:
+        return 'Pembeli Tiket (Customer)';
     }
-    return 'Pembeli Tiket (Customer)';
   }, [profile]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

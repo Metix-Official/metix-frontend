@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { fetchOwnerUsers, approveMitraUser, rejectMitraUser, updateUserRole, UserProfile, getPhotoUrl } from '@/lib/api';
+import { getUserRole, ROLES } from '@/lib/roles';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Users, Search, CheckCircle2, XCircle, ShieldCheck, UserCheck, BadgeCheck, Mail, Phone, RefreshCw, UserPlus, UserMinus, ChevronDown } from 'lucide-react';
 
@@ -59,25 +60,33 @@ export default function UserManagementPage() {
     setUpdatingUserId(null);
   };
 
+
   const getUserRoleBadge = (u: UserProfile) => {
-    const roleNames = u.roles ? u.roles.map((r) => r.name) : [];
-    if (u.email === 'admin@metix.com' || roleNames.includes('owner')) {
+    const role = getUserRole(u);
+    if (role === ROLES.OWNER) {
       return (
         <span className="inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 whitespace-nowrap">
-          <ShieldCheck className="w-3 h-3 text-purple-600 shrink-0" /> Super Admin
+          <ShieldCheck className="w-3 h-3 text-purple-600 shrink-0" /> Super Admin (Owner)
         </span>
       );
     }
-    if (u.email === 'lutfifahri175@gmail.com' || roleNames.includes('mitra')) {
+    if (role === ROLES.EO) {
       return (
         <span className="inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
           <BadgeCheck className="w-3 h-3 text-blue-600 shrink-0" /> Event Organizer (EO)
         </span>
       );
     }
+    if (role === ROLES.SCANNER) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+          <BadgeCheck className="w-3 h-3 text-amber-600 shrink-0" /> Admin Scanner Staff
+        </span>
+      );
+    }
     return (
       <span className="inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
-        <UserCheck className="w-3 h-3 text-slate-500 shrink-0" /> Pembeli Tiket
+        <UserCheck className="w-3 h-3 text-slate-500 shrink-0" /> Pembeli Tiket (Buyer)
       </span>
     );
   };

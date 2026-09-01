@@ -11,7 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { loginUser, registerUser } from '@/lib/api';
+import { loginUser, registerUser, UserProfile, getStoredUser } from '@/lib/api';
+import { getDefaultRoleDashboard } from '@/lib/roles';
 import Link from 'next/link';
 
 interface AuthModalProps {
@@ -47,6 +48,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [registerRole, setRegisterRole] = useState<'BUYER' | 'EO'>('BUYER');
   const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
 
@@ -61,15 +63,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleAuthCompletion = () => {
+  const handleAuthCompletion = (userObj?: UserProfile | null) => {
     onClose();
     if (onSuccess) {
       onSuccess();
     } else if (typeof window !== 'undefined') {
       const pathname = window.location.pathname;
-      // Only redirect to dashboard if not on an event page
+      // Only redirect to role dashboard if not currently completing checkout on an event page
       if (!pathname.includes('/events')) {
-        router.push('/dashboard');
+        const user = userObj || getStoredUser();
+        const targetDashboard = getDefaultRoleDashboard(user);
+        router.push(targetDashboard);
       }
     }
   };
@@ -80,11 +84,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsSubmittingLogin(true);
 
     try {
-      await loginUser({
+      const res = await loginUser({
         email: loginEmail,
         password: loginPassword,
       });
-      handleAuthCompletion();
+      handleAuthCompletion(res.user);
     } catch (err: any) {
       setLoginError(err.message || 'Email atau password yang Anda masukkan salah.');
     } finally {
@@ -105,11 +109,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const dayPadded = birthDay.padStart(2, '0');
     const formattedBirthDate = `${birthYear}-${monthNum}-${dayPadded}`;
 
+    const passToUse = password || 'password123';
     try {
       await registerUser({
         name,
         email,
-        password: password || 'password123',
+        password: passToUse,
+        password_confirmation: passToUse,
+        role: registerRole,
         phone,
         gender: gender === 'male' ? 'Laki-Laki' : 'Perempuan',
         birth_date: formattedBirthDate,
@@ -312,6 +319,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
               {/* Registration Form Fields */}
               <form onSubmit={handleApiRegisterSubmit} className="space-y-4">
+                {/* Peran / Role Akun */}
+                <div className="space-y-1.5 text-left">
+                  <label className="text-xs font-bold text-slate-800">
+                    Daftar Sebagai
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setRegisterRole('BUYER')}
+                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                        registerRole === 'BUYER'
+                          ? 'border-blue-600 bg-blue-50/70 text-blue-700 shadow-xs'
+                          : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>Pembeli Tiket</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRegisterRole('EO')}
+                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                        registerRole === 'EO'
+                          ? 'border-purple-600 bg-purple-50/70 text-purple-700 shadow-xs'
+                          : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>Event Organizer (EO)</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Nama Lengkap */}
                 <div className="space-y-1.5 text-left">
                   <label className="text-xs font-bold text-slate-800">

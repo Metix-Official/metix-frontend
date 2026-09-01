@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import {
   fetchMyEvents,
+  fetchScannerEvents,
   processCheckIn,
   ApiEvent,
   CheckInResponse,
@@ -81,10 +82,14 @@ export default function CheckInPage() {
 
   const loadEvents = async () => {
     setIsLoading(true);
-    const data = await fetchMyEvents();
-    setEvents(data.events);
-    if (data.events.length > 0) {
-      const activeEvt = data.events.find((e) => e.status === 'published') || data.events[0];
+    let evts = await fetchScannerEvents();
+    if (!evts || evts.length === 0) {
+      const data = await fetchMyEvents();
+      evts = data.events;
+    }
+    setEvents(evts);
+    if (evts.length > 0) {
+      const activeEvt = evts.find((e: ApiEvent) => e.status === 'published') || evts[0];
       setSelectedEvent(activeEvt);
     }
     setIsLoading(false);

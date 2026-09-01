@@ -17,6 +17,7 @@ import {
   Printer,
 } from 'lucide-react';
 import { UserProfile, getPhotoUrl } from '@/lib/api';
+import { getUserRole, ROLES } from '@/lib/roles';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -54,39 +55,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
     .substring(0, 2)
     .toUpperCase();
 
+  const currentRole = React.useMemo(() => getUserRole(user), [user]);
+
   // Role badge logic
   const userRoleLabel = React.useMemo(() => {
-    if (user) {
-      const roleNames = user.roles ? user.roles.map((r) => r.name) : [];
-      if (user.email === 'admin@metix.com' || roleNames.includes('owner')) {
+    switch (currentRole) {
+      case ROLES.OWNER:
         return 'Super Admin Platform';
-      }
-      if (user.email === 'lutfifahri175@gmail.com' || roleNames.includes('mitra')) {
+      case ROLES.EO:
         return 'Event Organizer (EO)';
-      }
-      if (roleNames.includes('admin')) {
+      case ROLES.SCANNER:
         return 'Admin Scanner Staff';
-      }
+      case ROLES.BUYER:
+      default:
+        return 'Pembeli Tiket';
     }
-    return 'Pembeli Tiket';
-  }, [user]);
+  }, [currentRole]);
 
   const planBadge = React.useMemo(() => {
-    if (userRoleLabel === 'Super Admin Platform') return 'Platform Owner';
-    if (userRoleLabel === 'Event Organizer (EO)') return 'EO Partner';
-    if (userRoleLabel === 'Admin Scanner Staff') return 'Staff Scanner';
-    return 'Pembeli Tiket';
-  }, [userRoleLabel]);
+    switch (currentRole) {
+      case ROLES.OWNER:
+        return 'Platform Owner';
+      case ROLES.EO:
+        return 'EO Partner';
+      case ROLES.SCANNER:
+        return 'Staff Scanner';
+      case ROLES.BUYER:
+      default:
+        return 'Pembeli Tiket';
+    }
+  }, [currentRole]);
 
   // Dynamic Navigation Items per Role with distinct Href routes
   const roleNavItems = React.useMemo(() => {
-    if (userRoleLabel === 'Admin Scanner Staff') {
+    if (currentRole === ROLES.SCANNER) {
       return [
-        { name: 'Dashboard', href: '/dashboard', iconName: 'LayoutDashboard' },
-        { name: 'Check-In QR (Scanner)', href: '/dashboard/checkin', iconName: 'QrCode' },
+        { name: 'Dashboard Scanner', href: '/dashboard/checkin', iconName: 'QrCode' },
+        { name: 'Profil Saya', href: '/dashboard/profile', iconName: 'Users' },
       ];
     }
-    if (userRoleLabel === 'Super Admin Platform') {
+    if (currentRole === ROLES.OWNER) {
       return [
         { name: 'Dashboard Owner', href: '/dashboard', iconName: 'LayoutDashboard' },
         { name: 'Kelola Semua Akun', href: '/dashboard/users', iconName: 'Users', badge: 'Users' },
@@ -97,9 +105,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { name: 'Pengaturan Platform', href: '/dashboard/settings', iconName: 'Settings' },
       ];
     }
-    if (userRoleLabel === 'Event Organizer (EO)') {
+    if (currentRole === ROLES.EO) {
       return [
-        { name: 'Dashboard', href: '/dashboard', iconName: 'LayoutDashboard' },
+        { name: 'Dashboard EO', href: '/dashboard', iconName: 'LayoutDashboard' },
         { name: 'Event Saya', href: '/dashboard/events', iconName: 'Calendar', badge: 'Aktif' },
         { name: 'Tiket & Kuota', href: '/dashboard/tickets', iconName: 'Ticket' },
         { name: 'Kasir Offline (POS)', href: '/dashboard/pos', iconName: 'CreditCard' },
@@ -110,7 +118,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { name: 'Pengaturan', href: '/dashboard/settings', iconName: 'Settings' },
       ];
     }
-    // Default Role: Pembeli Tiket
+    // Default Role: BUYER
     return [
       { name: 'Dashboard', href: '/dashboard', iconName: 'LayoutDashboard' },
       { name: 'Tiket Saya', href: '/dashboard/tickets', iconName: 'Ticket' },
@@ -118,7 +126,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       { name: 'Profil Saya', href: '/dashboard/profile', iconName: 'Users' },
       { name: 'Pengaturan', href: '/dashboard/settings', iconName: 'Settings' },
     ];
-  }, [userRoleLabel]);
+  }, [currentRole]);
 
   return (
     <>

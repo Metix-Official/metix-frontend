@@ -1,8 +1,15 @@
-'use me';
+let envUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://metix-backend.lufexa.id/api/v1').trim().replace(/\/+$/, '');
 
-export const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL || 'https://metix-backend.lufexa.id/api/v1'
-).trim().replace(/\/+$/, '');
+// Ensure /v1 is always appended to API_BASE_URL
+if (!envUrl.endsWith('/v1')) {
+  if (envUrl.endsWith('/api')) {
+    envUrl = `${envUrl}/v1`;
+  } else {
+    envUrl = `${envUrl}/api/v1`;
+  }
+}
+
+export const API_BASE_URL = envUrl;
 
 export function getPhotoUrl(photoUrl?: string | null): string | null {
   if (!photoUrl) return null;

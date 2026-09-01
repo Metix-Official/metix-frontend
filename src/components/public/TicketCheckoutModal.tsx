@@ -24,6 +24,7 @@ import {
   IdCard,
   ChevronDown,
   ChevronUp,
+  Clock,
 } from 'lucide-react';
 import {
   fetchTicketTypes,
@@ -94,6 +95,33 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [completedOrder, setCompletedOrder] = useState<any | null>(null);
+
+  // 10-Minute Reservation Countdown Timer State (600 seconds)
+  const [timeLeft, setTimeLeft] = useState<number>(600);
+
+  useEffect(() => {
+    if (!isOpen || completedOrder || !isUserLoggedIn) return;
+
+    setTimeLeft(600); // Reset to 10 minutes
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isOpen, completedOrder, isUserLoggedIn]);
+
+  const formattedTimer = useMemo(() => {
+    const mins = Math.floor(timeLeft / 60);
+    const secs = timeLeft % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }, [timeLeft]);
 
   useEffect(() => {
     if (isOpen && event) {
@@ -339,6 +367,26 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
           <p className="text-xs text-blue-100 font-medium truncate mt-0.5">
             {event.location || 'Venue Event'} — {event.category || 'Music Concert'}
           </p>
+
+          {/* Live 10-Minute Checkout Timer Badge */}
+          {isUserLoggedIn && !completedOrder && (
+            <div className="mt-3 pt-2.5 border-t border-white/15 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-blue-100">
+                <Clock className="w-4 h-4 text-amber-300 animate-pulse" />
+                <span>Batas Waktu Checkout:</span>
+              </div>
+              <div
+                className={`px-3 py-1 rounded-full font-mono text-xs font-black tracking-wider shadow-sm flex items-center gap-1.5 transition-all ${
+                  timeLeft <= 180
+                    ? 'bg-rose-500 text-white animate-pulse'
+                    : 'bg-amber-400 text-slate-950'
+                }`}
+              >
+                <span>{formattedTimer}</span>
+                <span className="text-[10px] uppercase font-bold text-slate-900/70">menit</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Scrollable Body Container */}
@@ -433,6 +481,25 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
           ) : (
             /* Booking Form */
             <form onSubmit={handleSubmitOrder} className="space-y-5">
+              {timeLeft === 0 && (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-2 text-xs animate-in fade-in-0 shadow-2xs">
+                  <div className="flex items-center gap-2 font-black text-rose-700">
+                    <AlertCircle className="w-5 h-5 shrink-0 text-rose-600" />
+                    <span>Batas Waktu Checkout 10 Menit Telah Habis!</span>
+                  </div>
+                  <p className="text-slate-600 font-medium">
+                    Batas waktu pengisian data selama 10 menit telah berakhir. Silakan muat ulang waktu atau pilih kembali tiket Anda.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setTimeLeft(600)}
+                    className="mt-1 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    Reset Waktu (10 Menit)
+                  </button>
+                </div>
+              )}
+
               {errorMessage && (
                 <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
@@ -761,7 +828,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
 
                     <button
                       type="submit"
-                      disabled={isSubmitting || !isFormValid}
+                      disabled={isSubmitting || !isFormValid || timeLeft === 0}
                       className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-extrabold text-xs shadow-lg shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-blue-600 disabled:hover:to-indigo-700"
                     >
                       {isSubmitting ? (

@@ -229,15 +229,23 @@ export default function EventsPage() {
 
     try {
       const formData = new FormData(e.currentTarget);
-      const startDate = formData.get('event_start_at');
-      if (startDate && !String(startDate).includes(' ')) {
-        formData.set('event_start_at', `${startDate} 09:00:00`);
+
+      let dateBase = '';
+      if (createDate) {
+        dateBase = format(createDate, 'yyyy-MM-dd');
+      } else {
+        const raw = formData.get('event_start_at') || formData.get('start_at');
+        if (raw && String(raw).trim() !== '') dateBase = String(raw).split(' ')[0];
+        else dateBase = format(new Date(), 'yyyy-MM-dd');
       }
 
-      if (!formData.get('event_end_at') || formData.get('event_end_at') === '') {
-        const dateVal = startDate ? String(startDate) : new Date().toISOString().split('T')[0];
-        formData.set('event_end_at', `${dateVal} 23:59:59`);
-      }
+      const startAt = `${dateBase} 09:00:00`;
+      const endAt = `${dateBase} 23:59:59`;
+
+      formData.set('start_at', startAt);
+      formData.set('end_at', endAt);
+      formData.set('event_start_at', startAt);
+      formData.set('event_end_at', endAt);
 
       const descVal = formData.get('description');
       if (descVal) {
@@ -277,15 +285,29 @@ export default function EventsPage() {
 
     try {
       const formData = new FormData(e.currentTarget);
-      const startDate = formData.get('event_start_at');
-      if (startDate && !String(startDate).includes(' ')) {
-        formData.set('event_start_at', `${startDate} 09:00:00`);
+
+      let dateBase = '';
+      if (editDate) {
+        dateBase = format(editDate, 'yyyy-MM-dd');
+      } else {
+        const raw = formData.get('event_start_at') || formData.get('start_at');
+        if (raw && String(raw).trim() !== '') {
+          dateBase = String(raw).split(' ')[0];
+        } else if (editingEvent.event_start_at || (editingEvent as any).start_at) {
+          const rawStart = editingEvent.event_start_at || (editingEvent as any).start_at;
+          dateBase = String(rawStart).split(' ')[0].split('T')[0];
+        } else {
+          dateBase = format(new Date(), 'yyyy-MM-dd');
+        }
       }
 
-      if (!formData.get('event_end_at') || formData.get('event_end_at') === '') {
-        const dateVal = startDate ? String(startDate) : new Date().toISOString().split('T')[0];
-        formData.set('event_end_at', `${dateVal} 23:59:59`);
-      }
+      const startAt = `${dateBase} 09:00:00`;
+      const endAt = `${dateBase} 23:59:59`;
+
+      formData.set('start_at', startAt);
+      formData.set('end_at', endAt);
+      formData.set('event_start_at', startAt);
+      formData.set('event_end_at', endAt);
 
       const descVal = formData.get('description');
       if (descVal) {
@@ -959,8 +981,13 @@ export default function EventsPage() {
                   <label className="text-xs font-extrabold text-slate-700">Tanggal Pelaksanaan</label>
                   <input
                     type="hidden"
+                    name="start_at"
+                    value={editDate ? format(editDate, 'yyyy-MM-dd HH:mm:ss') : ''}
+                  />
+                  <input
+                    type="hidden"
                     name="event_start_at"
-                    value={editDate ? format(editDate, 'yyyy-MM-dd') : ''}
+                    value={editDate ? format(editDate, 'yyyy-MM-dd HH:mm:ss') : ''}
                   />
                   <Popover open={isEditDateOpen} onOpenChange={setIsEditDateOpen}>
                     <PopoverTrigger asChild>
@@ -1342,8 +1369,13 @@ export default function EventsPage() {
                   <label className="text-xs font-extrabold text-slate-700">Tanggal Pelaksanaan</label>
                   <input
                     type="hidden"
+                    name="start_at"
+                    value={createDate ? format(createDate, 'yyyy-MM-dd HH:mm:ss') : ''}
+                  />
+                  <input
+                    type="hidden"
                     name="event_start_at"
-                    value={createDate ? format(createDate, 'yyyy-MM-dd') : ''}
+                    value={createDate ? format(createDate, 'yyyy-MM-dd HH:mm:ss') : ''}
                   />
                   <Popover open={isCreateDateOpen} onOpenChange={setIsCreateDateOpen}>
                     <PopoverTrigger asChild>

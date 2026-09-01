@@ -15,6 +15,7 @@ import {
   TicketPercent,
   Sparkles,
   Printer,
+  Building2,
 } from 'lucide-react';
 import { UserProfile, getPhotoUrl } from '@/lib/api';
 import { getUserRole, ROLES } from '@/lib/roles';
@@ -38,6 +39,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Send,
   Settings,
   Printer,
+  Building2,
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -97,6 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (currentRole === ROLES.OWNER) {
       return [
         { name: 'Dashboard Owner', href: '/dashboard', iconName: 'LayoutDashboard' },
+        { name: 'Profil Organisasi', href: '/dashboard/organization', iconName: 'Building2' },
         { name: 'Kelola Semua Akun', href: '/dashboard/users', iconName: 'Users', badge: 'Users' },
         { name: 'Persetujuan Dana', href: '/dashboard/withdrawals', iconName: 'CreditCard' },
         { name: 'Event Platform', href: '/dashboard/events', iconName: 'Calendar' },
@@ -108,6 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (currentRole === ROLES.EO) {
       return [
         { name: 'Dashboard EO', href: '/dashboard', iconName: 'LayoutDashboard' },
+        { name: 'Profil Organisasi', href: '/dashboard/organization', iconName: 'Building2', badge: 'EO' },
         { name: 'Event Saya', href: '/dashboard/events', iconName: 'Calendar', badge: 'Aktif' },
         { name: 'Tiket & Kuota', href: '/dashboard/tickets', iconName: 'Ticket' },
         { name: 'Kasir Offline (POS)', href: '/dashboard/pos', iconName: 'CreditCard' },

@@ -1518,3 +1518,78 @@ export async function deleteEoAdmin(adminId: number): Promise<boolean> {
 
   return true;
 }
+
+// ----------------------------------------------------------------------
+// ORGANIZER PROFILE (ORGANISASI) APIs
+// ----------------------------------------------------------------------
+
+export interface ApiOrganizerProfile {
+  id?: number;
+  user_id?: number;
+  organization_name: string;
+  logo?: string | null;
+  description?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  status?: 'PENDING_APPROVAL' | 'ACTIVE' | 'INACTIVE' | 'REJECTED';
+  rejection_reason?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function fetchOrganizerProfile(): Promise<ApiOrganizerProfile | null> {
+  const token = getStoredToken();
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/organizer/profile`, {
+      headers: getHeaders(token),
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    return data?.data || data?.profile || data || null;
+  } catch (error) {
+    console.warn('Failed to fetch organizer profile:', error);
+    return null;
+  }
+}
+
+export async function saveOrganizerProfile(formData: FormData): Promise<ApiOrganizerProfile> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const existingProfile = await fetchOrganizerProfile();
+  const isUpdate = !!existingProfile;
+
+  let response: Response;
+  if (isUpdate) {
+    formData.append('_method', 'PUT');
+    response = await fetch(`${API_BASE_URL}/organizer/profile`, {
+      method: 'POST',
+      headers: getHeaders(token),
+      body: formData,
+    });
+  } else {
+    response = await fetch(`${API_BASE_URL}/organizer/profile`, {
+      method: 'POST',
+      headers: getHeaders(token),
+      body: formData,
+    });
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal menyimpan profil organisasi.';
+    throw new Error(errorMsg);
+  }
+
+  return data?.data || data;
+}
+

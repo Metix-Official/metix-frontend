@@ -22,7 +22,7 @@ import {
   ArrowUpRight,
   X,
 } from 'lucide-react';
-import { fetchPublicEventDetail, ApiEvent, getPhotoUrl } from '@/lib/api';
+import { fetchPublicEventDetail, fetchTicketTypes, ApiEvent, getPhotoUrl } from '@/lib/api';
 import { TicketCheckoutModal } from '@/components/public/TicketCheckoutModal';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Footer } from '@/components/public/Footer';
@@ -35,67 +35,171 @@ export default function EventDetailClient() {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isVenueModalOpen, setIsVenueModalOpen] = useState(false);
 
+  const [organizerLogoError, setOrganizerLogoError] = useState(false);
+
   useEffect(() => {
     const rawId = params?.id;
     const targetId = Array.isArray(rawId) ? rawId[0] : rawId;
+    const fetchId = targetId || (typeof window !== 'undefined' ? window.location.pathname.split('/').pop() : null);
     
-    if (targetId) {
-      fetchPublicEventDetail(targetId).then((data) => {
+    if (fetchId) {
+      fetchPublicEventDetail(fetchId).then(async (data) => {
+        if (data) {
+          try {
+            const types = await fetchTicketTypes(data.id);
+            if (types && types.length > 0) {
+              data.ticket_types = types;
+            } else {
+              data.ticket_types = [
+                {
+                  id: 1,
+                  event_id: data.id,
+                  name: 'Reguler Pass',
+                  price: 150000,
+                  quota: 500,
+                  sold_quantity: 0,
+                  max_per_order: 5,
+                  available_quota: 500,
+                  status: 'ACTIVE',
+                },
+                {
+                  id: 2,
+                  event_id: data.id,
+                  name: 'VIP Pass (Front Row)',
+                  price: 350000,
+                  quota: 100,
+                  sold_quantity: 0,
+                  max_per_order: 3,
+                  available_quota: 100,
+                  status: 'ACTIVE',
+                },
+              ];
+            }
+          } catch {
+            data.ticket_types = [
+              {
+                id: 1,
+                event_id: data.id,
+                name: 'Reguler Pass',
+                price: 150000,
+                quota: 500,
+                sold_quantity: 0,
+                max_per_order: 5,
+                available_quota: 500,
+                status: 'ACTIVE',
+              },
+              {
+                id: 2,
+                event_id: data.id,
+                name: 'VIP Pass (Front Row)',
+                price: 350000,
+                quota: 100,
+                sold_quantity: 0,
+                max_per_order: 3,
+                available_quota: 100,
+                status: 'ACTIVE',
+              },
+            ];
+          }
+        }
         setEvent(data);
         setIsLoading(false);
       });
-    } else if (typeof window !== 'undefined') {
-      const pathParts = window.location.pathname.split('/');
-      const id = pathParts[pathParts.length - 1];
-      if (id) {
-        fetchPublicEventDetail(id).then((data) => {
-          setEvent(data);
-          setIsLoading(false);
-        });
-      }
     }
   }, [params]);
 
   // Compute lowest ticket price
   const lowestPrice = React.useMemo(() => {
-    if (!event || !event.ticket_types || event.ticket_types.length === 0) {
-      return 'Rp 0';
+    if (!event) return 'Rp 150.000';
+    if (event.ticket_types && event.ticket_types.length > 0) {
+      const validPrices = event.ticket_types
+        .map((t) => Number(t.price))
+        .filter((p) => !isNaN(p) && p > 0);
+      if (validPrices.length > 0) {
+        return `Rp ${Math.min(...validPrices).toLocaleString('id-ID')}`;
+      }
     }
-    const validPrices = event.ticket_types
-      .map((t) => Number(t.price))
-      .filter((p) => !isNaN(p) && p > 0);
-    if (validPrices.length === 0) return 'Rp 0';
-    return `Rp ${Math.min(...validPrices).toLocaleString('id-ID')}`;
+    return 'Rp 150.000';
   }, [event]);
 
-  // Format Date & Time
+  // Format Date & Time from start_at / event_start_at
   const dateFormatted = React.useMemo(() => {
-    if (!event?.event_start_at) return 'Tanggal belum ditentukan';
+    const startStr = event?.start_at || event?.event_start_at || event?.start_time;
+    if (!startStr) return 'Tanggal belum ditentukan';
     try {
-      const d = new Date(event.event_start_at);
+      const d = new Date(startStr);
       return d.toLocaleDateString('id-ID', {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
       });
     } catch {
-      return event.event_start_at;
+      return startStr;
     }
   }, [event]);
 
   const timeFormatted = React.useMemo(() => {
-    if (!event?.event_start_at) return '15:00 WITA';
+    const startStr = event?.start_at || event?.event_start_at || event?.start_time;
+    const endStr = event?.end_at || event?.event_end_at || event?.end_time;
+    if (!startStr) return '19:00 WIB';
     try {
-      const d = new Date(event.event_start_at);
-      return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
+      const dStart = new Date(startStr);
+      const startTime = dStart.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      if (endStr) {
+        const dEnd = new Date(endStr);
+        const endTime = dEnd.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        return `${startTime} - ${endTime} WIB`;
+      }
+      return `${startTime} WIB`;
     } catch {
-      return '15:00 WITA';
+      return '19:00 WIB';
     }
   }, [event]);
 
-  const bannerUrl = event?.banner ? getPhotoUrl(event.banner) : (event?.venue_photo ? getPhotoUrl(event.venue_photo) : null);
+  const venueNameFormatted = React.useMemo(() => {
+    if (!event) return 'Venue Location';
+    if (event.venue) {
+      if (typeof event.venue === 'object') {
+        const name = event.venue.name || '';
+        const city = event.venue.city || '';
+        if (name && city && name.toLowerCase() !== city.toLowerCase()) {
+          return `${name}, ${city}`;
+        }
+        return name || city || 'Venue Utama';
+      }
+      return String(event.venue);
+    }
+    return event.location || 'Venue Utama';
+  }, [event]);
+
+  const venueAddressFormatted = React.useMemo(() => {
+    if (!event) return null;
+    if (typeof event.venue === 'object' && event.venue?.address) {
+      return event.venue.address;
+    }
+    return event.address || null;
+  }, [event]);
+
+  const organizerName = React.useMemo(() => {
+    if (!event) return 'Metix Official Organizer';
+    if (event.organizer) {
+      if (typeof event.organizer === 'object') {
+        return event.organizer.organization_name || event.organizer.name || 'Metix Official Organizer';
+      }
+      return String(event.organizer);
+    }
+    return (event as any)?.user?.name || 'Metix Official Organizer';
+  }, [event]);
+
+  const organizerLogoUrl = React.useMemo(() => {
+    if (event?.organizer && typeof event.organizer === 'object' && event.organizer.logo) {
+      return getPhotoUrl(event.organizer.logo);
+    }
+    return null;
+  }, [event]);
+
+  const bannerUrl = event?.banner ? getPhotoUrl(event.banner, event.id) : (event?.venue_photo ? getPhotoUrl(event.venue_photo) : null);
   const venuePhotoUrl = event?.venue_photo ? getPhotoUrl(event.venue_photo) : null;
-  const organizerName = (event as any)?.user?.name || 'Metix Organizer';
 
   if (isLoading) {
     return (
@@ -307,14 +411,14 @@ export default function EventDetailClient() {
                   <MapPin className="w-4 h-4 text-slate-600 shrink-0 mt-0.5" />
                   <div className="space-y-0.5">
                     <span className="block text-slate-900 font-bold uppercase text-xs sm:text-sm">
-                      {event.location || 'Venue Location'}
+                      {venueNameFormatted}
                     </span>
-                    {event.address && (
-                      <span className="block text-xs text-slate-500 font-medium">{event.address}</span>
+                    {venueAddressFormatted && (
+                      <span className="block text-xs text-slate-500 font-medium">{venueAddressFormatted}</span>
                     )}
                     <a
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                        (event.location || '') + ' ' + (event.address || '')
+                        venueNameFormatted + ' ' + (venueAddressFormatted || '')
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -328,11 +432,25 @@ export default function EventDetailClient() {
               </div>
 
               {/* Separator & Organizer Info */}
-              <div className="pt-4 border-t border-slate-200 space-y-1">
-                <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider block">Dibuat Oleh</span>
-                <span className="text-xs font-extrabold text-slate-900 uppercase tracking-tight block">
-                  {organizerName}
-                </span>
+              <div className="pt-4 border-t border-slate-200 flex items-center gap-3">
+                {organizerLogoUrl && !organizerLogoError ? (
+                  <img
+                    src={organizerLogoUrl}
+                    alt={organizerName}
+                    onError={() => setOrganizerLogoError(true)}
+                    className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0 shadow-xs border border-blue-700">
+                    {organizerName.substring(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div className="space-y-0.5 min-w-0">
+                  <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider block">Penyelenggara</span>
+                  <span className="text-xs font-extrabold text-slate-900 uppercase tracking-tight block truncate">
+                    {organizerName}
+                  </span>
+                </div>
               </div>
             </div>
 

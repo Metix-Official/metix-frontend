@@ -10,6 +10,11 @@ import {
   deleteOrganizerBankAccount,
   setPrimaryOrganizerBankAccount,
   fetchOrganizerWithdrawals,
+  fetchOwnerWithdrawals,
+  approveOwnerWithdrawal,
+  completeOwnerWithdrawal,
+  rejectOwnerWithdrawal,
+  getStoredUser,
   createWithdrawalRequest,
   fetchWithdrawalDetail,
   fetchDashboardData,
@@ -113,6 +118,24 @@ export default function WithdrawalManagementPage() {
   const [selectedWithdrawalDetail, setSelectedWithdrawalDetail] = useState<ApiWithdrawal | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
+  // Owner Payout & Transfer Approval Modal State
+  const [isOwnerActionModalOpen, setIsOwnerActionModalOpen] = useState(false);
+  const [selectedOwnerWithdrawal, setSelectedOwnerWithdrawal] = useState<ApiWithdrawal | null>(null);
+  const [proofOfTransferUrl, setProofOfTransferUrl] = useState('');
+  const [rejectionReasonInput, setRejectionReasonInput] = useState('');
+  const [isSubmittingOwnerAction, setIsSubmittingOwnerAction] = useState(false);
+  const [ownerActionError, setOwnerActionError] = useState<string | null>(null);
+
+  // User Role Detection
+  const currentUser = React.useMemo(() => getStoredUser(), []);
+  const isOwnerRole = React.useMemo(() => {
+    return (
+      currentUser?.role === 'OWNER' ||
+      currentUser?.email === 'admin@metix.com' ||
+      (currentUser?.roles && currentUser.roles.some((r: any) => r.name === 'owner'))
+    );
+  }, [currentUser]);
+
   const loadData = async () => {
     setIsLoading(true);
     try {
@@ -122,28 +145,42 @@ export default function WithdrawalManagementPage() {
         setAvailableBalance(dash.stats.revenueThisMonth || dash.stats.totalRevenue || 0);
       }
 
-      // 2. Fetch Bank Accounts
-      const accounts = await fetchOrganizerBankAccounts();
-      setBankAccounts(accounts);
-
-      // Auto-select primary bank for withdrawal request
-      const primaryBank = accounts.find((a) => a.is_primary) || accounts[0];
-      if (primaryBank) {
-        setSelectedBankId(String(primaryBank.id));
-      }
-
-      // 3. Fetch Withdrawals History
-      const res = await fetchOrganizerWithdrawals({
-        status: statusFilter,
-        page: currentPage,
-      });
-      setWithdrawals(res.withdrawals);
-      if (res.meta) {
-        setWithdrawalMeta({
-          current_page: res.meta.current_page,
-          last_page: res.meta.last_page,
-          total: res.meta.total,
+      if (isOwnerRole) {
+        // Owner View: Fetch all EO withdrawal requests
+        const res = await fetchOwnerWithdrawals({
+          status: statusFilter,
+          page: currentPage,
         });
+        setWithdrawals(Array.isArray(res.withdrawals) ? res.withdrawals : []);
+        if (res.meta) {
+          setWithdrawalMeta({
+            current_page: res.meta.current_page,
+            last_page: res.meta.last_page,
+            total: res.meta.total,
+          });
+        }
+      } else {
+        // EO View: Fetch Bank Accounts & Own Withdrawals
+        const accounts = await fetchOrganizerBankAccounts();
+        setBankAccounts(accounts);
+
+        const primaryBank = accounts.find((a) => a.is_primary) || accounts[0];
+        if (primaryBank) {
+          setSelectedBankId(String(primaryBank.id));
+        }
+
+        const res = await fetchOrganizerWithdrawals({
+          status: statusFilter,
+          page: currentPage,
+        });
+        setWithdrawals(Array.isArray(res.withdrawals) ? res.withdrawals : []);
+        if (res.meta) {
+          setWithdrawalMeta({
+            current_page: res.meta.current_page,
+            last_page: res.meta.last_page,
+            total: res.meta.total,
+          });
+        }
       }
     } catch (e) {
       console.warn('Failed to load withdrawal data:', e);
@@ -328,6 +365,71 @@ export default function WithdrawalManagementPage() {
     }
   };
 
+  // Owner Payout Action Handlers
+  const handleOpenOwnerActionModal = (withdrawal: ApiWithdrawal) => {
+    setSelectedOwnerWithdrawal(withdrawal);
+    setProofOfTransferUrl(withdrawal.proof_of_transfer || '');
+    setRejectionReasonInput(withdrawal.rejection_reason || '');
+    setOwnerActionError(null);
+    setIsOwnerActionModalOpen(true);
+  };
+
+  const handleOwnerApprove = async () => {
+    if (!selectedOwnerWithdrawal) return;
+    setIsSubmittingOwnerAction(true);
+    setOwnerActionError(null);
+    try {
+      await approveOwnerWithdrawal(selectedOwnerWithdrawal.id);
+      toast.success('Status Penarikan Berhasil Disetujui (PROCESSING)! 🚀');
+      setIsOwnerActionModalOpen(false);
+      loadData();
+    } catch (err: any) {
+      setOwnerActionError(err?.message || 'Gagal menyetujui penarikan.');
+    } finally {
+      setIsSubmittingOwnerAction(false);
+    }
+  };
+
+  const handleOwnerComplete = async () => {
+    if (!selectedOwnerWithdrawal) return;
+    setIsSubmittingOwnerAction(true);
+    setOwnerActionError(null);
+    try {
+      await completeOwnerWithdrawal(selectedOwnerWithdrawal.id, proofOfTransferUrl.trim() || undefined);
+      toast.success('Penarikan Dana Berhasil Diselesaikan (COMPLETED)! 💸', {
+        description: 'Bukti transfer telah berhasil disimpan dan dikirimkan ke EO.',
+      });
+      setIsOwnerActionModalOpen(false);
+      setProofOfTransferUrl('');
+      loadData();
+    } catch (err: any) {
+      setOwnerActionError(err?.message || 'Gagal menyelesaikan penarikan.');
+    } finally {
+      setIsSubmittingOwnerAction(false);
+    }
+  };
+
+  const handleOwnerReject = async () => {
+    if (!selectedOwnerWithdrawal) return;
+    if (!rejectionReasonInput.trim()) {
+      setOwnerActionError('Mohon isi alasan penolakan penarikan.');
+      return;
+    }
+    setIsSubmittingOwnerAction(true);
+    setOwnerActionError(null);
+    try {
+      await rejectOwnerWithdrawal(selectedOwnerWithdrawal.id, rejectionReasonInput.trim());
+      toast.success('Pengajuan Penarikan Telah Ditolak (REJECTED).');
+      setIsOwnerActionModalOpen(false);
+      setRejectionReasonInput('');
+      loadData();
+    } catch (err: any) {
+      setOwnerActionError(err?.message || 'Gagal menolak penarikan.');
+    } finally {
+      setIsSubmittingOwnerAction(false);
+    }
+  };
+
   // Open Withdrawal Detail Modal
   const handleOpenDetailModal = async (withdrawalId: number) => {
     setIsLoadingDetail(true);
@@ -373,17 +475,20 @@ export default function WithdrawalManagementPage() {
   };
 
   const completedTotal = React.useMemo(() => {
-    return withdrawals
+    const list = Array.isArray(withdrawals) ? withdrawals : [];
+    return list
       .filter((w) => w.status === 'COMPLETED')
       .reduce((sum, w) => sum + (w.net_amount || w.amount || 0), 0);
   }, [withdrawals]);
 
   const pendingCount = React.useMemo(() => {
-    return withdrawals.filter((w) => w.status === 'PENDING').length;
+    const list = Array.isArray(withdrawals) ? withdrawals : [];
+    return list.filter((w) => w.status === 'PENDING').length;
   }, [withdrawals]);
 
   const primaryBankAccount = React.useMemo(() => {
-    return bankAccounts.find((a) => a.is_primary) || bankAccounts[0] || null;
+    const list = Array.isArray(bankAccounts) ? bankAccounts : [];
+    return list.find((a) => a.is_primary) || list[0] || null;
   }, [bankAccounts]);
 
   return (
@@ -397,10 +502,12 @@ export default function WithdrawalManagementPage() {
                 <Landmark className="w-3.5 h-3.5 text-white" /> Financial Payout Console
               </div>
               <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">
-                Penarikan Dana & Rekening Bank EO
+                {isOwnerRole ? 'Persetujuan & Transfer Penarikan Dana EO' : 'Penarikan Dana & Rekening Bank EO'}
               </h2>
               <p className="text-xs text-blue-100 font-medium max-w-2xl">
-                Kelola rekening bank penerima pencairan tiket, ajukan penarikan dana baru, dan pantau status riwayat transfer dari Owner.
+                {isOwnerRole
+                  ? 'Verifikasi pengajuan pencairan dana dari Mitra EO, lakukan transfer manual dari DOKU/Bank Owner, dan unggah Bukti Transfer.'
+                  : 'Kelola rekening bank penerima pencairan tiket, ajukan penarikan dana baru, dan pantau status riwayat transfer dari Owner.'}
               </p>
             </div>
 
@@ -415,17 +522,19 @@ export default function WithdrawalManagementPage() {
                 <span>{isRefreshing ? 'Memuat...' : 'Refresh'}</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setWithdrawalFormError(null);
-                  setIsWithdrawModalOpen(true);
-                }}
-                className="px-5 py-2.5 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <Send className="w-4 h-4 text-blue-700" />
-                <span>+ Ajukan Penarikan Dana</span>
-              </button>
+              {!isOwnerRole && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWithdrawalFormError(null);
+                    setIsWithdrawModalOpen(true);
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Send className="w-4 h-4 text-blue-700" />
+                  <span>+ Ajukan Penarikan Dana</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -494,8 +603,9 @@ export default function WithdrawalManagementPage() {
           </div>
         </div>
 
-        {/* SECTION A: KELOLA REKENING BANK EO */}
-        <div className="rounded-3xl bg-white border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-5">
+        {/* SECTION A: KELOLA REKENING BANK EO (Hanya untuk EO) */}
+        {!isOwnerRole && (
+          <div className="rounded-3xl bg-white border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
             <div className="space-y-1">
               <h3 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
@@ -610,11 +720,11 @@ export default function WithdrawalManagementPage() {
                 onClick={() => handleOpenBankModal()}
                 className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs shadow-sm cursor-pointer inline-flex items-center gap-1.5"
               >
-                <Plus className="w-4 h-4" /> Tambah Rekening Sekarang
               </button>
             </div>
           )}
         </div>
+      )}
 
         {/* SECTION B: DAFTAR RIWAYAT PENARIKAN DANA */}
         <div className="rounded-3xl bg-white border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-5">
@@ -708,14 +818,31 @@ export default function WithdrawalManagementPage() {
 
                         <td className="py-3.5 px-4">{getStatusBadge(item.status)}</td>
 
-                        <td className="py-3.5 px-4 text-right">
+                        <td className="py-3.5 px-4 text-right flex items-center justify-end gap-2">
                           <button
                             type="button"
                             onClick={() => handleOpenDetailModal(item.id)}
-                            className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-extrabold text-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
+                            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
                           >
                             <Eye className="w-3.5 h-3.5" /> Detail
                           </button>
+
+                          {isOwnerRole && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenOwnerActionModal(item)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-xs ${
+                                item.status === 'PENDING'
+                                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                                  : item.status === 'PROCESSING'
+                                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                  : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200'
+                              }`}
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              <span>{item.status === 'COMPLETED' ? 'Kelola Bukti' : 'Proses Transfer'}</span>
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -1193,6 +1320,151 @@ export default function WithdrawalManagementPage() {
                 </div>
               </div>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL OWNER APPROVAL & TRANSFER (PAYOUT CONSOLE) ================= */}
+      {isOwnerActionModalOpen && selectedOwnerWithdrawal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0 overflow-y-auto">
+          <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 border border-slate-200 space-y-6 my-8">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black uppercase tracking-wider">
+                  <ShieldCheck className="w-3 h-3" /> Owner Approval & Transfer Console
+                </div>
+                <h3 className="text-lg font-black text-slate-900">
+                  Verifikasi Penarikan #{selectedOwnerWithdrawal.reference_number || selectedOwnerWithdrawal.id}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOwnerActionModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Error Banner */}
+            {ownerActionError && (
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{ownerActionError}</span>
+              </div>
+            )}
+
+            {/* Target EO Bank Info Box */}
+            <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-white border border-blue-200/90 space-y-3 shadow-xs">
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600">
+                Rekening Tujuan Transfer EO (Bank / DOKU Payout)
+              </span>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-400 font-bold block text-[11px]">Bank Tujuan</span>
+                  <span className="font-black text-slate-900 text-sm">
+                    {selectedOwnerWithdrawal.bank_name}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold block text-[11px]">Nomor Rekening</span>
+                  <span className="font-black text-slate-900 font-mono text-sm">
+                    {selectedOwnerWithdrawal.account_number}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold block text-[11px]">Atas Nama Pemilik</span>
+                  <span className="font-extrabold text-slate-900 uppercase">
+                    {selectedOwnerWithdrawal.account_holder_name}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold block text-[11px]">Total Net Payout</span>
+                  <span className="font-black text-emerald-600 text-base">
+                    Rp {(selectedOwnerWithdrawal.net_amount || selectedOwnerWithdrawal.amount || 0).toLocaleString('id-ID')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Form Inputs for Bukti Transfer / Tolak */}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-extrabold text-slate-900 block">
+                  Unggah / Tempel Link Bukti Transfer Bank (Struk / Proof)
+                </label>
+                <input
+                  type="text"
+                  value={proofOfTransferUrl}
+                  onChange={(e) => setProofOfTransferUrl(e.target.value)}
+                  placeholder="https://metix-api.lufexa.id/storage/proofs/bukti-transfer-123.jpg"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                />
+                <span className="text-[11px] text-slate-500 block">
+                  Masukkan URL gambar bukti transfer atau path struk DOKU / Bank Owner.
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-extrabold text-slate-900 block">
+                  Alasan Penolakan (Hanya jika menolak pengajuan)
+                </label>
+                <textarea
+                  rows={2}
+                  value={rejectionReasonInput}
+                  onChange={(e) => setRejectionReasonInput(e.target.value)}
+                  placeholder="Contoh: Nomor rekening tidak cocok dengan nama pemilik akun..."
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-rose-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons Cluster */}
+            <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <button
+                type="button"
+                disabled={isSubmittingOwnerAction}
+                onClick={handleOwnerReject}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs border border-rose-200 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <XCircle className="w-4 h-4 text-rose-600" /> Tolak Penarikan
+              </button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                {selectedOwnerWithdrawal.status === 'PENDING' && (
+                  <button
+                    type="button"
+                    disabled={isSubmittingOwnerAction}
+                    onClick={handleOwnerApprove}
+                    className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    {isSubmittingOwnerAction ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Clock className="w-4 h-4" /> Set Processing
+                      </>
+                    )}
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  disabled={isSubmittingOwnerAction}
+                  onClick={handleOwnerComplete}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {isSubmittingOwnerAction ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" /> Selesaikan & Kirim Bukti
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

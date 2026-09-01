@@ -7,15 +7,26 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { RecentEvents } from '@/components/dashboard/RecentEvents';
 import { StatMetric, Transaction, EventItem } from '@/data/mockData';
-import { fetchDashboardData, DashboardResponse } from '@/lib/api';
+import { fetchDashboardData, DashboardResponse, getStoredUser } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Plus, Download, Sparkles, Ticket, ShieldCheck, UserCheck } from 'lucide-react';
+
+import { useRouter } from 'next/navigation';
+import { getUserRole } from '@/lib/roles';
 
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
+    const u = getStoredUser();
+    const role = getUserRole(u);
+    if (role === 'SCANNER') {
+      router.replace('/dashboard/checkin');
+      return;
+    }
+
     async function loadData() {
       setIsLoading(true);
       const res = await fetchDashboardData();
@@ -25,7 +36,7 @@ export default function DashboardPage() {
       setIsLoading(false);
     }
     loadData();
-  }, []);
+  }, [router]);
 
   const storedUser = React.useMemo(() => {
     if (typeof window !== 'undefined') {

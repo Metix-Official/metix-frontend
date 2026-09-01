@@ -6,7 +6,10 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import {
   fetchMyEvents,
   fetchScannerEvents,
+  fetchPublicEvents,
   processCheckIn,
+  getStoredUser,
+  incrementStaffScanCount,
   ApiEvent,
   CheckInResponse,
 } from '@/lib/api';
@@ -85,18 +88,44 @@ export default function CheckInPage() {
     let evts = await fetchScannerEvents();
     if (!evts || evts.length === 0) {
       const data = await fetchMyEvents();
-      evts = data.events;
+      evts = data?.events || [];
+    }
+    if (!evts || evts.length === 0) {
+      const pubData = await fetchPublicEvents();
+      evts = pubData?.events || [];
     }
     setEvents(evts);
-    if (evts.length > 0) {
-      const activeEvt = evts.find((e: ApiEvent) => e.status === 'published') || evts[0];
+    if (evts && evts.length > 0) {
+      const activeEvt = evts.find((e: ApiEvent) => e.status?.toLowerCase() === 'published') || evts[0];
       setSelectedEvent(activeEvt);
     }
     setIsLoading(false);
   };
 
+  // Staff Scanner Quota State
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [staffScanCount, setStaffScanCount] = useState(0);
+  const [staffScanQuota, setStaffScanQuota] = useState<number | null>(200);
+
   useEffect(() => {
     loadEvents();
+    const u = getStoredUser();
+    setCurrentUser(u);
+    if (u && u.email && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('metix_eo_admins');
+        if (stored) {
+          const list = JSON.parse(stored);
+          const match = list.find((a: any) => a.email.toLowerCase() === u.email.toLowerCase());
+          if (match) {
+            setStaffScanCount(match.scan_count || 0);
+            setStaffScanQuota(match.scan_quota !== undefined ? match.scan_quota : 200);
+          }
+        }
+      } catch {
+        // Ignore
+      }
+    }
   }, []);
 
   // WebCam Live Camera Controls
@@ -202,6 +231,10 @@ export default function CheckInPage() {
 
       if (result.success) {
         setTotalCheckInCount((prev) => prev + 1);
+        setStaffScanCount((prev) => prev + 1);
+        if (currentUser?.email) {
+          incrementStaffScanCount(currentUser.email);
+        }
       }
 
       setTicketInput('');
@@ -287,13 +320,34 @@ export default function CheckInPage() {
         {/* 4 Stat Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Total Check-In Gate</span>
+            <div className="flex items-center justify-between text-xs font-extrabold text-slate-400 uppercase tracking-wider">
+              <span>Pencapaian Scan Petugas</span>
+              {staffScanQuota && (
+                <span className="text-indigo-600 font-extrabold">
+                  {Math.min(100, Math.round((staffScanCount / staffScanQuota) * 100))}%
+                </span>
+              )}
+            </div>
+
             <div className="flex items-center justify-between">
-              <h4 className="text-2xl font-black text-slate-900">{totalCheckInCount} <span className="text-xs font-extrabold text-slate-400">Pengunjung</span></h4>
-              <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100">
+              <h4 className="text-2xl font-black text-slate-900">
+                {staffScanCount} <span className="text-xs font-extrabold text-slate-400">/ {staffScanQuota ? staffScanQuota : '∞'} Scan</span>
+              </h4>
+              <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-100">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
             </div>
+
+            {staffScanQuota && staffScanQuota > 0 && (
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200/60 mt-1">
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    staffScanCount >= staffScanQuota ? 'bg-rose-500' : staffScanCount >= staffScanQuota * 0.8 ? 'bg-amber-500' : 'bg-indigo-600'
+                  }`}
+                  style={{ width: `${Math.min(100, Math.round((staffScanCount / staffScanQuota) * 100))}%` }}
+                />
+              </div>
+            )}
           </div>
 
           <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">

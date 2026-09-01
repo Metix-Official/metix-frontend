@@ -58,9 +58,10 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
 
   // Date badge formatting
   const dateFormatted = useMemo(() => {
-    if (!currentEvent?.event_start_at) return { month: 'SEP', day: '14' };
+    const startStr = currentEvent?.start_at || currentEvent?.event_start_at || currentEvent?.start_time;
+    if (!startStr) return { month: 'SEP', day: '14' };
     try {
-      const d = new Date(currentEvent.event_start_at);
+      const d = new Date(startStr);
       const month = d.toLocaleDateString(lang === 'en' ? 'en-US' : 'id-ID', { month: 'short' }).toUpperCase();
       const day = d.getDate().toString();
       return { month, day };
@@ -68,6 +69,33 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
       return { month: 'SEP', day: '14' };
     }
   }, [currentEvent, lang]);
+
+  const venueFormatted = useMemo(() => {
+    if (!currentEvent) return 'Stadion Gelora Bung Karno (GBK)';
+    if (currentEvent.venue) {
+      if (typeof currentEvent.venue === 'object') {
+        const name = currentEvent.venue.name || '';
+        const city = currentEvent.venue.city || '';
+        if (name && city && name.toLowerCase() !== city.toLowerCase()) {
+          return `${name}, ${city}`;
+        }
+        return name || city || 'Venue Utama';
+      }
+      return String(currentEvent.venue);
+    }
+    return currentEvent.location || 'Venue Utama';
+  }, [currentEvent]);
+
+  const organizerFormatted = useMemo(() => {
+    if (!currentEvent) return 'Metix Official Organizer';
+    if (currentEvent.organizer) {
+      if (typeof currentEvent.organizer === 'object') {
+        return currentEvent.organizer.organization_name || currentEvent.organizer.name || 'Metix Official Organizer';
+      }
+      return String(currentEvent.organizer);
+    }
+    return 'Metix Official Organizer';
+  }, [currentEvent]);
 
   // Image URL logic with high-res music festival fallback for map/placeholder images
   const bannerUrl = useMemo(() => {
@@ -147,7 +175,7 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
                     {currentEvent.title}
                   </h1>
 
-                  {/* Metadata Row: Time & Language */}
+                  {/* Metadata Row: Time & Organizer */}
                   <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-slate-600 font-semibold pt-1 border-t border-slate-100">
                     <div className="flex items-center gap-1.5">
                       <Clock className="w-4 h-4 text-blue-600 shrink-0" />
@@ -155,7 +183,7 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Globe className="w-4 h-4 text-slate-400 shrink-0" />
-                      <span>Bahasa Indonesia</span>
+                      <span className="truncate">{organizerFormatted}</span>
                     </div>
                   </div>
 
@@ -163,7 +191,7 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
                   <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 font-medium">
                     <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
                     <span className="truncate font-semibold">
-                      {currentEvent.location || 'Stadion Gelora Bung Karno (GBK)'}, Indonesia
+                      {venueFormatted}
                     </span>
                   </div>
 
@@ -190,6 +218,9 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
                     <img
                       src={bannerUrl}
                       alt={currentEvent.title}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = FALLBACK_BANNERS[currentIndex % FALLBACK_BANNERS.length];
+                      }}
                       className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/25 to-black/20" />

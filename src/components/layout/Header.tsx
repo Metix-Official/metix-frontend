@@ -70,7 +70,8 @@ export const Header: React.FC<HeaderProps> = ({
 
   const displayName = user?.name || user?.first_name || CURRENT_USER.name;
   const displayEmail = user?.email || CURRENT_USER.email;
-  const photoUrl = getPhotoUrl(user?.profile_photo_url || user?.photo);
+  const isEo = user?.role === 'EO' || user?.role === 'mitra' || user?.email === 'lutfifahri175@gmail.com';
+  const photoUrl = getPhotoUrl(user?.profile_photo_url || user?.photo, undefined, isEo);
   const userInitials = displayName
     .split(' ')
     .map((n) => n[0])
@@ -82,10 +83,13 @@ export const Header: React.FC<HeaderProps> = ({
   const userRoleLabel = React.useMemo(() => {
     if (user) {
       const roleNames = user.roles ? user.roles.map((r) => r.name) : [];
-      if (user.email === 'admin@metix.com' || roleNames.includes('owner')) {
+      if (user.role === 'SCANNER') {
+        return 'Staff Scanner QR';
+      }
+      if (user.email === 'admin@metix.com' || roleNames.includes('owner') || user.role === 'OWNER') {
         return 'Super Admin Platform';
       }
-      if (user.email === 'lutfifahri175@gmail.com' || roleNames.includes('mitra')) {
+      if (user.email === 'lutfifahri175@gmail.com' || roleNames.includes('mitra') || user.role === 'EO') {
         return 'Event Organizer (EO)';
       }
     }

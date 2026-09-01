@@ -38,9 +38,11 @@ export const FeaturedEvents: React.FC<FeaturedEventsProps> = ({
       let month = 'SEP';
       let day = '15';
       let dateFull = '15 Sep 2026';
-      if (item.event_start_at) {
+      const startDateStr = item.start_at || item.event_start_at || item.start_time;
+
+      if (startDateStr) {
         try {
-          const d = new Date(item.event_start_at);
+          const d = new Date(startDateStr);
           month = d.toLocaleDateString('id-ID', { month: 'short' }).toUpperCase();
           day = d.getDate().toString();
           dateFull = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -57,20 +59,48 @@ export const FeaturedEvents: React.FC<FeaturedEventsProps> = ({
         }
       }
 
+      // Venue parsing from API schema
+      let venueStr = item.location || 'Venue Location';
+      if (item.venue) {
+        if (typeof item.venue === 'object') {
+          const name = item.venue.name || '';
+          const city = item.venue.city || '';
+          if (name && city && name.toLowerCase() !== city.toLowerCase()) {
+            venueStr = `${name}, ${city}`;
+          } else {
+            venueStr = name || city || venueStr;
+          }
+        } else if (typeof item.venue === 'string') {
+          venueStr = item.venue;
+        }
+      }
+
+      // Organizer parsing from API schema
+      let orgStr = 'Metix Organizer';
+      if (item.organizer) {
+        if (typeof item.organizer === 'object') {
+          orgStr = item.organizer.organization_name || item.organizer.name || orgStr;
+        } else if (typeof item.organizer === 'string') {
+          orgStr = item.organizer;
+        }
+      }
+
       return {
         id: String(item.id),
         title: item.title,
-        category: item.category || 'General',
-        organizer: 'Metix Organizer',
+        category: item.category || 'Music Concert',
+        organizer: orgStr,
         dateBadge: { month, day },
         dateFull,
         timeRange: '19:00 WIB',
-        venue: item.location || 'Venue Location',
-        city: 'Indonesia',
+        venue: venueStr,
+        city: typeof item.venue === 'object' ? item.venue?.city || 'Indonesia' : 'Indonesia',
         country: 'ID',
         price: priceStr,
+        banner: item.banner,
         imageTheme: themes[idx % themes.length],
-        isSoldOut: item.status === 'closed',
+        isSoldOut: item.status?.toUpperCase() === 'CLOSED',
+        rawApiEvent: item,
       };
     });
   }, [apiEvents]);
@@ -130,7 +160,7 @@ export const FeaturedEvents: React.FC<FeaturedEventsProps> = ({
             {/* 3/4-Column Responsive Premium Event Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {eventsToDisplay.map((event, index) => {
-                const rawApi = apiEvents.find((x) => String(x.id) === event.id);
+                const rawApi = apiEvents.find((x) => String(x.id) === event.id) || (event as any).rawApiEvent;
                 return (
                   <EventCard key={event.id} event={event} rawApiEvent={rawApi} index={index} />
                 );

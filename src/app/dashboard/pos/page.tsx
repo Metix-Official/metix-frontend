@@ -8,10 +8,13 @@ import {
   fetchTicketTypes,
   createOfflineOrder,
   fetchOfflineDashboard,
+  fetchPromos,
   ApiEvent,
   ApiTicketType,
+  ApiPromo,
 } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { toast } from '@/components/ui/sonner';
 import {
   Select,
   SelectContent,
@@ -43,6 +46,7 @@ import {
   X,
   FileText,
   Sparkles,
+  Tag,
 } from 'lucide-react';
 
 interface CartItem {
@@ -73,6 +77,12 @@ export default function PosPage() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank_transfer' | 'qris_offline'>('cash');
   const [amountTendered, setAmountTendered] = useState<string>('');
   const [amountTenderedDisplay, setAmountTenderedDisplay] = useState<string>('');
+
+  // Promo Code State
+  const [eventPromos, setEventPromos] = useState<ApiPromo[]>([]);
+  const [promoInput, setPromoInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<ApiPromo | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
 
   const handleAmountTenderedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/\D/g, '');
@@ -115,10 +125,15 @@ export default function PosPage() {
     const types = await fetchTicketTypes(evtId);
     setTicketTypes(types);
 
+    const promos = await fetchPromos(evtId);
+    setEventPromos(promos);
+
     const posData = await fetchOfflineDashboard(evtId);
     if (posData) {
-      setRecentOrders(posData.latestOrders || []);
-      setPosStats(posData.stats || {});
+      const ordersList = posData.latestOrders || posData.orders || posData.data?.latestOrders || [];
+      const statsObj = posData.stats || posData.data?.stats || {};
+      setRecentOrders(ordersList);
+      setPosStats(statsObj);
     }
     setIsTicketsLoading(false);
   };
@@ -139,11 +154,17 @@ export default function PosPage() {
     setBuyerNik('');
   };
 
+  const getAvailableStock = (type: ApiTicketType) => {
+    if (type.available !== undefined) return type.available;
+    const sold = type.sold_count ?? type.sold_quantity ?? 0;
+    return Math.max(0, (type.quota || 100) - sold);
+  };
+
   // Cart operations
   const addToCart = (type: ApiTicketType) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.ticketType.id === type.id);
-      const availableStock = Math.max(0, (type.quota || 100) - (type.sold_quantity || 0));
+      const availableStock = getAvailableStock(type);
 
       if (existing) {
         if (existing.quantity >= availableStock) {
@@ -175,10 +196,7 @@ export default function PosPage() {
         .map((item) => {
           if (item.ticketType.id === typeId) {
             const newQty = item.quantity + delta;
-            const availableStock = Math.max(
-              0,
-              (item.ticketType.quota || 100) - (item.ticketType.sold_quantity || 0)
-            );
+            const availableStock = getAvailableStock(item.ticketType);
 
             if (newQty > availableStock) {
               alert(`Stok tiket "${item.ticketType.name}" terbatas (${availableStock} pcs).`);
@@ -208,15 +226,58 @@ export default function PosPage() {
   };
 
   // Price calculations
-  const grandTotal = useMemo(() => {
+  const rawGrandTotal = useMemo(() => {
     return cart.reduce((acc, item) => acc + Number(item.ticketType.price || 0) * item.quantity, 0);
   }, [cart]);
+
+  const discountAmount = useMemo(() => {
+    if (!appliedPromo) return 0;
+    if (appliedPromo.min_purchase && rawGrandTotal < appliedPromo.min_purchase) {
+      return 0;
+    }
+    let d = 0;
+    if (appliedPromo.discount_type === 'PERCENTAGE') {
+      d = (rawGrandTotal * (Number(appliedPromo.discount_value) || 0)) / 100;
+      if (appliedPromo.max_discount && d > appliedPromo.max_discount) {
+        d = Number(appliedPromo.max_discount);
+      }
+    } else {
+      d = Number(appliedPromo.discount_value) || 0;
+    }
+    return Math.min(rawGrandTotal, d);
+  }, [appliedPromo, rawGrandTotal]);
+
+  const grandTotal = useMemo(() => {
+    return Math.max(0, rawGrandTotal - discountAmount);
+  }, [rawGrandTotal, discountAmount]);
 
   const changeDue = useMemo(() => {
     if (paymentMethod !== 'cash') return 0;
     const tendered = Number(amountTendered) || 0;
     return Math.max(0, tendered - grandTotal);
   }, [paymentMethod, amountTendered, grandTotal]);
+
+  const handleApplyPromo = () => {
+    setPromoError(null);
+    if (!promoInput.trim()) {
+      setAppliedPromo(null);
+      return;
+    }
+    const cleanCode = promoInput.trim().toUpperCase();
+    const found = eventPromos.find((p) => p.code.toUpperCase() === cleanCode);
+    if (!found) {
+      setPromoError(`Kode promo "${cleanCode}" tidak ditemukan.`);
+      setAppliedPromo(null);
+      return;
+    }
+    if (found.min_purchase && rawGrandTotal < Number(found.min_purchase)) {
+      setPromoError(`Kode promo mensyaratkan minimal pembelian Rp ${Number(found.min_purchase).toLocaleString('id-ID')}.`);
+      setAppliedPromo(null);
+      return;
+    }
+    setAppliedPromo(found);
+    toast.success(`Kode Promo "${found.code}" Berhasil Diterapkan! 🎉`);
+  };
 
   // Submit Order via API
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
@@ -244,6 +305,7 @@ export default function PosPage() {
         buyer_email: buyerEmail,
         buyer_phone: buyerPhone,
         buyer_nik: buyerNik || undefined,
+        promo_code: appliedPromo?.code || (promoInput.trim() ? promoInput.trim().toUpperCase() : undefined),
         payment_method: paymentMethod,
         items: cart.map((c) => ({
           ticket_type_id: c.ticketType.id,
@@ -253,7 +315,50 @@ export default function PosPage() {
       };
 
       const result = await createOfflineOrder(selectedEvent.id, payload);
-      setSuccessOrder(result.order || result);
+      const createdOrder = result?.order || result?.data?.order || result;
+      setSuccessOrder(createdOrder);
+
+      if (createdOrder) {
+        setRecentOrders((prev) => {
+          const num = createdOrder.order_number || ('POS-' + createdOrder.id);
+          const filtered = prev.filter((o) => o.order_number !== num);
+          return [{
+            id: createdOrder.id,
+            order_number: num,
+            buyer_name: createdOrder.buyer_name || buyerName || 'Pembeli Walk-in (Kasir)',
+            payment_method: createdOrder.payment_method || paymentMethod || 'cash',
+            grand_total: createdOrder.grand_total || grandTotal || 0,
+            status: 'paid',
+          }, ...filtered];
+        });
+
+        setPosStats((prev: any) => ({
+          ...prev,
+          totalOrdersCount: (prev?.totalOrdersCount || 0) + 1,
+          totalRevenue: (prev?.totalRevenue || 0) + (createdOrder.grand_total || grandTotal || 0),
+          totalTickets: (prev?.totalTickets || 0) + cart.reduce((acc, i) => acc + i.quantity, 0),
+        }));
+
+        // Deduct ticket stock immediately in UI
+        setTicketTypes((prev) =>
+          prev.map((t) => {
+            const cartItem = cart.find((c) => c.ticketType.id === t.id);
+            if (cartItem) {
+              const addedQty = cartItem.quantity;
+              const currentSold = t.sold_count ?? t.sold_quantity ?? 0;
+              const newSold = currentSold + addedQty;
+              const currentAvail = t.available !== undefined ? t.available : Math.max(0, (t.quota || 100) - currentSold);
+              return {
+                ...t,
+                sold_count: newSold,
+                sold_quantity: newSold,
+                available: Math.max(0, currentAvail - addedQty),
+              };
+            }
+            return t;
+          })
+        );
+      }
 
       // Reset Form
       setCart([]);
@@ -405,9 +510,7 @@ export default function PosPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                   {ticketTypes.map((type) => {
                     const priceNum = Number(type.price || 0);
-                    const totalQuota = type.quota || 100;
-                    const sold = type.sold_quantity || 0;
-                    const availableStock = Math.max(0, totalQuota - sold);
+                    const availableStock = getAvailableStock(type);
 
                     const cartItem = cart.find((i) => i.ticketType.id === type.id);
                     const inCartQty = cartItem ? cartItem.quantity : 0;
@@ -638,6 +741,50 @@ export default function PosPage() {
                   )}
                 </div>
 
+                {/* Input Kode Promo / Kupon Diskon */}
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                    <Tag className="w-3.5 h-3.5 text-indigo-600" /> Kode Promo / Kupon Diskon
+                  </span>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={promoInput}
+                      onChange={(e) => {
+                        setPromoInput(e.target.value.toUpperCase());
+                        if (appliedPromo) setAppliedPromo(null);
+                        setPromoError(null);
+                      }}
+                      placeholder="e.g. DISKON50K"
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black uppercase text-slate-900 focus:bg-white focus:border-indigo-600 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyPromo}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold transition-all cursor-pointer shrink-0 shadow-xs"
+                    >
+                      Terapkan
+                    </button>
+                  </div>
+
+                  {promoError && (
+                    <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {promoError}
+                    </p>
+                  )}
+
+                  {appliedPromo && discountAmount > 0 && (
+                    <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center justify-between animate-in fade-in-0">
+                      <div className="flex items-center gap-1.5">
+                        <Tag className="w-4 h-4 text-emerald-600" />
+                        <span>Kupon <strong>{appliedPromo.code}</strong> Terpasang</span>
+                      </div>
+                      <span className="font-black text-emerald-700">- Rp {discountAmount.toLocaleString('id-ID')}</span>
+                    </div>
+                  )}
+                </div>
+
                 {/* Payment Method Switcher */}
                 <div className="space-y-2.5 pt-2 border-t border-slate-100">
                   <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
@@ -725,14 +872,28 @@ export default function PosPage() {
                 )}
 
                 {/* Grand Total Bar */}
-                <div className="p-4 rounded-2xl bg-slate-900 text-white flex items-center justify-between shadow-md">
-                  <div>
-                    <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Total Tagihan POS</span>
-                    <span className="text-xl font-black text-amber-400">
-                      Rp. {grandTotal.toLocaleString('id-ID')}
-                    </span>
+                <div className="p-4 rounded-2xl bg-slate-900 text-white space-y-1.5 shadow-md">
+                  {discountAmount > 0 && (
+                    <div className="flex items-center justify-between text-xs text-slate-300 font-semibold border-b border-slate-700/80 pb-1.5">
+                      <span>Subtotal:</span>
+                      <span className="line-through text-slate-400 font-bold">Rp. {rawGrandTotal.toLocaleString('id-ID')}</span>
+                    </div>
+                  )}
+                  {discountAmount > 0 && (
+                    <div className="flex items-center justify-between text-xs text-emerald-400 font-bold border-b border-slate-700/80 pb-1.5">
+                      <span>Diskon ({appliedPromo?.code}):</span>
+                      <span>- Rp. {discountAmount.toLocaleString('id-ID')}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Total Tagihan POS</span>
+                      <span className="text-xl font-black text-amber-400">
+                        Rp. {grandTotal.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                    <ShoppingBag className="w-6 h-6 text-amber-400" />
                   </div>
-                  <ShoppingBag className="w-6 h-6 text-amber-400" />
                 </div>
 
                 {/* Checkout Submit CTA */}

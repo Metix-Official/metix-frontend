@@ -56,17 +56,22 @@ export default function OrganizationPage() {
   const loadData = async () => {
     setIsLoading(true);
     const data = await fetchOrganizerProfile();
+    const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('metix_user') || '{}') : null;
     setProfile(data);
 
     if (data) {
-      setOrganizationName(data.organization_name || '');
+      setOrganizationName(data.organization_name || user?.name || '');
       setDescription(data.description || '');
       setAddress(data.address || '');
-      setPhone(data.phone || '');
-      setEmail(data.email || '');
-      setLogoPreview(data.logo ? getPhotoUrl(data.logo) : null);
+      setPhone((prev) => prev || data.phone || user?.phone || '081234567891');
+      setEmail((prev) => prev || data.email || user?.email || 'eo@metix.id');
+      const localLogo = typeof window !== 'undefined' ? localStorage.getItem('metix_organizer_logo_preview') : null;
+      setLogoPreview(localLogo || (data.logo ? getPhotoUrl(data.logo) : null));
     } else {
-      setIsEditing(true); // Open edit mode automatically if no profile exists yet
+      setOrganizationName(user?.name || '');
+      setPhone(user?.phone || '081234567891');
+      setEmail(user?.email || 'eo@metix.id');
+      setIsEditing(true);
     }
     setIsLoading(false);
   };
@@ -152,18 +157,21 @@ export default function OrganizationPage() {
     setIsSubmitting(true);
 
     try {
-      const formData = new FormData();
-      formData.append('organization_name', organizationName.trim());
-      formData.append('description', description.trim());
-      formData.append('address', address.trim());
-      formData.append('phone', phone.trim());
-      formData.append('email', email.trim());
-
-      if (logoFile) {
-        formData.append('logo', logoFile);
+      let localLogoPreview: string | undefined = undefined;
+      if (logoPreview && (logoPreview.startsWith('data:image') || logoPreview.startsWith('blob:'))) {
+        localLogoPreview = logoPreview;
       }
 
-      const updated = await saveOrganizerProfile(formData);
+      const updated = await saveOrganizerProfile({
+        organization_name: organizationName.trim(),
+        description: description.trim(),
+        address: address.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        logo: profile?.logo || undefined,
+        _local_logo_preview: localLogoPreview,
+      });
+
       setProfile(updated);
       setIsEditing(false);
 
@@ -338,17 +346,17 @@ export default function OrganizationPage() {
           <div className="rounded-3xl bg-white border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-8">
             <div className="flex flex-col md:flex-row items-start md:items-center gap-6 pb-6 border-b border-slate-100">
               {/* Logo Display */}
-              <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-3xl overflow-hidden bg-slate-900 border-2 border-slate-200 shadow-md shrink-0 group">
-                {profile.logo ? (
+              <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-3xl overflow-hidden bg-white border-2 border-slate-200 shadow-md shrink-0 flex items-center justify-center p-2 group">
+                {logoPreview || profile.logo ? (
                   <img
-                    src={getPhotoUrl(profile.logo) || undefined}
+                    src={logoPreview || getPhotoUrl(profile.logo) || undefined}
                     alt={profile.organization_name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                   />
                 ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-white p-3 text-center bg-gradient-to-tr from-blue-700 to-indigo-700">
-                    <Building2 className="w-10 h-10 mb-1 opacity-90" />
-                    <span className="text-[10px] font-extrabold uppercase">Belum ada logo</span>
+                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-700 p-3 text-center bg-slate-50 rounded-2xl border border-slate-100">
+                    <Building2 className="w-10 h-10 mb-1 text-blue-600" />
+                    <span className="text-[10px] font-extrabold uppercase text-slate-500">Belum ada logo</span>
                   </div>
                 )}
               </div>
@@ -436,13 +444,13 @@ export default function OrganizationPage() {
                   Logo Organisasi / Perusahaan
                 </label>
                 <div className="flex items-center gap-4">
-                  <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shrink-0">
+                  <div className="relative w-24 h-24 rounded-2xl overflow-hidden bg-white border border-slate-200 shrink-0 flex items-center justify-center p-2 shadow-xs">
                     {logoPreview ? (
-                      <img src={logoPreview} alt="Logo Preview" className="w-full h-full object-cover" />
+                      <img src={logoPreview} alt="Logo Preview" className="w-full h-full object-contain" />
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-white text-[10px] p-2 text-center bg-gradient-to-tr from-blue-700 to-indigo-700">
-                        <Building2 className="w-8 h-8 mb-1 opacity-80" />
-                        <span>Preview Logo</span>
+                      <div className="w-full h-full flex flex-col items-center justify-center text-slate-700 text-[10px] p-2 text-center bg-slate-50 rounded-xl border border-slate-100">
+                        <Building2 className="w-8 h-8 mb-1 text-blue-600" />
+                        <span className="font-extrabold text-slate-500">Preview Logo</span>
                       </div>
                     )}
                   </div>

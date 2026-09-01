@@ -14,6 +14,7 @@ import {
   Settings,
 } from 'lucide-react';
 import Link from 'next/link';
+import { getDefaultRoleDashboard } from '@/lib/roles';
 import {
   getStoredToken,
   getStoredUser,
@@ -246,7 +247,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
 
                     <Link
-                      href="/dashboard"
+                      href={getDefaultRoleDashboard(user)}
                       onClick={() => setIsProfileMenuOpen(false)}
                       className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-extrabold text-slate-800 hover:bg-blue-50 hover:text-blue-700 transition-colors"
                     >

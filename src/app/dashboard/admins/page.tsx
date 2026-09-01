@@ -43,6 +43,7 @@ export default function EoAdminsPage() {
     email: '',
     password: '',
     phone: '',
+    scan_quota: '200',
   });
   
   const [formError, setFormError] = useState<string | null>(null);
@@ -72,7 +73,7 @@ export default function EoAdminsPage() {
 
   const openAddModal = () => {
     setEditingAdmin(null);
-    setFormData({ name: '', email: '', password: '', phone: '' });
+    setFormData({ name: '', email: '', password: '', phone: '', scan_quota: '200' });
     setFormError(null);
     setIsAddModalOpen(true);
   };
@@ -84,6 +85,7 @@ export default function EoAdminsPage() {
       email: admin.email,
       password: '',
       phone: admin.phone || '',
+      scan_quota: admin.scan_quota !== null && admin.scan_quota !== undefined ? String(admin.scan_quota) : '200',
     });
     setFormError(null);
     setIsAddModalOpen(true);
@@ -110,12 +112,14 @@ export default function EoAdminsPage() {
 
     try {
       setIsSubmitting(true);
+      const quotaNum = formData.scan_quota ? parseInt(formData.scan_quota, 10) : 200;
       if (editingAdmin) {
         await updateEoAdmin(editingAdmin.id, {
           name: formData.name.trim(),
           email: formData.email.trim(),
           password: formData.password || undefined,
           phone: formData.phone.trim() || undefined,
+          scan_quota: quotaNum,
         });
       } else {
         await createEoAdmin({
@@ -123,6 +127,7 @@ export default function EoAdminsPage() {
           email: formData.email.trim(),
           password: formData.password,
           phone: formData.phone.trim() || undefined,
+          scan_quota: quotaNum,
         });
       }
       setIsAddModalOpen(false);
@@ -232,6 +237,7 @@ export default function EoAdminsPage() {
                   <tr>
                     <th className="px-6 py-4">Nama & Email</th>
                     <th className="px-6 py-4">Kontak / Telepon</th>
+                    <th className="px-6 py-4">Status & Kuota Scan</th>
                     <th className="px-6 py-4">Hak Akses Role</th>
                     <th className="px-6 py-4">Tanggal Buat</th>
                     <th className="px-6 py-4 text-right">Aksi</th>
@@ -261,6 +267,36 @@ export default function EoAdminsPage() {
                         ) : (
                           <span className="text-slate-400 italic">—</span>
                         )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {(() => {
+                          const count = admin.scan_count || 0;
+                          const quota = admin.scan_quota;
+                          const hasQuota = quota !== null && quota !== undefined && quota > 0;
+                          const pct = hasQuota ? Math.min(100, Math.round((count / quota) * 100)) : 0;
+                          return (
+                            <div className="space-y-1 max-w-[140px]">
+                              <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                                <span>{count} {hasQuota ? `/ ${quota}` : ''} Scan</span>
+                                {hasQuota && <span className="text-[10px] text-indigo-600 font-extrabold">{pct}%</span>}
+                              </div>
+                              {hasQuota ? (
+                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200/60">
+                                  <div
+                                    className={`h-full transition-all duration-500 ${
+                                      pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-indigo-600'
+                                    }`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              ) : (
+                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                  Tanpa Batas
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
@@ -392,6 +428,20 @@ export default function EoAdminsPage() {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:outline-none transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Batas Kuota Scan Tiket (Default: 200)
+                </label>
+                <input
+                  type="number"
+                  placeholder="Contoh: 200"
+                  value={formData.scan_quota}
+                  onChange={(e) => setFormData({ ...formData, scan_quota: e.target.value })}
+                  className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:outline-none transition-all font-mono font-bold"
+                  min={1}
                 />
               </div>
 

@@ -7,6 +7,12 @@ import { TicketCheckoutModal } from './TicketCheckoutModal';
 import { ApiEvent, getPhotoUrl } from '@/lib/api';
 import Link from 'next/link';
 
+const DEFAULT_CONCERT_BANNERS = [
+  'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?auto=format&fit=crop&w=1000&q=80',
+  'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1000&q=80',
+  'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1000&q=80',
+];
+
 interface EventCardProps {
   event: PublicEvent;
   rawApiEvent?: ApiEvent;
@@ -21,6 +27,7 @@ export const EventCard: React.FC<EventCardProps> = ({
   animationDelayMs,
 }) => {
   const delay = animationDelayMs ?? index * 80;
+  const fallbackUrl = DEFAULT_CONCERT_BANNERS[index % DEFAULT_CONCERT_BANNERS.length];
 
   const targetApiEvent: ApiEvent = rawApiEvent || {
     id: Number(event.id) || 1,
@@ -34,7 +41,22 @@ export const EventCard: React.FC<EventCardProps> = ({
     location: event.venue,
   };
 
-  const bannerUrl = rawApiEvent?.banner ? getPhotoUrl(rawApiEvent.banner) : null;
+  const rawBanner = rawApiEvent?.banner || (rawApiEvent as any)?.banner_url || (event as any)?.banner || (targetApiEvent as any)?.banner;
+  const initialBannerUrl = rawBanner ? getPhotoUrl(rawBanner) : fallbackUrl;
+
+  const [imgSrc, setImgSrc] = React.useState<string>(initialBannerUrl || fallbackUrl);
+
+  React.useEffect(() => {
+    const url = rawBanner ? getPhotoUrl(rawBanner) : fallbackUrl;
+    setImgSrc(url || fallbackUrl);
+  }, [rawBanner, fallbackUrl]);
+
+  const handleImageError = () => {
+    if (imgSrc !== fallbackUrl) {
+      setImgSrc(fallbackUrl);
+    }
+  };
+
   const eventLink = `/events/${targetApiEvent.slug || targetApiEvent.id}`;
 
   return (
@@ -44,19 +66,14 @@ export const EventCard: React.FC<EventCardProps> = ({
       className="group rounded-3xl bg-white border border-slate-200 hover:border-blue-400 overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col h-full hover:-translate-y-1 animate-fade-in-up opacity-0 relative cursor-pointer"
     >
       {/* Photo Thumbnail Banner */}
-      <div className={`relative h-48 sm:h-52 w-full ${!bannerUrl ? `bg-gradient-to-tr ${event.imageTheme}` : 'bg-slate-900'} flex flex-col justify-between overflow-hidden shrink-0`}>
-        {bannerUrl ? (
-          <>
-            <img
-              src={bannerUrl}
-              alt={event.title}
-              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-black/20" />
-          </>
-        ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,#ffffff25_0%,transparent_60%)]" />
-        )}
+      <div className="relative h-48 sm:h-52 w-full bg-slate-900 flex flex-col justify-between overflow-hidden shrink-0">
+        <img
+          src={imgSrc}
+          alt={event.title}
+          onError={handleImageError}
+          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-black/20" />
 
         {/* Category & Date Badges overlay */}
         <div className="relative z-10 p-3.5 flex items-center justify-between gap-2">

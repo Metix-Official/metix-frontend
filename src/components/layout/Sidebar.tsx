@@ -111,6 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return [
         { name: 'Dashboard EO', href: '/dashboard', iconName: 'LayoutDashboard' },
         { name: 'Profil Organisasi', href: '/dashboard/organization', iconName: 'Building2', badge: 'EO' },
+        { name: 'Penarikan Dana', href: '/dashboard/withdrawals', iconName: 'CreditCard', badge: 'Payout' },
         { name: 'Event Saya', href: '/dashboard/events', iconName: 'Calendar', badge: 'Aktif' },
         { name: 'Tiket & Kuota', href: '/dashboard/tickets', iconName: 'Ticket' },
         { name: 'Kasir Offline (POS)', href: '/dashboard/pos', iconName: 'CreditCard' },

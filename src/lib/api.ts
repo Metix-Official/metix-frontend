@@ -1674,4 +1674,245 @@ export async function rejectOwnerOrganizer(profileId: number, reason: string): P
   return true;
 }
 
+// ----------------------------------------------------------------------
+// BANK ACCOUNTS & WITHDRAWALS APIs (EO PARTNER)
+// ----------------------------------------------------------------------
+
+export interface ApiBankAccount {
+  id: number;
+  organizer_profile_id?: number;
+  bank_name: string;
+  account_number: string;
+  account_holder_name: string;
+  is_primary: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ApiWithdrawal {
+  id: number;
+  organizer_profile_id?: number;
+  organizer_bank_account_id: number;
+  reference_number: string;
+  amount: number;
+  fee: number;
+  net_amount: number;
+  bank_name: string;
+  account_number: string;
+  account_holder_name: string;
+  status: 'PENDING' | 'APPROVED' | 'COMPLETED' | 'REJECTED';
+  proof_of_transfer?: string | null;
+  rejection_reason?: string | null;
+  requested_at?: string | null;
+  processed_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  bank_account?: ApiBankAccount;
+}
+
+export async function fetchOrganizerBankAccounts(): Promise<ApiBankAccount[]> {
+  const token = getStoredToken();
+  if (!token) return [];
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/organizer/bank-accounts`, {
+      headers: getHeaders(token),
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    return data?.data || data?.accounts || [];
+  } catch (error) {
+    console.warn('Failed to fetch organizer bank accounts:', error);
+    return [];
+  }
+}
+
+export async function createOrganizerBankAccount(payload: {
+  bank_name: string;
+  account_number: string;
+  account_holder_name: string;
+  is_primary?: boolean;
+}): Promise<ApiBankAccount> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/organizer/bank-accounts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getHeaders(token),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal menambahkan rekening bank baru.';
+    throw new Error(errorMsg);
+  }
+
+  return data?.data || data;
+}
+
+export async function updateOrganizerBankAccount(
+  bankId: number,
+  payload: {
+    bank_name: string;
+    account_number: string;
+    account_holder_name: string;
+    is_primary?: boolean;
+  }
+): Promise<ApiBankAccount> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/organizer/bank-accounts/${bankId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getHeaders(token),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal memperbarui rekening bank.';
+    throw new Error(errorMsg);
+  }
+
+  return data?.data || data;
+}
+
+export async function deleteOrganizerBankAccount(bankId: number): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/organizer/bank-accounts/${bankId}`, {
+    method: 'DELETE',
+    headers: getHeaders(token),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data?.message || 'Gagal menghapus rekening bank.');
+  }
+
+  return true;
+}
+
+export async function setPrimaryOrganizerBankAccount(bankId: number): Promise<ApiBankAccount> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/organizer/bank-accounts/${bankId}/set-primary`, {
+    method: 'POST',
+    headers: getHeaders(token),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data?.message || 'Gagal menjadikan sebagai rekening utama.');
+  }
+
+  return data?.data || data;
+}
+
+export async function fetchOrganizerWithdrawals(params?: {
+  status?: string;
+  page?: number;
+}): Promise<{
+  withdrawals: ApiWithdrawal[];
+  meta?: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}> {
+  const token = getStoredToken();
+  if (!token) return { withdrawals: [] };
+
+  try {
+    const url = new URL(`${API_BASE_URL}/organizer/withdrawals`);
+    if (params?.status && params.status !== 'all') url.searchParams.append('status', params.status);
+    if (params?.page) url.searchParams.append('page', String(params.page));
+
+    const response = await fetch(url.toString(), {
+      headers: getHeaders(token),
+    });
+
+    if (!response.ok) return { withdrawals: [] };
+
+    const data = await response.json();
+    return {
+      withdrawals: data?.data || data?.withdrawals || [],
+      meta: data?.meta,
+    };
+  } catch (error) {
+    console.warn('Failed to fetch organizer withdrawals:', error);
+    return { withdrawals: [] };
+  }
+}
+
+export async function createWithdrawalRequest(payload: {
+  organizer_bank_account_id: number;
+  amount: number;
+}): Promise<ApiWithdrawal> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/organizer/withdrawals`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getHeaders(token),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal membuat pengajuan penarikan dana.';
+    throw new Error(errorMsg);
+  }
+
+  return data?.data || data;
+}
+
+export async function fetchWithdrawalDetail(withdrawalId: number): Promise<ApiWithdrawal | null> {
+  const token = getStoredToken();
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/organizer/withdrawals/${withdrawalId}`, {
+      headers: getHeaders(token),
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    return data?.data || data;
+  } catch (error) {
+    console.warn('Failed to fetch withdrawal detail:', error);
+    return null;
+  }
+}
+
+
 

@@ -1,4 +1,3 @@
-'use me';
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -45,7 +44,7 @@ import {
   getStoredToken,
   fetchUserProfile,
   ApiEvent,
-  TicketType,
+  ApiTicketType,
 } from '@/lib/api';
 import { Footer } from '@/components/public/Footer';
 
@@ -77,6 +76,98 @@ export default function EventCheckoutClient() {
   const [sameAsBuyerFlags, setSameAsBuyerFlags] = useState<boolean[]>([true]);
   const [ticketHolders, setTicketHolders] = useState<{ name: string; phone: string; nik: string; address: string }[]>([]);
 
+  // Promo Code State
+  const [promoCodeInput, setPromoCodeInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountAmount: number } | null>(null);
+  const [isApplyingPromo, setIsApplyingPromo] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
+
+  // Terms Agreement
+  const [isAgreedTerms, setIsAgreedTerms] = useState(false);
+
+  // Payment Category State
+  const [selectedPaymentCategory, setSelectedPaymentCategory] = useState<string>('QRIS');
+
+  // Submission State
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [completedOrder, setCompletedOrder] = useState<any | null>(null);
+
+  // Load Event Detail & User Profile
+  useEffect(() => {
+    const rawId = params?.id;
+    const targetId = Array.isArray(rawId) ? rawId[0] : rawId;
+    const fetchId = targetId || (typeof window !== 'undefined' ? window.location.pathname.split('/')[2] : null);
+
+    if (fetchId) {
+      fetchPublicEventDetail(fetchId).then(async (data) => {
+        if (data) {
+          try {
+            const types = await fetchTicketTypes(data.id);
+            if (types && types.length > 0) {
+              data.ticket_types = types;
+            }
+          } catch {
+            // keep existing types or fallback
+          }
+
+          setEvent(data);
+        }
+        setIsLoadingEvent(false);
+      }).catch(() => {
+        setIsLoadingEvent(false);
+      });
+    } else {
+      setIsLoadingEvent(false);
+    }
+
+    // Auto-fill user identity from Profile / LocalStorage
+    const token = getStoredToken();
+    const user = getStoredUser();
+
+    if (token) {
+      setIsUserLoggedIn(true);
+      const getAddressValue = (u: any) =>
+        u?.address || u?.location || (typeof window !== 'undefined' ? localStorage.getItem('metix_user_address') : '') || 'Jakarta South, Indonesia';
+      const getNikValue = (u: any) =>
+        u?.nik || (typeof window !== 'undefined' ? localStorage.getItem('metix_user_nik') : '') || '3171023901920001';
+
+      if (user) {
+        setBuyerName(user.name || user.first_name || '');
+        setBuyerEmail(user.email || '');
+        setBuyerPhone(user.phone || '');
+        setBuyerAddress(getAddressValue(user));
+        setBuyerNik(getNikValue(user));
+      }
+
+      fetchUserProfile().then((freshUser) => {
+        if (freshUser) {
+          setBuyerName(freshUser.name || freshUser.first_name || '');
+          setBuyerEmail(freshUser.email || '');
+          setBuyerPhone(freshUser.phone || '');
+          setBuyerAddress(getAddressValue(freshUser));
+          setBuyerNik(getNikValue(freshUser));
+        }
+      });
+    }
+  }, [params]);
+
+  // Reservation Timer Countdown
+  useEffect(() => {
+    if (currentStep === 3) return; // Stop countdown on success step
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [currentStep]);
+
   // Calculate Ticket Subtotal
   const totalPrice = React.useMemo(() => {
     if (!event || !event.ticket_types) return 0;
@@ -94,7 +185,6 @@ export default function EventCheckoutClient() {
   // Synchronize Holders List & Per-holder Same-As-Buyer Flags
   useEffect(() => {
     if (totalTicketCount <= 0) {
-      setTicketHolders([]);
       setSameAsBuyerFlags([]);
       return;
     }
@@ -110,6 +200,13 @@ export default function EventCheckoutClient() {
       }
       return nextFlags;
     });
+  }, [totalTicketCount]);
+
+  useEffect(() => {
+    if (totalTicketCount <= 0) {
+      setTicketHolders([]);
+      return;
+    }
 
     setTicketHolders((prevHolders) => {
       const nextHolders = [...prevHolders];
@@ -138,7 +235,18 @@ export default function EventCheckoutClient() {
         }
       }
 
-      return nextHolders;
+      const isDifferent =
+        nextHolders.length !== prevHolders.length ||
+        nextHolders.some(
+          (h, i) =>
+            !prevHolders[i] ||
+            h.name !== prevHolders[i].name ||
+            h.phone !== prevHolders[i].phone ||
+            h.nik !== prevHolders[i].nik ||
+            h.address !== prevHolders[i].address
+        );
+
+      return isDifferent ? nextHolders : prevHolders;
     });
   }, [totalTicketCount, buyerName, buyerPhone, buyerNik, buyerAddress, sameAsBuyerFlags]);
 
@@ -329,9 +437,80 @@ export default function EventCheckoutClient() {
 
   if (isLoadingEvent) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-slate-900 space-y-4">
-        <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
-        <p className="text-sm font-bold text-slate-500">Memuat Halaman Pemesanan Tiket...</p>
+      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans animate-pulse">
+        {/* Header Skeleton */}
+        <header className="bg-white border-b border-slate-200 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-28 h-9 rounded-xl bg-slate-200" />
+            <div className="w-40 h-5 rounded-lg bg-slate-200 hidden sm:block" />
+          </div>
+          <div className="w-32 h-7 rounded-2xl bg-amber-100" />
+        </header>
+
+        {/* Stepper Skeleton */}
+        <div className="max-w-4xl mx-auto px-4 sm:px-8 pt-8 pb-4">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+            <div className="grid grid-cols-3 gap-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex flex-col items-center p-3 rounded-2xl bg-slate-100/80 space-y-2">
+                  <div className="w-9 h-9 rounded-xl bg-slate-200" />
+                  <div className="w-20 h-3 rounded bg-slate-200" />
+                  <div className="w-16 h-2 rounded bg-slate-200 hidden sm:block" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Content Skeleton */}
+        <main className="max-w-4xl mx-auto px-4 sm:px-8 pb-20 space-y-6">
+          {/* Event Summary Skeleton */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-3">
+            <div className="w-24 h-5 rounded-full bg-blue-100" />
+            <div className="w-3/4 h-8 rounded-xl bg-slate-200" />
+            <div className="flex gap-4 pt-1">
+              <div className="w-32 h-4 rounded bg-slate-200" />
+              <div className="w-40 h-4 rounded bg-slate-200" />
+            </div>
+          </div>
+
+          {/* Ticket Category Skeleton */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-4">
+            <div className="w-48 h-6 rounded-lg bg-slate-200 border-b pb-3" />
+            <div className="space-y-3">
+              {[1, 2].map((i) => (
+                <div key={i} className="p-4 sm:p-5 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-between">
+                  <div className="space-y-2">
+                    <div className="w-36 h-5 rounded-lg bg-slate-200" />
+                    <div className="w-48 h-3.5 rounded bg-slate-200" />
+                    <div className="w-24 h-6 rounded-lg bg-slate-200" />
+                  </div>
+                  <div className="w-24 h-8 rounded-xl bg-slate-200" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Form Identitas Skeleton */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-4">
+            <div className="w-64 h-6 rounded-lg bg-slate-200 border-b pb-3" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="space-y-2">
+                  <div className="w-28 h-3.5 rounded bg-slate-200" />
+                  <div className="w-full h-10 rounded-xl bg-slate-100 border border-slate-200" />
+                </div>
+              ))}
+              <div className="sm:col-span-2 space-y-2">
+                <div className="w-32 h-3.5 rounded bg-slate-200" />
+                <div className="w-full h-16 rounded-xl bg-slate-100 border border-slate-200" />
+              </div>
+            </div>
+          </div>
+
+          {/* Button Skeleton */}
+          <div className="w-full h-14 rounded-2xl bg-blue-200" />
+        </main>
       </div>
     );
   }

@@ -87,6 +87,7 @@ export interface ApiTicketType {
   id: number;
   event_id: number;
   name: string;
+  description?: string;
   price: string | number;
   quota?: number;
   available?: number;

@@ -77,6 +77,20 @@ export default function EventCheckoutClient() {
   const [sameAsBuyerFlags, setSameAsBuyerFlags] = useState<boolean[]>([true]);
   const [ticketHolders, setTicketHolders] = useState<{ name: string; phone: string; nik: string; address: string }[]>([]);
 
+  // Calculate Ticket Subtotal
+  const totalPrice = React.useMemo(() => {
+    if (!event || !event.ticket_types) return 0;
+    return selectedTickets.reduce((sum, item) => {
+      const ticketType = event.ticket_types?.find((t) => t.id === item.ticket_type_id);
+      const price = ticketType ? Number(ticketType.price) : 0;
+      return sum + price * item.quantity;
+    }, 0);
+  }, [event, selectedTickets]);
+
+  const totalTicketCount = React.useMemo(() => {
+    return selectedTickets.reduce((sum, item) => sum + item.quantity, 0);
+  }, [selectedTickets]);
+
   // Synchronize Holders List & Per-holder Same-As-Buyer Flags
   useEffect(() => {
     if (totalTicketCount <= 0) {

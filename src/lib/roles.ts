@@ -37,17 +37,15 @@ export function getUserRole(
     return ROLES.OWNER;
   }
   if (rawRole === 'EO' || rawRole === 'MITRA' || rawRole === 'ORGANIZER') {
-    const status = (
+    const eoStatus = (
       user.mitra_status ||
       (user as any).organizer_status ||
       (user as any).organizer_profile?.status ||
-      (user as any).status ||
       ''
     ).toUpperCase();
 
-    // EO account MUST be explicitly APPROVED or ACTIVE by Owner to gain access to EO features!
-    // If pending approval, unapproved, or rejected, treat user as BUYER!
-    if (status === 'ACTIVE' || status === 'APPROVED') {
+    // EO account MUST be explicitly APPROVED or ACTIVE in their organizer_profile / mitra_status by Owner!
+    if (eoStatus === 'ACTIVE' || eoStatus === 'APPROVED') {
       return ROLES.EO;
     }
 

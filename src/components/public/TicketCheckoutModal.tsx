@@ -125,11 +125,15 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
   const [timeLeft, setTimeLeft] = useState<number>(600);
   const [isTimeoutModalOpen, setIsTimeoutModalOpen] = useState<boolean>(false);
 
+  // Terms & Conditions Agreement Checkbox State
+  const [isAgreedTerms, setIsAgreedTerms] = useState<boolean>(false);
+
   // Reset timer & timeout modal state when modal opens
   useEffect(() => {
     if (isOpen) {
       setTimeLeft(600);
       setIsTimeoutModalOpen(false);
+      setIsAgreedTerms(false);
     }
   }, [isOpen]);
 
@@ -419,7 +423,8 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
     isBuyerPhoneValid &&
     isBuyerAddressValid &&
     isBuyerNikValid &&
-    isHoldersValid;
+    isHoldersValid &&
+    isAgreedTerms;
 
   // Early return AFTER all hooks have been invoked
   if (!isOpen || !event) return null;
@@ -1411,13 +1416,31 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                   </div>
                 )}
 
+                {/* Mandatory Terms Agreement Checkbox Row */}
+                {isUserLoggedIn && (
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-2xl bg-slate-50 border border-slate-200/90 text-[11px] text-slate-700 font-medium animate-in fade-in-0">
+                    <input
+                      type="checkbox"
+                      id="terms-agreement-checkbox"
+                      checked={isAgreedTerms}
+                      onChange={(e) => setIsAgreedTerms(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 accent-blue-600 rounded cursor-pointer shrink-0"
+                    />
+                    <label htmlFor="terms-agreement-checkbox" className="cursor-pointer leading-snug select-none">
+                      Dengan ini saya menerima <Link href="/terms" target="_blank" className="font-extrabold text-blue-600 underline hover:text-blue-700">Ketentuan Layanan</Link>. Untuk informasi lebih lanjut tentang praktik privasi Metix, lihat <Link href="/privacy" target="_blank" className="font-extrabold text-blue-600 underline hover:text-blue-700">Pernyataan Privasi Metix</Link>.
+                    </label>
+                  </div>
+                )}
+
                 {/* Validation Helper Banner (Compact 1-Line Helper) */}
                 {isUserLoggedIn && !isFormValid && (
-                  <div className="px-3 py-1 rounded-xl bg-rose-50 border border-rose-200/80 text-rose-700 text-[10px] sm:text-[11px] font-extrabold flex items-center gap-1.5 animate-in fade-in-0">
+                  <div className="px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200/80 text-rose-700 text-[10px] sm:text-[11px] font-extrabold flex items-center gap-1.5 animate-in fade-in-0">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
                     <span className="truncate">
                       {selectedTickets.length === 0
                         ? 'Pilih minimal 1 tiket untuk melanjutkan.'
+                        : !isAgreedTerms
+                        ? 'Centang persetujuan Ketentuan Layanan & Pernyataan Privasi di atas.'
                         : 'Lengkapi Nama, Email, WA, NIK KTP terlebih dahulu.'}
                     </span>
                   </div>

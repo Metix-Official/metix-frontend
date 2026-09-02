@@ -935,8 +935,8 @@ export default function EventCheckoutClient() {
               )}
             </div>
 
-            {/* Step 5 Block: Terms Agreement Checkbox & Next Button */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-4">
+            {/* Step 5 Block: Terms Agreement Checkbox & Next Button (Sticky on Mobile) */}
+            <div className="sticky bottom-0 left-0 right-0 z-40 sm:static bg-white/95 backdrop-blur-md rounded-t-3xl sm:rounded-3xl p-4 sm:p-6 border-t sm:border border-slate-200/90 shadow-[0_-8px_30px_rgb(0,0,0,0.12)] sm:shadow-xs space-y-3 sm:space-y-4">
               <div className="flex items-center gap-2 text-xs text-slate-700 font-medium">
                 <input
                   type="checkbox"
@@ -945,13 +945,13 @@ export default function EventCheckoutClient() {
                   onChange={(e) => setIsAgreedTerms(e.target.checked)}
                   className="w-4 h-4 accent-blue-600 rounded cursor-pointer shrink-0"
                 />
-                <label htmlFor="terms-checkbox-page" className="cursor-pointer select-none">
+                <label htmlFor="terms-checkbox-page" className="cursor-pointer select-none text-[11px] sm:text-xs">
                   Saya menyetujui <Link href="/terms" target="_blank" className="font-extrabold text-blue-600 underline">Ketentuan Layanan</Link> & <Link href="/privacy" target="_blank" className="font-extrabold text-blue-600 underline">Kebijakan Privasi Metix</Link>.
                 </label>
               </div>
 
               {!isStep1Valid && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+                <div className="p-2.5 sm:p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] sm:text-xs font-bold flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                   <span>
                     {totalTicketCount === 0
@@ -967,7 +967,7 @@ export default function EventCheckoutClient() {
                 type="button"
                 onClick={() => setCurrentStep(2)}
                 disabled={!isStep1Valid}
-                className="w-full py-4 rounded-2xl bg-blue-700 hover:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm shadow-md shadow-blue-700/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 sm:py-4 rounded-2xl bg-blue-700 hover:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm shadow-md shadow-blue-700/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Lanjut ke Pembayaran</span>
                 <ArrowRight className="w-4 h-4" />

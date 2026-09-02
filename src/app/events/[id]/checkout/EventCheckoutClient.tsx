@@ -77,6 +77,7 @@ export default function EventCheckoutClient() {
   const [ticketHolders, setTicketHolders] = useState<{ name: string; phone: string; nik: string; address: string }[]>([]);
 
   // Promo Code State
+  const [isUsePromoChecked, setIsUsePromoChecked] = useState(false);
   const [promoCodeInput, setPromoCodeInput] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountAmount: number } | null>(null);
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
@@ -303,7 +304,7 @@ export default function EventCheckoutClient() {
     }
   }, [selectedPaymentCategory, totalPrice, totalTicketCount]);
 
-  const discountValue = appliedPromo ? appliedPromo.discountAmount : 0;
+  const discountValue = isUsePromoChecked && appliedPromo ? appliedPromo.discountAmount : 0;
   const finalGrandTotal = Math.max(0, totalPrice + localTaxAmount + platformFee - discountValue);
 
   // Form Validations
@@ -405,7 +406,7 @@ export default function EventCheckoutClient() {
       try {
         orderData = await checkoutOrder({
           reservation_id: reservation.id,
-          promo_code: appliedPromo?.code,
+          promo_code: isUsePromoChecked && appliedPromo ? appliedPromo.code : undefined,
           payment_category: selectedPaymentCategory,
         });
       } catch (ordErr: any) {
@@ -878,31 +879,60 @@ export default function EventCheckoutClient() {
             </div>
 
             {/* Step 4 Block: Voucher Promo & Referral */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-3">
-              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                <Tag className="w-4 h-4 text-blue-600" /> Kode Promo & Diskon (Opsional)
-              </h3>
+            <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-blue-600" /> Kode Promo & Diskon (Opsional)
+                </h3>
 
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={promoCodeInput}
-                  onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
-                  placeholder="Masukkan Kode Voucher (e.g. METIXHEMAT)"
-                  className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 font-mono placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none uppercase"
-                />
-                <button
-                  type="button"
-                  onClick={handleApplyPromo}
-                  disabled={isApplyingPromo || !promoCodeInput.trim()}
-                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  {isApplyingPromo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Gunakan'}
-                </button>
+                <label className="flex items-center gap-2 text-xs font-bold text-blue-600 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isUsePromoChecked}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsUsePromoChecked(checked);
+                      if (!checked) {
+                        setAppliedPromo(null);
+                        setPromoCodeInput('');
+                        setPromoError(null);
+                        setPromoSuccess(null);
+                      }
+                    }}
+                    className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
+                  />
+                  <span>Gunakan Kode Promo</span>
+                </label>
               </div>
 
-              {promoError && <p className="text-xs text-rose-600 font-bold">{promoError}</p>}
-              {promoSuccess && <p className="text-xs text-emerald-600 font-bold">{promoSuccess}</p>}
+              {isUsePromoChecked ? (
+                <div className="space-y-3 pt-1 animate-in fade-in-0">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={promoCodeInput}
+                      onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
+                      placeholder="Masukkan Kode Voucher (e.g. METIXHEMAT)"
+                      className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 font-mono placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none uppercase"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyPromo}
+                      disabled={isApplyingPromo || !promoCodeInput.trim()}
+                      className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      {isApplyingPromo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Gunakan'}
+                    </button>
+                  </div>
+
+                  {promoError && <p className="text-xs text-rose-600 font-bold">{promoError}</p>}
+                  {promoSuccess && <p className="text-xs text-emerald-600 font-bold">{promoSuccess}</p>}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 font-medium italic">
+                  Centang checkbox "Gunakan Kode Promo" di atas jika Anda memiliki voucher diskon.
+                </p>
+              )}
             </div>
 
             {/* Step 5 Block: Terms Agreement Checkbox & Next Button */}

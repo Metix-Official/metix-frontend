@@ -74,150 +74,82 @@ export default function EventCheckoutClient() {
   const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
 
   // Pemegang Tiket Details (Per-ticket holders)
-  const [isSameAsBuyer, setIsSameAsBuyer] = useState(true);
+  const [sameAsBuyerFlags, setSameAsBuyerFlags] = useState<boolean[]>([true]);
   const [ticketHolders, setTicketHolders] = useState<{ name: string; phone: string; nik: string; address: string }[]>([]);
 
-  // Promo Code State
-  const [promoCodeInput, setPromoCodeInput] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountAmount: number } | null>(null);
-  const [isApplyingPromo, setIsApplyingPromo] = useState(false);
-  const [promoError, setPromoError] = useState<string | null>(null);
-  const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
-
-  // Terms Agreement
-  const [isAgreedTerms, setIsAgreedTerms] = useState(false);
-
-  // Payment Category State
-  const [selectedPaymentCategory, setSelectedPaymentCategory] = useState<string>('QRIS');
-
-  // Submission State
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [completedOrder, setCompletedOrder] = useState<any | null>(null);
-
-  // Load Event Detail & User Profile
-  useEffect(() => {
-    const rawId = params?.id;
-    const targetId = Array.isArray(rawId) ? rawId[0] : rawId;
-    const fetchId = targetId || (typeof window !== 'undefined' ? window.location.pathname.split('/')[2] : null);
-
-    if (fetchId) {
-      fetchPublicEventDetail(fetchId).then(async (data) => {
-        if (data) {
-          try {
-            const types = await fetchTicketTypes(data.id);
-            if (types && types.length > 0) {
-              data.ticket_types = types;
-            }
-          } catch {
-            // keep existing types or fallback
-          }
-
-          setEvent(data);
-
-          // Auto-select first ticket if available
-          if (data.ticket_types && data.ticket_types.length > 0) {
-            setSelectedTickets([{ ticket_type_id: data.ticket_types[0].id, quantity: 1 }]);
-          }
-        }
-        setIsLoadingEvent(false);
-      });
-    }
-
-    // Auto-fill user identity from Profile / LocalStorage
-    const token = getStoredToken();
-    const user = getStoredUser();
-
-    if (token) {
-      setIsUserLoggedIn(true);
-      const getAddressValue = (u: any) =>
-        u?.address || u?.location || (typeof window !== 'undefined' ? localStorage.getItem('metix_user_address') : '') || 'Jakarta South, Indonesia';
-      const getNikValue = (u: any) =>
-        u?.nik || (typeof window !== 'undefined' ? localStorage.getItem('metix_user_nik') : '') || '3171023901920001';
-
-      if (user) {
-        setBuyerName(user.name || user.first_name || '');
-        setBuyerEmail(user.email || '');
-        setBuyerPhone(user.phone || '');
-        setBuyerAddress(getAddressValue(user));
-        setBuyerNik(getNikValue(user));
-      }
-
-      fetchUserProfile().then((freshUser) => {
-        if (freshUser) {
-          setBuyerName(freshUser.name || freshUser.first_name || '');
-          setBuyerEmail(freshUser.email || '');
-          setBuyerPhone(freshUser.phone || '');
-          setBuyerAddress(getAddressValue(freshUser));
-          setBuyerNik(getNikValue(freshUser));
-        }
-      });
-    }
-  }, [params]);
-
-  // Reservation Timer Countdown
-  useEffect(() => {
-    if (currentStep === 3) return; // Stop countdown on success step
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [currentStep]);
-
-  // Calculate Ticket Subtotal
-  const totalPrice = React.useMemo(() => {
-    if (!event || !event.ticket_types) return 0;
-    return selectedTickets.reduce((sum, item) => {
-      const ticketType = event.ticket_types?.find((t) => t.id === item.ticket_type_id);
-      const price = ticketType ? Number(ticketType.price) : 0;
-      return sum + price * item.quantity;
-    }, 0);
-  }, [event, selectedTickets]);
-
-  const totalTicketCount = React.useMemo(() => {
-    return selectedTickets.reduce((sum, item) => sum + item.quantity, 0);
-  }, [selectedTickets]);
-
-  // Synchronize Holders List
+  // Synchronize Holders List & Per-holder Same-As-Buyer Flags
   useEffect(() => {
     if (totalTicketCount <= 0) {
       setTicketHolders([]);
+      setSameAsBuyerFlags([]);
       return;
     }
 
-    setTicketHolders((prev) => {
-      const nextHolders = [...prev];
+    setSameAsBuyerFlags((prevFlags) => {
+      const nextFlags = [...prevFlags];
+      if (nextFlags.length < totalTicketCount) {
+        for (let i = nextFlags.length; i < totalTicketCount; i++) {
+          nextFlags.push(i === 0);
+        }
+      } else if (nextFlags.length > totalTicketCount) {
+        nextFlags.splice(totalTicketCount);
+      }
+      return nextFlags;
+    });
+
+    setTicketHolders((prevHolders) => {
+      const nextHolders = [...prevHolders];
       if (nextHolders.length < totalTicketCount) {
         for (let i = nextHolders.length; i < totalTicketCount; i++) {
+          const isSame = i === 0 || !!sameAsBuyerFlags[i];
           nextHolders.push({
-            name: i === 0 && isSameAsBuyer ? buyerName : '',
-            phone: i === 0 && isSameAsBuyer ? buyerPhone : '',
-            nik: i === 0 && isSameAsBuyer ? buyerNik : '',
-            address: i === 0 && isSameAsBuyer ? buyerAddress : '',
+            name: isSame ? buyerName : '',
+            phone: isSame ? buyerPhone : '',
+            nik: isSame ? buyerNik : '',
+            address: isSame ? buyerAddress : '',
           });
         }
       } else if (nextHolders.length > totalTicketCount) {
         nextHolders.splice(totalTicketCount);
       }
 
-      if (isSameAsBuyer && nextHolders.length > 0) {
-        nextHolders[0] = {
-          name: buyerName,
-          phone: buyerPhone,
-          nik: buyerNik,
-          address: buyerAddress,
-        };
+      for (let i = 0; i < nextHolders.length; i++) {
+        if (sameAsBuyerFlags[i] || (i === 0 && sameAsBuyerFlags[0] !== false)) {
+          nextHolders[i] = {
+            name: buyerName,
+            phone: buyerPhone,
+            nik: buyerNik,
+            address: buyerAddress,
+          };
+        }
       }
 
       return nextHolders;
     });
-  }, [totalTicketCount, isSameAsBuyer, buyerName, buyerPhone, buyerNik, buyerAddress]);
+  }, [totalTicketCount, buyerName, buyerPhone, buyerNik, buyerAddress, sameAsBuyerFlags]);
+
+  const handleToggleSameAsBuyer = (idx: number, isChecked: boolean) => {
+    setSameAsBuyerFlags((prev) => {
+      const next = [...prev];
+      next[idx] = isChecked;
+      return next;
+    });
+
+    if (isChecked) {
+      setTicketHolders((prev) => {
+        const next = [...prev];
+        if (next[idx]) {
+          next[idx] = {
+            name: buyerName,
+            phone: buyerPhone,
+            nik: buyerNik,
+            address: buyerAddress,
+          };
+        }
+        return next;
+      });
+    }
+  };
 
   // Local Tax (Pajak Daerah) Calculation
   const localTaxPercentage = event?.local_tax_percentage !== undefined ? Number(event.local_tax_percentage) : 5.0;
@@ -664,76 +596,91 @@ export default function EventCheckoutClient() {
                 <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
                   <ShieldCheck className="w-5 h-5 text-blue-600" /> 3. Data Pemegang Tiket ({ticketHolders.length} Tiket)
                 </h3>
-
-                <label className="flex items-center gap-2 text-xs font-bold text-blue-600 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isSameAsBuyer}
-                    onChange={(e) => setIsSameAsBuyer(e.target.checked)}
-                    className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
-                  />
-                  <span>Samakan dengan Pemesan</span>
-                </label>
               </div>
 
               <div className="space-y-4">
-                {ticketHolders.map((holder, idx) => (
-                  <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
-                    <span className="text-xs font-extrabold text-blue-700 block">
-                      Pemegang Tiket #{idx + 1}
-                    </span>
+                {ticketHolders.map((holder, idx) => {
+                  const isHolderSame = !!sameAsBuyerFlags[idx];
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                      <input
-                        type="text"
-                        required
-                        value={holder.name}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setTicketHolders((prev) => {
-                            const next = [...prev];
-                            next[idx].name = val;
-                            return next;
-                          });
-                        }}
-                        placeholder="Nama Pemegang Tiket"
-                        className="px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:outline-none"
-                      />
+                  return (
+                    <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-extrabold text-blue-700 block">
+                          Pemegang Tiket #{idx + 1}
+                        </span>
 
-                      <input
-                        type="tel"
-                        required
-                        value={holder.phone}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setTicketHolders((prev) => {
-                            const next = [...prev];
-                            next[idx].phone = val;
-                            return next;
-                          });
-                        }}
-                        placeholder="WhatsApp Pemegang Tiket"
-                        className="px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:outline-none"
-                      />
+                        <label className="flex items-center gap-2 text-xs font-bold text-blue-600 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={isHolderSame}
+                            onChange={(e) => handleToggleSameAsBuyer(idx, e.target.checked)}
+                            className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
+                          />
+                          <span>Samakan dengan Pemesan</span>
+                        </label>
+                      </div>
 
-                      <input
-                        type="text"
-                        required
-                        value={holder.nik}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setTicketHolders((prev) => {
-                            const next = [...prev];
-                            next[idx].nik = val;
-                            return next;
-                          });
-                        }}
-                        placeholder="NIK KTP Pemegang Tiket"
-                        className="px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:outline-none font-mono"
-                      />
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        <input
+                          type="text"
+                          required
+                          value={holder.name}
+                          disabled={isHolderSame}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setTicketHolders((prev) => {
+                              const next = [...prev];
+                              next[idx].name = val;
+                              return next;
+                            });
+                          }}
+                          placeholder="Nama Pemegang Tiket"
+                          className={`px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none ${
+                            isHolderSame ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500' : 'bg-white border-slate-300 focus:border-blue-600'
+                          }`}
+                        />
+
+                        <input
+                          type="tel"
+                          required
+                          value={holder.phone}
+                          disabled={isHolderSame}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setTicketHolders((prev) => {
+                              const next = [...prev];
+                              next[idx].phone = val;
+                              return next;
+                            });
+                          }}
+                          placeholder="WhatsApp Pemegang Tiket"
+                          className={`px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none ${
+                            isHolderSame ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500' : 'bg-white border-slate-300 focus:border-blue-600'
+                          }`}
+                        />
+
+                        <input
+                          type="text"
+                          required
+                          value={holder.nik}
+                          disabled={isHolderSame}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setTicketHolders((prev) => {
+                              const next = [...prev];
+                              next[idx].nik = val;
+                              return next;
+                            });
+                          }}
+                          placeholder="NIK KTP Pemegang Tiket"
+                          className={`px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none font-mono ${
+                            isHolderSame ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500' : 'bg-white border-slate-300 focus:border-blue-600'
+                          }`}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

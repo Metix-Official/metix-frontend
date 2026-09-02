@@ -2773,6 +2773,57 @@ export async function rejectOwnerWithdrawal(
   return true;
 }
 
+export interface ApiPlatformFeeItem {
+  id: number;
+  category: string;
+  name: string;
+  percentage: number | string;
+  fixed_fee: number | string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function fetchOwnerPlatformFees(): Promise<ApiPlatformFeeItem[]> {
+  const token = getStoredToken();
+  if (!token) return [];
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/owner/platform-fees`, {
+      headers: getHeaders(token),
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    return data?.data || data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function updateOwnerPlatformFees(
+  fees: Array<{ id: number; percentage: number; fixed_fee: number }>
+): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/owner/platform-fees`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getHeaders(token),
+    },
+    body: JSON.stringify({ fees }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data?.message || 'Gagal memperbarui pengaturan platform fee.');
+  }
+
+  return true;
+}
+
 
 
 

@@ -106,6 +106,15 @@ export function isScanner(
   return hasRole(user, ROLES.SCANNER);
 }
 
+function isPathAllowed(allowedPaths: string[], pathname: string): boolean {
+  return allowedPaths.some((p) => {
+    if (p === '/dashboard') {
+      return pathname === '/dashboard';
+    }
+    return pathname === p || pathname.startsWith(p + '/');
+  });
+}
+
 /**
  * Route protection rules per role.
  * Returns true if the user with given role is allowed to view the pathname.
@@ -127,6 +136,7 @@ export function canAccessRoute(
     const ownerAllowed = [
       '/dashboard',
       '/dashboard/users',
+      '/dashboard/organizers',
       '/dashboard/withdrawals',
       '/dashboard/events',
       '/dashboard/reports',
@@ -135,13 +145,15 @@ export function canAccessRoute(
       '/dashboard/profile',
       '/dashboard/security',
     ];
-    return ownerAllowed.some((p) => pathname === p || pathname.startsWith(p + '/'));
+    return isPathAllowed(ownerAllowed, pathname);
   }
 
   // EO Routes
   if (role === ROLES.EO) {
     const eoAllowed = [
       '/dashboard',
+      '/dashboard/organization',
+      '/dashboard/withdrawals',
       '/dashboard/events',
       '/dashboard/tickets',
       '/dashboard/pos',
@@ -153,7 +165,7 @@ export function canAccessRoute(
       '/dashboard/profile',
       '/dashboard/security',
     ];
-    return eoAllowed.some((p) => pathname === p || pathname.startsWith(p + '/'));
+    return isPathAllowed(eoAllowed, pathname);
   }
 
   // Buyer Routes
@@ -166,7 +178,7 @@ export function canAccessRoute(
       '/dashboard/settings',
       '/dashboard/security',
     ];
-    return buyerAllowed.some((p) => pathname === p || pathname.startsWith(p + '/'));
+    return isPathAllowed(buyerAllowed, pathname);
   }
 
   // Scanner Routes
@@ -177,7 +189,7 @@ export function canAccessRoute(
       '/dashboard/profile',
       '/dashboard/security',
     ];
-    return scannerAllowed.some((p) => pathname === p || pathname.startsWith(p + '/'));
+    return isPathAllowed(scannerAllowed, pathname);
   }
 
   return false;

@@ -23,17 +23,21 @@ export default function ProfilePage() {
     async function loadProfile() {
       setIsLoading(true);
       const data = await fetchUserProfile();
-      const storedNik = typeof window !== 'undefined' ? localStorage.getItem('metix_user_nik') : null;
-      const storedAddress = typeof window !== 'undefined' ? localStorage.getItem('metix_user_address') : null;
+      let storedNik = typeof window !== 'undefined' ? localStorage.getItem('metix_user_nik') : null;
+      let storedAddress = typeof window !== 'undefined' ? localStorage.getItem('metix_user_address') : null;
+
+      if (storedNik === '3171023901920001') storedNik = null;
+      if (storedAddress === 'Jakarta South, Indonesia') storedAddress = null;
 
       if (data) {
         const mergedProfile: UserProfile = {
           ...data,
           id: data.id ?? 1,
           name: data.name || 'Pengguna Metix',
-          email: data.email || 'guest@gmail.com',
-          nik: data.nik || storedNik || '3171023901920001',
-          address: data.address || data.location || storedAddress || 'Jakarta South, Indonesia',
+          email: data.email || '',
+          phone: data.phone || null,
+          nik: data.nik || storedNik || '',
+          address: data.address || data.location || storedAddress || '',
         };
 
         if (typeof window !== 'undefined') {
@@ -52,7 +56,7 @@ export default function ProfilePage() {
   }, []);
 
   const displayName = profile?.name || profile?.first_name || 'Pengguna Metix';
-  const displayEmail = profile?.email || 'guest@gmail.com';
+  const displayEmail = profile?.email || '';
   const initials = displayName
     .split(' ')
     .map((n) => n[0])
@@ -99,14 +103,14 @@ export default function ProfilePage() {
       }
 
       const updated = await updateUserProfile(formData);
-      const finalNik = nikInput || updated.nik || '3171023901920001';
-      const finalAddress = addressInput || updated.address || 'Jakarta South, Indonesia';
+      const finalNik = nikInput || updated.nik || '';
+      const finalAddress = addressInput || updated.address || '';
 
       const merged: UserProfile = {
         ...updated,
         id: updated.id ?? profile?.id ?? 1,
         name: updated.name || profile?.name || 'Pengguna Metix',
-        email: updated.email || profile?.email || 'guest@gmail.com',
+        email: updated.email || profile?.email || '',
         nik: finalNik,
         address: finalAddress,
       };
@@ -266,7 +270,7 @@ export default function ProfilePage() {
                   <input
                     type="text"
                     name="phone"
-                    defaultValue={profile?.phone || '081234567890'}
+                    defaultValue={profile?.phone || ''}
                     placeholder="0812..."
                     className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
                   />
@@ -280,8 +284,8 @@ export default function ProfilePage() {
                   <input
                     type="text"
                     name="nik"
-                    defaultValue={profile?.nik || '3171023901920001'}
-                    placeholder="3171..."
+                    defaultValue={profile?.nik || ''}
+                    placeholder="Contoh: 3171..."
                     className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
                   />
                 </div>
@@ -294,7 +298,8 @@ export default function ProfilePage() {
                   <textarea
                     name="address"
                     rows={2}
-                    defaultValue={profile?.address || 'Jakarta South, Indonesia'}
+                    defaultValue={profile?.address || ''}
+                    placeholder="Isi alamat tempat tinggal Anda..."
                     className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
                   />
                 </div>

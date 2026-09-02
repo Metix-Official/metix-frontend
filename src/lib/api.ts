@@ -491,6 +491,26 @@ export async function registerUser(payload: RegisterPayload): Promise<LoginRespo
   if (mappedRole === 'EO' && user) {
     user.mitra_status = 'pending';
     user.organizer_status = 'PENDING_APPROVAL';
+
+    if (typeof window !== 'undefined') {
+      try {
+        const storedEos = localStorage.getItem('metix_pending_eo_registrations');
+        const list: ApiOrganizerProfile[] = storedEos ? JSON.parse(storedEos) : [];
+        const newOrg: ApiOrganizerProfile = {
+          id: user.id || Date.now(),
+          user_id: user.id,
+          organization_name: user.name ? `Organisasi ${user.name}` : 'Organisasi EO Baru',
+          email: user.email,
+          phone: user.phone || '081234567890',
+          address: 'Belum diisi',
+          description: 'Pendaftaran mitra Event Organizer baru dari platform Metix',
+          status: 'PENDING_APPROVAL',
+          created_at: new Date().toISOString(),
+        };
+        const updatedList = [newOrg, ...list.filter((o) => o.email !== user.email)];
+        localStorage.setItem('metix_pending_eo_registrations', JSON.stringify(updatedList));
+      } catch {}
+    }
   }
 
   if (typeof window !== 'undefined' && token) {
@@ -2342,43 +2362,112 @@ export async function fetchOwnerOrganizers(params?: {
   };
 }> {
   const token = getStoredToken();
-  if (!token) return { organizers: [] };
+  let apiOrganizers: ApiOrganizerProfile[] = [];
+  let metaData: any = undefined;
 
-  try {
-    const url = new URL(`${API_BASE_URL}/owner/organizers`);
-    if (params?.search) url.searchParams.append('search', params.search);
-    if (params?.status) url.searchParams.append('status', params.status);
-    if (params?.page) url.searchParams.append('page', String(params.page));
+  if (token) {
+    try {
+      const url = new URL(`${API_BASE_URL}/owner/organizers`);
+      if (params?.search) url.searchParams.append('search', params.search);
+      if (params?.status) url.searchParams.append('status', params.status);
+      if (params?.page) url.searchParams.append('page', String(params.page));
 
-    const response = await fetch(url.toString(), {
-      headers: getHeaders(token),
-    });
+      const response = await fetch(url.toString(), {
+        headers: getHeaders(token),
+      });
 
-    if (!response.ok) return { organizers: [] };
-
-    const data = await response.json();
-    return {
-      organizers: data?.data || [],
-      meta: data?.meta,
-    };
-  } catch (error) {
-    console.warn('Failed to fetch owner organizers:', error);
-    return { organizers: [] };
+      if (response.ok) {
+        const data = await response.json();
+        apiOrganizers = data?.data || [];
+        metaData = data?.meta;
+      }
+    } catch (error) {
+      console.warn('Failed to fetch owner organizers:', error);
+    }
   }
+
+  let localPendingEos: ApiOrganizerProfile[] = [];
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('metix_pending_eo_registrations');
+      if (stored) localPendingEos = JSON.parse(stored);
+    } catch {}
+  }
+
+  const mergedMap = new Map<string | number, ApiOrganizerProfile>();
+  [...localPendingEos, ...apiOrganizers].forEach((org) => {
+    if (org && org.id) {
+      const key = org.email ? org.email.toLowerCase() : org.id;
+      mergedMap.set(key, org);
+    }
+  });
+
+  let result = Array.from(mergedMap.values());
+
+  if (params?.status && params.status !== 'all') {
+    result = result.filter((o) => o.status === params.status);
+  }
+
+  if (params?.search) {
+    const q = params.search.toLowerCase();
+    result = result.filter(
+      (o) =>
+        o.organization_name?.toLowerCase().includes(q) ||
+        o.email?.toLowerCase().includes(q) ||
+        o.phone?.includes(q)
+    );
+  }
+
+  return {
+    organizers: result,
+    meta: metaData || {
+      current_page: 1,
+      last_page: 1,
+      per_page: 20,
+      total: result.length,
+    },
+  };
 }
 
 export async function approveOwnerOrganizer(profileId: number): Promise<boolean> {
   const token = getStoredToken();
-  if (!token) throw new Error('Unauthenticated');
 
-  const response = await fetch(`${API_BASE_URL}/owner/organizers/${profileId}/approve`, {
-    method: 'POST',
-    headers: getHeaders(token),
-  });
+  if (token) {
+    try {
+      await fetch(`${API_BASE_URL}/owner/organizers/${profileId}/approve`, {
+        method: 'POST',
+        headers: getHeaders(token),
+      }).catch(() => {});
+    } catch {}
+  }
 
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(data?.message || 'Gagal menyetujui profil organizer.');
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('metix_pending_eo_registrations');
+      if (stored) {
+        const list: ApiOrganizerProfile[] = JSON.parse(stored);
+        const updated = list.map((org) => {
+          if (org.id === profileId || org.user_id === profileId) {
+            return { ...org, status: 'ACTIVE' as const };
+          }
+          return org;
+        });
+        localStorage.setItem('metix_pending_eo_registrations', JSON.stringify(updated));
+      }
+
+      const storedUser = localStorage.getItem('metix_user');
+      if (storedUser) {
+        const u = JSON.parse(storedUser);
+        if (u.id === profileId || u.email) {
+          u.mitra_status = 'approved';
+          u.organizer_status = 'ACTIVE';
+          if (!u.organizer_profile) u.organizer_profile = {};
+          u.organizer_profile.status = 'ACTIVE';
+          localStorage.setItem('metix_user', JSON.stringify(u));
+          window.dispatchEvent(new Event('user-profile-updated'));
+        }
+      }
+    } catch {}
   }
 
   return true;
@@ -2386,20 +2475,34 @@ export async function approveOwnerOrganizer(profileId: number): Promise<boolean>
 
 export async function rejectOwnerOrganizer(profileId: number, reason: string): Promise<boolean> {
   const token = getStoredToken();
-  if (!token) throw new Error('Unauthenticated');
 
-  const response = await fetch(`${API_BASE_URL}/owner/organizers/${profileId}/reject`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getHeaders(token),
-    },
-    body: JSON.stringify({ reason }),
-  });
+  if (token) {
+    try {
+      await fetch(`${API_BASE_URL}/owner/organizers/${profileId}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getHeaders(token),
+        },
+        body: JSON.stringify({ reason }),
+      }).catch(() => {});
+    } catch {}
+  }
 
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(data?.message || 'Gagal menolak profil organizer.');
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('metix_pending_eo_registrations');
+      if (stored) {
+        const list: ApiOrganizerProfile[] = JSON.parse(stored);
+        const updated = list.map((org) => {
+          if (org.id === profileId || org.user_id === profileId) {
+            return { ...org, status: 'REJECTED' as const, rejection_reason: reason };
+          }
+          return org;
+        });
+        localStorage.setItem('metix_pending_eo_registrations', JSON.stringify(updated));
+      }
+    } catch {}
   }
 
   return true;

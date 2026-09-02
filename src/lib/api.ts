@@ -2062,6 +2062,9 @@ export function incrementStaffScanCount(email?: string): void {
 
 export async function fetchEoAdmins(): Promise<EoAdminUser[]> {
   const token = getStoredToken();
+  const currentUser = getStoredUser();
+  const storageKey = currentUser?.email ? `metix_eo_admins_${currentUser.email.toLowerCase()}` : 'metix_eo_admins';
+  let isApiSuccess = false;
   let apiAdmins: EoAdminUser[] = [];
 
   if (token) {
@@ -2073,34 +2076,42 @@ export async function fetchEoAdmins(): Promise<EoAdminUser[]> {
       if (response.ok) {
         const data = await response.json();
         apiAdmins = data?.data || data?.team || [];
+        isApiSuccess = true;
       }
     } catch {
       // Ignore API errors
     }
   }
 
+  if (isApiSuccess) {
+    return apiAdmins.map((item) => ({
+      id: item.id,
+      name: item.name,
+      email: item.email,
+      phone: item.phone || null,
+      scan_quota: (item as any).scan_quota !== undefined ? (item as any).scan_quota : 200,
+      scan_count: (item as any).scan_count || 0,
+      created_at: (item as any).joined_at || (item as any).created_at || new Date().toISOString(),
+    }));
+  }
+
   let localAdmins: EoAdminUser[] = [];
   if (typeof window !== 'undefined') {
     try {
-      const stored = localStorage.getItem('metix_eo_admins');
+      const stored = localStorage.getItem(storageKey);
       if (stored) localAdmins = JSON.parse(stored);
     } catch {
       localAdmins = [];
     }
   }
 
-  const mergedMap = new Map<string, EoAdminUser>();
-  [...apiAdmins, ...localAdmins].forEach((item) => {
-    if (item && item.email) {
-      mergedMap.set(item.email.toLowerCase(), item);
-    }
-  });
-
-  return Array.from(mergedMap.values());
+  return localAdmins;
 }
 
 export async function createEoAdmin(payload: CreateEoAdminPayload): Promise<EoAdminUser> {
   const token = getStoredToken();
+  const currentUser = getStoredUser();
+  const storageKey = currentUser?.email ? `metix_eo_admins_${currentUser.email.toLowerCase()}` : 'metix_eo_admins';
   let createdUser: EoAdminUser | null = null;
 
   if (token) {
@@ -2140,10 +2151,10 @@ export async function createEoAdmin(payload: CreateEoAdminPayload): Promise<EoAd
 
   if (typeof window !== 'undefined' && createdUser) {
     try {
-      const stored = localStorage.getItem('metix_eo_admins');
+      const stored = localStorage.getItem(storageKey);
       const list: EoAdminUser[] = stored ? JSON.parse(stored) : [];
       const updated = [createdUser, ...list.filter((a) => a.email.toLowerCase() !== payload.email.toLowerCase())];
-      localStorage.setItem('metix_eo_admins', JSON.stringify(updated));
+      localStorage.setItem(storageKey, JSON.stringify(updated));
     } catch {
       // Ignore
     }
@@ -2158,6 +2169,9 @@ export async function updateEoAdmin(adminId: number, payload: CreateEoAdminPaylo
 
 export async function deleteEoAdmin(adminId: number): Promise<boolean> {
   const token = getStoredToken();
+  const currentUser = getStoredUser();
+  const storageKey = currentUser?.email ? `metix_eo_admins_${currentUser.email.toLowerCase()}` : 'metix_eo_admins';
+
   if (token) {
     try {
       await fetch(`${API_BASE_URL}/organizer/team/${adminId}`, {
@@ -2171,11 +2185,11 @@ export async function deleteEoAdmin(adminId: number): Promise<boolean> {
 
   if (typeof window !== 'undefined') {
     try {
-      const stored = localStorage.getItem('metix_eo_admins');
+      const stored = localStorage.getItem(storageKey);
       if (stored) {
         const list: EoAdminUser[] = JSON.parse(stored);
         const filtered = list.filter((a) => a.id !== adminId);
-        localStorage.setItem('metix_eo_admins', JSON.stringify(filtered));
+        localStorage.setItem(storageKey, JSON.stringify(filtered));
       }
     } catch {
       // Ignore

@@ -36,6 +36,7 @@ import { Footer } from '@/components/public/Footer';
 export default function EventDetailClient() {
   const [event, setEvent] = useState<ApiEvent | null>(null);
   const params = useParams();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);

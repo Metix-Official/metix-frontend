@@ -562,11 +562,11 @@ export default function EventCheckoutClient() {
       <div className="max-w-4xl mx-auto px-4 sm:px-8 pt-8 pb-4">
         <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-200/90 shadow-sm space-y-4">
           {/* Stepper Progress Bar Lines & Nodes */}
-          <div className="grid grid-cols-3 gap-2 relative">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-3 relative">
             {[
-              { step: 1, title: 'Informasi & Pemesan', desc: 'Pilih Tiket & Data Diri', icon: User },
-              { step: 2, title: 'Pembayaran', desc: 'Metode & Konfirmasi', icon: QrCode },
-              { step: 3, title: 'E-Ticket Berhasil', desc: 'Tiket Resmi Terbit', icon: CheckCircle2 },
+              { step: 1, title: 'Informasi & Pemesan', mobileTitle: '1. Data Pemesan', desc: 'Pilih Tiket & Data Diri', icon: User },
+              { step: 2, title: 'Pembayaran', mobileTitle: '2. Pembayaran', desc: 'Metode & Konfirmasi', icon: QrCode },
+              { step: 3, title: 'E-Ticket Berhasil', mobileTitle: '3. E-Ticket', desc: 'Tiket Resmi Terbit', icon: CheckCircle2 },
             ].map((item) => {
               const isCompleted = currentStep > item.step;
               const isActive = currentStep === item.step;
@@ -578,28 +578,29 @@ export default function EventCheckoutClient() {
                   onClick={() => {
                     if (item.step === 1 && currentStep === 2) setCurrentStep(1);
                   }}
-                  className={`flex flex-col items-center text-center p-3 rounded-2xl transition-all ${
+                  className={`flex flex-col items-center text-center p-2 sm:p-3 rounded-2xl transition-all ${
                     isActive
-                      ? 'bg-blue-50 border border-blue-300 text-blue-900 shadow-sm'
+                      ? 'bg-blue-50 border border-blue-300 text-blue-900 shadow-xs'
                       : isCompleted
                       ? 'bg-emerald-50 border border-emerald-200 text-emerald-800 cursor-pointer'
                       : 'bg-slate-50 border border-slate-200/80 text-slate-400'
                   }`}
                 >
                   <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-xs mb-2 transition-all ${
+                    className={`w-7 h-7 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center font-extrabold text-xs mb-1 sm:mb-2 transition-all ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-4 ring-blue-600/15'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-2 sm:ring-4 ring-blue-600/15'
                         : isCompleted
                         ? 'bg-emerald-600 text-white font-black'
                         : 'bg-slate-200 text-slate-500'
                     }`}
                   >
-                    {isCompleted ? <Check className="w-5 h-5 stroke-[3]" /> : <IconComp className="w-4 h-4" />}
+                    {isCompleted ? <Check className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3]" /> : <IconComp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                   </div>
 
-                  <span className={`text-xs font-black tracking-tight leading-tight block ${isActive ? 'text-blue-950' : isCompleted ? 'text-emerald-950' : 'text-slate-500'}`}>
-                    Tahap {item.step}: {item.title}
+                  <span className={`text-[11px] sm:text-xs font-black tracking-tight leading-tight block ${isActive ? 'text-blue-950' : isCompleted ? 'text-emerald-950' : 'text-slate-500'}`}>
+                    <span className="sm:hidden">{item.mobileTitle}</span>
+                    <span className="hidden sm:inline">Tahap {item.step}: {item.title}</span>
                   </span>
                   <span className="text-[10px] font-semibold text-slate-500 block mt-0.5 hidden sm:block">
                     {item.desc}

@@ -3,13 +3,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { fetchUserTickets, ApiTicketDetail } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { fetchUserTickets, ApiTicketDetail, getStoredUser } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
 import { Ticket, Search, Calendar, MapPin, QrCode, Sparkles, X, Printer, CheckCircle2, XCircle } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 export default function TicketsPage() {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [tickets, setTickets] = useState<ApiTicketDetail[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -17,6 +19,14 @@ export default function TicketsPage() {
   const [selectedTicket, setSelectedTicket] = useState<ApiTicketDetail | null>(null);
 
   useEffect(() => {
+    const user = getStoredUser();
+    const role = (user?.role || 'BUYER').toUpperCase();
+    if (role !== 'BUYER') {
+      toast.error('Halaman E-Tiket hanya dapat diakses oleh akun Pembeli (Buyer).');
+      router.replace('/dashboard');
+      return;
+    }
+
     async function loadTickets() {
       setIsLoading(true);
       const data = await fetchUserTickets();
@@ -24,7 +34,7 @@ export default function TicketsPage() {
       setIsLoading(false);
     }
     loadTickets();
-  }, []);
+  }, [router]);
 
   const filteredTickets = React.useMemo(() => {
     return tickets.filter((item) => {

@@ -534,7 +534,7 @@ export default function EventDetailClient() {
                 </button>
               ) : (
                 <button
-                  onClick={() => setIsModalOpen(true)}
+                  onClick={() => router.push(`/events/${event.id}/checkout`)}
                   className="w-full py-3.5 rounded-lg bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-blue-700/20 hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Ticket className="w-4 h-4 text-amber-300" />
@@ -573,7 +573,7 @@ export default function EventDetailClient() {
           </button>
         ) : (
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => router.push(`/events/${event.id}/checkout`)}
             className="py-3 px-6 rounded-xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black text-xs shadow-lg shadow-blue-600/30 active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer"
           >
             <Ticket className="w-4 h-4 text-amber-300 shrink-0" />

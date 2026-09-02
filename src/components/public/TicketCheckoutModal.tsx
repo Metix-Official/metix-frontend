@@ -26,6 +26,12 @@ import {
   ChevronUp,
   Clock,
   Tag,
+  QrCode,
+  CreditCard,
+  Building2,
+  Wallet,
+  Store,
+  Zap,
 } from 'lucide-react';
 import {
   fetchTicketTypes,
@@ -102,6 +108,9 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
   } | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
+
+  // Payment Category State
+  const [selectedPaymentCategory, setSelectedPaymentCategory] = useState<string>('QRIS');
 
   // Single Unified Collapse State for Section 3 (Default to expanded false or true)
   const [isSection3Collapsed, setIsSection3Collapsed] = useState(false);
@@ -291,17 +300,45 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
     return selectedTickets.reduce((acc, item) => acc + item.quantity, 0);
   }, [selectedTickets]);
 
-  // Platform Service Fee: Rp 5.000 per ticket
-  const serviceFee = useMemo(() => {
-    if (totalTicketCount === 0) return 0;
-    return totalTicketCount * 5000;
-  }, [totalTicketCount]);
+  // Local Tax: Flat 5% of ticket subtotal
+  const localTaxAmount = useMemo(() => {
+    if (totalPrice === 0) return 0;
+    return Math.floor((totalPrice * 5) / 100);
+  }, [totalPrice]);
+
+  // Platform Service Fee based on Payment Category & Matrix
+  const platformFee = useMemo(() => {
+    if (totalPrice === 0 || totalTicketCount === 0) return 0;
+    switch (selectedPaymentCategory) {
+      case 'QRIS': {
+        const rate =
+          totalTicketCount === 1 ? 0.07 : totalTicketCount === 2 ? 0.067 : totalTicketCount === 3 ? 0.063 : 0.059;
+        return Math.floor(totalPrice * rate);
+      }
+      case 'EWALLET':
+      case 'E_WALLET':
+        return Math.floor(totalPrice * 0.09);
+      case 'VA':
+      case 'VIRTUAL_ACCOUNT':
+      case 'TRANSFER_BANK':
+        return Math.floor(totalPrice * 0.05) + 4500;
+      case 'CREDIT_CARD':
+      case 'CARD':
+        return Math.floor(totalPrice * 0.078) + 2000;
+      case 'ALFAMART':
+        return Math.floor(totalPrice * 0.05) + 6500;
+      case 'PAYLATER':
+        return Math.floor(totalPrice * 0.075);
+      default:
+        return 0;
+    }
+  }, [selectedPaymentCategory, totalPrice, totalTicketCount]);
 
   const discountAmount = appliedPromo ? appliedPromo.discountAmount : 0;
 
   const finalGrandTotal = useMemo(() => {
-    return Math.max(0, totalPrice + serviceFee - discountAmount);
-  }, [totalPrice, serviceFee, discountAmount]);
+    return Math.max(0, totalPrice + localTaxAmount + platformFee - discountAmount);
+  }, [totalPrice, localTaxAmount, platformFee, discountAmount]);
 
   const handleApplyPromo = () => {
     setPromoError(null);
@@ -566,6 +603,8 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
       try {
         orderData = await checkoutOrder({
           reservation_id: reservation.id,
+          promo_code: appliedPromo?.code,
+          payment_category: selectedPaymentCategory,
         });
       } catch (ordErr: any) {
         console.warn('Backend order response:', ordErr);
@@ -1185,6 +1224,90 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                   )}
                 </div>
               )}
+
+              {/* Step 5: Kategori Metode Pembayaran */}
+              {selectedTickets.length > 0 && (
+                <div className="space-y-3 pt-3 border-t border-slate-100 animate-in fade-in-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4 text-blue-600" /> 5. Kategori Pembayaran
+                    </span>
+                    <span className="text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                      Pilih Salah Satu
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {[
+                      { id: 'QRIS', label: 'QRIS Instant', feeText: '7% - 5,9% (Tiered)', icon: QrCode },
+                      { id: 'VA', label: 'Virtual Account', feeText: '5% + Rp 4.500', icon: Building2 },
+                      { id: 'EWALLET', label: 'E-Wallet', feeText: '9.0%', icon: Wallet },
+                      { id: 'CREDIT_CARD', label: 'Kartu Kredit / Debit', feeText: '7,8% + Rp 2.000', icon: CreditCard },
+                      { id: 'ALFAMART', label: 'Alfamart Retail', feeText: '5% + Rp 6.500', icon: Store },
+                      { id: 'PAYLATER', label: 'Paylater (Akulaku/Kredivo)', feeText: '7.5%', icon: Zap },
+                    ].map((cat) => {
+                      const IconComp = cat.icon;
+                      const isSelected = selectedPaymentCategory === cat.id;
+
+                      // Calculate category specific preview fee
+                      let categoryFee = 0;
+                      if (totalPrice > 0) {
+                        if (cat.id === 'QRIS') {
+                          const rate = totalTicketCount === 1 ? 0.07 : totalTicketCount === 2 ? 0.067 : totalTicketCount === 3 ? 0.063 : 0.059;
+                          categoryFee = Math.floor(totalPrice * rate);
+                        } else if (cat.id === 'EWALLET') {
+                          categoryFee = Math.floor(totalPrice * 0.09);
+                        } else if (cat.id === 'VA') {
+                          categoryFee = Math.floor(totalPrice * 0.05) + 4500;
+                        } else if (cat.id === 'CREDIT_CARD') {
+                          categoryFee = Math.floor(totalPrice * 0.078) + 2000;
+                        } else if (cat.id === 'ALFAMART') {
+                          categoryFee = Math.floor(totalPrice * 0.05) + 6500;
+                        } else if (cat.id === 'PAYLATER') {
+                          categoryFee = Math.floor(totalPrice * 0.075);
+                        }
+                      }
+
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setSelectedPaymentCategory(cat.id)}
+                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
+                            isSelected
+                              ? 'border-blue-600 bg-blue-50/70 shadow-sm ring-1 ring-blue-600/30'
+                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                                isSelected ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              <IconComp className="w-4 h-4" />
+                            </div>
+                            <div className="space-y-0.5 min-w-0">
+                              <span className="font-extrabold text-xs text-slate-900 block truncate">{cat.label}</span>
+                              <span className="text-[10px] font-bold text-slate-400 block">{cat.feeText}</span>
+                            </div>
+                          </div>
+
+                          {categoryFee > 0 && (
+                            <span
+                              className={`text-[10px] font-black shrink-0 px-2 py-0.5 rounded-full ${
+                                isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              +Rp {categoryFee.toLocaleString('id-ID')}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
               {/* Fixed Modal Footer Bar (Outside Scroll Container, shrink-0) */}
@@ -1198,8 +1321,13 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                     </div>
 
                     <div className="flex justify-between items-center text-slate-300">
-                      <span>Biaya Layanan Platform (Rp 5.000 / tiket)</span>
-                      <span className="font-bold text-slate-200">+Rp {serviceFee.toLocaleString('id-ID')}</span>
+                      <span>Pajak Daerah (Local Tax 5%)</span>
+                      <span className="font-bold text-slate-200">+Rp {localTaxAmount.toLocaleString('id-ID')}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center text-slate-300">
+                      <span>Biaya Layanan Platform ({selectedPaymentCategory})</span>
+                      <span className="font-bold text-slate-200">+Rp {platformFee.toLocaleString('id-ID')}</span>
                     </div>
 
                     {appliedPromo && (

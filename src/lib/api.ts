@@ -776,10 +776,36 @@ export async function applyReferralCode(payload: {
   };
 }
 
+export async function previewCheckout(payload: {
+  reservation_id: number;
+  promo_code?: string;
+  referral_code?: string;
+  payment_category?: string;
+}): Promise<any> {
+  const token = getStoredToken();
+  const response = await fetch(`${API_BASE_URL}/checkout/preview`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getHeaders(token),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data?.message || 'Gagal menghitung rincian simulasi checkout.');
+  }
+
+  return data?.data || data;
+}
+
 export async function checkoutOrder(payload: {
   reservation_id: number;
   promo_code?: string;
   referral_code?: string;
+  payment_category?: string;
 }): Promise<ApiOrder> {
   const token = getStoredToken();
   const response = await fetch(`${API_BASE_URL}/checkout`, {

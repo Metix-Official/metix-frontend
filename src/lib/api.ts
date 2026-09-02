@@ -549,14 +549,16 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
 
 export async function logoutApi(): Promise<void> {
   const token = getStoredToken();
-  if (token) {
+  if (token && !token.startsWith('scanner_token_')) {
     try {
       await fetch(`${API_BASE_URL}/auth/logout`, {
         method: 'POST',
         headers: getHeaders(token),
+      }).catch(() => {
+        // Ignore network disconnection during logout
       });
-    } catch (e) {
-      console.error('Logout error:', e);
+    } catch {
+      // Ignore errors during logout
     }
   }
   logoutUser();

@@ -588,6 +588,16 @@ export default function EventsPage() {
         return;
       }
 
+      const slugVal = formData.get('slug');
+      if (!slugVal || String(slugVal).trim() === '') {
+        setCreateModalTab('info');
+        setErrorMessage('Data Slug / URL Event belum diisi! Silakan isi bidang slug terlebih dahulu.');
+        setIsSubmitting(false);
+        toast.error('Data Slug / URL Event belum diisi!');
+        alert('⚠️ PERINGATAN: Data Slug / URL Event belum diisi!\n\nSilakan lengkapi bidang Slug / URL Event terlebih dahulu sebelum melanjutkan pembuatan event.');
+        return;
+      }
+
       const venueName = formData.get('name') || formData.get('venue_name') || formData.get('location');
       if (!venueName || String(venueName).trim() === '') {
         setCreateModalTab('venue');

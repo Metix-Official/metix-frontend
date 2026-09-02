@@ -12,6 +12,7 @@ if (!envUrl.endsWith('/v1')) {
 export const API_BASE_URL = envUrl;
 
 export function getPhotoUrl(photoUrl?: string | null, eventId?: number | string, isEoProfile?: boolean): string | null {
+  if (!photoUrl || photoUrl === 'organizers/logo_default.png' || photoUrl === 'logo_default.png' || photoUrl.includes('logo_default')) return null;
   if (typeof window !== 'undefined') {
     if (eventId) {
       const localBanner = localStorage.getItem(`metix_banner_preview_${eventId}`);
@@ -486,6 +487,11 @@ export async function registerUser(payload: RegisterPayload): Promise<LoginRespo
 
   const user = data.user || data.data?.user;
   const token = data.token || data.data?.token;
+
+  if (mappedRole === 'EO' && user) {
+    user.mitra_status = 'pending';
+    user.organizer_status = 'PENDING_APPROVAL';
+  }
 
   if (typeof window !== 'undefined' && token) {
     localStorage.setItem('metix_token', token);
@@ -2237,10 +2243,10 @@ export async function saveOrganizerProfile(payload: {
   const isUpdate = !!existingProfile;
   const method = isUpdate ? 'PUT' : 'POST';
 
-  let logoString = 'organizers/logo_default.png';
-  if (payload.logo && !payload.logo.startsWith('data:image')) {
+  let logoString: string | null = null;
+  if (payload.logo && !payload.logo.startsWith('data:image') && !payload.logo.includes('logo_default')) {
     logoString = payload.logo.slice(0, 250);
-  } else if (existingProfile?.logo && !existingProfile.logo.startsWith('data:image')) {
+  } else if (existingProfile?.logo && !existingProfile.logo.startsWith('data:image') && !existingProfile.logo.includes('logo_default')) {
     logoString = existingProfile.logo.slice(0, 250);
   } else if (payload._local_logo_preview) {
     logoString = `organizers/logo_${Date.now()}.png`;

@@ -23,7 +23,7 @@ export interface AuthUser {
 }
 
 export function getUserRole(
-  user?: { role?: string; roles?: Array<{ name: string }> } | null
+  user?: { role?: string; roles?: Array<{ name: string }>; mitra_status?: string | null; organizer_status?: string | null } | null
 ): UserRole | null {
   if (!user) return null;
   
@@ -37,6 +37,18 @@ export function getUserRole(
     return ROLES.OWNER;
   }
   if (rawRole === 'EO' || rawRole === 'MITRA' || rawRole === 'ORGANIZER') {
+    const status = (
+      user.mitra_status ||
+      (user as any).organizer_status ||
+      (user as any).status ||
+      ''
+    ).toUpperCase();
+
+    // If EO account status is pending approval or rejected, treat as BUYER until Owner approves
+    if (status === 'PENDING' || status === 'PENDING_APPROVAL' || status === 'REJECTED') {
+      return ROLES.BUYER;
+    }
+
     return ROLES.EO;
   }
   if (rawRole === 'SCANNER' || rawRole === 'STAFF') {

@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { CURRENT_USER } from '@/data/mockData';
 import { UserProfile, logoutApi, getPhotoUrl } from '@/lib/api';
+import { getUserRole } from '@/lib/roles';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -83,6 +84,13 @@ export const Header: React.FC<HeaderProps> = ({
   const userRoleLabel = React.useMemo(() => {
     if (user) {
       const roleNames = user.roles ? user.roles.map((r) => r.name) : [];
+      const rawStatus = String(
+        user?.organizer_profile?.status || user?.organizer_status || user?.mitra_status || ''
+      ).toUpperCase();
+
+      if (rawStatus === 'REJECTED') {
+        return 'Pembeli Tiket (EO Ditolak)';
+      }
       if (user.role === 'SCANNER') {
         return 'Staff Scanner QR';
       }
@@ -90,6 +98,9 @@ export const Header: React.FC<HeaderProps> = ({
         return 'Super Admin Platform';
       }
       if (user.email === 'lutfifahri175@gmail.com' || roleNames.includes('mitra') || user.role === 'EO') {
+        if (getUserRole(user) === 'BUYER') {
+          return 'Pembeli Tiket (Pending EO)';
+        }
         return 'Event Organizer (EO)';
       }
     }
@@ -269,9 +280,41 @@ export const Header: React.FC<HeaderProps> = ({
             <h1 className="text-lg lg:text-xl font-black text-slate-900 tracking-tight">
               {pageTitle}
             </h1>
-            <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-[10px] font-black uppercase tracking-wider">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Active
-            </span>
+            {(() => {
+              const rawStatus = String(
+                user?.organizer_profile?.status || user?.organizer_status || user?.mitra_status || ''
+              ).toUpperCase();
+
+              let status = 'ACTIVE';
+              if (rawStatus === 'REJECTED') {
+                status = 'REJECTED';
+              } else if (rawStatus === 'PENDING' || rawStatus === 'PENDING_APPROVAL') {
+                status = 'PENDING_APPROVAL';
+              }
+
+              if (user?.role === 'EO' || user?.role === 'mitra' || user?.organizer_profile) {
+                if (status === 'REJECTED') {
+                  return (
+                    <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80 text-[10px] font-black uppercase tracking-wider">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" /> REJECTED
+                    </span>
+                  );
+                }
+                if (status === 'PENDING_APPROVAL') {
+                  return (
+                    <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80 text-[10px] font-black uppercase tracking-wider">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> PENDING
+                    </span>
+                  );
+                }
+              }
+
+              return (
+                <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-[10px] font-black uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> ACTIVE
+                </span>
+              );
+            })()}
           </div>
           <p className="text-xs font-semibold text-slate-500 flex items-center gap-1.5 hidden sm:flex">
             <span>Selamat datang kembali,</span>

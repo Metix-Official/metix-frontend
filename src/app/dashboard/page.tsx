@@ -9,7 +9,7 @@ import { RecentEvents } from '@/components/dashboard/RecentEvents';
 import { StatMetric, Transaction, EventItem } from '@/data/mockData';
 import { fetchDashboardData, DashboardResponse, getStoredUser } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { Plus, Download, Sparkles, Ticket, ShieldCheck, UserCheck } from 'lucide-react';
+import { Plus, Download, Sparkles, Ticket, ShieldCheck, UserCheck, AlertCircle, XCircle } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
 import { getUserRole } from '@/lib/roles';
@@ -38,14 +38,16 @@ export default function DashboardPage() {
     loadData();
   }, [router]);
 
-  const storedUser = React.useMemo(() => {
-    if (typeof window !== 'undefined') {
-      const u = localStorage.getItem('metix_user');
-      if (u) {
-        try { return JSON.parse(u); } catch {}
-      }
-    }
-    return null;
+  const [storedUser, setStoredUser] = useState<any>(() => getStoredUser());
+
+  useEffect(() => {
+    const handleProfileUpdate = () => {
+      setStoredUser(getStoredUser());
+    };
+    window.addEventListener('user-profile-updated', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('user-profile-updated', handleProfileUpdate);
+    };
   }, []);
 
   const isScannerAdmin = React.useMemo(() => {
@@ -356,22 +358,73 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout pageTitle={formattedPageTitle} activeNav="Dashboard">
-      {/* Pending EO Approval Alert Banner */}
-      {(storedUser?.role === 'EO' || storedUser?.role === 'mitra') && getUserRole(storedUser) === 'BUYER' && (
-        <div className="p-5 rounded-3xl bg-amber-50 border border-amber-200/90 text-amber-900 flex items-start gap-3.5 shadow-2xs animate-in fade-in-0">
-          <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-400/30 text-amber-700 flex items-center justify-center shrink-0">
-            <Sparkles className="w-5 h-5 text-amber-600" />
+      {/* EO Approval Status Banners (Pending / Rejected) */}
+      {(() => {
+        const rawStatus = String(
+          storedUser?.organizer_profile?.status ||
+          storedUser?.organizer_status ||
+          storedUser?.mitra_status ||
+          ''
+        ).toUpperCase();
+
+        const isEoRole = storedUser?.role === 'EO' || storedUser?.role === 'mitra' || storedUser?.organizer_profile;
+        const isNotActiveYet = getUserRole(storedUser) === 'BUYER';
+
+        if (!isEoRole || !isNotActiveYet) return null;
+
+        if (rawStatus === 'REJECTED' || storedUser?.mitra_status === 'rejected') {
+          const reason =
+            storedUser?.organizer_profile?.rejection_reason ||
+            storedUser?.rejection_reason ||
+            'Pengajuan Pendaftaran Event Organizer (EO) Anda ditolak karena dokumen / data usaha tidak sesuai dengan prosedur platform.';
+
+          return (
+            <div className="p-6 rounded-3xl bg-rose-50 border-2 border-rose-200 text-rose-950 flex items-start gap-4 shadow-md animate-in fade-in-0">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-400/40 text-rose-700 flex items-center justify-center shrink-0 shadow-xs">
+                <XCircle className="w-6 h-6 text-rose-600" />
+              </div>
+              <div className="space-y-2 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="text-base font-black text-rose-950">
+                    Pengajuan Pendaftaran EO Ditolak oleh Owner Platform ❌
+                  </h4>
+                  <span className="px-2.5 py-0.5 rounded-full bg-rose-200/80 text-rose-900 text-[10px] font-black uppercase tracking-wider">
+                    STATUS: REJECTED
+                  </span>
+                </div>
+                <p className="text-xs text-rose-900 font-semibold leading-relaxed">
+                  Mohon maaf, pengajuan pendaftaran akun Event Organizer (EO) Anda <span className="font-black underline text-rose-950">DITOLAK</span> oleh Owner/Admin Platform karena tidak sesuai dengan prosedur legalitas & ketentuan yang berlaku.
+                </p>
+                <div className="p-4 rounded-2xl bg-white border border-rose-200/90 text-xs text-rose-950 space-y-1 shadow-2xs">
+                  <span className="font-extrabold text-rose-700 block text-[11px] uppercase tracking-wider">
+                    Alasan Penolakan dari Owner:
+                  </span>
+                  <p className="font-bold text-slate-900 italic text-sm">"{reason}"</p>
+                </div>
+                <p className="text-[11px] text-rose-800 font-medium pt-1">
+                  Akun Anda saat ini tetap aktif sebagai <strong>Pembeli Tiket (Buyer)</strong>. Silakan hubungi Support Metix atau mendaftar ulang dengan dokumen yang sesuai dengan prosedur.
+                </p>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="p-5 rounded-3xl bg-amber-50 border border-amber-200/90 text-amber-900 flex items-start gap-3.5 shadow-2xs animate-in fade-in-0">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-400/30 text-amber-700 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5 text-amber-600" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-sm font-extrabold text-amber-900">
+                Pengajuan Pendaftaran EO Berhasil Dikirim (Menunggu Persetujuan Owner)
+              </h4>
+              <p className="text-xs text-amber-800 font-medium leading-relaxed">
+                Akun Anda saat ini berada dalam mode Pembeli (Buyer) hingga pendaftaran Event Organizer (EO) Anda disetujui oleh Owner/Admin Platform. Setelah disetujui, hak akses penuh EO akan aktif secara otomatis.
+              </p>
+            </div>
           </div>
-          <div className="space-y-1">
-            <h4 className="text-sm font-extrabold text-amber-900">
-              Pengajuan Pendaftaran EO Berhasil Dikirim (Menunggu Persetujuan Owner)
-            </h4>
-            <p className="text-xs text-amber-800 font-medium leading-relaxed">
-              Akun Anda saat ini berada dalam mode Pembeli (Buyer) hingga pendaftaran Event Organizer (EO) Anda disetujui oleh Owner/Admin Platform. Setelah disetujui, hak akses penuh EO akan aktif secara otomatis.
-            </p>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Banner / Welcome Quick Action */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-700 text-white p-6 sm:p-8 lg:p-10 shadow-xl shadow-blue-700/15 border border-blue-600/30">

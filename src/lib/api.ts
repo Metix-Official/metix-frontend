@@ -73,6 +73,14 @@ export interface UserProfile {
   photo?: string | null;
   profile_photo_url?: string | null;
   mitra_status?: 'pending' | 'approved' | 'rejected' | null;
+  organizer_status?: 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED' | string | null;
+  rejection_reason?: string | null;
+  organizer_profile?: {
+    id?: number;
+    organization_name?: string;
+    status?: string;
+    rejection_reason?: string | null;
+  } | null;
   roles?: Array<{ id: number; name: string }>;
 }
 

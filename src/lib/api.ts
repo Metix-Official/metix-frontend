@@ -566,6 +566,31 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
     const user = data?.data || data?.user || data;
 
     if (user && typeof window !== 'undefined') {
+      try {
+        const storedEos = localStorage.getItem('metix_pending_eo_registrations');
+        if (storedEos) {
+          const list: ApiOrganizerProfile[] = JSON.parse(storedEos);
+          const found = list.find(
+            (o) => o.email?.toLowerCase() === user.email?.toLowerCase() || o.user_id === user.id
+          );
+          if (found) {
+            if (found.status === 'REJECTED') {
+              user.mitra_status = 'rejected';
+              user.organizer_status = 'REJECTED';
+              user.rejection_reason = found.rejection_reason || 'Pengajuan pendaftaran Event Organizer (EO) Anda ditolak oleh Owner/Admin Platform.';
+              if (!user.organizer_profile) user.organizer_profile = {};
+              user.organizer_profile.status = 'REJECTED';
+              user.organizer_profile.rejection_reason = found.rejection_reason || user.rejection_reason;
+            } else if (found.status === 'ACTIVE') {
+              user.mitra_status = 'approved';
+              user.organizer_status = 'ACTIVE';
+              if (!user.organizer_profile) user.organizer_profile = {};
+              user.organizer_profile.status = 'ACTIVE';
+            }
+          }
+        }
+      } catch {}
+
       localStorage.setItem('metix_user', JSON.stringify(user));
     }
 
@@ -2519,6 +2544,21 @@ export async function rejectOwnerOrganizer(profileId: number, reason: string): P
           return org;
         });
         localStorage.setItem('metix_pending_eo_registrations', JSON.stringify(updated));
+      }
+
+      const storedUser = localStorage.getItem('metix_user');
+      if (storedUser) {
+        const u = JSON.parse(storedUser);
+        if (u.id === profileId || u.organizer_profile?.id === profileId || u.email) {
+          u.mitra_status = 'rejected';
+          u.organizer_status = 'REJECTED';
+          u.rejection_reason = reason;
+          if (!u.organizer_profile) u.organizer_profile = {};
+          u.organizer_profile.status = 'REJECTED';
+          u.organizer_profile.rejection_reason = reason;
+          localStorage.setItem('metix_user', JSON.stringify(u));
+          window.dispatchEvent(new Event('user-profile-updated'));
+        }
       }
     } catch {}
   }

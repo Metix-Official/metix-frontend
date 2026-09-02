@@ -5,7 +5,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { getStoredToken, getStoredUser, fetchUserProfile, UserProfile } from '@/lib/api';
 import { canAccessRoute, getDefaultRoleDashboard, getUserRole } from '@/lib/roles';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, notFound } from 'next/navigation';
 import { Loader2, ShieldAlert, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
@@ -81,31 +81,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     );
   }
 
-  // Unauthorized Access UI (403 Forbidden Response)
+  // Unauthorized Access UI (Trigger 404 Not Found Page)
   if (isAuthorized === false) {
-    const defaultDashboard = getDefaultRoleDashboard(user);
-    const userRole = getUserRole(user) || 'GUEST';
-
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-16 h-16 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-4 shadow-sm">
-          <ShieldAlert className="w-8 h-8" />
-        </div>
-        <h1 className="text-2xl font-black text-slate-900 mb-2">
-          403 — Akses Ditolak
-        </h1>
-        <p className="text-sm text-slate-600 max-w-md mb-6">
-          Akun Anda dengan role <span className="font-bold text-blue-700">{userRole}</span> tidak memiliki izin untuk mengakses halaman ini (<code className="bg-slate-200 px-1 py-0.5 rounded text-xs">{pathname}</code>).
-        </p>
-        <Link
-          href={defaultDashboard}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-700 text-white font-bold text-sm shadow-md hover:bg-blue-800 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Kembali ke Dashboard Utama
-        </Link>
-      </div>
-    );
+    notFound();
   }
 
   return (

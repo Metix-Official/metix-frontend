@@ -1233,79 +1233,150 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                     <span className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                       <CreditCard className="w-4 h-4 text-blue-600" /> 5. Kategori Pembayaran
                     </span>
-                    <span className="text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
-                      Pilih Salah Satu
+                    <span className="text-[10px] text-emerald-700 font-black bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" /> Direkomendasikan QRIS
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {[
-                      { id: 'QRIS', label: 'QRIS Instant', feeText: '7% - 5,9% (Tiered)', icon: QrCode },
-                      { id: 'VA', label: 'Virtual Account', feeText: '5% + Rp 4.500', icon: Building2 },
-                      { id: 'EWALLET', label: 'E-Wallet', feeText: '9.0%', icon: Wallet },
-                      { id: 'CREDIT_CARD', label: 'Kartu Kredit / Debit', feeText: '7,8% + Rp 2.000', icon: CreditCard },
-                      { id: 'ALFAMART', label: 'Alfamart Retail', feeText: '5% + Rp 6.500', icon: Store },
-                      { id: 'PAYLATER', label: 'Paylater (Akulaku/Kredivo)', feeText: '7.5%', icon: Zap },
-                    ].map((cat) => {
-                      const IconComp = cat.icon;
-                      const isSelected = selectedPaymentCategory === cat.id;
+                  {/* HIGH-CONVERSION HERO RECOMMENDED CARD: QRIS INSTANT */}
+                  {(() => {
+                    const isQrisSelected = selectedPaymentCategory === 'QRIS';
+                    const qrisRate = totalTicketCount === 1 ? 0.07 : totalTicketCount === 2 ? 0.067 : totalTicketCount === 3 ? 0.063 : 0.059;
+                    const qrisFee = totalPrice > 0 ? Math.floor(totalPrice * qrisRate) : 0;
 
-                      // Calculate category specific preview fee
-                      let categoryFee = 0;
-                      if (totalPrice > 0) {
-                        if (cat.id === 'QRIS') {
-                          const rate = totalTicketCount === 1 ? 0.07 : totalTicketCount === 2 ? 0.067 : totalTicketCount === 3 ? 0.063 : 0.059;
-                          categoryFee = Math.floor(totalPrice * rate);
-                        } else if (cat.id === 'EWALLET') {
-                          categoryFee = Math.floor(totalPrice * 0.09);
-                        } else if (cat.id === 'VA') {
-                          categoryFee = Math.floor(totalPrice * 0.05) + 4500;
-                        } else if (cat.id === 'CREDIT_CARD') {
-                          categoryFee = Math.floor(totalPrice * 0.078) + 2000;
-                        } else if (cat.id === 'ALFAMART') {
-                          categoryFee = Math.floor(totalPrice * 0.05) + 6500;
-                        } else if (cat.id === 'PAYLATER') {
-                          categoryFee = Math.floor(totalPrice * 0.075);
-                        }
-                      }
+                    return (
+                      <div
+                        onClick={() => setSelectedPaymentCategory('QRIS')}
+                        className={`relative rounded-3xl p-4 transition-all duration-300 cursor-pointer overflow-hidden border ${
+                          isQrisSelected
+                            ? 'bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-900 border-amber-400 text-white shadow-xl shadow-blue-900/20 ring-2 ring-amber-400/50 scale-[1.01]'
+                            : 'bg-gradient-to-br from-slate-900 to-blue-950 border-slate-800 text-white hover:border-amber-400/50 shadow-md'
+                        }`}
+                      >
+                        {/* Top Recommendation Badge */}
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-wider shadow-sm">
+                            <Zap className="w-3 h-3 text-slate-950 fill-slate-950" /> REKOMENDASI TERCEPAT & TERHEMAT
+                          </span>
+                          <span className="text-[10px] font-bold text-amber-300/90 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-400 animate-pulse" /> Terkonfirmasi 5 Detik
+                          </span>
+                        </div>
 
-                      return (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => setSelectedPaymentCategory(cat.id)}
-                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
-                            isSelected
-                              ? 'border-blue-600 bg-blue-50/70 shadow-sm ring-1 ring-blue-600/30'
-                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div
-                              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                                isSelected ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              <IconComp className="w-4 h-4" />
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0 shadow-inner">
+                              <QrCode className="w-6 h-6 text-amber-300" />
                             </div>
-                            <div className="space-y-0.5 min-w-0">
-                              <span className="font-extrabold text-xs text-slate-900 block truncate">{cat.label}</span>
-                              <span className="text-[10px] font-bold text-slate-400 block">{cat.feeText}</span>
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-black text-sm text-white tracking-tight leading-none">
+                                  QRIS Instant (All E-Wallet & Bank)
+                                </h4>
+                              </div>
+                              <p className="text-[11px] text-blue-100/80 font-medium leading-tight">
+                                BCA, Mandiri, BRI, BNI, GoPay, OVO, ShopeePay, DANA & Semua M-Banking
+                              </p>
                             </div>
                           </div>
 
-                          {categoryFee > 0 && (
-                            <span
-                              className={`text-[10px] font-black shrink-0 px-2 py-0.5 rounded-full ${
-                                isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              +Rp {categoryFee.toLocaleString('id-ID')}
-                            </span>
+                          {qrisFee > 0 && (
+                            <div className="text-right shrink-0">
+                              <span className="text-[11px] font-black text-amber-300 bg-amber-400/15 border border-amber-400/30 px-2.5 py-1 rounded-xl block">
+                                +Rp {qrisFee.toLocaleString('id-ID')}
+                              </span>
+                              <span className="text-[9px] text-blue-200 font-bold block mt-1">Tarif Hemat</span>
+                            </div>
                           )}
-                        </button>
-                      );
-                    })}
+                        </div>
+
+                        {/* Radio Checkmark Status indicator */}
+                        <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between text-[11px] font-bold">
+                          <span className="text-amber-200/90 flex items-center gap-1">
+                            <ShieldCheck className="w-3.5 h-3.5 text-amber-400" /> Tanpa Perlu Input Nomor Rekening / Kartu
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-black tracking-wider ${isQrisSelected ? 'bg-amber-400 text-slate-950' : 'bg-white/10 text-white/70'}`}>
+                            {isQrisSelected ? '✓ Terpilih' : 'Klik untuk Pilih'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* OTHER PAYMENT METHODS SELECTOR */}
+                  <div className="pt-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-px bg-slate-200 flex-1" />
+                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                        Atau Pilih Metode Pembayaran Lainnya
+                      </span>
+                      <div className="h-px bg-slate-200 flex-1" />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {[
+                        { id: 'VA', label: 'Virtual Account', feeText: '5% + Rp 4.500', icon: Building2 },
+                        { id: 'EWALLET', label: 'E-Wallet (GoPay/OVO)', feeText: '9.0%', icon: Wallet },
+                        { id: 'CREDIT_CARD', label: 'Kartu Kredit / Debit', feeText: '7,8% + Rp 2.000', icon: CreditCard },
+                        { id: 'ALFAMART', label: 'Alfamart Retail', feeText: '5% + Rp 6.500', icon: Store },
+                        { id: 'PAYLATER', label: 'Paylater (Akulaku)', feeText: '7.5%', icon: Zap },
+                      ].map((cat) => {
+                        const IconComp = cat.icon;
+                        const isSelected = selectedPaymentCategory === cat.id;
+
+                        let categoryFee = 0;
+                        if (totalPrice > 0) {
+                          if (cat.id === 'EWALLET') {
+                            categoryFee = Math.floor(totalPrice * 0.09);
+                          } else if (cat.id === 'VA') {
+                            categoryFee = Math.floor(totalPrice * 0.05) + 4500;
+                          } else if (cat.id === 'CREDIT_CARD') {
+                            categoryFee = Math.floor(totalPrice * 0.078) + 2000;
+                          } else if (cat.id === 'ALFAMART') {
+                            categoryFee = Math.floor(totalPrice * 0.05) + 6500;
+                          } else if (cat.id === 'PAYLATER') {
+                            categoryFee = Math.floor(totalPrice * 0.075);
+                          }
+                        }
+
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setSelectedPaymentCategory(cat.id)}
+                            className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                              isSelected
+                                ? 'border-blue-600 bg-blue-50/80 shadow-xs ring-1 ring-blue-600/30 font-extrabold'
+                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50 text-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div
+                                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                                  isSelected ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'
+                                }`}
+                              >
+                                <IconComp className="w-4 h-4" />
+                              </div>
+                              <div className="space-y-0.5 min-w-0">
+                                <span className="font-extrabold text-xs text-slate-900 block truncate">{cat.label}</span>
+                                <span className="text-[10px] font-bold text-slate-400 block">{cat.feeText}</span>
+                              </div>
+                            </div>
+
+                            {categoryFee > 0 && (
+                              <span
+                                className={`text-[10px] font-black shrink-0 px-2 py-0.5 rounded-full ${
+                                  isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
+                                }`}
+                              >
+                                +Rp {categoryFee.toLocaleString('id-ID')}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}

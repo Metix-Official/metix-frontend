@@ -28,8 +28,9 @@ import {
   MessageSquare,
   Info,
 } from 'lucide-react';
-import { fetchPublicEventDetail, fetchTicketTypes, ApiEvent, getPhotoUrl } from '@/lib/api';
+import { fetchPublicEventDetail, fetchTicketTypes, ApiEvent, getPhotoUrl, getStoredToken } from '@/lib/api';
 import { TicketCheckoutModal } from '@/components/public/TicketCheckoutModal';
+import { AuthModal } from '@/components/public/AuthModal';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Footer } from '@/components/public/Footer';
 
@@ -43,7 +44,21 @@ export default function EventDetailClient() {
   const [isVenueModalOpen, setIsVenueModalOpen] = useState(false);
   const [isOrganizerModalOpen, setIsOrganizerModalOpen] = useState(false);
 
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+
   const [organizerLogoError, setOrganizerLogoError] = useState(false);
+
+  const handleBuyClick = () => {
+    if (!event) return;
+    const token = getStoredToken();
+    if (!token) {
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+    router.push(`/events/${event.id}/checkout`);
+  };
 
   useEffect(() => {
     const rawId = params?.id;
@@ -535,7 +550,7 @@ export default function EventDetailClient() {
                 </button>
               ) : (
                 <button
-                  onClick={() => router.push(`/events/${event.id}/checkout`)}
+                  onClick={handleBuyClick}
                   className="w-full py-3.5 rounded-lg bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-blue-700/20 hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Ticket className="w-4 h-4 text-amber-300" />
@@ -574,7 +589,7 @@ export default function EventDetailClient() {
           </button>
         ) : (
           <button
-            onClick={() => router.push(`/events/${event.id}/checkout`)}
+            onClick={handleBuyClick}
             className="py-3 px-6 rounded-xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black text-xs shadow-lg shadow-blue-600/30 active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer"
           >
             <Ticket className="w-4 h-4 text-amber-300 shrink-0" />
@@ -586,6 +601,26 @@ export default function EventDetailClient() {
 
       {/* Public Footer */}
       <Footer />
+
+      {/* Auth Modal for Forced Login before Checkout */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        initialMode={authModalMode}
+        onSuccess={() => {
+          setIsAuthModalOpen(false);
+          if (event) {
+            router.push(`/events/${event.id}/checkout`);
+          }
+        }}
+      />
+
+      {/* Checkout Modal fallback */}
+      <TicketCheckoutModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        event={event}
+      />
 
       {/* ================= MODAL PREVIEW FOTO VENUE PREMIUM ================= */}
       {isVenueModalOpen && venuePhotoUrl && (

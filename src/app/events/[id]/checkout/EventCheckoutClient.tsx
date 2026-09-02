@@ -46,6 +46,7 @@ import {
   ApiEvent,
   ApiTicketType,
 } from '@/lib/api';
+import { AuthModal } from '@/components/public/AuthModal';
 import { Footer } from '@/components/public/Footer';
 
 export default function EventCheckoutClient() {
@@ -86,6 +87,10 @@ export default function EventCheckoutClient() {
 
   // Terms Agreement
   const [isAgreedTerms, setIsAgreedTerms] = useState(false);
+
+  // Auth Modal State for unauthenticated users
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
 
   // Payment Category State
   const [selectedPaymentCategory, setSelectedPaymentCategory] = useState<string>('QRIS');
@@ -151,6 +156,10 @@ export default function EventCheckoutClient() {
           setBuyerNik(getNikValue(freshUser));
         }
       });
+    } else {
+      setIsUserLoggedIn(false);
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
     }
   }, [params]);
 
@@ -1306,6 +1315,36 @@ export default function EventCheckoutClient() {
           </div>
         )}
       </main>
+
+      {/* Auth Modal for Forced Login on Checkout Page */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => {
+          setIsAuthModalOpen(false);
+          const token = getStoredToken();
+          if (!token && event) {
+            router.push(`/events/${event.id}`);
+          }
+        }}
+        initialMode={authModalMode}
+        onSuccess={() => {
+          setIsAuthModalOpen(false);
+          setIsUserLoggedIn(true);
+          const user = getStoredUser();
+          if (user) {
+            setBuyerName(user.name || user.first_name || '');
+            setBuyerEmail(user.email || '');
+            setBuyerPhone(user.phone || '');
+          }
+          fetchUserProfile().then((freshUser) => {
+            if (freshUser) {
+              setBuyerName(freshUser.name || freshUser.first_name || '');
+              setBuyerEmail(freshUser.email || '');
+              setBuyerPhone(freshUser.phone || '');
+            }
+          });
+        }}
+      />
 
       <Footer />
     </div>

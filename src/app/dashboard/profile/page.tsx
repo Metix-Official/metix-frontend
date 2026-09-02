@@ -12,6 +12,10 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [nik, setNik] = useState('');
+  const [address, setAddress] = useState('');
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSaved, setIsSaved] = useState(false);
@@ -46,6 +50,11 @@ export default function ProfilePage() {
         }
 
         setProfile(mergedProfile);
+        setName(mergedProfile.name || '');
+        setPhone((mergedProfile.phone || '').replace(/\D/g, '').slice(0, 13));
+        setNik((mergedProfile.nik || '').replace(/\D/g, '').slice(0, 16));
+        setAddress(mergedProfile.address || '');
+
         if (data.profile_photo_url || data.photo) {
           setPhotoPreview(getPhotoUrl(data.profile_photo_url || data.photo));
         }
@@ -94,23 +103,26 @@ export default function ProfilePage() {
     setErrorMessage(null);
 
     try {
-      const formData = new FormData(e.currentTarget);
-      const nikInput = formData.get('nik') as string;
-      const addressInput = formData.get('address') as string;
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('phone', phone);
+      formData.append('nik', nik);
+      formData.append('address', address);
 
       if (selectedFile) {
         formData.append('photo', selectedFile);
       }
 
       const updated = await updateUserProfile(formData);
-      const finalNik = nikInput || updated.nik || '';
-      const finalAddress = addressInput || updated.address || '';
+      const finalNik = nik || updated.nik || '';
+      const finalAddress = address || updated.address || '';
 
       const merged: UserProfile = {
         ...updated,
         id: updated.id ?? profile?.id ?? 1,
-        name: updated.name || profile?.name || 'Pengguna Metix',
+        name: name || updated.name || profile?.name || 'Pengguna Metix',
         email: updated.email || profile?.email || '',
+        phone: phone || updated.phone || null,
         nik: finalNik,
         address: finalAddress,
       };
@@ -244,7 +256,9 @@ export default function ProfilePage() {
                   <input
                     type="text"
                     name="name"
-                    defaultValue={displayName}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Nama Lengkap"
                     className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
                   />
                 </div>
@@ -264,29 +278,43 @@ export default function ProfilePage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-extrabold text-slate-700">Phone Number</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-extrabold text-slate-700">Phone Number / WhatsApp</label>
+                  <span className="text-[10px] text-slate-400 font-bold">{phone.length} / 13 digit</span>
+                </div>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={13}
                     name="phone"
-                    defaultValue={profile?.phone || ''}
-                    placeholder="0812..."
-                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 13))}
+                    placeholder="Contoh: 081234567890 (Hanya Angka)"
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-all font-mono"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-extrabold text-slate-700">NIK (Nomor Induk Kependudukan)</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-extrabold text-slate-700">NIK (Nomor Induk Kependudukan)</label>
+                  <span className="text-[10px] text-slate-400 font-bold">{nik.length} / 16 digit</span>
+                </div>
                 <div className="relative">
                   <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={16}
                     name="nik"
-                    defaultValue={profile?.nik || ''}
-                    placeholder="Contoh: 3171..."
-                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
+                    value={nik}
+                    onChange={(e) => setNik(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                    placeholder="Contoh: 3171012345670001 (Hanya Angka)"
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-all font-mono"
                   />
                 </div>
               </div>
@@ -298,7 +326,8 @@ export default function ProfilePage() {
                   <textarea
                     name="address"
                     rows={2}
-                    defaultValue={profile?.address || ''}
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
                     placeholder="Isi alamat tempat tinggal Anda..."
                     className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
                   />

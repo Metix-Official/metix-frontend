@@ -102,8 +102,11 @@ export default function ProfilePage() {
       const finalNik = nikInput || updated.nik || '3171023901920001';
       const finalAddress = addressInput || updated.address || 'Jakarta South, Indonesia';
 
-      const merged = {
+      const merged: UserProfile = {
         ...updated,
+        id: updated.id ?? profile?.id ?? 1,
+        name: updated.name || profile?.name || 'Pengguna Metix',
+        email: updated.email || profile?.email || 'guest@gmail.com',
         nik: finalNik,
         address: finalAddress,
       };

@@ -26,20 +26,25 @@ export default function ProfilePage() {
       const storedNik = typeof window !== 'undefined' ? localStorage.getItem('metix_user_nik') : null;
       const storedAddress = typeof window !== 'undefined' ? localStorage.getItem('metix_user_address') : null;
 
-      const mergedProfile = {
-        ...data,
-        nik: data?.nik || storedNik || '3171023901920001',
-        address: data?.address || data?.location || storedAddress || 'Jakarta South, Indonesia',
-      };
+      if (data) {
+        const mergedProfile: UserProfile = {
+          ...data,
+          id: data.id ?? 1,
+          name: data.name || 'Pengguna Metix',
+          email: data.email || 'guest@gmail.com',
+          nik: data.nik || storedNik || '3171023901920001',
+          address: data.address || data.location || storedAddress || 'Jakarta South, Indonesia',
+        };
 
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('metix_user_nik', mergedProfile.nik);
-        localStorage.setItem('metix_user_address', mergedProfile.address);
-      }
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('metix_user_nik', mergedProfile.nik || '');
+          localStorage.setItem('metix_user_address', mergedProfile.address || '');
+        }
 
-      setProfile(mergedProfile);
-      if (data?.profile_photo_url || data?.photo) {
-        setPhotoPreview(getPhotoUrl(data.profile_photo_url || data.photo));
+        setProfile(mergedProfile);
+        if (data.profile_photo_url || data.photo) {
+          setPhotoPreview(getPhotoUrl(data.profile_photo_url || data.photo));
+        }
       }
       setIsLoading(false);
     }

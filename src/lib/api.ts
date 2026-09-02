@@ -63,6 +63,7 @@ export interface UserProfile {
   nik?: string | null;
   phone?: string | null;
   address?: string | null;
+  location?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   birth_date?: string | null;

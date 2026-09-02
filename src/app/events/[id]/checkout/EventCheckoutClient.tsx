@@ -1167,11 +1167,12 @@ export default function EventCheckoutClient() {
                 </div>
               )}
 
-              <div className="pt-2 flex items-center gap-3">
+              {/* Step 2 Action Buttons (Desktop View) */}
+              <div className="hidden sm:flex items-center gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setCurrentStep(1)}
-                  className="px-5 py-4 rounded-2xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-extrabold text-xs transition-all"
+                  className="px-5 py-4 rounded-2xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-extrabold text-xs transition-all cursor-pointer"
                 >
                   Kembali ke Data
                 </button>
@@ -1194,6 +1195,44 @@ export default function EventCheckoutClient() {
                     </>
                   )}
                 </button>
+              </div>
+
+              {/* Step 2 Mobile FIXED Bottom Dock (Full Width Screen Edge Bar like image) */}
+              <div className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200/90 shadow-[0_-8px_30px_rgb(0,0,0,0.15)] p-4 flex items-center justify-between gap-3 animate-in slide-in-from-bottom-5">
+                <div className="flex flex-col shrink-0">
+                  <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                    TOTAL PEMBAYARAN
+                  </span>
+                  <span className="text-base font-black text-blue-700 tracking-tight">
+                    Rp {finalGrandTotal.toLocaleString('id-ID')}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(1)}
+                    className="px-3 py-3 rounded-xl bg-slate-100 text-slate-700 font-extrabold text-[11px] cursor-pointer"
+                  >
+                    Kembali
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSubmitOrder}
+                    disabled={isSubmitting}
+                    className="py-3 px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-xs shadow-lg shadow-blue-600/30 transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <span>Bayar Now</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

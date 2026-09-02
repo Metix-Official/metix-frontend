@@ -582,9 +582,10 @@ export default function EventsPage() {
       const titleVal = formData.get('title');
       if (!titleVal || String(titleVal).trim() === '') {
         setCreateModalTab('info');
-        setErrorMessage('Judul event wajib diisi!');
+        setErrorMessage('Judul Event belum diisi! Silakan isi terlebih dahulu.');
         setIsSubmitting(false);
-        toast.error('Judul event wajib diisi!');
+        toast.error('Judul Event belum diisi!');
+        alert('⚠️ PERINGATAN: Data Judul Event belum diisi!\n\nDiharapkan mengisi Judul Event terlebih dahulu sebelum membuat event.');
         return;
       }
 
@@ -594,21 +595,32 @@ export default function EventsPage() {
         setErrorMessage('Data Slug / URL Event belum diisi! Silakan isi bidang slug terlebih dahulu.');
         setIsSubmitting(false);
         toast.error('Data Slug / URL Event belum diisi!');
-        alert('⚠️ PERINGATAN: Data Slug / URL Event belum diisi!\n\nSilakan lengkapi bidang Slug / URL Event terlebih dahulu sebelum melanjutkan pembuatan event.');
+        alert('⚠️ PERINGATAN: Data Slug / URL Event belum diisi!\n\nDiharapkan mengisi bidang Slug / URL Event terlebih dahulu sebelum membuat event.');
         return;
       }
 
       const venueName = formData.get('name') || formData.get('venue_name') || formData.get('location');
       if (!venueName || String(venueName).trim() === '') {
         setCreateModalTab('venue');
-        setErrorMessage('Nama venue / tempat wajib diisi!');
+        setErrorMessage('Nama venue / tempat belum diisi!');
         setIsSubmitting(false);
-        toast.error('Nama venue / tempat wajib diisi!');
+        toast.error('Nama venue / tempat belum diisi!');
+        alert('⚠️ PERINGATAN: Nama Venue / Tempat Event belum diisi!\n\nDiharapkan mengisi bidang Tempat / Venue terlebih dahulu.');
         return;
       }
       formData.set('venue_name', String(venueName));
       formData.set('name', String(venueName));
       formData.set('location', String(venueName));
+
+      let startAtVal = String(formData.get('start_at') || createStartAt || '').trim();
+      if (!startAtVal) {
+        setCreateModalTab('info');
+        setErrorMessage('Tanggal & Waktu Mulai Event belum ditentukan!');
+        setIsSubmitting(false);
+        toast.error('Tanggal Mulai Event belum ditentukan!');
+        alert('⚠️ PERINGATAN: Tanggal & Waktu Mulai Event belum ditentukan!\n\nDiharapkan mengisi Tanggal Mulai Event terlebih dahulu.');
+        return;
+      }
 
       // Call API POST /api/v1/organizer/venues to get created venue_id integer
       const createdVenue = await createVenue({
@@ -624,7 +636,7 @@ export default function EventsPage() {
         formData.set('venue_id', String(createdVenue.id));
       }
 
-      let startAtVal = String(formData.get('start_at') || createStartAt || '').trim();
+      startAtVal = String(formData.get('start_at') || createStartAt || '').trim();
       let endAtVal = String(formData.get('end_at') || createEndAt || '').trim();
 
       if (startAtVal.includes('T')) startAtVal = startAtVal.replace('T', ' ');

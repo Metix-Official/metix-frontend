@@ -2341,7 +2341,17 @@ export async function saveOrganizerProfile(payload: {
     throw new Error(errorMsg);
   }
 
-  return data?.data || data;
+  const resultProfile: ApiOrganizerProfile = data?.data || data;
+  if (typeof window !== 'undefined' && resultProfile) {
+    try {
+      const storedEos = localStorage.getItem('metix_pending_eo_registrations');
+      const list: ApiOrganizerProfile[] = storedEos ? JSON.parse(storedEos) : [];
+      const updatedList = [resultProfile, ...list.filter((o) => o.id !== resultProfile.id && o.email !== resultProfile.email)];
+      localStorage.setItem('metix_pending_eo_registrations', JSON.stringify(updatedList));
+    } catch {}
+  }
+
+  return resultProfile;
 }
 
 // ----------------------------------------------------------------------

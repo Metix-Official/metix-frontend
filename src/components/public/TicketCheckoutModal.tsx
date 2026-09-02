@@ -105,6 +105,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
 
   // Single Unified Collapse State for Section 3 (Default to expanded false or true)
   const [isSection3Collapsed, setIsSection3Collapsed] = useState(false);
+  const [isBillingDetailsOpen, setIsBillingDetailsOpen] = useState(false);
 
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -113,16 +114,24 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
 
   // 10-Minute Reservation Countdown Timer State (600 seconds)
   const [timeLeft, setTimeLeft] = useState<number>(600);
+  const [isTimeoutModalOpen, setIsTimeoutModalOpen] = useState<boolean>(false);
+
+  // Reset timer & timeout modal state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setTimeLeft(600);
+      setIsTimeoutModalOpen(false);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen || completedOrder || !isUserLoggedIn) return;
-
-    setTimeLeft(600); // Reset to 10 minutes
+    if (!isOpen || completedOrder || !isUserLoggedIn || isTimeoutModalOpen) return;
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
+          setIsTimeoutModalOpen(true);
           return 0;
         }
         return prev - 1;
@@ -130,7 +139,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isOpen, completedOrder, isUserLoggedIn]);
+  }, [isOpen, completedOrder, isUserLoggedIn, isTimeoutModalOpen]);
 
   const formattedTimer = useMemo(() => {
     const mins = Math.floor(timeLeft / 60);
@@ -626,11 +635,13 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 transition-all animate-in fade-in-0">
-      <div className="relative bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh] z-10">
+    <>
+      <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 transition-all animate-in fade-in-0">
+        <div className="relative bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden border border-slate-100 flex flex-col h-[85vh] max-h-[85vh] z-10 animate-in slide-in-from-bottom-5 sm:slide-in-from-bottom-0 duration-200">
         
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 p-6 text-white relative shrink-0">
+        <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 p-5 sm:p-6 text-white relative shrink-0">
+          <div className="w-10 h-1 bg-white/30 rounded-full mx-auto mb-3 sm:hidden" />
           <button
             onClick={onClose}
             className="absolute right-4 top-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
@@ -668,7 +679,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
         </div>
 
         {/* Scrollable Body Container */}
-        <div className="relative flex-1 overflow-hidden flex flex-col">
+        <div className="relative flex-1 overflow-hidden flex flex-col min-h-0">
           {/* Blur Overlay when user is not logged in */}
           {!isUserLoggedIn && (
             <div className="absolute inset-0 z-20 flex items-center justify-center p-4 bg-slate-900/15 backdrop-blur-[3px] animate-in fade-in-0">
@@ -698,20 +709,14 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
             </div>
           )}
 
-          <div
-            className={`p-6 overflow-y-auto space-y-5 flex-1 ${
-              !isUserLoggedIn ? 'filter blur-[5px] select-none pointer-events-none opacity-40' : ''
-            }`}
-          >
-
           {completedOrder ? (
             /* Order Success View */
-            <div className="text-center py-6 space-y-4 animate-in fade-in-0">
+            <div className="p-6 overflow-y-auto overscroll-contain space-y-5 flex-1 min-h-0">
               <div className="w-16 h-16 rounded-2xl bg-emerald-100 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto shadow-lg shadow-emerald-600/10">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-1 text-center">
                 <h4 className="text-xl font-black text-slate-900">Pemesanan Tiket Berhasil!</h4>
                 <p className="text-xs text-slate-500 font-medium">
                   Nomor Order: <strong className="text-blue-700 font-mono">{completedOrder.order_number}</strong>
@@ -725,25 +730,23 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                 </div>
                 <div className="flex justify-between border-b border-slate-200 pb-2">
                   <span className="text-slate-500">Email:</span>
-                  <span className="font-bold text-slate-900">{buyerEmail}</span>
+                  <span className="font-extrabold text-slate-900">{buyerEmail}</span>
                 </div>
-                {buyerNik && (
-                  <div className="flex justify-between border-b border-slate-200 pb-2">
-                    <span className="text-slate-500">NIK (KTP):</span>
-                    <span className="font-mono font-bold text-slate-900">{buyerNik}</span>
-                  </div>
-                )}
+                <div className="flex justify-between border-b border-slate-200 pb-2">
+                  <span className="text-slate-500">Status Pembayaran:</span>
+                  <span className="font-extrabold text-amber-600 uppercase">{completedOrder.payment_status || 'PENDING'}</span>
+                </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Total Tagihan:</span>
-                  <span className="font-black text-blue-700">Rp. {finalGrandTotal.toLocaleString('id-ID')}</span>
+                  <span className="text-slate-500">Total Pembayaran:</span>
+                  <span className="font-black text-blue-700 text-sm">Rp {finalGrandTotal.toLocaleString('id-ID')}</span>
                 </div>
               </div>
 
-              <div className="pt-2 flex items-center gap-3">
+              <div className="pt-2 flex gap-3">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all cursor-pointer"
+                  className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-colors cursor-pointer"
                 >
                   Tutup
                 </button>
@@ -758,237 +761,213 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
             </div>
           ) : (
             /* Booking Form */
-            <form onSubmit={handleSubmitOrder} className="space-y-5">
-              {timeLeft === 0 && (
-                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-2 text-xs animate-in fade-in-0 shadow-2xs">
-                  <div className="flex items-center gap-2 font-black text-rose-700">
-                    <AlertCircle className="w-5 h-5 shrink-0 text-rose-600" />
-                    <span>Batas Waktu Checkout 10 Menit Telah Habis!</span>
-                  </div>
-                  <p className="text-slate-600 font-medium">
-                    Batas waktu pengisian data selama 10 menit telah berakhir. Silakan muat ulang waktu atau pilih kembali tiket Anda.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setTimeLeft(600)}
-                    className="mt-1 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
-                  >
-                    Reset Waktu (10 Menit)
-                  </button>
-                </div>
-              )}
-
-              {errorMessage && (
-                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                  <span>{errorMessage}</span>
-                </div>
-              )}
-
-              {/* Step 1: Ticket Selection */}
-              <div className="space-y-3">
-                <span className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <Ticket className="w-4 h-4 text-blue-600" /> 1. Pilih Tipe Tiket
-                </span>
-
-                {isLoadingTickets ? (
-                  <Skeleton className="h-28 w-full rounded-2xl" />
-                ) : ticketTypes.length > 0 ? (
-                  <div className="space-y-2.5">
-                    {ticketTypes.map((type) => {
-                      const priceNum = Number(type.price || 0);
-                      const availableStock = Math.max(0, (type.quota || 100) - (type.sold_quantity || 0));
-                      const selectedItem = selectedTickets.find((i) => i.ticketType.id === type.id);
-                      const qty = selectedItem ? selectedItem.quantity : 0;
-
-                      return (
-                        <div
-                          key={type.id}
-                          className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
-                            qty > 0
-                              ? 'border-blue-600 bg-blue-50/50 shadow-xs'
-                              : 'border-slate-200 bg-white'
-                          }`}
-                        >
-                          <div className="space-y-0.5">
-                            <h5 className="font-extrabold text-xs text-slate-900">{type.name}</h5>
-                            <div className="text-sm font-black text-blue-700">
-                              Rp. {priceNum.toLocaleString('id-ID')}
-                            </div>
-                            <span className="text-[10px] text-slate-400 font-bold block">
-                              Sisa Stok: {availableStock} pcs
-                            </span>
-                          </div>
-
-                          {/* Counter Control */}
-                          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-1 shadow-2xs">
-                            <button
-                              type="button"
-                              onClick={() => updateQuantity(type, -1)}
-                              disabled={qty <= 0}
-                              className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold flex items-center justify-center transition-colors cursor-pointer disabled:opacity-30"
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <span className="font-black text-xs text-slate-900 px-2 min-w-[20px] text-center">
-                              {qty}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => updateQuantity(type, 1)}
-                              disabled={availableStock <= qty}
-                              className="w-7 h-7 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-extrabold flex items-center justify-center transition-colors cursor-pointer disabled:opacity-30"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="p-4 text-center text-xs text-slate-400 font-medium bg-slate-50 rounded-2xl border border-slate-200">
-                    Belum ada tiket yang tersedia untuk dipesan pada event ini.
+            <form onSubmit={handleSubmitOrder} className="relative flex-1 flex flex-col min-h-0 h-full">
+              {/* Form Body Scrollable Area */}
+              <div
+                style={{ WebkitOverflowScrolling: 'touch' }}
+                className={`p-4 sm:p-6 overflow-y-auto overscroll-contain touch-pan-y space-y-5 flex-1 min-h-0 ${
+                  !isUserLoggedIn ? 'filter blur-[5px] select-none pointer-events-none opacity-40' : ''
+                }`}
+              >
+                {timeLeft === 0 && (
+                  <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 space-y-2 text-xs animate-in fade-in-0 shadow-2xs">
+                    <div className="flex items-center gap-2 font-black text-rose-700">
+                      <AlertCircle className="w-5 h-5 shrink-0 text-rose-600" />
+                      <span>Batas Waktu Checkout 10 Menit Telah Habis!</span>
+                    </div>
+                    <p className="text-slate-600 font-medium">
+                      Batas waktu pengisian data selama 10 menit telah berakhir. Silakan muat ulang waktu atau pilih kembali tiket Anda.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setTimeLeft(600)}
+                      className="mt-1 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                    >
+                      Reset Waktu (10 Menit)
+                    </button>
                   </div>
                 )}
-              </div>
 
-              {/* Step 2: Buyer Info */}
-              <div className="space-y-3 pt-2 border-t border-slate-100">
-                <div className="flex items-center justify-between">
+                {errorMessage && (
+                  <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+
+                {/* Step 1: Ticket Selection */}
+                <div className="space-y-3">
                   <span className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <User className="w-4 h-4 text-blue-600" /> 2. Data Pemesan Tiket
+                    <Ticket className="w-4 h-4 text-blue-600" /> 1. Pilih Tipe Tiket
                   </span>
 
-                  {isUserLoggedIn && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <ShieldCheck className="w-3 h-3 text-emerald-600" /> Otomatis Dari Akun
-                    </span>
+                  {isLoadingTickets ? (
+                    <Skeleton className="h-28 w-full rounded-2xl" />
+                  ) : ticketTypes.length > 0 ? (
+                    <div className="space-y-2.5">
+                      {ticketTypes.map((type) => {
+                        const priceNum = Number(type.price || 0);
+                        const availableStock = Math.max(0, (type.quota || 100) - (type.sold_quantity || 0));
+                        const selectedItem = selectedTickets.find((i) => i.ticketType.id === type.id);
+                        const qty = selectedItem ? selectedItem.quantity : 0;
+
+                        return (
+                          <div
+                            key={type.id}
+                            className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                              qty > 0
+                                ? 'border-blue-600 bg-blue-50/50 shadow-xs'
+                                : 'border-slate-200 bg-white'
+                            }`}
+                          >
+                            <div className="space-y-0.5">
+                              <h5 className="font-extrabold text-xs text-slate-900">{type.name}</h5>
+                              <div className="text-sm font-black text-blue-700">
+                                Rp. {priceNum.toLocaleString('id-ID')}
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-bold block">
+                                Sisa Stok: {availableStock} pcs
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 border border-slate-200 rounded-xl p-1 bg-white shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => updateQuantity(type, -1)}
+                                disabled={qty <= 0}
+                                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-slate-100 flex items-center justify-center text-slate-700 transition-colors"
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+                              <span className="w-6 text-center text-xs font-black text-slate-900">{qty}</span>
+                              <button
+                                type="button"
+                                onClick={() => updateQuantity(type, 1)}
+                                disabled={qty >= availableStock || qty >= (type.max_per_order || 5)}
+                                className="w-7 h-7 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:hover:bg-blue-600 text-white flex items-center justify-center transition-colors"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-2xl bg-slate-50 text-slate-500 text-xs font-medium text-center">
+                      Belum ada jenis tiket yang tersedia untuk event ini.
+                    </div>
                   )}
                 </div>
 
-                <div className="space-y-2.5">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[11px] font-bold text-slate-700">Nama Lengkap Pemesan *</label>
-                      {!isBuyerNameValid && (
-                        <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200 animate-in fade-in-0">
-                          Wajib diisi
-                        </span>
-                      )}
-                    </div>
-                    <input
-                      type="text"
-                      required
-                      value={buyerName}
-                      onChange={(e) => setBuyerName(e.target.value)}
-                      placeholder="e.g. Lutfi Fahri"
-                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none transition-all ${
-                        !isBuyerNameValid
-                          ? 'bg-rose-50/20 border border-rose-300 focus:border-rose-600 focus:bg-white'
-                          : 'bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-600'
-                      }`}
-                    />
+                {/* Step 2: Buyer & Ticket Holder Information */}
+                <div className="space-y-3 pt-2 border-t border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <User className="w-4 h-4 text-blue-600" /> 2. Data Pemesan Tiket
+                    </span>
+                    {currentUser && (
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Otomatis Dari Akun
+                      </span>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-3">
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] font-bold text-slate-700">Alamat Email *</label>
-                        {!isBuyerEmailValid && (
-                          <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200 animate-in fade-in-0">
-                            Wajib diisi
-                          </span>
-                        )}
-                      </div>
-                      <input
-                        type="email"
-                        required
-                        value={buyerEmail}
-                        onChange={(e) => setBuyerEmail(e.target.value)}
-                        placeholder="email@domain.com"
-                        className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none transition-all ${
-                          !isBuyerEmailValid
-                            ? 'bg-rose-50/20 border border-rose-300 focus:border-rose-600 focus:bg-white'
-                            : 'bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-600'
-                        }`}
-                      />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] font-bold text-slate-700">Nomor WhatsApp *</label>
-                        {!isBuyerPhoneValid && (
-                          <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200 animate-in fade-in-0">
-                            Wajib diisi
-                          </span>
-                        )}
-                      </div>
-                      <input
-                        type="tel"
-                        required
-                        value={buyerPhone}
-                        onChange={(e) => setBuyerPhone(e.target.value)}
-                        placeholder="081234567890"
-                        className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none transition-all ${
-                          !isBuyerPhoneValid
-                            ? 'bg-rose-50/20 border border-rose-300 focus:border-rose-600 focus:bg-white'
-                            : 'bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-600'
-                        }`}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[11px] font-bold text-slate-700">Alamat Lengkap Pemesan *</label>
-                      {!isBuyerAddressValid && (
-                        <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200 animate-in fade-in-0">
-                          Wajib diisi
-                        </span>
-                      )}
-                    </div>
-                    <input
-                      type="text"
-                      required
-                      value={buyerAddress}
-                      onChange={(e) => setBuyerAddress(e.target.value)}
-                      placeholder="e.g. Jl. Jend. Sudirman No. 45, Jakarta Pusat"
-                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none transition-all ${
-                        !isBuyerAddressValid
-                          ? 'bg-rose-50/20 border border-rose-300 focus:border-rose-600 focus:bg-white'
-                          : 'bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-600'
-                      }`}
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[11px] font-bold text-slate-700">
-                        Nomor Induk Kependudukan (NIK KTP) *
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Nama Lengkap Pemesan <span className="text-rose-500">*</span>
                       </label>
-                      {!isBuyerNikValid && (
-                        <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200 animate-in fade-in-0">
-                          Wajib diisi
-                        </span>
-                      )}
+                      <input
+                        type="text"
+                        value={buyerName}
+                        onChange={(e) => setBuyerName(e.target.value)}
+                        placeholder="e.g. Lutfi Fahri"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
+                        required
+                      />
                     </div>
-                    <input
-                      type="text"
-                      maxLength={16}
-                      required
-                      value={buyerNik}
-                      onChange={(e) => setBuyerNik(e.target.value.replace(/\D/g, ''))}
-                      placeholder="16 Digit NIK Sesuai KTP (e.g. 3171012304950001)"
-                      className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-mono font-semibold text-slate-900 focus:outline-none transition-all ${
-                        !isBuyerNikValid
-                          ? 'bg-rose-50/20 border border-rose-300 focus:border-rose-600 focus:bg-white'
-                          : 'bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-600'
-                      }`}
-                    />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-bold text-slate-700">
+                            Alamat Email <span className="text-rose-500">*</span>
+                          </label>
+                          {!buyerEmail && <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">Wajib diisi</span>}
+                        </div>
+                        <input
+                          type="email"
+                          value={buyerEmail}
+                          onChange={(e) => setBuyerEmail(e.target.value)}
+                          placeholder="name@example.com"
+                          className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold text-slate-900 focus:outline-none transition-all ${
+                            !buyerEmail ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200 bg-slate-50/50 focus:border-blue-600 focus:bg-white'
+                          }`}
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-bold text-slate-700">
+                            Nomor WhatsApp <span className="text-rose-500">*</span>
+                          </label>
+                          {!buyerPhone && <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">Wajib diisi</span>}
+                        </div>
+                        <input
+                          type="tel"
+                          value={buyerPhone}
+                          onChange={(e) => setBuyerPhone(e.target.value)}
+                          placeholder="e.g. 081234567890"
+                          className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold text-slate-900 focus:outline-none transition-all ${
+                            !buyerPhone ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200 bg-slate-50/50 focus:border-blue-600 focus:bg-white'
+                          }`}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-slate-700">
+                          Alamat Lengkap Pemesan <span className="text-rose-500">*</span>
+                        </label>
+                        {!buyerAddress && <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">Wajib diisi</span>}
+                      </div>
+                      <input
+                        type="text"
+                        value={buyerAddress}
+                        onChange={(e) => setBuyerAddress(e.target.value)}
+                        placeholder="e.g. Jl. Jend. Sudirman No. 45, Jakarta Pusat"
+                        className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold text-slate-900 focus:outline-none transition-all ${
+                          !buyerAddress ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200 bg-slate-50/50 focus:border-blue-600 focus:bg-white'
+                        }`}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-slate-700">
+                          Nomor Induk Kependudukan (NIK KTP) <span className="text-rose-500">*</span>
+                        </label>
+                        {!buyerNik && <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">Wajib diisi</span>}
+                      </div>
+                      <input
+                        type="text"
+                        maxLength={16}
+                        value={buyerNik}
+                        onChange={(e) => setBuyerNik(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                        placeholder="16 Digit NIK Sesuai KTP (e.g. 3171012304950001)"
+                        className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono font-bold text-slate-900 focus:outline-none transition-all ${
+                          !buyerNik ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200 bg-slate-50/50 focus:border-blue-600 focus:bg-white'
+                        }`}
+                        required
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
 
               {/* Step 3: Ticket Holder Data (Single Unified Collapse & Checkbox "Samakan Data") */}
               {selectedTickets.length > 0 && (
@@ -1206,82 +1185,106 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                   )}
                 </div>
               )}
+            </div>
 
-              {/* Complete Itemized Accumulation Billing Box */}
-              <div className="pt-3 border-t border-slate-100 space-y-3">
-                <div className="p-4.5 rounded-2xl bg-slate-900 text-white space-y-3 shadow-lg">
-                  {selectedTickets.length > 0 ? (
-                    <div className="space-y-2 text-xs font-medium border-b border-slate-800 pb-3">
-                      <div className="flex justify-between items-center text-slate-300">
-                        <span>Subtotal Tiket ({totalTicketCount} Tiket)</span>
-                        <span className="font-bold text-white">Rp {totalPrice.toLocaleString('id-ID')}</span>
-                      </div>
-
-                      <div className="flex justify-between items-center text-slate-300">
-                        <span>Biaya Layanan Platform (Rp 5.000 / tiket)</span>
-                        <span className="font-bold text-slate-200">+Rp {serviceFee.toLocaleString('id-ID')}</span>
-                      </div>
-
-                      {appliedPromo && (
-                        <div className="flex justify-between items-center text-emerald-400 font-bold">
-                          <span>Potongan Promo / Referral ({appliedPromo.code})</span>
-                          <span>-Rp {appliedPromo.discountAmount.toLocaleString('id-ID')}</span>
-                        </div>
-                      )}
+              {/* Fixed Modal Footer Bar (Outside Scroll Container, shrink-0) */}
+              <div className="shrink-0 bg-white border-t border-slate-200/90 p-3.5 sm:p-4 px-4 sm:px-6 shadow-2xl z-30 space-y-2">
+                {/* Expandable Itemized Billing Drawer */}
+                {isBillingDetailsOpen && selectedTickets.length > 0 && (
+                  <div className="p-3.5 rounded-2xl bg-slate-900 text-white space-y-2 text-xs font-medium animate-in slide-in-from-bottom-2 duration-200 shadow-xl border border-slate-800">
+                    <div className="flex justify-between items-center text-slate-300">
+                      <span>Subtotal Tiket ({totalTicketCount} Tiket)</span>
+                      <span className="font-bold text-white">Rp {totalPrice.toLocaleString('id-ID')}</span>
                     </div>
-                  ) : null}
 
-                  <div className="flex items-center justify-between pt-0.5">
-                    <div>
-                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                        TOTAL AKHIR TAGIHAN
-                      </span>
-                      <span className="text-xl sm:text-2xl font-black text-amber-400 tracking-tight">
-                        Rp. {finalGrandTotal.toLocaleString('id-ID')}
-                      </span>
+                    <div className="flex justify-between items-center text-slate-300">
+                      <span>Biaya Layanan Platform (Rp 5.000 / tiket)</span>
+                      <span className="font-bold text-slate-200">+Rp {serviceFee.toLocaleString('id-ID')}</span>
                     </div>
-                    <Sparkles className="w-6 h-6 text-amber-400 animate-pulse" />
-                  </div>
-                </div>
 
-                {!isUserLoggedIn ? (
-                  <button
-                    type="button"
-                    onClick={() => handleOpenAuth('login')}
-                    className="w-full py-3.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shadow-lg shadow-amber-600/20 transition-all cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <LogIn className="w-4 h-4" /> Login Dulu Untuk Pesan Tiket
-                  </button>
-                ) : (
-                  <div className="space-y-2">
-                    {!isFormValid && (
-                      <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2 animate-in fade-in-0 shadow-2xs">
-                        <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                        <span>
-                          {selectedTickets.length === 0
-                            ? 'Pilih minimal 1 tiket untuk melanjutkan pemesanan.'
-                            : 'Mohon lengkapi Nama, Email, Alamat, WhatsApp, dan NIK KTP (Semua Wajib Diisi).'}
-                        </span>
+                    {appliedPromo && (
+                      <div className="flex justify-between items-center text-emerald-400 font-bold">
+                        <span>Potongan Promo ({appliedPromo.code})</span>
+                        <span>-Rp {appliedPromo.discountAmount.toLocaleString('id-ID')}</span>
                       </div>
                     )}
+                  </div>
+                )}
 
+                {/* Validation Helper Banner (Compact 1-Line Helper) */}
+                {isUserLoggedIn && !isFormValid && (
+                  <div className="px-3 py-1 rounded-xl bg-rose-50 border border-rose-200/80 text-rose-700 text-[10px] sm:text-[11px] font-extrabold flex items-center gap-1.5 animate-in fade-in-0">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                    <span className="truncate">
+                      {selectedTickets.length === 0
+                        ? 'Pilih minimal 1 tiket untuk melanjutkan.'
+                        : 'Lengkapi Nama, Email, WA, NIK KTP terlebih dahulu.'}
+                    </span>
+                  </div>
+                )}
+
+                {/* Main Horizontal Dock Row */}
+                <div className="flex items-center justify-between gap-3">
+                  {/* Left Column: Total Tagihan */}
+                  <div className="flex flex-col min-w-0 shrink-0">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+                        TOTAL TAGIHAN
+                      </span>
+                      {selectedTickets.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setIsBillingDetailsOpen(!isBillingDetailsOpen)}
+                          className="text-[9px] sm:text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5 underline cursor-pointer"
+                        >
+                          <span>{isBillingDetailsOpen ? 'Tutup' : 'Rincian'}</span>
+                          {isBillingDetailsOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-baseline gap-1 mt-0.5 whitespace-nowrap">
+                      <span className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+                        Rp {finalGrandTotal.toLocaleString('id-ID')}
+                      </span>
+                      {totalTicketCount > 0 && (
+                        <span className="text-[10px] text-slate-500 font-extrabold">
+                          ({totalTicketCount} tiket)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column: CTA Button */}
+                  {!isUserLoggedIn ? (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAuth('login')}
+                      className="py-3 px-4 sm:px-5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shadow-md shadow-amber-600/20 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      <span>Login Dulu</span>
+                    </button>
+                  ) : (
                     <button
                       type="submit"
                       disabled={isSubmitting || !isFormValid || timeLeft === 0}
-                      className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-extrabold text-xs shadow-lg shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-blue-600 disabled:hover:to-indigo-700"
+                      className="flex-1 max-w-[210px] sm:max-w-xs py-3 px-4 sm:px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black text-xs shadow-md shadow-blue-600/25 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isSubmitting ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin" /> Memproses Pemesanan...
+                          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                          <span>Memproses...</span>
                         </>
                       ) : (
                         <>
-                          Pesan Tiket Sekarang <ArrowRight className="w-4 h-4" />
+                          <span>Pesan Tiket Sekarang</span>
+                          <ArrowRight className="w-3.5 h-3.5 shrink-0" />
                         </>
                       )}
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </form>
           )}
@@ -1336,6 +1339,52 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
           </div>
         </div>
       )}
-    </div>
+
+      {/* ================= MODAL ALERT WAKTU CHECKOUT HABIS ================= */}
+      {isTimeoutModalOpen && (
+        <div
+          onClick={() => {
+            setTimeLeft(600);
+            setIsTimeoutModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in-0"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center space-y-4 animate-in zoom-in-95 duration-200 overflow-hidden z-50"
+          >
+            {/* Top Glowing Amber/Red Accent Bar */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-rose-500 to-red-500" />
+
+            {/* Glowing Clock Icon Badge */}
+            <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/15">
+              <Clock className="w-8 h-8 text-amber-600 animate-pulse" />
+            </div>
+
+            {/* Title & Message */}
+            <div className="space-y-2">
+              <h4 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                Waktu Checkout Habis! ⏱️
+              </h4>
+              <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed">
+                Batas waktu pemesanan tiket (10 menit) telah berakhir. Klik <strong className="text-slate-900 font-bold">OK</strong> untuk memperbarui waktu checkout dan mengulang hitung mundur dari 10 menit.
+              </p>
+            </div>
+
+            {/* OK Action Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setTimeLeft(600);
+                setIsTimeoutModalOpen(false);
+              }}
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 active:scale-[0.98] text-white font-black text-xs shadow-lg shadow-blue-600/25 transition-all cursor-pointer"
+            >
+              OK (Ulang Waktu Checkout)
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 };

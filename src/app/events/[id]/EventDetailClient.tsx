@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft,
+  ArrowRight,
   Calendar,
   Clock,
   MapPin,
@@ -12,7 +13,6 @@ import {
   ShieldCheck,
   Ticket,
   ExternalLink,
-  Camera,
   Sparkles,
   UserCheck,
   CheckCircle2,
@@ -21,6 +21,12 @@ import {
   ChevronUp,
   ArrowUpRight,
   X,
+  BadgeCheck,
+  Building2,
+  Mail,
+  Phone,
+  MessageSquare,
+  Info,
 } from 'lucide-react';
 import { fetchPublicEventDetail, fetchTicketTypes, ApiEvent, getPhotoUrl } from '@/lib/api';
 import { TicketCheckoutModal } from '@/components/public/TicketCheckoutModal';
@@ -34,6 +40,7 @@ export default function EventDetailClient() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isVenueModalOpen, setIsVenueModalOpen] = useState(false);
+  const [isOrganizerModalOpen, setIsOrganizerModalOpen] = useState(false);
 
   const [organizerLogoError, setOrganizerLogoError] = useState(false);
 
@@ -180,23 +187,37 @@ export default function EventDetailClient() {
     return event.address || null;
   }, [event]);
 
-  const organizerName = React.useMemo(() => {
-    if (!event) return 'Metix Official Organizer';
-    if (event.organizer) {
-      if (typeof event.organizer === 'object') {
-        return event.organizer.organization_name || event.organizer.name || 'Metix Official Organizer';
-      }
-      return String(event.organizer);
+  const organizerDetails = React.useMemo(() => {
+    if (!event) return null;
+    let orgData: any = null;
+    if (event.organizer && typeof event.organizer === 'object') {
+      orgData = event.organizer;
+    } else if ((event as any)?.organizer_profile && typeof (event as any).organizer_profile === 'object') {
+      orgData = (event as any).organizer_profile;
     }
-    return (event as any)?.user?.name || 'Metix Official Organizer';
+
+    const name = orgData?.organization_name || orgData?.name || (typeof event.organizer === 'string' ? event.organizer : null) || (event as any)?.user?.name || 'Metix Official Organizer';
+    const logo = orgData?.logo ? getPhotoUrl(orgData.logo) : null;
+    const description = orgData?.description || 'Penyelenggara terverifikasi di platform Metix Indonesia. Berpengalaman dalam menyelenggarakan konser musik, festival, dan acara hiburan terpopuler.';
+    const address = orgData?.address || (event as any)?.city || 'Indonesia';
+    const phone = orgData?.phone || (event as any)?.user?.phone || '081234567891';
+    const email = orgData?.email || (event as any)?.user?.email || 'organizer@metix.id';
+    const status = orgData?.status || 'ACTIVE';
+
+    return {
+      name,
+      logo,
+      description,
+      address,
+      phone,
+      email,
+      status,
+      isVerified: status === 'ACTIVE' || status === 'APPROVED' || !orgData,
+    };
   }, [event]);
 
-  const organizerLogoUrl = React.useMemo(() => {
-    if (event?.organizer && typeof event.organizer === 'object' && event.organizer.logo) {
-      return getPhotoUrl(event.organizer.logo);
-    }
-    return null;
-  }, [event]);
+  const organizerName = organizerDetails?.name || 'Metix Official Organizer';
+  const organizerLogoUrl = organizerDetails?.logo || null;
 
   const bannerUrl = event?.banner ? getPhotoUrl(event.banner, event.id) : (event?.venue_photo ? getPhotoUrl(event.venue_photo) : null);
   const venuePhotoUrl = event?.venue_photo ? getPhotoUrl(event.venue_photo) : null;
@@ -431,25 +452,68 @@ export default function EventDetailClient() {
                 </div>
               </div>
 
-              {/* Separator & Organizer Info */}
-              <div className="pt-4 border-t border-slate-200 flex items-center gap-3">
-                {organizerLogoUrl && !organizerLogoError ? (
-                  <img
-                    src={organizerLogoUrl}
-                    alt={organizerName}
-                    onError={() => setOrganizerLogoError(true)}
-                    className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0 shadow-xs border border-blue-700">
-                    {organizerName.substring(0, 2).toUpperCase()}
-                  </div>
-                )}
-                <div className="space-y-0.5 min-w-0">
-                  <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider block">Penyelenggara</span>
-                  <span className="text-xs font-extrabold text-slate-900 uppercase tracking-tight block truncate">
-                    {organizerName}
+              {/* Separator & Premium Organizer Profile Card */}
+              <div className="pt-5 border-t border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Penyelenggara Event</span>
                   </span>
+                  {organizerDetails?.isVerified && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-black border border-blue-200/60 shadow-2xs">
+                      <BadgeCheck className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span>Terverifikasi</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-blue-50/40 border border-slate-200/90 hover:border-blue-300 shadow-xs transition-all space-y-3">
+                  <div className="flex items-center gap-3">
+                    {organizerLogoUrl && !organizerLogoError ? (
+                      <img
+                        src={organizerLogoUrl}
+                        alt={organizerName}
+                        onError={() => setOrganizerLogoError(true)}
+                        className="w-12 h-12 rounded-2xl object-cover border-2 border-white shadow-md ring-1 ring-slate-200 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-700 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-md shadow-blue-600/20 border border-blue-400/30">
+                        {organizerName.substring(0, 2).toUpperCase()}
+                      </div>
+                    )}
+
+                    <div className="space-y-0.5 min-w-0 flex-1">
+                      <h4 className="text-sm font-black text-slate-900 tracking-tight truncate">
+                        {organizerName}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 font-semibold truncate flex items-center gap-1">
+                        <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{organizerDetails?.address || 'Official Organizer Partner'}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {organizerDetails?.description && (
+                    <p className="text-xs text-slate-600 font-medium leading-relaxed line-clamp-2 bg-white/70 p-2.5 rounded-xl border border-slate-100/90">
+                      {organizerDetails.description}
+                    </p>
+                  )}
+
+                  <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold truncate">
+                      <Mail className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span className="truncate text-[11px]">{organizerDetails?.email || 'cs@metix.id'}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsOrganizerModalOpen(true)}
+                      className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-blue-600 hover:text-blue-700 border border-slate-200/90 shadow-2xs text-xs font-black transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+                    >
+                      <span>Profil Organizer</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -479,45 +543,45 @@ export default function EventDetailClient() {
               )}
             </div>
 
-            {/* Card 3: Social Media & Ticket Authenticity Link */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-              <div className="space-y-2">
-                <span className="text-xs font-extrabold text-slate-900 block">Media Sosial</span>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <a
-                    href="https://instagram.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="py-2.5 px-3 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <Camera className="w-4 h-4 text-pink-600" />
-                    <span>Instagram</span>
-                  </a>
-                  <a
-                    href="https://tiktok.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="py-2.5 px-3 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <span className="font-extrabold text-slate-900">d</span>
-                    <span>Tiktok</span>
-                  </a>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 text-center">
-                <p className="text-xs text-slate-600 font-medium">
-                  Beli tiket dari orang lain?{' '}
-                  <Link href="/dashboard/tickets" className="text-blue-600 font-bold hover:underline">
-                    Cek keaslian tiketmu disini
-                  </Link>
-                </p>
-              </div>
+            {/* Card 3: Ticket Authenticity Check Card */}
+            <div className="bg-white rounded-2xl border border-slate-200/90 p-4.5 sm:p-5 shadow-xs text-center">
+              <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                Beli tiket dari orang lain?{' '}
+                <Link href="/dashboard/tickets" className="text-blue-600 font-extrabold hover:text-blue-700 hover:underline">
+                  Cek keaslian tiketmu disini
+                </Link>
+              </p>
             </div>
 
           </div>
         </div>
       </main>
+
+      {/* Mobile Fixed Bottom CTA Dock (Visible on Mobile Only: lg:hidden) */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 p-3.5 px-4 shadow-2xl flex items-center justify-between gap-3 animate-in slide-in-from-bottom-5">
+        <div className="flex flex-col">
+          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Mulai Dari</span>
+          <span className="text-base font-black text-slate-900 tracking-tight">{lowestPrice}</span>
+        </div>
+
+        {event.status === 'closed' ? (
+          <button
+            disabled
+            className="py-3 px-5 rounded-xl bg-slate-100 text-slate-400 font-extrabold text-xs cursor-not-allowed"
+          >
+            Tiket Habis
+          </button>
+        ) : (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="py-3 px-6 rounded-xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black text-xs shadow-lg shadow-blue-600/30 active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <Ticket className="w-4 h-4 text-amber-300 shrink-0" />
+            <span>Beli Sekarang</span>
+            <ArrowRight className="w-3.5 h-3.5 text-white" />
+          </button>
+        )}
+      </div>
 
       {/* Public Footer */}
       <Footer />
@@ -571,6 +635,129 @@ export default function EventDetailClient() {
               <button
                 onClick={() => setIsVenueModalOpen(false)}
                 className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold transition-colors cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL PROFIL ORGANIZER (ORGANIZER_PROFILES) PREMIUM ================= */}
+      {isOrganizerModalOpen && (
+        <div
+          onClick={() => setIsOrganizerModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in-0"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200/90 flex flex-col animate-in zoom-in-95 duration-200"
+          >
+            {/* Top Gradient Banner Header */}
+            <div className="h-28 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 relative p-4 flex justify-end items-start shrink-0">
+              <button
+                onClick={() => setIsOrganizerModalOpen(false)}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Profile Avatar & Header Info */}
+            <div className="px-6 pb-6 pt-0 relative flex-1 space-y-5">
+              <div className="flex items-end justify-between -mt-10 mb-2">
+                <div className="relative">
+                  {organizerLogoUrl && !organizerLogoError ? (
+                    <img
+                      src={organizerLogoUrl}
+                      alt={organizerName}
+                      onError={() => setOrganizerLogoError(true)}
+                      className="w-20 h-20 rounded-2xl object-cover border-4 border-white shadow-xl bg-white shrink-0"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-700 text-white font-black text-xl flex items-center justify-center shrink-0 border-4 border-white shadow-xl">
+                      {organizerName.substring(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-black border border-blue-200 shadow-xs">
+                  <BadgeCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>Verified Organizer</span>
+                </span>
+              </div>
+
+              {/* Title & Tagline */}
+              <div className="space-y-1">
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">
+                  {organizerName}
+                </h3>
+                <p className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>{organizerDetails?.address || 'Official Organizer Partner'}</span>
+                </p>
+              </div>
+
+              {/* Bio / Description Box */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                  Tentang Penyelenggara
+                </span>
+                <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                  {organizerDetails?.description}
+                </p>
+              </div>
+
+              {/* Official Contact Details Grid */}
+              <div className="space-y-2.5 pt-1">
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                  Kontak Resmi Penyelenggara
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div className="p-3 rounded-xl bg-white border border-slate-200/80 flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-blue-50 text-blue-600 shrink-0">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-slate-400 font-bold block">Email Official</span>
+                      <span className="font-extrabold text-slate-800 truncate block text-[11px]">
+                        {organizerDetails?.email || 'organizer@metix.id'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-white border border-slate-200/80 flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
+                      <Phone className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-slate-400 font-bold block">Hotline CS</span>
+                      <span className="font-extrabold text-slate-800 truncate block text-[11px]">
+                        {organizerDetails?.phone || '081234567891'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer with Direct WhatsApp Contact CTA */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200/80 flex items-center justify-between gap-3 shrink-0">
+              <a
+                href={`https://wa.me/${(organizerDetails?.phone || '081234567891').replace(/\D/g, '')}?text=${encodeURIComponent(`Halo ${organizerName}, saya bertanya terkait event ${event?.title || ''}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>Hubungi via WhatsApp</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setIsOrganizerModalOpen(false)}
+                className="px-4 py-3 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-extrabold transition-colors cursor-pointer"
               >
                 Tutup
               </button>

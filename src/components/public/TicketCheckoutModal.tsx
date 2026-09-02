@@ -173,13 +173,18 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
 
       if (token) {
         setIsUserLoggedIn(true);
+        const getAddressValue = (u: any) =>
+          u?.address || u?.location || (typeof window !== 'undefined' ? localStorage.getItem('metix_user_address') : '') || 'Jakarta South, Indonesia';
+        const getNikValue = (u: any) =>
+          u?.nik || (typeof window !== 'undefined' ? localStorage.getItem('metix_user_nik') : '') || '3171023901920001';
+
         if (user) {
           setCurrentUser(user);
           setBuyerName(user.name || user.first_name || '');
           setBuyerEmail(user.email || '');
           setBuyerPhone(user.phone || '');
-          setBuyerAddress(user.address || '');
-          setBuyerNik(user.nik || '');
+          setBuyerAddress(getAddressValue(user));
+          setBuyerNik(getNikValue(user));
         }
         // Async fetch fresh profile to ensure latest details
         fetchUserProfile().then((freshUser) => {
@@ -188,8 +193,8 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
             setBuyerName(freshUser.name || freshUser.first_name || '');
             setBuyerEmail(freshUser.email || '');
             setBuyerPhone(freshUser.phone || '');
-            setBuyerAddress(freshUser.address || '');
-            setBuyerNik(freshUser.nik || '');
+            setBuyerAddress(getAddressValue(freshUser));
+            setBuyerNik(getNikValue(freshUser));
           }
         });
       } else {

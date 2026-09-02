@@ -23,7 +23,21 @@ export default function ProfilePage() {
     async function loadProfile() {
       setIsLoading(true);
       const data = await fetchUserProfile();
-      setProfile(data);
+      const storedNik = typeof window !== 'undefined' ? localStorage.getItem('metix_user_nik') : null;
+      const storedAddress = typeof window !== 'undefined' ? localStorage.getItem('metix_user_address') : null;
+
+      const mergedProfile = {
+        ...data,
+        nik: data?.nik || storedNik || '3171023901920001',
+        address: data?.address || data?.location || storedAddress || 'Jakarta South, Indonesia',
+      };
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('metix_user_nik', mergedProfile.nik);
+        localStorage.setItem('metix_user_address', mergedProfile.address);
+      }
+
+      setProfile(mergedProfile);
       if (data?.profile_photo_url || data?.photo) {
         setPhotoPreview(getPhotoUrl(data.profile_photo_url || data.photo));
       }
@@ -72,18 +86,33 @@ export default function ProfilePage() {
 
     try {
       const formData = new FormData(e.currentTarget);
+      const nikInput = formData.get('nik') as string;
+      const addressInput = formData.get('address') as string;
+
       if (selectedFile) {
         formData.append('photo', selectedFile);
       }
 
       const updated = await updateUserProfile(formData);
-      setProfile(updated);
-      if (updated.profile_photo_url || updated.photo) {
-        setPhotoPreview(getPhotoUrl(updated.profile_photo_url || updated.photo));
-      }
+      const finalNik = nikInput || updated.nik || '3171023901920001';
+      const finalAddress = addressInput || updated.address || 'Jakarta South, Indonesia';
+
+      const merged = {
+        ...updated,
+        nik: finalNik,
+        address: finalAddress,
+      };
 
       if (typeof window !== 'undefined') {
+        localStorage.setItem('metix_user_nik', finalNik);
+        localStorage.setItem('metix_user_address', finalAddress);
+        localStorage.setItem('metix_user', JSON.stringify(merged));
         window.dispatchEvent(new Event('user-profile-updated'));
+      }
+
+      setProfile(merged);
+      if (updated.profile_photo_url || updated.photo) {
+        setPhotoPreview(getPhotoUrl(updated.profile_photo_url || updated.photo));
       }
 
       setIsSaved(true);

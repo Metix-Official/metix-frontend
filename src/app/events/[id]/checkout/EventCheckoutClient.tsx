@@ -383,19 +383,19 @@ export default function EventCheckoutClient() {
 
   if (isLoadingEvent) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white space-y-4">
-        <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-        <p className="text-sm font-bold text-slate-400">Memuat Halaman Pemesanan Tiket...</p>
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-slate-900 space-y-4">
+        <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+        <p className="text-sm font-bold text-slate-500">Memuat Halaman Pemesanan Tiket...</p>
       </div>
     );
   }
 
   if (!event) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white text-center space-y-4">
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-slate-900 text-center space-y-4">
         <AlertCircle className="w-12 h-12 text-rose-500" />
         <h2 className="text-2xl font-black">Event Tidak Ditemukan</h2>
-        <Link href="/" className="px-6 py-2.5 rounded-xl bg-blue-600 font-bold text-xs">
+        <Link href="/" className="px-6 py-2.5 rounded-xl bg-blue-600 font-bold text-xs text-white">
           Kembali ke Beranda
         </Link>
       </div>
@@ -403,41 +403,38 @@ export default function EventCheckoutClient() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden">
-      {/* Top Dynamic Background Glow */}
-      <div className="absolute top-0 left-1/3 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[150px] pointer-events-none" />
-
-      {/* Sticky Header Bar */}
-      <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-xl border-b border-slate-800/80 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden">
+      {/* Sticky Header Bar White & Blue Theme */}
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-4">
           <Link
             href={`/events/${event.id}`}
-            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-all flex items-center gap-1.5 text-xs font-bold"
+            className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all flex items-center gap-1.5 text-xs font-bold"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4 text-slate-600" />
             <span className="hidden sm:inline">Kembali ke Event</span>
           </Link>
 
           <div className="flex items-center gap-2">
             <img src="/mitex.png" alt="METIX Logo" className="h-7 w-auto object-contain" />
-            <span className="text-xs font-black tracking-widest text-slate-400 uppercase hidden sm:inline-block">
-              • Secure Checkout
+            <span className="text-xs font-black tracking-widest text-blue-700 uppercase hidden sm:inline-block">
+              • Pemesanan Tiket Resmi
             </span>
           </div>
         </div>
 
         {/* Countdown Reservation Timer Badge */}
         {currentStep !== 3 && (
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-black">
-            <Clock className="w-4 h-4 animate-pulse" />
-            <span>Batas Waktu: <strong>{formatTimer(timeLeft)}</strong></span>
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-black shadow-xs">
+            <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
+            <span>Batas Waktu: <strong className="text-amber-700 font-mono">{formatTimer(timeLeft)}</strong></span>
           </div>
         )}
       </header>
 
-      {/* STEPPER TIMELINE HEADER (1 -> 2 -> 3) */}
+      {/* STEPPER TIMELINE HEADER (1 -> 2 -> 3) - CLEAN WHITE & BLUE THEME */}
       <div className="max-w-4xl mx-auto px-4 sm:px-8 pt-8 pb-4">
-        <div className="bg-slate-900/90 backdrop-blur-md rounded-3xl p-4 sm:p-6 border border-slate-800/90 shadow-2xl space-y-4">
+        <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-200/90 shadow-sm space-y-4">
           {/* Stepper Progress Bar Lines & Nodes */}
           <div className="grid grid-cols-3 gap-2 relative">
             {[
@@ -457,28 +454,28 @@ export default function EventCheckoutClient() {
                   }}
                   className={`flex flex-col items-center text-center p-3 rounded-2xl transition-all ${
                     isActive
-                      ? 'bg-blue-600/20 border border-blue-500/40 text-white shadow-lg'
+                      ? 'bg-blue-50 border border-blue-300 text-blue-900 shadow-sm'
                       : isCompleted
-                      ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 cursor-pointer'
-                      : 'bg-slate-950/40 border border-slate-800/60 text-slate-500'
+                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-800 cursor-pointer'
+                      : 'bg-slate-50 border border-slate-200/80 text-slate-400'
                   }`}
                 >
                   <div
                     className={`w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-xs mb-2 transition-all ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/40 ring-4 ring-blue-600/20'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-4 ring-blue-600/15'
                         : isCompleted
-                        ? 'bg-emerald-500 text-slate-950 font-black'
-                        : 'bg-slate-800 text-slate-400'
+                        ? 'bg-emerald-600 text-white font-black'
+                        : 'bg-slate-200 text-slate-500'
                     }`}
                   >
                     {isCompleted ? <Check className="w-5 h-5 stroke-[3]" /> : <IconComp className="w-4 h-4" />}
                   </div>
 
-                  <span className="text-xs font-black tracking-tight leading-tight block">
+                  <span className={`text-xs font-black tracking-tight leading-tight block ${isActive ? 'text-blue-950' : isCompleted ? 'text-emerald-950' : 'text-slate-500'}`}>
                     Tahap {item.step}: {item.title}
                   </span>
-                  <span className="text-[10px] font-semibold text-slate-400 block mt-0.5 hidden sm:block">
+                  <span className="text-[10px] font-semibold text-slate-500 block mt-0.5 hidden sm:block">
                     {item.desc}
                   </span>
                 </div>
@@ -489,25 +486,25 @@ export default function EventCheckoutClient() {
       </div>
 
       {/* MAIN CHECKOUT CONTAINER CONTENT */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-8 pb-20 space-y-8">
+      <main className="max-w-4xl mx-auto px-4 sm:px-8 pb-20 space-y-6">
         
         {/* ================= TAHAP 1: PILIH TIKET & DATA PEMESAN ================= */}
         {currentStep === 1 && (
           <div className="space-y-6 animate-in fade-in-0">
             {/* Event Summary Card */}
-            <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl p-6 border border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="space-y-1">
-                <span className="px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-wider">
+                <span className="px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black uppercase tracking-wider">
                   {event.category || 'Music Concert'}
                 </span>
-                <h2 className="text-2xl font-black text-white tracking-tight">{event.title}</h2>
-                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 font-semibold pt-1">
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">{event.title}</h2>
+                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 font-semibold pt-1">
                   <span className="flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                    <Calendar className="w-3.5 h-3.5 text-blue-600" />
                     {event.start_at ? new Date(event.start_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Tanggal Acara'}
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-blue-400" />
+                    <MapPin className="w-3.5 h-3.5 text-blue-600" />
                     {typeof event.venue === 'object' ? event.venue?.name : event.location || 'Venue Utama'}
                   </span>
                 </div>
@@ -515,12 +512,12 @@ export default function EventCheckoutClient() {
             </div>
 
             {/* Step 1 Block: Kategori Tiket & Jumlah */}
-            <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-slate-800/80 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-base font-black text-white flex items-center gap-2">
-                  <Ticket className="w-5 h-5 text-blue-400" /> 1. Kategori & Jumlah Tiket
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <Ticket className="w-5 h-5 text-blue-600" /> 1. Kategori & Jumlah Tiket
                 </h3>
-                <span className="text-xs font-extrabold text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">
+                <span className="text-xs font-extrabold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
                   {totalTicketCount} Tiket Dipilih
                 </span>
               </div>
@@ -537,21 +534,21 @@ export default function EventCheckoutClient() {
                         key={ticket.id}
                         className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
                           qty > 0
-                            ? 'bg-blue-600/15 border-blue-500/50 ring-1 ring-blue-500/30'
-                            : 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700'
+                            ? 'bg-blue-50/70 border-blue-300 ring-1 ring-blue-500/20'
+                            : 'bg-white border-slate-200 hover:border-slate-300'
                         }`}
                       >
                         <div className="space-y-1">
-                          <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
+                          <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                             {ticket.name}
-                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                               Tersedia {ticket.available_quota ?? ticket.quota}
                             </span>
                           </h4>
-                          <p className="text-xs text-slate-400 font-medium">
+                          <p className="text-xs text-slate-500 font-medium">
                             {ticket.description || 'Akses resmi ke venue event.'}
                           </p>
-                          <span className="text-base font-black text-amber-300 block pt-1">
+                          <span className="text-base font-black text-blue-700 block pt-1">
                             Rp {priceNum.toLocaleString('id-ID')}
                           </span>
                         </div>
@@ -562,16 +559,16 @@ export default function EventCheckoutClient() {
                             type="button"
                             onClick={() => handleQuantityChange(ticket.id, qty - 1)}
                             disabled={qty <= 0}
-                            className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white font-black text-base flex items-center justify-center cursor-pointer transition-colors"
+                            className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-700 font-black text-base flex items-center justify-center cursor-pointer transition-colors"
                           >
                             -
                           </button>
-                          <span className="w-8 text-center text-sm font-black text-white">{qty}</span>
+                          <span className="w-8 text-center text-sm font-black text-slate-900">{qty}</span>
                           <button
                             type="button"
                             onClick={() => handleQuantityChange(ticket.id, qty + 1)}
                             disabled={qty >= (ticket.max_per_order || 5)}
-                            className="w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white font-black text-base flex items-center justify-center cursor-pointer transition-colors shadow-md"
+                            className="w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-30 text-white font-black text-base flex items-center justify-center cursor-pointer transition-colors shadow-xs"
                           >
                             +
                           </button>
@@ -586,89 +583,89 @@ export default function EventCheckoutClient() {
             </div>
 
             {/* Step 2 Block: Data Pemesan */}
-            <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-slate-800/80 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-base font-black text-white flex items-center gap-2">
-                  <User className="w-5 h-5 text-blue-400" /> 2. Data Pemesan Tiket (Autofill dari Akun)
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <User className="w-5 h-5 text-blue-600" /> 2. Data Pemesan Tiket (Autofill dari Akun)
                 </h3>
                 {isUserLoggedIn && (
-                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Otomatis Terisi
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Otomatis Terisi
                   </span>
                 )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
-                  <label className="font-extrabold text-slate-300">Nama Lengkap Pemesan *</label>
+                  <label className="font-extrabold text-slate-800">Nama Lengkap Pemesan *</label>
                   <input
                     type="text"
                     required
                     value={buyerName}
                     onChange={(e) => setBuyerName(e.target.value)}
                     placeholder="Masukkan nama lengkap"
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-extrabold text-slate-300">Alamat Email *</label>
+                  <label className="font-extrabold text-slate-800">Alamat Email *</label>
                   <input
                     type="email"
                     required
                     value={buyerEmail}
                     onChange={(e) => setBuyerEmail(e.target.value)}
                     placeholder="nama@email.com"
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-extrabold text-slate-300">Nomor WhatsApp *</label>
+                  <label className="font-extrabold text-slate-800">Nomor WhatsApp *</label>
                   <input
                     type="tel"
                     required
                     value={buyerPhone}
                     onChange={(e) => setBuyerPhone(e.target.value)}
                     placeholder="081234567890"
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-extrabold text-slate-300">Nomor NIK KTP *</label>
+                  <label className="font-extrabold text-slate-800">Nomor NIK KTP *</label>
                   <input
                     type="text"
                     required
                     value={buyerNik}
                     onChange={(e) => setBuyerNik(e.target.value)}
                     placeholder="16 Digit NIK KTP"
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none font-mono"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none font-mono"
                   />
                 </div>
 
                 <div className="space-y-1.5 sm:col-span-2">
-                  <label className="font-extrabold text-slate-300">Alamat Lengkap Pemesan *</label>
+                  <label className="font-extrabold text-slate-800">Alamat Lengkap Pemesan *</label>
                   <textarea
                     rows={2}
                     required
                     value={buyerAddress}
                     onChange={(e) => setBuyerAddress(e.target.value)}
                     placeholder="Alamat domisili lengkap"
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none"
                   />
                 </div>
               </div>
             </div>
 
             {/* Step 3 Block: Data Pemegang Tiket */}
-            <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-slate-800/80 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-base font-black text-white flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-blue-400" /> 3. Data Pemegang Tiket ({ticketHolders.length} Tiket)
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-blue-600" /> 3. Data Pemegang Tiket ({ticketHolders.length} Tiket)
                 </h3>
 
-                <label className="flex items-center gap-2 text-xs font-bold text-blue-400 cursor-pointer">
+                <label className="flex items-center gap-2 text-xs font-bold text-blue-600 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={isSameAsBuyer}
@@ -681,8 +678,8 @@ export default function EventCheckoutClient() {
 
               <div className="space-y-4">
                 {ticketHolders.map((holder, idx) => (
-                  <div key={idx} className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
-                    <span className="text-xs font-extrabold text-amber-300 block">
+                  <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                    <span className="text-xs font-extrabold text-blue-700 block">
                       Pemegang Tiket #{idx + 1}
                     </span>
 
@@ -700,7 +697,7 @@ export default function EventCheckoutClient() {
                           });
                         }}
                         placeholder="Nama Pemegang Tiket"
-                        className="px-3.5 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                        className="px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:outline-none"
                       />
 
                       <input
@@ -716,7 +713,7 @@ export default function EventCheckoutClient() {
                           });
                         }}
                         placeholder="WhatsApp Pemegang Tiket"
-                        className="px-3.5 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                        className="px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:outline-none"
                       />
 
                       <input
@@ -732,7 +729,7 @@ export default function EventCheckoutClient() {
                           });
                         }}
                         placeholder="NIK KTP Pemegang Tiket"
-                        className="px-3.5 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none font-mono"
+                        className="px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:outline-none font-mono"
                       />
                     </div>
                   </div>
@@ -741,9 +738,9 @@ export default function EventCheckoutClient() {
             </div>
 
             {/* Step 4 Block: Voucher Promo & Referral */}
-            <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl p-6 border border-slate-800/80 space-y-3">
-              <h3 className="text-sm font-black text-white flex items-center gap-2">
-                <Tag className="w-4 h-4 text-blue-400" /> Kode Promo & Diskon (Opsional)
+            <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-3">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                <Tag className="w-4 h-4 text-blue-600" /> Kode Promo & Diskon (Opsional)
               </h3>
 
               <div className="flex gap-2">
@@ -752,25 +749,25 @@ export default function EventCheckoutClient() {
                   value={promoCodeInput}
                   onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
                   placeholder="Masukkan Kode Voucher (e.g. METIXHEMAT)"
-                  className="flex-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:border-blue-500 focus:outline-none uppercase"
+                  className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 font-mono placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none uppercase"
                 />
                 <button
                   type="button"
                   onClick={handleApplyPromo}
                   disabled={isApplyingPromo || !promoCodeInput.trim()}
-                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   {isApplyingPromo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Gunakan'}
                 </button>
               </div>
 
-              {promoError && <p className="text-xs text-rose-400 font-bold">{promoError}</p>}
-              {promoSuccess && <p className="text-xs text-emerald-400 font-bold">{promoSuccess}</p>}
+              {promoError && <p className="text-xs text-rose-600 font-bold">{promoError}</p>}
+              {promoSuccess && <p className="text-xs text-emerald-600 font-bold">{promoSuccess}</p>}
             </div>
 
             {/* Step 5 Block: Terms Agreement Checkbox & Next Button */}
-            <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl p-6 border border-slate-800/80 space-y-4">
-              <div className="flex items-center gap-2 text-xs text-slate-300 font-medium">
+            <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 text-xs text-slate-700 font-medium">
                 <input
                   type="checkbox"
                   id="terms-checkbox-page"
@@ -779,13 +776,13 @@ export default function EventCheckoutClient() {
                   className="w-4 h-4 accent-blue-600 rounded cursor-pointer shrink-0"
                 />
                 <label htmlFor="terms-checkbox-page" className="cursor-pointer select-none">
-                  Saya menyetujui <Link href="/terms" target="_blank" className="font-extrabold text-blue-400 underline">Ketentuan Layanan</Link> & <Link href="/privacy" target="_blank" className="font-extrabold text-blue-400 underline">Kebijakan Privasi Metix</Link>.
+                  Saya menyetujui <Link href="/terms" target="_blank" className="font-extrabold text-blue-600 underline">Ketentuan Layanan</Link> & <Link href="/privacy" target="_blank" className="font-extrabold text-blue-600 underline">Kebijakan Privasi Metix</Link>.
                 </label>
               </div>
 
               {!isStep1Valid && (
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-bold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                   <span>
                     {totalTicketCount === 0
                       ? 'Pilih minimal 1 tiket terlebih dahulu.'
@@ -800,7 +797,7 @@ export default function EventCheckoutClient() {
                 type="button"
                 onClick={() => setCurrentStep(2)}
                 disabled={!isStep1Valid}
-                className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm shadow-xl shadow-blue-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-4 rounded-2xl bg-blue-700 hover:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm shadow-md shadow-blue-700/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Lanjut ke Pembayaran</span>
                 <ArrowRight className="w-4 h-4" />
@@ -813,13 +810,13 @@ export default function EventCheckoutClient() {
         {currentStep === 2 && (
           <div className="space-y-6 animate-in fade-in-0">
             {/* Recommendation Hero QRIS Card */}
-            <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-slate-800/80 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-base font-black text-white flex items-center gap-2">
-                  <QrCode className="w-5 h-5 text-amber-400" /> Pilih Metode Pembayaran
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <QrCode className="w-5 h-5 text-blue-600" /> Pilih Metode Pembayaran
                 </h3>
-                <span className="text-xs font-extrabold text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" /> Rekomendasi Instan
+                <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-amber-500" /> Rekomendasi Instan
                 </span>
               </div>
 
@@ -831,8 +828,8 @@ export default function EventCheckoutClient() {
                     onClick={() => setSelectedPaymentCategory('QRIS')}
                     className={`relative rounded-3xl p-5 transition-all duration-300 cursor-pointer overflow-hidden border ${
                       isQris
-                        ? 'bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-900 border-amber-400 text-white shadow-xl ring-2 ring-amber-400/50'
-                        : 'bg-slate-950 border-slate-800 text-white hover:border-amber-400/50'
+                        ? 'bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-900 border-amber-400 text-white shadow-xl shadow-blue-700/20 ring-2 ring-amber-400/50'
+                        : 'bg-slate-900 text-white hover:border-amber-400/50'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-3">
@@ -854,7 +851,7 @@ export default function EventCheckoutClient() {
                           </p>
                         </div>
                       </div>
-                      <span className="text-xs font-black text-amber-300 bg-amber-400/10 border border-amber-400/30 px-3 py-1 rounded-xl">
+                      <span className="text-xs font-black text-amber-300 bg-amber-400/15 border border-amber-400/30 px-3 py-1 rounded-xl">
                         +Rp {platformFee.toLocaleString('id-ID')}
                       </span>
                     </div>
@@ -886,16 +883,16 @@ export default function EventCheckoutClient() {
                         onClick={() => setSelectedPaymentCategory(cat.id)}
                         className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
                           isSelected
-                            ? 'border-blue-500 bg-blue-600/20 text-white font-extrabold shadow-md'
-                            : 'border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-900'
+                            ? 'border-blue-600 bg-blue-50 text-blue-900 font-extrabold shadow-xs ring-1 ring-blue-600/30'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
                             <IconComp className="w-4 h-4" />
                           </div>
                           <div>
-                            <span className="font-extrabold text-xs text-white block">{cat.label}</span>
+                            <span className="font-extrabold text-xs text-slate-900 block">{cat.label}</span>
                             <span className="text-[10px] text-slate-400 block">{cat.feeText}</span>
                           </div>
                         </div>
@@ -907,45 +904,45 @@ export default function EventCheckoutClient() {
             </div>
 
             {/* Rincian Tagihan Breakdown Card */}
-            <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-slate-800/80 space-y-4">
-              <h3 className="text-base font-black text-white border-b border-slate-800 pb-3">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-4">
+              <h3 className="text-base font-black text-slate-900 border-b border-slate-100 pb-3">
                 Rincian Pembayaran
               </h3>
 
-              <div className="space-y-2.5 text-xs text-slate-300 font-medium">
+              <div className="space-y-2.5 text-xs text-slate-700 font-medium">
                 <div className="flex justify-between items-center">
                   <span>Subtotal Tiket ({totalTicketCount} Tiket)</span>
-                  <span className="font-extrabold text-white">Rp {totalPrice.toLocaleString('id-ID')}</span>
+                  <span className="font-extrabold text-slate-900">Rp {totalPrice.toLocaleString('id-ID')}</span>
                 </div>
 
                 <div className="flex justify-between items-center">
                   <span>Pajak Daerah (Local Tax {localTaxPercentage}%)</span>
-                  <span className="font-extrabold text-slate-200">+Rp {localTaxAmount.toLocaleString('id-ID')}</span>
+                  <span className="font-extrabold text-slate-800">+Rp {localTaxAmount.toLocaleString('id-ID')}</span>
                 </div>
 
                 <div className="flex justify-between items-center">
                   <span>Biaya Layanan Platform ({selectedPaymentCategory})</span>
-                  <span className="font-extrabold text-slate-200">+Rp {platformFee.toLocaleString('id-ID')}</span>
+                  <span className="font-extrabold text-slate-800">+Rp {platformFee.toLocaleString('id-ID')}</span>
                 </div>
 
                 {appliedPromo && (
-                  <div className="flex justify-between items-center text-emerald-400 font-bold">
+                  <div className="flex justify-between items-center text-emerald-600 font-bold">
                     <span>Potongan Promo ({appliedPromo.code})</span>
                     <span>-Rp {appliedPromo.discountAmount.toLocaleString('id-ID')}</span>
                   </div>
                 )}
 
-                <div className="pt-3 border-t border-slate-800 flex justify-between items-baseline">
-                  <span className="text-sm font-black text-white">TOTAL PEMBAYARAN</span>
-                  <span className="text-xl font-black text-amber-300">
+                <div className="pt-3 border-t border-slate-100 flex justify-between items-baseline">
+                  <span className="text-sm font-black text-slate-900">TOTAL PEMBAYARAN</span>
+                  <span className="text-xl font-black text-blue-700">
                     Rp {finalGrandTotal.toLocaleString('id-ID')}
                   </span>
                 </div>
               </div>
 
               {errorMessage && (
-                <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-bold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
+                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                   <span>{errorMessage}</span>
                 </div>
               )}
@@ -954,7 +951,7 @@ export default function EventCheckoutClient() {
                 <button
                   type="button"
                   onClick={() => setCurrentStep(1)}
-                  className="px-5 py-4 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-extrabold text-xs transition-all"
+                  className="px-5 py-4 rounded-2xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-extrabold text-xs transition-all"
                 >
                   Kembali ke Data
                 </button>
@@ -963,7 +960,7 @@ export default function EventCheckoutClient() {
                   type="button"
                   onClick={handleSubmitOrder}
                   disabled={isSubmitting}
-                  className="flex-1 py-4 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 disabled:opacity-50 text-white font-black text-sm shadow-xl shadow-blue-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 py-4 rounded-2xl bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-black text-sm shadow-md shadow-blue-700/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {isSubmitting ? (
                     <>
@@ -985,40 +982,40 @@ export default function EventCheckoutClient() {
         {/* ================= TAHAP 3: E-TICKET BERHASIL ================= */}
         {currentStep === 3 && completedOrder && (
           <div className="space-y-6 animate-in zoom-in-95 duration-300">
-            <div className="bg-gradient-to-br from-blue-900/60 via-slate-900 to-indigo-900/60 backdrop-blur-xl rounded-3xl p-6 sm:p-10 border border-emerald-500/40 text-center space-y-6 shadow-2xl relative overflow-hidden">
-              <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mx-auto text-emerald-400 shadow-xl shadow-emerald-500/20 animate-bounce">
+            <div className="bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-900 text-white backdrop-blur-xl rounded-3xl p-6 sm:p-10 border border-blue-500 text-center space-y-6 shadow-2xl relative overflow-hidden">
+              <div className="w-20 h-20 rounded-full bg-white/20 border-2 border-white flex items-center justify-center mx-auto text-white shadow-xl animate-bounce">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
 
               <div className="space-y-2">
-                <span className="px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-black uppercase tracking-wider">
+                <span className="px-4 py-1.5 rounded-full bg-emerald-400 text-slate-950 text-xs font-black uppercase tracking-wider">
                   PEMBAYARAN TERKONFIRMASI & TIKET RESMI TERBIT
                 </span>
                 <h2 className="text-3xl font-black text-white tracking-tight">Selamat! E-Ticket Berhasil Diterbitkan</h2>
-                <p className="text-xs sm:text-sm text-slate-300 max-w-lg mx-auto font-medium">
+                <p className="text-xs sm:text-sm text-blue-100 max-w-lg mx-auto font-medium">
                   Order <strong>#{completedOrder.order_number || completedOrder.id || 'MTX-9823'}</strong> telah berhasil diproses. E-Ticket resmi telah dikirim ke email <strong>{buyerEmail}</strong>.
                 </p>
               </div>
 
               {/* Order Ticket QR Card */}
-              <div className="max-w-md mx-auto p-6 rounded-3xl bg-slate-950 border border-slate-800 space-y-4 text-left shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="max-w-md mx-auto p-6 rounded-3xl bg-white text-slate-900 border border-slate-200 space-y-4 text-left shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div>
-                    <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest block">EVENT</span>
-                    <h4 className="font-black text-sm text-white">{event.title}</h4>
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">EVENT</span>
+                    <h4 className="font-black text-sm text-slate-900">{event.title}</h4>
                   </div>
-                  <span className="text-xs font-black text-amber-300 bg-amber-400/10 px-2.5 py-1 rounded-xl border border-amber-400/30">
+                  <span className="text-xs font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-xl border border-blue-200">
                     {totalTicketCount} Tiket
                   </span>
                 </div>
 
-                <div className="flex items-center justify-center p-4 bg-white rounded-2xl">
+                <div className="flex items-center justify-center p-4 bg-slate-50 rounded-2xl border border-slate-200">
                   <QrCode className="w-36 h-36 text-slate-900" />
                 </div>
 
                 <div className="text-center space-y-1">
                   <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest block">KODE TIKET QR</span>
-                  <span className="text-sm font-black text-white font-mono tracking-wider">
+                  <span className="text-sm font-black text-blue-700 font-mono tracking-wider">
                     {completedOrder.order_number || 'MTX-TICKET-OFFICIAL-2026'}
                   </span>
                 </div>
@@ -1028,15 +1025,15 @@ export default function EventCheckoutClient() {
               <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
                 <Link
                   href="/dashboard/tickets"
-                  className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2"
+                  className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg transition-all flex items-center justify-center gap-2"
                 >
-                  <Ticket className="w-4 h-4 text-amber-300" />
+                  <Ticket className="w-4 h-4 text-slate-950" />
                   <span>Lihat Tiket Saya</span>
                 </Link>
 
                 <Link
                   href="/"
-                  className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-extrabold text-xs transition-all text-center"
+                  className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-extrabold text-xs transition-all text-center"
                 >
                   Ke Beranda
                 </Link>

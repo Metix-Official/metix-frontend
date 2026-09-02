@@ -870,6 +870,8 @@ export async function fetchPaymentStatus(orderId: number): Promise<{ status: str
 
 export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
   const token = getStoredToken();
+  const user = getStoredUser();
+  const currentUserEmail = (user?.email || '').toLowerCase().trim();
 
   let apiTickets: ApiTicketDetail[] = [];
   if (token) {
@@ -890,15 +892,18 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
     }
   }
 
-  // Retrieve stored local user orders if any
+  // Retrieve stored local user orders filtered STRICTLY by current logged-in user's email
   let localTickets: ApiTicketDetail[] = [];
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && currentUserEmail) {
     try {
       const localStr = localStorage.getItem('metix_user_orders');
       if (localStr) {
         const parsed = JSON.parse(localStr);
         if (Array.isArray(parsed)) {
-          localTickets = parsed;
+          localTickets = parsed.filter((t: any) => {
+            const ticketEmail = (t.order?.buyer_email || t.buyer_email || '').toLowerCase().trim();
+            return ticketEmail === currentUserEmail;
+          });
         }
       }
     } catch (e) {
@@ -906,7 +911,7 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
     }
   }
 
-  // Merge local tickets with API tickets, avoiding duplicates by ticket_code or id
+  // Merge local tickets matching current user with API tickets
   const combinedMap = new Map<string | number, ApiTicketDetail>();
   localTickets.forEach((t) => {
     const key = t.ticket_code || t.id;

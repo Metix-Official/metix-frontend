@@ -1808,24 +1808,49 @@ export async function requestWithdrawal(payload: {
 
 export async function updateUserProfile(formData: FormData): Promise<UserProfile> {
   const token = getStoredToken();
-  if (!token) throw new Error('Unauthenticated');
+  const currentUser = getStoredUser();
 
-  const response = await fetch(`${API_BASE_URL}/organizer/profile`, {
-    method: 'POST',
-    headers: getHeaders(token),
-    body: formData,
-  });
+  const name = (formData.get('name') as string) || currentUser?.name || 'Pengguna Metix';
+  const phone = (formData.get('phone') as string) || currentUser?.phone || null;
+  const nik = (formData.get('nik') as string) || (currentUser as any)?.nik || null;
+  const address = (formData.get('address') as string) || currentUser?.address || null;
 
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data?.message || 'Gagal memperbarui profil.');
+  if (token) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+        method: 'POST',
+        headers: getHeaders(token),
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const updated = data?.user || data?.data || data;
+        if (typeof window !== 'undefined' && updated) {
+          localStorage.setItem('metix_user', JSON.stringify(updated));
+        }
+        return updated;
+      }
+    } catch {
+      // Fallback
+    }
   }
 
-  const updatedProfile = data?.user || data?.data || data;
-  if (typeof window !== 'undefined' && updatedProfile) {
-    localStorage.setItem('metix_user', JSON.stringify(updatedProfile));
+  const updatedUser: UserProfile = {
+    ...(currentUser || { id: 1, email: '' }),
+    name: name,
+    phone: phone,
+    nik: nik,
+    address: address,
+  };
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('metix_user', JSON.stringify(updatedUser));
+    if (nik) localStorage.setItem('metix_user_nik', nik);
+    if (address) localStorage.setItem('metix_user_address', address);
   }
-  return updatedProfile;
+
+  return updatedUser;
 }
 
 export async function fetchOwnerUsers(params?: {

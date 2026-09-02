@@ -1941,13 +1941,20 @@ export async function fetchSalesReportData(params?: {
   if (!token) return { orders: [], events: [], totalRevenue: 0, totalTicketsSold: 0 };
 
   try {
-    const response = await fetch(`${API_BASE_URL}/organizer/dashboard`, {
+    const query = new URLSearchParams();
+    if (params?.event_id && params.event_id !== 'all') query.append('event_id', params.event_id);
+    if (params?.month && params.month !== 'all') query.append('month', params.month);
+    if (params?.year && params.year !== 'all') query.append('year', params.year);
+
+    const url = `${API_BASE_URL}/organizer/reports?${query.toString()}`;
+    const response = await fetch(url, {
       headers: getHeaders(token),
     });
 
     if (response.ok) {
-      const data = await response.json();
-      const rawOrders = data.recent_orders || data.orders || [];
+      const resData = await response.json();
+      const payload = resData.data || resData;
+      const rawOrders = payload.orders || [];
       const formattedOrders: ReportOrderItem[] = rawOrders.map((ord: any) => ({
         id: ord.id,
         order_number: ord.order_number || `ORD-${ord.id}`,
@@ -1955,23 +1962,20 @@ export async function fetchSalesReportData(params?: {
         buyer_email: ord.buyer_email || 'buyer@metix.id',
         buyer_phone: ord.buyer_phone,
         event_id: ord.event_id,
-        event_title: ord.event?.title || 'Event Metix',
-        ticket_type_name: ord.ticket_type?.name || 'Tiket Metix',
+        event_title: ord.event_title || 'Event Metix',
+        ticket_type_name: ord.ticket_type_name || 'Tiket Metix',
         quantity: ord.quantity || 1,
-        total_amount: Number(ord.grand_total || ord.subtotal || 0),
-        payment_method: ord.payment_method || 'DOKU Payment Gateway',
-        status: ord.status === 'PAID' ? 'paid' : 'pending',
+        total_amount: Number(ord.total_amount || 0),
+        payment_method: ord.payment_method || 'Midtrans QRIS & VA',
+        status: ord.status === 'paid' ? 'paid' : 'pending',
         created_at: ord.created_at || new Date().toISOString(),
       }));
 
-      const totalRevenue = formattedOrders.reduce((sum, item) => sum + item.total_amount, 0);
-      const totalTicketsSold = formattedOrders.reduce((sum, item) => sum + item.quantity, 0);
-
       return {
         orders: formattedOrders,
-        events: data.events || [],
-        totalRevenue,
-        totalTicketsSold,
+        events: payload.events || [],
+        totalRevenue: payload.total_revenue || 0,
+        totalTicketsSold: payload.total_tickets_sold || 0,
       };
     }
   } catch (error) {

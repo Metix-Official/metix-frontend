@@ -173,10 +173,8 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
 
       if (token) {
         setIsUserLoggedIn(true);
-        const getAddressValue = (u: any) =>
-          u?.address || u?.location || (typeof window !== 'undefined' ? localStorage.getItem('metix_user_address') : '') || 'Jakarta South, Indonesia';
-        const getNikValue = (u: any) =>
-          u?.nik || (typeof window !== 'undefined' ? localStorage.getItem('metix_user_nik') : '') || '3171023901920001';
+        const getAddressValue = (u: any) => u?.address || u?.location || '';
+        const getNikValue = (u: any) => u?.nik || '';
 
         if (user) {
           setCurrentUser(user);

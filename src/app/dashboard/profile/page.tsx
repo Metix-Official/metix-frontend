@@ -26,34 +26,18 @@ export default function ProfilePage() {
   useEffect(() => {
     async function loadProfile() {
       setIsLoading(true);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('metix_user_nik');
+        localStorage.removeItem('metix_user_address');
+      }
       const data = await fetchUserProfile();
-      let storedNik = typeof window !== 'undefined' ? localStorage.getItem('metix_user_nik') : null;
-      let storedAddress = typeof window !== 'undefined' ? localStorage.getItem('metix_user_address') : null;
-
-      if (storedNik === '3171023901920001') storedNik = null;
-      if (storedAddress === 'Jakarta South, Indonesia') storedAddress = null;
 
       if (data) {
-        const mergedProfile: UserProfile = {
-          ...data,
-          id: data.id ?? 1,
-          name: data.name || 'Pengguna Metix',
-          email: data.email || '',
-          phone: data.phone || null,
-          nik: data.nik || storedNik || '',
-          address: data.address || data.location || storedAddress || '',
-        };
-
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('metix_user_nik', mergedProfile.nik || '');
-          localStorage.setItem('metix_user_address', mergedProfile.address || '');
-        }
-
-        setProfile(mergedProfile);
-        setName(mergedProfile.name || '');
-        setPhone((mergedProfile.phone || '').replace(/\D/g, '').slice(0, 13));
-        setNik((mergedProfile.nik || '').replace(/\D/g, '').slice(0, 16));
-        setAddress(mergedProfile.address || '');
+        setProfile(data);
+        setName(data.name || '');
+        setPhone((data.phone || '').replace(/\D/g, '').slice(0, 13));
+        setNik(((data as any).nik || '').replace(/\D/g, '').slice(0, 16));
+        setAddress(data.address || '');
 
         if (data.profile_photo_url || data.photo) {
           setPhotoPreview(getPhotoUrl(data.profile_photo_url || data.photo));

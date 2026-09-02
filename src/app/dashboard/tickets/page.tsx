@@ -10,6 +10,8 @@ import { toast } from 'sonner';
 import { Ticket, Search, Calendar, MapPin, QrCode, Sparkles, X, Printer, CheckCircle2, XCircle } from 'lucide-react';
 import jsPDF from 'jspdf';
 
+import { getUserRole } from '@/lib/roles';
+
 export default function TicketsPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
@@ -20,7 +22,7 @@ export default function TicketsPage() {
 
   useEffect(() => {
     const user = getStoredUser();
-    const role = (user?.role || 'BUYER').toUpperCase();
+    const role = getUserRole(user);
     if (role !== 'BUYER') {
       toast.error('Halaman E-Tiket hanya dapat diakses oleh akun Pembeli (Buyer).');
       router.replace('/dashboard');

@@ -270,16 +270,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       'Masuk ke Akun'
                     )}
                   </button>
-
-                  {/* 1-Click Guest Login Button */}
-                  <button
-                    type="button"
-                    onClick={handleGuestLogin}
-                    disabled={isSubmittingLogin}
-                    className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <UserCheck className="w-4 h-4 text-blue-600" /> Mode Tamu (1-Click Login)
-                  </button>
                 </div>
               </form>
 

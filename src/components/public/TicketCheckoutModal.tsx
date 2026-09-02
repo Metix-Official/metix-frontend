@@ -1418,29 +1418,29 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
 
                 {/* Mandatory Terms Agreement Checkbox Row */}
                 {isUserLoggedIn && (
-                  <div className="flex items-start gap-2.5 p-2.5 rounded-2xl bg-slate-50 border border-slate-200/90 text-[11px] text-slate-700 font-medium animate-in fade-in-0">
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[10px] sm:text-[11px] text-slate-700 font-medium animate-in fade-in-0">
                     <input
                       type="checkbox"
                       id="terms-agreement-checkbox"
                       checked={isAgreedTerms}
                       onChange={(e) => setIsAgreedTerms(e.target.checked)}
-                      className="w-4 h-4 mt-0.5 accent-blue-600 rounded cursor-pointer shrink-0"
+                      className="w-3.5 h-3.5 accent-blue-600 rounded cursor-pointer shrink-0"
                     />
-                    <label htmlFor="terms-agreement-checkbox" className="cursor-pointer leading-snug select-none">
-                      Dengan ini saya menerima <Link href="/terms" target="_blank" className="font-extrabold text-blue-600 underline hover:text-blue-700">Ketentuan Layanan</Link>. Untuk informasi lebih lanjut tentang praktik privasi Metix, lihat <Link href="/privacy" target="_blank" className="font-extrabold text-blue-600 underline hover:text-blue-700">Pernyataan Privasi Metix</Link>.
+                    <label htmlFor="terms-agreement-checkbox" className="cursor-pointer leading-tight select-none truncate">
+                      Saya menerima <Link href="/terms" target="_blank" className="font-extrabold text-blue-600 underline hover:text-blue-700">Ketentuan Layanan</Link> & <Link href="/privacy" target="_blank" className="font-extrabold text-blue-600 underline hover:text-blue-700">Privasi Metix</Link>.
                     </label>
                   </div>
                 )}
 
-                {/* Validation Helper Banner (Compact 1-Line Helper) */}
+                {/* Validation Helper Banner (Ultra-Compact 1-Line Banner) */}
                 {isUserLoggedIn && !isFormValid && (
-                  <div className="px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200/80 text-rose-700 text-[10px] sm:text-[11px] font-extrabold flex items-center gap-1.5 animate-in fade-in-0">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
-                    <span className="truncate">
+                  <div className="px-2.5 py-0.5 rounded-lg bg-rose-50/90 border border-rose-200/70 text-rose-700 text-[10px] font-bold flex items-center gap-1.5 animate-in fade-in-0">
+                    <AlertCircle className="w-3 h-3 shrink-0 text-rose-600" />
+                    <span className="truncate leading-tight">
                       {selectedTickets.length === 0
-                        ? 'Pilih minimal 1 tiket untuk melanjutkan.'
+                        ? 'Pilih minimal 1 tiket terlebih dahulu.'
                         : !isAgreedTerms
-                        ? 'Centang persetujuan Ketentuan Layanan & Pernyataan Privasi di atas.'
+                        ? 'Centang persetujuan Ketentuan Layanan di atas.'
                         : 'Lengkapi Nama, Email, WA, NIK KTP terlebih dahulu.'}
                     </span>
                   </div>

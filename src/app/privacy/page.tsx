@@ -1,4 +1,3 @@
-'use me';
 'use client';
 
 import React, { useState } from 'react';
@@ -21,6 +20,7 @@ import {
   KeyRound,
   Share2,
   Search,
+  CreditCard,
 } from 'lucide-react';
 
 export default function PrivacyPolicyPage() {

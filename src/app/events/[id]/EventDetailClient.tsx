@@ -519,8 +519,8 @@ export default function EventDetailClient() {
               </div>
             </div>
 
-            {/* Card 2: Price & "Beli Sekarang" CTA Button */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
+            {/* Card 2: Price & "Beli Sekarang" CTA Button (Desktop Only, hidden on Mobile) */}
+            <div className="hidden lg:block bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-600">Mulai Dari</span>
                 <span className="text-xl sm:text-2xl font-black text-slate-900">{lowestPrice}</span>

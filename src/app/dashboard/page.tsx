@@ -52,7 +52,13 @@ export default function DashboardPage() {
     return storedUser?.roles?.some((r: any) => r.name === 'admin');
   }, [storedUser]);
 
-  const currentRole = isScannerAdmin ? 'admin' : (dashboardData?.role || 'pembeli');
+  const currentRole = React.useMemo(() => {
+    if (isScannerAdmin) return 'admin';
+    const evalRole = getUserRole(storedUser);
+    if (evalRole === 'OWNER') return 'owner';
+    if (evalRole === 'EO') return 'mitra';
+    return 'pembeli';
+  }, [storedUser, isScannerAdmin]);
 
   // Compute stat cards values based on authenticated role
   const statsToDisplay: StatMetric[] = React.useMemo(() => {

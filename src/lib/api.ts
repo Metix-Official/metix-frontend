@@ -1248,18 +1248,17 @@ export async function createEvent(formData: FormData): Promise<boolean> {
         title,
         description: String(formData.get('description') || 'Deskripsi Event'),
         category: String(formData.get('category') || 'Concert'),
-        start_date: String(formData.get('start_date') || new Date().toISOString()),
-        end_date: String(formData.get('end_date') || new Date().toISOString()),
-        location: String(formData.get('location') || String(formData.get('venue_name')) || 'Jakarta'),
-        banner_image_url: localPreview ? String(localPreview) : null,
         status: 'published',
-        organizer: user?.organizer || {
+        location: String(formData.get('location') || String(formData.get('venue_name')) || 'Jakarta'),
+        banner: localPreview ? String(localPreview) : null,
+        organizer: (user as any)?.organizer || {
           organization_name: user?.name || 'Organizer Official',
           verified: true,
         },
         ticket_types: [
           {
             id: id + 1,
+            event_id: id,
             name: 'VIP Pass',
             price: 100000,
             quota: 100,
@@ -1268,14 +1267,15 @@ export async function createEvent(formData: FormData): Promise<boolean> {
           },
           {
             id: id + 2,
+            event_id: id,
             name: 'Regular Pass',
             price: 50000,
             quota: 200,
             sold_quantity: 0,
             available_quota: 200,
           },
-        ],
-      };
+        ] as any,
+      } as any;
 
       try {
         const existingStr = localStorage.getItem('metix_created_events');

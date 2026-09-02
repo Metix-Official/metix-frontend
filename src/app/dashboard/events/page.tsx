@@ -1515,7 +1515,7 @@ export default function EventsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-extrabold text-slate-700">Waktu Mulai Event (Start At)</label>
                     <input
@@ -1538,6 +1538,26 @@ export default function EventsPage() {
                       onChange={(e) => setEditEndAt(e.target.value)}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
                     />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                      <span>Pajak Daerah (%)</span>
+                      <span className="text-[10px] text-blue-600 font-bold">Default 5%</span>
+                    </label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        name="local_tax_percentage"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        defaultValue={editingEvent?.local_tax_percentage ?? 5.0}
+                        placeholder="5.0"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none pr-8"
+                      />
+                      <span className="absolute right-3 text-xs font-black text-slate-400">%</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2279,7 +2299,7 @@ export default function EventsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-extrabold text-slate-700">Waktu Mulai Event (Start At)</label>
                     <input
@@ -2302,6 +2322,26 @@ export default function EventsPage() {
                       onChange={(e) => setCreateEndAt(e.target.value)}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
                     />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                      <span>Pajak Daerah (%)</span>
+                      <span className="text-[10px] text-blue-600 font-bold">Default 5%</span>
+                    </label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        name="local_tax_percentage"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        defaultValue="5.0"
+                        placeholder="5.0"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none pr-8"
+                      />
+                      <span className="absolute right-3 text-xs font-black text-slate-400">%</span>
+                    </div>
                   </div>
                 </div>
               </div>

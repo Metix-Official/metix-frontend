@@ -160,6 +160,7 @@ export interface ApiEvent {
   terms_and_conditions?: string | null;
   syarat_ketentuan?: string | null;
   ticket_types?: ApiTicketType[];
+  local_tax_percentage?: number | string | null;
   require_holder_name?: boolean;
   setting?: ApiEventSetting | null;
   organizer?: any;

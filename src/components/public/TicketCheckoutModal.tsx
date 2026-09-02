@@ -300,11 +300,12 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
     return selectedTickets.reduce((acc, item) => acc + item.quantity, 0);
   }, [selectedTickets]);
 
-  // Local Tax: Flat 5% of ticket subtotal
+  // Local Tax: Dynamic percentage based on event (default 5.0%)
   const localTaxAmount = useMemo(() => {
     if (totalPrice === 0) return 0;
-    return Math.floor((totalPrice * 5) / 100);
-  }, [totalPrice]);
+    const taxPercent = Number(event?.local_tax_percentage ?? 5.0);
+    return Math.floor((totalPrice * taxPercent) / 100);
+  }, [totalPrice, event?.local_tax_percentage]);
 
   // Platform Service Fee based on Payment Category & Matrix
   const platformFee = useMemo(() => {

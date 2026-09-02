@@ -351,7 +351,7 @@ export default function DashboardPage() {
   return (
     <DashboardLayout pageTitle={formattedPageTitle} activeNav="Dashboard">
       {/* Pending EO Approval Alert Banner */}
-      {storedUser?.role === 'EO' && (storedUser?.mitra_status === 'pending' || (storedUser as any)?.organizer_status === 'PENDING_APPROVAL') && (
+      {(storedUser?.role === 'EO' || storedUser?.role === 'mitra') && getUserRole(storedUser) === 'BUYER' && (
         <div className="p-5 rounded-3xl bg-amber-50 border border-amber-200/90 text-amber-900 flex items-start gap-3.5 shadow-2xs animate-in fade-in-0">
           <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-400/30 text-amber-700 flex items-center justify-center shrink-0">
             <Sparkles className="w-5 h-5 text-amber-600" />

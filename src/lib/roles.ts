@@ -40,16 +40,18 @@ export function getUserRole(
     const status = (
       user.mitra_status ||
       (user as any).organizer_status ||
+      (user as any).organizer_profile?.status ||
       (user as any).status ||
       ''
     ).toUpperCase();
 
-    // If EO account status is pending approval or rejected, treat as BUYER until Owner approves
-    if (status === 'PENDING' || status === 'PENDING_APPROVAL' || status === 'REJECTED') {
-      return ROLES.BUYER;
+    // EO account MUST be explicitly APPROVED or ACTIVE by Owner to gain access to EO features!
+    // If pending approval, unapproved, or rejected, treat user as BUYER!
+    if (status === 'ACTIVE' || status === 'APPROVED') {
+      return ROLES.EO;
     }
 
-    return ROLES.EO;
+    return ROLES.BUYER;
   }
   if (rawRole === 'SCANNER' || rawRole === 'STAFF') {
     return ROLES.SCANNER;

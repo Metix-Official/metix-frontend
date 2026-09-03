@@ -157,8 +157,18 @@ export const FeaturedEvents: React.FC<FeaturedEventsProps> = ({
           </div>
         ) : eventsToDisplay.length > 0 ? (
           <>
-            {/* 3/4-Column Responsive Premium Event Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {/* Dynamic Centered Responsive Event Grid */}
+            <div
+              className={`grid grid-cols-1 gap-6 ${
+                eventsToDisplay.length === 1
+                  ? 'max-w-md mx-auto'
+                  : eventsToDisplay.length === 2
+                  ? 'max-w-3xl mx-auto md:grid-cols-2'
+                  : eventsToDisplay.length === 3
+                  ? 'max-w-5xl mx-auto md:grid-cols-2 lg:grid-cols-3'
+                  : 'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+              }`}
+            >
               {eventsToDisplay.map((event, index) => {
                 const rawApi = apiEvents.find((x) => String(x.id) === event.id) || (event as any).rawApiEvent;
                 return (

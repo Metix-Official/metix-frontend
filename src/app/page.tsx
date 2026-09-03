@@ -1,4 +1,3 @@
-'use me';
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -72,7 +71,7 @@ export default function PublicHomepage() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 font-sans antialiased selection:bg-blue-500 selection:text-white flex flex-col justify-between overflow-x-hidden">
+    <div className="min-h-screen bg-slate-50/50 text-slate-900 font-sans antialiased selection:bg-blue-500 selection:text-white flex flex-col justify-between overflow-x-hidden">
       <div>
         {/* Navigation Bar */}
         <Navbar
@@ -87,7 +86,7 @@ export default function PublicHomepage() {
         {/* Hero Interactive Carousel Section */}
         <Hero lang={lang} events={apiEvents} />
 
-        {/* Categories Grid & Symmetrical Active Filter Bar */}
+        {/* Categories Grid & Active Filter Bar */}
         <CategorySection
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
@@ -97,11 +96,13 @@ export default function PublicHomepage() {
           lang={lang}
         />
 
-        {/* Popular Featured Events with Shadcn Skeletons */}
+        {/* Public Events Showcase */}
         <FeaturedEvents lang={lang} apiEvents={apiEvents} isLoading={isLoading} />
 
-        {/* Upcoming Events List with Shadcn Skeletons */}
-        <UpcomingEvents lang={lang} apiEvents={apiEvents} isLoading={isLoading} />
+        {/* Only render secondary UpcomingEvents section if there are more than 4 events */}
+        {apiEvents.length > 4 && (
+          <UpcomingEvents lang={lang} apiEvents={apiEvents} isLoading={isLoading} />
+        )}
 
         {/* Organizer CTA Banner */}
         <OrganizerCTA lang={lang} />

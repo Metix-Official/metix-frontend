@@ -56,20 +56,23 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                 Semua Event
               </button>
 
-              {apiCategories.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => handleCategoryClick(cat)}
-                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                    selectedCategory?.toLowerCase() === cat.toLowerCase()
-                      ? 'bg-blue-600 text-white font-extrabold shadow-md shadow-blue-600/20'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
+              {apiCategories.map((cat: any, idx) => {
+                const catName = typeof cat === 'string' ? cat : String(cat?.name || cat?.title || cat || '');
+                return (
+                  <button
+                    key={typeof cat === 'string' ? cat : idx}
+                    type="button"
+                    onClick={() => handleCategoryClick(catName)}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
+                      (selectedCategory || '').toLowerCase() === catName.toLowerCase()
+                        ? 'bg-blue-600 text-white font-extrabold shadow-md shadow-blue-600/20'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {catName}
+                  </button>
+                );
+              })}
             </div>
 
             <button
@@ -201,20 +204,23 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                   >
                     Semua Kategori
                   </button>
-                  {apiCategories.map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => handleCategoryClick(cat)}
-                      className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                        selectedCategory?.toLowerCase() === cat.toLowerCase()
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
+                  {apiCategories.map((cat: any, idx) => {
+                    const catName = typeof cat === 'string' ? cat : String(cat?.name || cat?.title || cat || '');
+                    return (
+                      <button
+                        key={typeof cat === 'string' ? cat : idx}
+                        type="button"
+                        onClick={() => handleCategoryClick(catName)}
+                        className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                          (selectedCategory || '').toLowerCase() === catName.toLowerCase()
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        {catName}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

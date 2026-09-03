@@ -760,8 +760,14 @@ export async function fetchPublicEvents(params?: {
     const categories = Array.from(
       new Set(
         allEvents
-          .map((e: any) => e.category)
-          .filter((c: any) => Boolean(c))
+          .map((e: any) =>
+            typeof e.category === 'string'
+              ? e.category
+              : e.category && typeof e.category === 'object'
+              ? e.category.name || e.category.title || ''
+              : String(e.category || '')
+          )
+          .filter((c: any) => Boolean(c) && String(c).trim() !== '' && c !== '[object Object]')
       )
     ) as string[];
 

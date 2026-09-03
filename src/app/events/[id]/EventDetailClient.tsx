@@ -251,7 +251,7 @@ export default function EventDetailClient() {
     (event?.venue_photo ? getPhotoUrl(event.venue_photo) : null);
   const venuePhotoUrl = event?.venue_photo ? getPhotoUrl(event.venue_photo) : null;
 
-  const parsedLineups: ApiLineupItem[] = (() => {
+  const parsedLineups: any[] = (() => {
     if (!event) return [];
     let raw = event.lineups || (event as any).lineup || (event as any).event_lineups;
     if ((!raw || (Array.isArray(raw) && raw.length === 0)) && typeof window !== 'undefined') {
@@ -261,18 +261,24 @@ export default function EventDetailClient() {
           const parsed = JSON.parse(cached);
           if (parsed.lineups || parsed.lineup) raw = parsed.lineups || parsed.lineup;
         }
-      } catch { }
+      } catch {}
     }
     if (typeof raw === 'string') {
       try {
         raw = JSON.parse(raw);
-      } catch { }
+      } catch {}
+    }
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      if (Array.isArray((raw as any).data)) raw = (raw as any).data;
+      else if (Array.isArray((raw as any).lineups)) raw = (raw as any).lineups;
+      else if (Array.isArray((raw as any).lineup)) raw = (raw as any).lineup;
+      else raw = [raw];
     }
     if (Array.isArray(raw) && raw.length > 0) return raw;
     return [];
   })();
 
-  const parsedFacilities: string[] = (() => {
+  const parsedFacilities: any[] = (() => {
     if (!event) return [];
     let raw = event.facilities || (event as any).facility;
     if ((!raw || (Array.isArray(raw) && raw.length === 0)) && typeof window !== 'undefined') {
@@ -282,12 +288,18 @@ export default function EventDetailClient() {
           const parsed = JSON.parse(cached);
           if (parsed.facilities) raw = parsed.facilities;
         }
-      } catch { }
+      } catch {}
     }
     if (typeof raw === 'string') {
       try {
         raw = JSON.parse(raw);
-      } catch { }
+      } catch {}
+    }
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      if (Array.isArray((raw as any).data)) raw = (raw as any).data;
+      else if (Array.isArray((raw as any).facilities)) raw = (raw as any).facilities;
+      else if (Array.isArray((raw as any).facility)) raw = (raw as any).facility;
+      else raw = [raw];
     }
     if (Array.isArray(raw) && raw.length > 0) return raw;
     return [];
@@ -517,9 +529,17 @@ export default function EventDetailClient() {
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {parsedLineups.map((item: any, idx) => {
-                    const lineupName = typeof item === 'string' ? item : (item?.name || '');
-                    const lineupImg = (typeof item === 'object' ? (item?.image || item?.photo) : null) || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=200';
-                    const lineupDesc = typeof item === 'object' ? item?.description : null;
+                    const lineupName = typeof item === 'string'
+                      ? item
+                      : (typeof item?.name === 'string'
+                        ? item.name
+                        : (typeof item?.name === 'object' ? String(item.name?.name || item.name?.title || '') : String(item?.name || '')));
+                    const lineupImg = (typeof item === 'object'
+                      ? (typeof item?.image === 'string' ? item.image : (typeof item?.photo === 'string' ? item.photo : null))
+                      : null) || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=200';
+                    const lineupDesc = (typeof item === 'object' && typeof item?.description === 'string')
+                      ? item.description
+                      : (typeof item?.description === 'number' ? String(item.description) : null);
                     return (
                       <div
                         key={item?.id || idx}

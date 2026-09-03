@@ -71,7 +71,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const displayName = user?.name || user?.first_name || CURRENT_USER.name;
   const displayEmail = user?.email || CURRENT_USER.email;
-  const isEo = user?.role === 'EO' || user?.role === 'mitra' || user?.email === 'lutfifahri175@gmail.com';
+  const isEo = getUserRole(user) === 'EO';
   const photoUrl = getPhotoUrl(user?.profile_photo_url || user?.photo, undefined, isEo);
   const userInitials = displayName
     .split(' ')
@@ -83,7 +83,6 @@ export const Header: React.FC<HeaderProps> = ({
   // Role label logic
   const userRoleLabel = React.useMemo(() => {
     if (user) {
-      const roleNames = user.roles ? user.roles.map((r) => r.name) : [];
       const rawStatus = String(
         user?.organizer_profile?.status || user?.organizer_status || user?.mitra_status || ''
       ).toUpperCase();
@@ -91,17 +90,19 @@ export const Header: React.FC<HeaderProps> = ({
       if (rawStatus === 'REJECTED') {
         return 'Pembeli Tiket (EO Ditolak)';
       }
-      if (user.role === 'SCANNER') {
+
+      const role = getUserRole(user);
+      if (role === 'SCANNER') {
         return 'Staff Scanner QR';
       }
-      if (user.email === 'admin@metix.com' || roleNames.includes('owner') || user.role === 'OWNER') {
+      if (role === 'OWNER') {
         return 'Super Admin Platform';
       }
-      if (user.email === 'lutfifahri175@gmail.com' || roleNames.includes('mitra') || user.role === 'EO') {
-        if (getUserRole(user) === 'BUYER') {
-          return 'Pembeli Tiket (Pending EO)';
-        }
+      if (role === 'EO') {
         return 'Event Organizer (EO)';
+      }
+      if (user?.organizer_profile && role === 'BUYER') {
+        return 'Pembeli Tiket (Pending EO)';
       }
     }
     return 'Pembeli Tiket';
@@ -114,9 +115,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   // Notifications per Role
   const initialNotifications = React.useMemo(() => {
-    const roleNames = user?.roles ? user.roles.map((r) => r.name) : [];
-    const isOwner = user?.email === 'admin@metix.com' || roleNames.includes('owner');
-    const isMitra = user?.email === 'lutfifahri175@gmail.com' || roleNames.includes('mitra');
+    const role = getUserRole(user);
+    const isOwner = role === 'OWNER';
+    const isMitra = role === 'EO';
 
     if (isOwner) {
       return [
@@ -213,9 +214,9 @@ export const Header: React.FC<HeaderProps> = ({
     const q = headerSearchQuery.trim().toLowerCase();
     if (!q) return [];
 
-    const roleNames = user?.roles ? user.roles.map((r) => r.name) : [];
-    const isOwner = user?.email === 'admin@metix.com' || roleNames.includes('owner');
-    const isMitra = user?.email === 'lutfifahri175@gmail.com' || roleNames.includes('mitra');
+    const role = getUserRole(user);
+    const isOwner = role === 'OWNER';
+    const isMitra = role === 'EO';
 
     let menuItems = [];
 

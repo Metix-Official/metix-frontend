@@ -83,17 +83,39 @@ export default function ReportsPage() {
     loadData();
   }, [selectedEventId, selectedMonth, selectedYear]);
 
-  // Filtered Orders by Search Query
+  // Published Events created by EO
+  const publishedEvents = useMemo(() => {
+    return events.filter((ev) => String(ev.status || '').toLowerCase() === 'published');
+  }, [events]);
+
+  // Filtered Orders strictly matching logged-in EO's created events & Search Query
   const filteredOrders = useMemo(() => {
-    const q = searchQuery.toLowerCase();
-    return orders.filter(
+    let result = orders;
+
+    // Filter by EO created events list if role is EO
+    if (currentRole === ROLES.EO && publishedEvents.length > 0) {
+      const eoEventIds = new Set(publishedEvents.map((e) => String(e.id)));
+      const eoEventTitles = new Set(publishedEvents.map((e) => e.title.toLowerCase()));
+
+      result = result.filter(
+        (ord) =>
+          (ord.event_id && eoEventIds.has(String(ord.event_id))) ||
+          (ord.event_title && eoEventTitles.has(ord.event_title.toLowerCase()))
+      );
+    }
+
+    if (!searchQuery.trim()) return result;
+
+    const q = searchQuery.toLowerCase().trim();
+    return result.filter(
       (ord) =>
         ord.order_number.toLowerCase().includes(q) ||
         ord.buyer_name.toLowerCase().includes(q) ||
         ord.buyer_email.toLowerCase().includes(q) ||
-        (ord.event_title || '').toLowerCase().includes(q)
+        (ord.event_title || '').toLowerCase().includes(q) ||
+        (ord.ticket_type_name || '').toLowerCase().includes(q)
     );
-  }, [orders, searchQuery]);
+  }, [orders, publishedEvents, currentRole, searchQuery]);
 
   // Computed Report Aggregations
   const totalGrossRevenue = useMemo(
@@ -157,7 +179,7 @@ export default function ReportsPage() {
       const pm = (ord.payment_method || '').toLowerCase();
       if (pm.includes('pos') || pm.includes('cash') || pm.includes('kasir') || pm.includes('tunai')) {
         posCount++;
-      } else if (pm.includes('midtrans') || pm.includes('qris') || pm.includes('va') || pm.includes('bank') || pm.includes('gopay')) {
+      } else if (pm.includes('doku') || pm.includes('qris') || pm.includes('va') || pm.includes('bank') || pm.includes('gopay')) {
         onlineCount++;
       } else {
         otherCount++;
@@ -169,10 +191,10 @@ export default function ReportsPage() {
     const posPct = Math.round((posCount / total) * 100);
     const otherPct = Math.max(0, 100 - onlinePct - posPct);
 
-    let primaryChannel = 'Midtrans Online';
+    let primaryChannel = 'Doku Online';
     if (posCount > onlineCount && posCount > otherCount) primaryChannel = 'POS Cash / Offline';
     else if (otherCount > onlineCount && otherCount > posCount) primaryChannel = 'Transfer / Lainnya';
-    else if (onlineCount > 0 && posCount > 0) primaryChannel = 'Midtrans & POS';
+    else if (onlineCount > 0 && posCount > 0) primaryChannel = 'Doku & POS';
 
     return { onlinePct, posPct, otherPct, primaryChannel };
   }, [filteredOrders]);
@@ -206,7 +228,7 @@ export default function ReportsPage() {
   return (
     <DashboardLayout pageTitle="Laporan Penjualan Tiket" activeNav="Laporan Penjualan">
       <div className="w-full space-y-6">
-        
+
         {/* Top Banner Header */}
         <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-800 to-slate-900 text-white p-6 sm:p-8 shadow-xl shadow-blue-700/20 border border-white/20 relative overflow-hidden">
           <div className="absolute right-0 top-0 w-96 h-96 bg-white/5 rounded-full blur-3xl pointer-events-none" />
@@ -247,7 +269,7 @@ export default function ReportsPage() {
 
         {/* 4 Stat Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          
+
           <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
             <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">
               {currentRole === ROLES.OWNER ? 'Omzet Platform Nasional' : 'Total Omzet Penjualan'}
@@ -320,7 +342,7 @@ export default function ReportsPage() {
                 <PieChart className="w-5 h-5 text-blue-700" /> Distribusi Saluran Penjualan Tiket
               </h3>
               <p className="text-xs text-slate-500 font-medium">
-                Komposisi transaksi online Midtrans Payment Gateway vs Kasir Offline (POS).
+                Komposisi transaksi online Doku Payment Gateway vs Kasir Offline (POS).
               </p>
             </div>
           </div>
@@ -330,7 +352,7 @@ export default function ReportsPage() {
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-extrabold text-slate-700 flex items-center gap-1.5">
-                  <CreditCard className="w-4 h-4 text-blue-600" /> Midtrans QRIS & VA
+                  <CreditCard className="w-4 h-4 text-blue-600" /> Doku QRIS & VA
                 </span>
                 <span className="font-black text-blue-700">{channelStats.onlinePct}%</span>
               </div>
@@ -373,7 +395,7 @@ export default function ReportsPage() {
         {/* Filter Bar & Search */}
         <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-lg shadow-slate-200/30 space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            
+
             {/* Search Input */}
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -381,23 +403,23 @@ export default function ReportsPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari no. order, nama pembeli, email, atau event..."
+                placeholder="Cari event EO saya, nama pembeli, email, atau no. order..."
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none transition-all shadow-inner"
               />
             </div>
 
             {/* Filter Dropdowns */}
             <div className="flex flex-wrap items-center gap-3">
-              
-              {/* Event Filter */}
-              <div className="min-w-[180px]">
+
+              {/* Event Filter (Published Only) */}
+              <div className="min-w-[200px]">
                 <Select value={selectedEventId} onValueChange={setSelectedEventId}>
                   <SelectTrigger className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white">
-                    <SelectValue placeholder="Semua Event" />
+                    <SelectValue placeholder="Semua Event (Published)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Semua Event</SelectItem>
-                    {events.map((ev) => (
+                    <SelectItem value="all">Semua Event Published ({publishedEvents.length})</SelectItem>
+                    {publishedEvents.map((ev) => (
                       <SelectItem key={ev.id} value={String(ev.id)}>
                         {ev.title}
                       </SelectItem>
@@ -478,7 +500,7 @@ export default function ReportsPage() {
                 <tbody className="divide-y divide-slate-100">
                   {filteredOrders.map((ord) => (
                     <tr key={ord.id} className="hover:bg-slate-50 transition-colors group">
-                      
+
                       <td className="py-3.5 px-4">
                         <div className="flex flex-col">
                           <span className="font-mono font-black text-slate-900 group-hover:text-blue-700 transition-colors">

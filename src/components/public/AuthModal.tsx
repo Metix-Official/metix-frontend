@@ -166,7 +166,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       {/* Modal Dialog Card Container with scrollable max height */}
       <div className="relative bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh] z-10">
-        
+
         {/* Fixed Top Header Bar: Back Arrow (if register mode) & Close X */}
         <div className="flex items-center justify-between p-4 sm:p-5 pb-0 shrink-0 relative z-20">
           {mode === 'register' ? (
@@ -192,7 +192,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Scrollable Body Container */}
         <div className="p-6 sm:p-8 pt-2 overflow-y-auto space-y-5 flex-1 scrollbar-thin">
-          
+
           {mode === 'login' ? (
             /* ================= LOGIN MODE (WITH REAL API /LOGIN INTEGRATION) ================= */
             <div className="space-y-5">
@@ -318,22 +318,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setRegisterRole('BUYER')}
-                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                        registerRole === 'BUYER'
+                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${registerRole === 'BUYER'
                           ? 'border-blue-600 bg-blue-50/70 text-blue-700 shadow-xs'
                           : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-                      }`}
+                        }`}
                     >
                       <span>Pembeli Tiket</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setRegisterRole('EO')}
-                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                        registerRole === 'EO'
+                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${registerRole === 'EO'
                           ? 'border-purple-600 bg-purple-50/70 text-purple-700 shadow-xs'
                           : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-                      }`}
+                        }`}
                     >
                       <span>Event Organizer (EO)</span>
                     </button>
@@ -379,11 +377,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setGender('male')}
-                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                        gender === 'male'
+                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${gender === 'male'
                           ? 'border-blue-600 bg-blue-50/70 text-blue-700 shadow-xs'
                           : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-                      }`}
+                        }`}
                     >
                       <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${gender === 'male' ? 'border-blue-600 bg-blue-600' : 'border-slate-400'}`}>
                         {gender === 'male' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
@@ -394,11 +391,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setGender('female')}
-                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                        gender === 'female'
+                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${gender === 'female'
                           ? 'border-pink-600 bg-pink-50/70 text-pink-700 shadow-xs'
                           : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-                      }`}
+                        }`}
                     >
                       <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${gender === 'female' ? 'border-pink-600 bg-pink-600' : 'border-slate-400'}`}>
                         {gender === 'female' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}

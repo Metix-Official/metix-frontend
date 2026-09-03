@@ -256,20 +256,39 @@ export default function CheckInPage() {
     handleScanSubmit();
   };
 
-  // Test Simulations
-  const handleTestValidScan = () => {
-    const randomCode = 'MTX-TCK-' + Math.floor(10000 + Math.random() * 90000);
-    handleScanSubmit(randomCode);
-  };
 
-  const handleTestInvalidScan = () => {
-    handleScanSubmit('INVALID-EXPIRED-CODE-0000');
-  };
+  if (isLoading) {
+    return (
+      <DashboardLayout pageTitle="Check-In QR Gate Scanner" activeNav="Check-In QR">
+        <div className="w-full space-y-6 animate-in fade-in duration-300">
+          {/* Top Banner Skeleton */}
+          <Skeleton className="h-44 w-full rounded-3xl" />
+
+          {/* 4 Stat Cards Skeleton */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-28 w-full rounded-2xl sm:rounded-3xl" />
+            ))}
+          </div>
+
+          {/* Main Console & History Log Skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <div className="lg:col-span-7">
+              <Skeleton className="h-96 w-full rounded-3xl" />
+            </div>
+            <div className="lg:col-span-5">
+              <Skeleton className="h-96 w-full rounded-3xl" />
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout pageTitle="Check-In QR Gate Scanner" activeNav="Check-In QR">
       <div className="w-full space-y-6">
-        
+
         {/* Top Premium Banner Header */}
         <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-800 to-purple-800 text-white p-6 sm:p-8 shadow-xl shadow-blue-700/20 border border-white/20 relative overflow-hidden">
           <div className="absolute right-0 top-0 w-96 h-96 bg-white/5 rounded-full blur-3xl pointer-events-none" />
@@ -305,11 +324,13 @@ export default function CheckInPage() {
                     <SelectValue placeholder="Pilih Event Gate Scanner" />
                   </SelectTrigger>
                   <SelectContent>
-                    {events.map((ev) => (
-                      <SelectItem key={ev.id} value={String(ev.id)}>
-                        {ev.title} ({ev.status.toUpperCase()})
-                      </SelectItem>
-                    ))}
+                    {events
+                      .filter((ev) => String(ev.status || '').toLowerCase() === 'published')
+                      .map((ev) => (
+                        <SelectItem key={ev.id} value={String(ev.id)}>
+                          {ev.title}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -317,77 +338,76 @@ export default function CheckInPage() {
           </div>
         </div>
 
-        {/* 4 Stat Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between text-xs font-extrabold text-slate-400 uppercase tracking-wider">
-              <span>Pencapaian Scan Petugas</span>
+        {/* 4 Stat Metric Cards (Responsive 2x2 Grid on Mobile, 4 Cols on Desktop) */}
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 sm:space-y-2 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-wider">
+              <span className="truncate">Scan Petugas</span>
               {staffScanQuota && (
-                <span className="text-indigo-600 font-extrabold">
+                <span className="text-indigo-600 font-extrabold shrink-0">
                   {Math.min(100, Math.round((staffScanCount / staffScanQuota) * 100))}%
                 </span>
               )}
             </div>
 
-            <div className="flex items-center justify-between">
-              <h4 className="text-2xl font-black text-slate-900">
-                {staffScanCount} <span className="text-xs font-extrabold text-slate-400">/ {staffScanQuota ? staffScanQuota : '∞'} Scan</span>
+            <div className="flex items-center justify-between gap-1">
+              <h4 className="text-base sm:text-2xl font-black text-slate-900 truncate">
+                {staffScanCount} <span className="text-[10px] sm:text-xs font-extrabold text-slate-400">/ {staffScanQuota ? staffScanQuota : '∞'}</span>
               </h4>
-              <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-100">
-                <CheckCircle2 className="w-5 h-5" />
+              <div className="p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0">
+                <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
             </div>
 
             {staffScanQuota && staffScanQuota > 0 && (
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200/60 mt-1">
+              <div className="w-full bg-slate-100 h-1.5 sm:h-2 rounded-full overflow-hidden border border-slate-200/60 mt-1">
                 <div
-                  className={`h-full transition-all duration-500 ${
-                    staffScanCount >= staffScanQuota ? 'bg-rose-500' : staffScanCount >= staffScanQuota * 0.8 ? 'bg-amber-500' : 'bg-indigo-600'
-                  }`}
+                  className={`h-full transition-all duration-500 ${staffScanCount >= staffScanQuota ? 'bg-rose-500' : staffScanCount >= staffScanQuota * 0.8 ? 'bg-amber-500' : 'bg-indigo-600'
+                    }`}
                   style={{ width: `${Math.min(100, Math.round((staffScanCount / staffScanQuota) * 100))}%` }}
                 />
               </div>
             )}
           </div>
 
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Status Gate System</span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-emerald-600 flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" /> Gate 1 — Active
+          <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 sm:space-y-2 flex flex-col justify-between">
+            <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-wider truncate">Status Gate System</span>
+            <div className="flex items-center justify-between gap-1">
+              <h4 className="text-xs sm:text-xl font-black text-emerald-600 flex items-center gap-1 sm:gap-1.5 truncate">
+                <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
+                <span className="truncate">Gate 1 — Active</span>
               </h4>
-              <div className="p-2.5 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100">
-                <ShieldCheck className="w-5 h-5" />
+              <div className="p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 shrink-0">
+                <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
             </div>
           </div>
 
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Modus Pemindai</span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-indigo-600">
-                {scannerMode === 'camera' ? 'Live Camera' : 'Laser Barcode Gun'}
+          <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 sm:space-y-2 flex flex-col justify-between">
+            <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-wider truncate">Modus Pemindai</span>
+            <div className="flex items-center justify-between gap-1">
+              <h4 className="text-xs sm:text-xl font-black text-indigo-600 truncate">
+                {scannerMode === 'camera' ? 'Live Camera' : 'Laser Gun'}
               </h4>
-              <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-100">
-                <QrCode className="w-5 h-5" />
+              <div className="p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0">
+                <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
             </div>
           </div>
 
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Suara Beep Notifikasi</span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-slate-900">
-                {soundEnabled ? 'Aktif (Sound ON)' : 'Mute (Sound OFF)'}
+          <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 sm:space-y-2 flex flex-col justify-between">
+            <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-wider truncate">Suara Notifikasi</span>
+            <div className="flex items-center justify-between gap-1">
+              <h4 className="text-xs sm:text-xl font-black text-slate-900 truncate">
+                {soundEnabled ? 'Sound ON' : 'Mute OFF'}
               </h4>
               <button
                 type="button"
                 onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`p-2.5 rounded-2xl transition-all cursor-pointer border ${
-                  soundEnabled ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-400 border-slate-200'
-                }`}
+                className={`p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl transition-all cursor-pointer border shrink-0 ${soundEnabled ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-400 border-slate-200'
+                  }`}
               >
-                {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+                {soundEnabled ? <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" /> : <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" />}
               </button>
             </div>
           </div>
@@ -395,21 +415,21 @@ export default function CheckInPage() {
 
         {/* Main Check-In Interface (Grid 2 Column) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
+
           {/* Left Column: Scanner HUD & Input Console (7 Cols) */}
           <div className="lg:col-span-7 space-y-6">
-            
+
             <div className="rounded-3xl bg-white border border-slate-200/90 p-6 shadow-lg shadow-slate-200/40 space-y-5">
-              
+
               {/* Header Scanner & Pill Switcher */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                 <div>
-                  <h3 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                    <QrCode className="w-5 h-5 text-blue-600" /> Mode Pemindai Gate (Scanner)
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">
-                    Pilih metode pemindaian tiket pengunjung di pintu masuk venue.
-                  </p>
+                  <h5 className="flex items-center gap-1.5 text-sm sm:text-base font-bold tracking-tight text-slate-900">
+                    <QrCode className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-blue-600" />
+                    <span className="truncate">
+                      Mode Pemindai Gate (Scanner)
+                    </span>
+                  </h5>
                 </div>
 
                 {/* Mode Selector Pill Buttons */}
@@ -417,11 +437,10 @@ export default function CheckInPage() {
                   <button
                     type="button"
                     onClick={() => setScannerMode('manual')}
-                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      scannerMode === 'manual'
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${scannerMode === 'manual'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                      : 'text-slate-600 hover:text-slate-900'
+                      }`}
                   >
                     <Keyboard className="w-4 h-4" /> Barcode Gun / Input
                   </button>
@@ -429,11 +448,10 @@ export default function CheckInPage() {
                   <button
                     type="button"
                     onClick={() => setScannerMode('camera')}
-                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      scannerMode === 'camera'
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${scannerMode === 'camera'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                      : 'text-slate-600 hover:text-slate-900'
+                      }`}
                   >
                     <Camera className="w-4 h-4" /> Kamera Live WebCam
                   </button>
@@ -499,23 +517,6 @@ export default function CheckInPage() {
                     <span className="font-extrabold text-[11px] px-2 text-emerald-400 flex items-center gap-1.5">
                       <Activity className="w-3.5 h-3.5 animate-pulse text-emerald-400" /> Video Camera Stream Ready
                     </span>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleTestValidScan}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-extrabold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
-                      >
-                        <Zap className="w-3.5 h-3.5" /> Tes Valid
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleTestInvalidScan}
-                        className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-extrabold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
-                      >
-                        <AlertTriangle className="w-3.5 h-3.5" /> Tes Invalid
-                      </button>
-                    </div>
                   </div>
                 </div>
               ) : (
@@ -554,28 +555,6 @@ export default function CheckInPage() {
                     </div>
                   </div>
 
-                  {/* Quick Simulation Pill Buttons */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                    <span className="text-[11px] font-extrabold text-slate-400">Tes Simulasi Scan API:</span>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleTestValidScan}
-                        className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-extrabold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Tes Valid Pass
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleTestInvalidScan}
-                        className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 text-[11px] font-extrabold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
-                      >
-                        <XCircle className="w-3.5 h-3.5 text-rose-600" /> Tes Kode Ganda / Expired
-                      </button>
-                    </div>
-                  </div>
                 </form>
               )}
             </div>
@@ -583,20 +562,18 @@ export default function CheckInPage() {
             {/* Validation Result Display Card (Satisfying Green/Red Feedback) */}
             {scanResult && (
               <div
-                className={`p-6 rounded-3xl border shadow-xl transition-all duration-300 animate-in fade-in-0 space-y-4 ${
-                  scanResult.success
-                    ? 'bg-gradient-to-br from-emerald-50 via-teal-50/70 to-emerald-100/50 border-emerald-300 text-emerald-950'
-                    : 'bg-gradient-to-br from-rose-50 via-red-50/70 to-rose-100/50 border-rose-300 text-rose-950'
-                }`}
+                className={`p-6 rounded-3xl border shadow-xl transition-all duration-300 animate-in fade-in-0 space-y-4 ${scanResult.success
+                  ? 'bg-gradient-to-br from-emerald-50 via-teal-50/70 to-emerald-100/50 border-emerald-300 text-emerald-950'
+                  : 'bg-gradient-to-br from-rose-50 via-red-50/70 to-rose-100/50 border-rose-300 text-rose-950'
+                  }`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div
-                      className={`w-16 h-16 rounded-2xl flex items-center justify-center border shrink-0 ${
-                        scanResult.success
-                          ? 'bg-emerald-600 text-white border-emerald-400 shadow-xl shadow-emerald-600/30'
-                          : 'bg-rose-600 text-white border-rose-400 shadow-xl shadow-rose-600/30'
-                      }`}
+                      className={`w-16 h-16 rounded-2xl flex items-center justify-center border shrink-0 ${scanResult.success
+                        ? 'bg-emerald-600 text-white border-emerald-400 shadow-xl shadow-emerald-600/30'
+                        : 'bg-rose-600 text-white border-rose-400 shadow-xl shadow-rose-600/30'
+                        }`}
                     >
                       {scanResult.success ? (
                         <Check className="w-10 h-10 stroke-[3]" />
@@ -607,11 +584,10 @@ export default function CheckInPage() {
 
                     <div className="space-y-1">
                       <span
-                        className={`text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
-                          scanResult.success
-                            ? 'bg-emerald-200/80 text-emerald-950 border-emerald-300'
-                            : 'bg-rose-200/80 text-rose-950 border-rose-300'
-                        }`}
+                        className={`text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${scanResult.success
+                          ? 'bg-emerald-200/80 text-emerald-950 border-emerald-300'
+                          : 'bg-rose-200/80 text-rose-950 border-rose-300'
+                          }`}
                       >
                         {scanResult.success ? '✓ ENTRY GRANTED — SILAKAN MASUK' : '✕ ENTRY DENIED — TIKE TAHAN / DITOLAK'}
                       </span>
@@ -665,11 +641,10 @@ export default function CheckInPage() {
                   {scanHistory.map((item) => (
                     <div
                       key={item.id}
-                      className={`p-3.5 rounded-2xl border transition-all space-y-1.5 ${
-                        item.status === 'valid'
-                          ? 'border-emerald-200 bg-emerald-50/40'
-                          : 'border-rose-200 bg-rose-50/40'
-                      }`}
+                      className={`p-3.5 rounded-2xl border transition-all space-y-1.5 ${item.status === 'valid'
+                        ? 'border-emerald-200 bg-emerald-50/40'
+                        : 'border-rose-200 bg-rose-50/40'
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">

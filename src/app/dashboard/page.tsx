@@ -7,7 +7,7 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { RecentEvents } from '@/components/dashboard/RecentEvents';
 import { StatMetric, Transaction, EventItem } from '@/data/mockData';
-import { fetchDashboardData, DashboardResponse, getStoredUser } from '@/lib/api';
+import { fetchDashboardData, fetchEoAdmins, DashboardResponse, EoAdminUser, getStoredUser } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Plus, Download, Sparkles, Ticket, ShieldCheck, UserCheck, AlertCircle, XCircle } from 'lucide-react';
 
@@ -17,6 +17,7 @@ import { getUserRole } from '@/lib/roles';
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null);
+  const [eoAdmins, setEoAdmins] = useState<EoAdminUser[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -32,6 +33,10 @@ export default function DashboardPage() {
       const res = await fetchDashboardData();
       if (res) {
         setDashboardData(res);
+      }
+      const admins = await fetchEoAdmins();
+      if (admins) {
+        setEoAdmins(admins);
       }
       setIsLoading(false);
     }
@@ -107,6 +112,10 @@ export default function DashboardPage() {
       ];
     }
 
+    const totalScanned = eoAdmins.reduce((acc, a) => acc + (a.scan_count || 0), 0) || (s?.checkinsCount || 0);
+    const totalStaff = eoAdmins.length;
+    const staffText = totalStaff > 0 ? `${totalStaff} Staff Scanner` : 'Gate Scanner';
+
     if (currentRole === 'owner') {
       return [
         {
@@ -138,12 +147,13 @@ export default function DashboardPage() {
         },
         {
           id: 's4',
-          title: 'Persetujuan Mitra',
-          value: (s?.pendingMitraApprovals || 0).toString(),
-          change: 'Pending',
+          title: 'Hasil Scan Staff Gate',
+          value: `${totalScanned.toLocaleString('id-ID')} Scan`,
+          change: `${totalStaff} Staff`,
           isPositive: true,
-          period: 'pengajuan baru',
-          iconName: 'Ticket',
+          period: `${staffText} (${totalScanned} QR ter-scan)`,
+          iconName: 'UserCheck',
+          href: '/dashboard/scanner-reports',
         },
       ];
     }
@@ -164,8 +174,8 @@ export default function DashboardPage() {
         const rev = e.revenue
           ? Number(e.revenue)
           : e.ticket_types
-          ? e.ticket_types.reduce((sum: number, tt: any) => sum + (Number(tt.sold_quantity || 0) * Number(tt.price || 0)), 0)
-          : 0;
+            ? e.ticket_types.reduce((sum: number, tt: any) => sum + (Number(tt.sold_quantity || 0) * Number(tt.price || 0)), 0)
+            : 0;
         return acc + rev;
       }, 0);
 
@@ -190,21 +200,22 @@ export default function DashboardPage() {
         },
         {
           id: 's3',
-          title: 'Event Aktif',
-          value: activeEvts.toString(),
-          change: 'Published',
-          isPositive: true,
-          period: 'siap dibeli',
-          iconName: 'TrendingUp',
-        },
-        {
-          id: 's4',
           title: 'Total Pendapatan',
           value: `Rp ${totalRevenue.toLocaleString('id-ID')}`,
           change: '+8.2%',
           isPositive: true,
           period: 'omzet EO',
           iconName: 'DollarSign',
+        },
+        {
+          id: 's4',
+          title: 'Scan Staff Scanner',
+          value: `${totalScanned.toLocaleString('id-ID')} Scan`,
+          change: `${totalStaff} Staff`,
+          isPositive: true,
+          period: `${staffText} (${totalScanned} QR ter-scan)`,
+          iconName: 'UserCheck',
+          href: '/dashboard/scanner-reports',
         },
       ];
     }
@@ -255,8 +266,9 @@ export default function DashboardPage() {
     ];
   }, [dashboardData, currentRole]);
 
-  // Compute Recent Transactions list from backend API
+  // Compute Recent Transactions list from backend API (EO Role Only)
   const transactionsToDisplay: Transaction[] = React.useMemo(() => {
+    if (currentRole !== 'mitra') return [];
     if (dashboardData?.tickets?.data && dashboardData.tickets.data.length > 0) {
       return dashboardData.tickets.data.map((item: any, idx: number) => ({
         id: item.id ? String(item.id) : `tx-${idx}`,
@@ -275,10 +287,11 @@ export default function DashboardPage() {
       }));
     }
     return [];
-  }, [dashboardData]);
+  }, [dashboardData, currentRole]);
 
-  // Compute Recent Events list from backend API
+  // Compute Recent Events list from backend API (EO Role Only)
   const eventsToDisplay: EventItem[] = React.useMemo(() => {
+    if (currentRole !== 'mitra') return [];
     const rawList = dashboardData?.eventsList || [];
     if (rawList && rawList.length > 0) {
       return rawList.map((item: any) => {
@@ -291,8 +304,8 @@ export default function DashboardPage() {
         const rev = item.revenue
           ? Number(item.revenue)
           : item.ticket_types
-          ? item.ticket_types.reduce((sum: number, tt: any) => sum + (Number(tt.sold_quantity || 0) * Number(tt.price || 0)), 0)
-          : 0;
+            ? item.ticket_types.reduce((sum: number, tt: any) => sum + (Number(tt.sold_quantity || 0) * Number(tt.price || 0)), 0)
+            : 0;
 
         return {
           id: String(item.id),
@@ -309,7 +322,7 @@ export default function DashboardPage() {
       });
     }
     return [];
-  }, [dashboardData]);
+  }, [dashboardData, currentRole]);
 
   // Dynamic Banner Content based on Role
   const bannerContent = React.useMemo(() => {
@@ -452,12 +465,14 @@ export default function DashboardPage() {
               </a>
             ) : (
               <>
-                <button
-                  onClick={() => window.print()}
-                  className="px-5 py-3 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold flex items-center gap-2 transition-all shadow-2xs cursor-pointer"
-                >
-                  <Download className="w-4 h-4" /> Export Report
-                </button>
+                {currentRole !== 'pembeli' && (
+                  <button
+                    onClick={() => window.print()}
+                    className="px-5 py-3 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold flex items-center gap-2 transition-all shadow-2xs cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" /> Export Report
+                  </button>
+                )}
                 {currentRole !== 'pembeli' ? (
                   <a
                     href="/dashboard/events"
@@ -483,30 +498,32 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {isLoading
           ? Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-36 w-full rounded-2xl shadow-xs" />
-            ))
+            <Skeleton key={i} className="h-36 w-full rounded-2xl shadow-xs" />
+          ))
           : statsToDisplay.map((stat) => (
-              <StatCard key={stat.id} stat={stat} />
-            ))}
+            <StatCard key={stat.id} stat={stat} />
+          ))}
       </div>
 
-      {/* Main Grid: Recent Transactions (2 cols) & Recent Events (1 col) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          {isLoading ? (
-            <Skeleton className="h-96 w-full rounded-3xl shadow-xs" />
-          ) : (
-            <RecentTransactions transactions={transactionsToDisplay} />
-          )}
+      {/* Main Grid: Recent Transactions (2 cols) & Recent Events (1 col) - ONLY shown for Event Organizer (EO/mitra) role */}
+      {currentRole === 'mitra' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            {isLoading ? (
+              <Skeleton className="h-96 w-full rounded-3xl shadow-xs" />
+            ) : (
+              <RecentTransactions transactions={transactionsToDisplay} />
+            )}
+          </div>
+          <div className="lg:col-span-1">
+            {isLoading ? (
+              <Skeleton className="h-96 w-full rounded-3xl shadow-xs" />
+            ) : (
+              <RecentEvents events={eventsToDisplay} />
+            )}
+          </div>
         </div>
-        <div className="lg:col-span-1">
-          {isLoading ? (
-            <Skeleton className="h-96 w-full rounded-3xl shadow-xs" />
-          ) : (
-            <RecentEvents events={eventsToDisplay} />
-          )}
-        </div>
-      </div>
+      )}
     </DashboardLayout>
   );
 }

@@ -1,4 +1,3 @@
-'use me';
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -17,21 +16,20 @@ import {
   Globe,
   Sparkles,
   CheckCircle2,
-  Building2,
-  Save,
-  CreditCard,
-  Percent,
   DollarSign,
   Loader2,
   ShieldCheck,
   Zap,
+  Save,
+  CreditCard,
 } from 'lucide-react';
+import { getUserRole } from '@/lib/roles';
 
 export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [isUpgradeSubmitted, setIsUpgradeSubmitted] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [isUpgradeSubmitted, setIsUpgradeSubmitted] = useState(false);
 
   // Owner Dynamic Platform Fee State
   const [platformFees, setPlatformFees] = useState<ApiPlatformFeeItem[]>([]);
@@ -47,7 +45,7 @@ export default function SettingsPage() {
       setProfile(data);
       setIsLoading(false);
 
-      if (data?.role === 'OWNER' || data?.email === 'admin@metix.com' || data?.email === 'lutfifahri175@gmail.com') {
+      if (getUserRole(data) === 'OWNER') {
         loadPlatformFees();
       }
     }
@@ -81,8 +79,9 @@ export default function SettingsPage() {
     }
   };
 
-  const isOwner = profile?.role === 'OWNER' || profile?.email === 'lutfifahri175@gmail.com' || profile?.email === 'admin@metix.com';
-  const isMitraOrOwner = isOwner || profile?.role === 'EO';
+  const currentRole = getUserRole(profile);
+  const isOwner = currentRole === 'OWNER';
+  const isMitraOrOwner = isOwner || currentRole === 'EO';
 
   const handleFeeInputChange = (id: number, field: 'percentage' | 'fixed_fee', value: string) => {
     setPlatformFees((prev) =>
@@ -270,66 +269,6 @@ export default function SettingsPage() {
                     )}
                   </button>
                 </div>
-              </form>
-            )}
-          </div>
-        )}
-
-        {/* Upgrade to Mitra EO Card (If Customer) */}
-        {!isMitraOrOwner && (
-          <div className="rounded-3xl bg-amber-500/10 border border-amber-500/30 p-6 sm:p-8 space-y-4">
-            <div className="flex items-start gap-4">
-              <div className="p-3 rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-500/20 shrink-0">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
-                  Upgrade Account to Event Organizer (EO)
-                </h3>
-                <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                  Want to publish your own music concerts, webinars, or festival tickets? Upgrade your account to Mitra EO to gain access to ticket creation and offline POS cashiers.
-                </p>
-              </div>
-            </div>
-
-            {isUpgradeSubmitted ? (
-              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span>Application Submitted! Super Admin Platform will review your request shortly.</span>
-              </div>
-            ) : (
-              <form onSubmit={handleUpgradeSubmit} className="space-y-4 pt-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-extrabold text-slate-700">Organization Name</label>
-                    <div className="relative">
-                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. LiveNation Indonesia"
-                        className="w-full pl-9 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-extrabold text-slate-700">Bank Account & Name</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="BCA - 849021021 a/n PT Event Live"
-                      className="w-full px-4 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs shadow-md shadow-amber-600/20 transition-all cursor-pointer"
-                >
-                  Submit EO Partner Application
-                </button>
               </form>
             )}
           </div>

@@ -9,6 +9,7 @@ import {
   DollarSign,
   ArrowUpRight,
   ArrowDownRight,
+  UserCheck,
 } from 'lucide-react';
 import { StatMetric } from '@/data/mockData';
 
@@ -21,13 +22,18 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Ticket,
   TrendingUp,
   DollarSign,
+  UserCheck,
 };
 
 export const StatCard: React.FC<StatCardProps> = ({ stat }) => {
   const IconComponent = ICON_MAP[stat.iconName] || TrendingUp;
 
-  return (
-    <div className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200/90 hover:border-blue-300 shadow-2xs hover:shadow-md transition-all duration-300 group space-y-4 min-w-0">
+  const CardContent = (
+    <div
+      className={`p-5 sm:p-6 rounded-3xl bg-white border border-slate-200/90 hover:border-blue-300 shadow-2xs hover:shadow-md transition-all duration-300 group space-y-4 min-w-0 ${
+        stat.href ? 'cursor-pointer hover:bg-slate-50/70 hover:scale-[1.01]' : ''
+      }`}
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] sm:text-xs font-extrabold text-slate-500 tracking-wider uppercase truncate">
           {stat.title}
@@ -62,4 +68,14 @@ export const StatCard: React.FC<StatCardProps> = ({ stat }) => {
       </div>
     </div>
   );
+
+  if (stat.href) {
+    return (
+      <a href={stat.href} className="block no-underline">
+        {CardContent}
+      </a>
+    );
+  }
+
+  return CardContent;
 };

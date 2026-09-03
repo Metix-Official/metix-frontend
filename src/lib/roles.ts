@@ -26,7 +26,7 @@ export function getUserRole(
   user?: { role?: string; roles?: Array<{ name: string }>; mitra_status?: string | null; organizer_status?: string | null } | null
 ): UserRole | null {
   if (!user) return null;
-  
+
   const rawRole = (
     user.role ||
     (user.roles && user.roles[0]?.name) ||
@@ -161,6 +161,7 @@ export function canAccessRoute(
       '/dashboard/admins',
       '/dashboard/wristbands',
       '/dashboard/reports',
+      '/dashboard/scanner-reports',
       '/dashboard/settings',
       '/dashboard/profile',
       '/dashboard/security',

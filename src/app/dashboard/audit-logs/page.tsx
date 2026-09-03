@@ -33,6 +33,11 @@ import {
   Layers,
   Sparkles,
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ListOrdered,
 } from 'lucide-react';
 
 export default function AuditLogsPage() {
@@ -40,9 +45,13 @@ export default function AuditLogsPage() {
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [actionsList, setActionsList] = useState<string[]>([]);
 
-  // Filters
+  // Filters & Search
   const [selectedAction, setSelectedAction] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Pagination & Page Size States (10, 100, 1000, 10000, all)
+  const [pageSize, setPageSize] = useState<number | 'all'>(10);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Selected Log Detail Modal
   const [selectedLogDetail, setSelectedLogDetail] = useState<AuditLogItem | null>(null);
@@ -65,9 +74,15 @@ export default function AuditLogsPage() {
     loadLogs();
   }, [selectedAction]);
 
+  // Reset to page 1 whenever filters or page size change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedAction, pageSize]);
+
   // Filtered Logs strictly by search query
   const filteredLogs = useMemo(() => {
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return logs;
     return logs.filter(
       (log) =>
         (log.user_name || '').toLowerCase().includes(q) ||
@@ -77,6 +92,49 @@ export default function AuditLogsPage() {
         (log.ip_address || '').toLowerCase().includes(q)
     );
   }, [logs, searchQuery]);
+
+  // Pagination Calculations
+  const totalItems = filteredLogs.length;
+  const isAll = pageSize === 'all';
+  const limitPerPage = isAll ? totalItems : (pageSize as number);
+  const totalPages = isAll ? 1 : Math.ceil(totalItems / limitPerPage) || 1;
+  const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const startIndex = isAll ? 0 : (validCurrentPage - 1) * limitPerPage;
+  const endIndex = isAll ? totalItems : Math.min(startIndex + limitPerPage, totalItems);
+  const paginatedLogs = useMemo(() => {
+    return filteredLogs.slice(startIndex, endIndex);
+  }, [filteredLogs, startIndex, endIndex]);
+
+  // Pagination Page Number Buttons Helper (Smart Truncation 1, 2, 3 ... TotalPages)
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      if (validCurrentPage <= 4) {
+        // Di awal: 1, 2, 3, 4, 5, ..., totalPages
+        for (let i = 1; i <= 5; i++) pages.push(i);
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (validCurrentPage >= totalPages - 3) {
+        // Di akhir: 1, ..., totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 4; i <= totalPages; i++) pages.push(i);
+      } else {
+        // Di tengah: 1, ..., current - 1, current, current + 1, ..., totalPages
+        pages.push(1);
+        pages.push('...');
+        pages.push(validCurrentPage - 1);
+        pages.push(validCurrentPage);
+        pages.push(validCurrentPage + 1);
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+    return pages;
+  };
 
   // Action Badge Styling Helper
   const getActionBadge = (action: string) => {
@@ -164,7 +222,7 @@ export default function AuditLogsPage() {
                 Audit Logs & Keamanan Sistem
               </h2>
               <p className="text-xs text-slate-300 font-medium max-w-2xl">
-                Pantau jejak aktivitas pengguna, riwayat tindakan sensitif, dan log keamanan platform secara real-time untuk transparansi dan audit auditabilitas.
+                Pantau jejak aktivitas pengguna, riwayat tindakan sensitif, dan log keamanan platform secara real-time untuk transparansi dan auditabilitas.
               </p>
             </div>
 
@@ -194,7 +252,7 @@ export default function AuditLogsPage() {
           <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
             <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Total Audit Log</span>
             <div className="flex items-center justify-between">
-              <h4 className="text-2xl font-black text-slate-900">{filteredLogs.length} <span className="text-xs font-extrabold text-slate-400">Records</span></h4>
+              <h4 className="text-2xl font-black text-slate-900">{totalItems.toLocaleString('id-ID')} <span className="text-xs font-extrabold text-slate-400">Records</span></h4>
               <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100">
                 <FileCode2 className="w-5 h-5" />
               </div>
@@ -233,17 +291,17 @@ export default function AuditLogsPage() {
           </div>
 
           <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">IP Protocol</span>
+            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Halaman Aktif</span>
             <div className="flex items-center justify-between">
-              <h4 className="text-base font-black text-slate-900 truncate">
-                IPv4 / IPv6 Live
+              <h4 className="text-xl font-black text-slate-900 truncate">
+                Hal. {validCurrentPage} <span className="text-xs text-slate-400">/ {totalPages}</span>
               </h4>
               <div className="p-2.5 rounded-2xl bg-purple-50 text-purple-700 border border-purple-100">
-                <Globe className="w-5 h-5" />
+                <ListOrdered className="w-5 h-5" />
               </div>
             </div>
             <span className="text-[11px] font-extrabold text-purple-600 flex items-center gap-1">
-              <Monitor className="w-3.5 h-3.5" /> Real-time Logging
+              <Monitor className="w-3.5 h-3.5" /> {isAll ? 'Semua Data' : `${limitPerPage} Baris/Hal`}
             </span>
           </div>
         </div>
@@ -264,7 +322,7 @@ export default function AuditLogsPage() {
               />
             </div>
 
-            {/* Action Filter */}
+            {/* Action Filter Dropdown */}
             <div className="w-full sm:w-60 shrink-0">
               <Select value={selectedAction} onValueChange={setSelectedAction}>
                 <SelectTrigger className="w-full bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-900 focus:bg-white">
@@ -281,25 +339,63 @@ export default function AuditLogsPage() {
               </Select>
             </div>
 
+            {/* Page Size Selector (10, 100, 1000, 10000, all) */}
+            <div className="w-full sm:w-52 shrink-0">
+              <Select
+                value={String(pageSize)}
+                onValueChange={(val) => {
+                  if (val === 'all') {
+                    setPageSize('all');
+                  } else {
+                    setPageSize(Number(val));
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full bg-slate-50 border border-slate-200 rounded-2xl text-xs font-extrabold text-blue-700 focus:bg-white">
+                  <div className="flex items-center gap-2">
+                    <ListOrdered className="w-4 h-4 text-blue-600" />
+                    <SelectValue placeholder="Tampilkan 10 data" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10 data per halaman</SelectItem>
+                  <SelectItem value="100">100 data per halaman</SelectItem>
+                  <SelectItem value="1000">1.000 data per halaman</SelectItem>
+                  <SelectItem value="10000">10.000 data per halaman</SelectItem>
+                  <SelectItem value="all">Semua Data (All)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
           </div>
         </div>
 
         {/* Audit Logs Table */}
         <div className="rounded-3xl bg-white border border-slate-200/90 p-6 shadow-lg shadow-slate-200/30 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
             <div>
               <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-                <FileCode2 className="w-5 h-5 text-blue-700" /> Rekam Audit Log Sistem ({filteredLogs.length})
+                <FileCode2 className="w-5 h-5 text-blue-700" /> Rekam Audit Log Sistem ({totalItems.toLocaleString('id-ID')})
               </h3>
               <p className="text-xs text-slate-500 font-medium">
                 Daftar lengkap riwayat aksi dan log aktivitas keamanan pengguna.
               </p>
             </div>
+
+            {/* Range indicator badge */}
+            {totalItems > 0 && (
+              <div className="px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-[11px] font-extrabold text-blue-700 flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
+                <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                <span>
+                  Menampilkan <strong>{startIndex + 1}</strong> – <strong>{endIndex}</strong> dari <strong>{totalItems.toLocaleString('id-ID')}</strong> log
+                </span>
+              </div>
+            )}
           </div>
 
           {isLoading ? (
             <Skeleton className="h-64 w-full rounded-2xl" />
-          ) : filteredLogs.length > 0 ? (
+          ) : paginatedLogs.length > 0 ? (
             <div className="overflow-x-auto border border-slate-200 rounded-2xl">
               <table className="w-full text-left text-xs text-slate-700 min-w-[650px]">
                 <thead className="bg-slate-50 text-slate-500 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-200">
@@ -312,7 +408,7 @@ export default function AuditLogsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredLogs.map((log) => (
+                  {paginatedLogs.map((log) => (
                     <tr
                       key={log.id}
                       onClick={() => setSelectedLogDetail(log)}
@@ -365,6 +461,111 @@ export default function AuditLogsPage() {
             <div className="py-12 text-center text-xs text-slate-400 font-medium bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
               <ShieldAlert className="w-8 h-8 text-slate-300 mx-auto" />
               <p>Belum ada catatan audit log pada kriteria pencarian ini.</p>
+            </div>
+          )}
+
+          {/* ================= BEAUTIFUL PAGINATION CONTROLS BOTTOM BAR ================= */}
+          {!isLoading && totalItems > 0 && (
+            <div className="pt-4 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
+              {/* Info text left */}
+              <div className="text-xs text-slate-500 font-medium text-center md:text-left">
+                Menampilkan <span className="font-extrabold text-slate-800">{startIndex + 1}</span> – <span className="font-extrabold text-slate-800">{endIndex}</span> dari <span className="font-extrabold text-slate-900">{totalItems.toLocaleString('id-ID')}</span> audit log
+              </div>
+
+              {/* Controls right */}
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {/* Page Size Quick Switcher Pills */}
+                <div className="hidden lg:flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80 mr-2 text-xs font-bold text-slate-600">
+                  <span className="px-2 text-[10px] text-slate-400 uppercase tracking-wider">Per Hal:</span>
+                  {[10, 100, 1000, 10000, 'all'].map((opt) => (
+                    <button
+                      key={String(opt)}
+                      type="button"
+                      onClick={() => setPageSize(opt as any)}
+                      className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                        pageSize === opt
+                          ? 'bg-blue-600 text-white font-extrabold shadow-xs'
+                          : 'hover:bg-slate-200 text-slate-600'
+                      }`}
+                    >
+                      {opt === 'all' ? 'All' : opt.toLocaleString('id-ID')}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Page Nav Buttons */}
+                {!isAll && totalPages > 1 && (
+                  <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-2xl border border-slate-200">
+                    {/* First Page Button */}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={validCurrentPage === 1}
+                      className="p-2 rounded-xl text-slate-500 hover:text-blue-700 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer"
+                      title="Halaman Pertama"
+                    >
+                      <ChevronsLeft className="w-4 h-4" />
+                    </button>
+
+                    {/* Previous Page Button */}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={validCurrentPage === 1}
+                      className="p-2 rounded-xl text-slate-500 hover:text-blue-700 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer flex items-center gap-1 text-xs font-bold"
+                      title="Halaman Sebelumnya"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    {/* Numbered Page Buttons */}
+                    <div className="flex items-center gap-1 px-1">
+                      {getPageNumbers().map((pg, i) =>
+                        typeof pg === 'number' ? (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setCurrentPage(pg)}
+                            className={`min-w-[32px] h-8 px-2 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center ${
+                              validCurrentPage === pg
+                                ? 'bg-blue-700 text-white font-black shadow-md shadow-blue-700/20'
+                                : 'text-slate-600 hover:bg-white hover:text-slate-900 font-bold'
+                            }`}
+                          >
+                            {pg}
+                          </button>
+                        ) : (
+                          <span key={i} className="px-1 text-slate-400 text-xs font-bold">
+                            ...
+                          </span>
+                        )
+                      )}
+                    </div>
+
+                    {/* Next Page Button */}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={validCurrentPage === totalPages}
+                      className="p-2 rounded-xl text-slate-500 hover:text-blue-700 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer flex items-center gap-1 text-xs font-bold"
+                      title="Halaman Selanjutnya"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+
+                    {/* Last Page Button */}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={validCurrentPage === totalPages}
+                      className="p-2 rounded-xl text-slate-500 hover:text-blue-700 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer"
+                      title="Halaman Terakhir"
+                    >
+                      <ChevronsRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -438,3 +639,4 @@ export default function AuditLogsPage() {
     </DashboardLayout>
   );
 }
+

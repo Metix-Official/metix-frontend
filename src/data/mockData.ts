@@ -13,6 +13,7 @@ export interface StatMetric {
   isPositive: boolean;
   period: string;
   iconName: string;
+  href?: string;
 }
 
 export interface Transaction {

@@ -356,10 +356,23 @@ export default function EventsPage() {
       }
 
       if (Array.isArray(rawFacilities)) {
-        setEditFacilities(rawFacilities);
+        setEditFacilities(
+          rawFacilities
+            .map((f: any) => (typeof f === 'string' ? f : String(f?.name || f?.title || f?.facility || '')))
+            .filter(Boolean)
+        );
       } else if (typeof rawFacilities === 'string') {
         try {
-          setEditFacilities(JSON.parse(rawFacilities));
+          const parsed = JSON.parse(rawFacilities);
+          if (Array.isArray(parsed)) {
+            setEditFacilities(
+              parsed
+                .map((f: any) => (typeof f === 'string' ? f : String(f?.name || f?.title || f?.facility || '')))
+                .filter(Boolean)
+            );
+          } else {
+            setEditFacilities([rawFacilities]);
+          }
         } catch {
           setEditFacilities([rawFacilities]);
         }
@@ -2131,21 +2144,24 @@ export default function EventsPage() {
                       Fasilitas Terpilih ({editFacilities.length}):
                     </label>
                     <div className="flex flex-wrap gap-1.5">
-                      {editFacilities.map((fac) => (
-                        <span
-                          key={fac}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200/80 text-blue-800 text-xs font-bold rounded-xl"
-                        >
-                          {fac}
-                          <button
-                            type="button"
-                            onClick={() => toggleFacility(fac, 'edit')}
-                            className="text-blue-600 hover:text-rose-600 transition-colors cursor-pointer"
+                      {editFacilities.map((fac: any, idx: number) => {
+                        const facText = typeof fac === 'string' ? fac : String(fac?.name || fac?.title || fac?.facility || '');
+                        return (
+                          <span
+                            key={typeof fac === 'string' ? fac : idx}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200/80 text-blue-800 text-xs font-bold rounded-xl"
                           >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </span>
-                      ))}
+                            {facText}
+                            <button
+                              type="button"
+                              onClick={() => toggleFacility(facText, 'edit')}
+                              className="text-blue-600 hover:text-rose-600 transition-colors cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -3238,21 +3254,24 @@ export default function EventsPage() {
                       Fasilitas Terpilih ({createFacilities.length}):
                     </label>
                     <div className="flex flex-wrap gap-1.5">
-                      {createFacilities.map((fac) => (
-                        <span
-                          key={fac}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200/80 text-blue-800 text-xs font-bold rounded-xl"
-                        >
-                          {fac}
-                          <button
-                            type="button"
-                            onClick={() => toggleFacility(fac, 'create')}
-                            className="text-blue-600 hover:text-rose-600 transition-colors cursor-pointer"
+                      {createFacilities.map((fac: any, idx: number) => {
+                        const facText = typeof fac === 'string' ? fac : String(fac?.name || fac?.title || fac?.facility || '');
+                        return (
+                          <span
+                            key={typeof fac === 'string' ? fac : idx}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200/80 text-blue-800 text-xs font-bold rounded-xl"
                           >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </span>
-                      ))}
+                            {facText}
+                            <button
+                              type="button"
+                              onClick={() => toggleFacility(facText, 'create')}
+                              className="text-blue-600 hover:text-rose-600 transition-colors cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

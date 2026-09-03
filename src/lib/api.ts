@@ -722,11 +722,14 @@ export async function fetchPublicEvents(params?: {
     if (params?.category) url.searchParams.append('category', params.category);
     if (params?.page) url.searchParams.append('page', String(params.page));
 
+    url.searchParams.append('_t', String(Date.now()));
     const response = await fetch(url.toString(), {
       headers: {
         Accept: 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
+      cache: 'no-store',
     });
 
     if (!response.ok) {
@@ -798,11 +801,14 @@ export async function fetchPublicEventDetail(slugOrId: string | number): Promise
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/public/events/${slugOrId}`, {
+    const sep = String(slugOrId).includes('?') ? '&' : '?';
+    const response = await fetch(`${API_BASE_URL}/public/events/${slugOrId}${sep}_t=${Date.now()}`, {
       headers: {
         Accept: 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
+      cache: 'no-store',
     });
 
     if (!response.ok) {
@@ -1293,8 +1299,9 @@ export async function fetchMyEvents(): Promise<{
   if (!token) return { events: [] };
 
   try {
-    const response = await fetch(`${API_BASE_URL}/organizer/events`, {
+    const response = await fetch(`${API_BASE_URL}/organizer/events?_t=${Date.now()}`, {
       headers: getHeaders(token),
+      cache: 'no-store',
     });
 
     if (!response.ok) {

@@ -261,12 +261,12 @@ export default function EventDetailClient() {
           const parsed = JSON.parse(cached);
           if (parsed.lineups || parsed.lineup) raw = parsed.lineups || parsed.lineup;
         }
-      } catch {}
+      } catch { }
     }
     if (typeof raw === 'string') {
       try {
         raw = JSON.parse(raw);
-      } catch {}
+      } catch { }
     }
     if (Array.isArray(raw) && raw.length > 0) return raw;
     return [];
@@ -282,12 +282,12 @@ export default function EventDetailClient() {
           const parsed = JSON.parse(cached);
           if (parsed.facilities) raw = parsed.facilities;
         }
-      } catch {}
+      } catch { }
     }
     if (typeof raw === 'string') {
       try {
         raw = JSON.parse(raw);
-      } catch {}
+      } catch { }
     }
     if (Array.isArray(raw) && raw.length > 0) return raw;
     return [];
@@ -299,7 +299,7 @@ export default function EventDetailClient() {
     if (typeof raw === 'string') {
       try {
         raw = JSON.parse(raw);
-      } catch {}
+      } catch { }
     }
     if (Object.keys(raw).length === 0 && typeof window !== 'undefined') {
       try {
@@ -308,7 +308,7 @@ export default function EventDetailClient() {
           const parsed = JSON.parse(cached);
           if (parsed.social_media) raw = parsed.social_media;
         }
-      } catch {}
+      } catch { }
     }
     return {
       instagram: raw.instagram || (event as any).instagram || '',
@@ -419,11 +419,10 @@ export default function EventDetailClient() {
                 <button
                   type="button"
                   onClick={() => setActiveMobileTab('deskripsi')}
-                  className={`pb-2.5 text-sm font-extrabold whitespace-nowrap transition-all relative cursor-pointer ${
-                    activeMobileTab === 'deskripsi'
-                      ? 'text-blue-600 font-extrabold'
-                      : 'text-slate-700 hover:text-slate-900 font-bold'
-                  }`}
+                  className={`pb-2.5 text-sm font-extrabold whitespace-nowrap transition-all relative cursor-pointer ${activeMobileTab === 'deskripsi'
+                    ? 'text-blue-600 font-extrabold'
+                    : 'text-slate-700 hover:text-slate-900 font-bold'
+                    }`}
                 >
                   <span>Deskripsi</span>
                   {activeMobileTab === 'deskripsi' && (
@@ -435,11 +434,10 @@ export default function EventDetailClient() {
                   <button
                     type="button"
                     onClick={() => setActiveMobileTab('lineup')}
-                    className={`pb-2.5 text-sm font-extrabold whitespace-nowrap transition-all relative cursor-pointer ${
-                      activeMobileTab === 'lineup'
-                        ? 'text-blue-600 font-extrabold'
-                        : 'text-slate-700 hover:text-slate-900 font-bold'
-                    }`}
+                    className={`pb-2.5 text-sm font-extrabold whitespace-nowrap transition-all relative cursor-pointer ${activeMobileTab === 'lineup'
+                      ? 'text-blue-600 font-extrabold'
+                      : 'text-slate-700 hover:text-slate-900 font-bold'
+                      }`}
                   >
                     <span>Lineup</span>
                     {activeMobileTab === 'lineup' && (
@@ -452,11 +450,10 @@ export default function EventDetailClient() {
                   <button
                     type="button"
                     onClick={() => setActiveMobileTab('fasilitas')}
-                    className={`pb-2.5 text-sm font-extrabold whitespace-nowrap transition-all relative cursor-pointer ${
-                      activeMobileTab === 'fasilitas'
-                        ? 'text-blue-600 font-extrabold'
-                        : 'text-slate-700 hover:text-slate-900 font-bold'
-                    }`}
+                    className={`pb-2.5 text-sm font-extrabold whitespace-nowrap transition-all relative cursor-pointer ${activeMobileTab === 'fasilitas'
+                      ? 'text-blue-600 font-extrabold'
+                      : 'text-slate-700 hover:text-slate-900 font-bold'
+                      }`}
                   >
                     <span>Fasilitas</span>
                     {activeMobileTab === 'fasilitas' && (
@@ -470,21 +467,20 @@ export default function EventDetailClient() {
                   parsedSocialMedia.website ||
                   parsedSocialMedia.whatsapp ||
                   parsedSocialMedia.youtube) && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveMobileTab('social_media')}
-                    className={`pb-2.5 text-sm font-extrabold whitespace-nowrap transition-all relative cursor-pointer ${
-                      activeMobileTab === 'social_media'
+                    <button
+                      type="button"
+                      onClick={() => setActiveMobileTab('social_media')}
+                      className={`pb-2.5 text-sm font-extrabold whitespace-nowrap transition-all relative cursor-pointer ${activeMobileTab === 'social_media'
                         ? 'text-blue-600 font-extrabold'
                         : 'text-slate-700 hover:text-slate-900 font-bold'
-                    }`}
-                  >
-                    <span>Media Sosial</span>
-                    {activeMobileTab === 'social_media' && (
-                      <span className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-blue-600 rounded-full animate-in fade-in-0" />
-                    )}
-                  </button>
-                )}
+                        }`}
+                    >
+                      <span>Media Sosial</span>
+                      {activeMobileTab === 'social_media' && (
+                        <span className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-blue-600 rounded-full animate-in fade-in-0" />
+                      )}
+                    </button>
+                  )}
               </div>
             </div>
 
@@ -563,7 +559,7 @@ export default function EventDetailClient() {
                   Fasilitas
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {parsedFacilities.map((fac, idx) => {
+                  {parsedFacilities.map((fac: any, idx) => {
                     const facName = typeof fac === 'string' ? fac : (fac && typeof fac === 'object' ? (fac.name || '') : String(fac || ''));
 
                     const getFacilityIcon = (nameInput: any) => {
@@ -604,90 +600,90 @@ export default function EventDetailClient() {
               parsedSocialMedia.website ||
               parsedSocialMedia.whatsapp ||
               parsedSocialMedia.youtube) && (
-              <div className={`space-y-3 pt-3 lg:hidden ${activeMobileTab === 'social_media' ? 'block' : 'hidden'}`}>
-                <div className="flex flex-wrap gap-2">
-                  {parsedSocialMedia.instagram && (
-                    <a
-                      href={
-                        parsedSocialMedia.instagram.startsWith('http')
-                          ? parsedSocialMedia.instagram
-                          : `https://instagram.com/${parsedSocialMedia.instagram.replace('@', '')}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-pink-300 hover:bg-pink-50/30 transition-all shadow-2xs cursor-pointer"
-                    >
-                      <Camera className="w-4 h-4 text-pink-600 shrink-0" />
-                      <span>Instagram</span>
-                    </a>
-                  )}
+                <div className={`space-y-3 pt-3 lg:hidden ${activeMobileTab === 'social_media' ? 'block' : 'hidden'}`}>
+                  <div className="flex flex-wrap gap-2">
+                    {parsedSocialMedia.instagram && (
+                      <a
+                        href={
+                          parsedSocialMedia.instagram.startsWith('http')
+                            ? parsedSocialMedia.instagram
+                            : `https://instagram.com/${parsedSocialMedia.instagram.replace('@', '')}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-pink-300 hover:bg-pink-50/30 transition-all shadow-2xs cursor-pointer"
+                      >
+                        <Camera className="w-4 h-4 text-pink-600 shrink-0" />
+                        <span>Instagram</span>
+                      </a>
+                    )}
 
-                  {parsedSocialMedia.tiktok && (
-                    <a
-                      href={
-                        parsedSocialMedia.tiktok.startsWith('http')
-                          ? parsedSocialMedia.tiktok
-                          : `https://tiktok.com/@${parsedSocialMedia.tiktok.replace('@', '')}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-slate-400 hover:bg-slate-50 transition-all shadow-2xs cursor-pointer"
-                    >
-                      <Video className="w-4 h-4 text-slate-900 shrink-0" />
-                      <span>TikTok</span>
-                    </a>
-                  )}
+                    {parsedSocialMedia.tiktok && (
+                      <a
+                        href={
+                          parsedSocialMedia.tiktok.startsWith('http')
+                            ? parsedSocialMedia.tiktok
+                            : `https://tiktok.com/@${parsedSocialMedia.tiktok.replace('@', '')}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-slate-400 hover:bg-slate-50 transition-all shadow-2xs cursor-pointer"
+                      >
+                        <Video className="w-4 h-4 text-slate-900 shrink-0" />
+                        <span>TikTok</span>
+                      </a>
+                    )}
 
-                  {parsedSocialMedia.website && (
-                    <a
-                      href={
-                        parsedSocialMedia.website.startsWith('http')
-                          ? parsedSocialMedia.website
-                          : `https://${parsedSocialMedia.website}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-blue-400 hover:bg-blue-50/30 transition-all shadow-2xs cursor-pointer"
-                    >
-                      <Globe className="w-4 h-4 text-blue-600 shrink-0" />
-                      <span>Website</span>
-                    </a>
-                  )}
+                    {parsedSocialMedia.website && (
+                      <a
+                        href={
+                          parsedSocialMedia.website.startsWith('http')
+                            ? parsedSocialMedia.website
+                            : `https://${parsedSocialMedia.website}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-blue-400 hover:bg-blue-50/30 transition-all shadow-2xs cursor-pointer"
+                      >
+                        <Globe className="w-4 h-4 text-blue-600 shrink-0" />
+                        <span>Website</span>
+                      </a>
+                    )}
 
-                  {parsedSocialMedia.whatsapp && (
-                    <a
-                      href={
-                        parsedSocialMedia.whatsapp.startsWith('http')
-                          ? parsedSocialMedia.whatsapp
-                          : `https://wa.me/${parsedSocialMedia.whatsapp.replace(/[^0-9]/g, '')}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-emerald-400 hover:bg-emerald-50/30 transition-all shadow-2xs cursor-pointer"
-                    >
-                      <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>WhatsApp</span>
-                    </a>
-                  )}
+                    {parsedSocialMedia.whatsapp && (
+                      <a
+                        href={
+                          parsedSocialMedia.whatsapp.startsWith('http')
+                            ? parsedSocialMedia.whatsapp
+                            : `https://wa.me/${parsedSocialMedia.whatsapp.replace(/[^0-9]/g, '')}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-emerald-400 hover:bg-emerald-50/30 transition-all shadow-2xs cursor-pointer"
+                      >
+                        <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>WhatsApp</span>
+                      </a>
+                    )}
 
-                  {parsedSocialMedia.youtube && (
-                    <a
-                      href={
-                        parsedSocialMedia.youtube.startsWith('http')
-                          ? parsedSocialMedia.youtube
-                          : `https://youtube.com/${parsedSocialMedia.youtube}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-rose-400 hover:bg-rose-50/30 transition-all shadow-2xs cursor-pointer"
-                    >
-                      <Video className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span>YouTube</span>
-                    </a>
-                  )}
+                    {parsedSocialMedia.youtube && (
+                      <a
+                        href={
+                          parsedSocialMedia.youtube.startsWith('http')
+                            ? parsedSocialMedia.youtube
+                            : `https://youtube.com/${parsedSocialMedia.youtube}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-rose-400 hover:bg-rose-50/30 transition-all shadow-2xs cursor-pointer"
+                      >
+                        <Video className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>YouTube</span>
+                      </a>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {/* Divider Line */}
             <div className="hidden lg:block border-t border-slate-200 my-4" />
@@ -839,93 +835,93 @@ export default function EventDetailClient() {
               parsedSocialMedia.website ||
               parsedSocialMedia.whatsapp ||
               parsedSocialMedia.youtube) && (
-              <div className="hidden lg:block space-y-2 pt-1">
-                <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">
-                  Media Sosial
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {parsedSocialMedia.instagram && (
-                    <a
-                      href={
-                        parsedSocialMedia.instagram.startsWith('http')
-                          ? parsedSocialMedia.instagram
-                          : `https://instagram.com/${parsedSocialMedia.instagram.replace('@', '')}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-pink-300 hover:bg-pink-50/30 transition-all shadow-2xs cursor-pointer"
-                    >
-                      <Camera className="w-4 h-4 text-pink-600 shrink-0" />
-                      <span>Instagram</span>
-                    </a>
-                  )}
+                <div className="hidden lg:block space-y-2 pt-1">
+                  <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">
+                    Media Sosial
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {parsedSocialMedia.instagram && (
+                      <a
+                        href={
+                          parsedSocialMedia.instagram.startsWith('http')
+                            ? parsedSocialMedia.instagram
+                            : `https://instagram.com/${parsedSocialMedia.instagram.replace('@', '')}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-pink-300 hover:bg-pink-50/30 transition-all shadow-2xs cursor-pointer"
+                      >
+                        <Camera className="w-4 h-4 text-pink-600 shrink-0" />
+                        <span>Instagram</span>
+                      </a>
+                    )}
 
-                  {parsedSocialMedia.tiktok && (
-                    <a
-                      href={
-                        parsedSocialMedia.tiktok.startsWith('http')
-                          ? parsedSocialMedia.tiktok
-                          : `https://tiktok.com/@${parsedSocialMedia.tiktok.replace('@', '')}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-slate-400 hover:bg-slate-50 transition-all shadow-2xs cursor-pointer"
-                    >
-                      <Video className="w-4 h-4 text-slate-900 shrink-0" />
-                      <span>TikTok</span>
-                    </a>
-                  )}
+                    {parsedSocialMedia.tiktok && (
+                      <a
+                        href={
+                          parsedSocialMedia.tiktok.startsWith('http')
+                            ? parsedSocialMedia.tiktok
+                            : `https://tiktok.com/@${parsedSocialMedia.tiktok.replace('@', '')}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-slate-400 hover:bg-slate-50 transition-all shadow-2xs cursor-pointer"
+                      >
+                        <Video className="w-4 h-4 text-slate-900 shrink-0" />
+                        <span>TikTok</span>
+                      </a>
+                    )}
 
-                  {parsedSocialMedia.website && (
-                    <a
-                      href={
-                        parsedSocialMedia.website.startsWith('http')
-                          ? parsedSocialMedia.website
-                          : `https://${parsedSocialMedia.website}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-blue-400 hover:bg-blue-50/30 transition-all shadow-2xs cursor-pointer"
-                    >
-                      <Globe className="w-4 h-4 text-blue-600 shrink-0" />
-                      <span>Website</span>
-                    </a>
-                  )}
+                    {parsedSocialMedia.website && (
+                      <a
+                        href={
+                          parsedSocialMedia.website.startsWith('http')
+                            ? parsedSocialMedia.website
+                            : `https://${parsedSocialMedia.website}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-blue-400 hover:bg-blue-50/30 transition-all shadow-2xs cursor-pointer"
+                      >
+                        <Globe className="w-4 h-4 text-blue-600 shrink-0" />
+                        <span>Website</span>
+                      </a>
+                    )}
 
-                  {parsedSocialMedia.whatsapp && (
-                    <a
-                      href={
-                        parsedSocialMedia.whatsapp.startsWith('http')
-                          ? parsedSocialMedia.whatsapp
-                          : `https://wa.me/${parsedSocialMedia.whatsapp.replace(/[^0-9]/g, '')}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-emerald-400 hover:bg-emerald-50/30 transition-all shadow-2xs cursor-pointer"
-                    >
-                      <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>WhatsApp</span>
-                    </a>
-                  )}
+                    {parsedSocialMedia.whatsapp && (
+                      <a
+                        href={
+                          parsedSocialMedia.whatsapp.startsWith('http')
+                            ? parsedSocialMedia.whatsapp
+                            : `https://wa.me/${parsedSocialMedia.whatsapp.replace(/[^0-9]/g, '')}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-emerald-400 hover:bg-emerald-50/30 transition-all shadow-2xs cursor-pointer"
+                      >
+                        <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>WhatsApp</span>
+                      </a>
+                    )}
 
-                  {parsedSocialMedia.youtube && (
-                    <a
-                      href={
-                        parsedSocialMedia.youtube.startsWith('http')
-                          ? parsedSocialMedia.youtube
-                          : `https://youtube.com/${parsedSocialMedia.youtube}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-rose-400 hover:bg-rose-50/30 transition-all shadow-2xs cursor-pointer"
-                    >
-                      <Video className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span>YouTube</span>
-                    </a>
-                  )}
+                    {parsedSocialMedia.youtube && (
+                      <a
+                        href={
+                          parsedSocialMedia.youtube.startsWith('http')
+                            ? parsedSocialMedia.youtube
+                            : `https://youtube.com/${parsedSocialMedia.youtube}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-rose-400 hover:bg-rose-50/30 transition-all shadow-2xs cursor-pointer"
+                      >
+                        <Video className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>YouTube</span>
+                      </a>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {/* Card 3: Ticket Authenticity Check Card */}
             <div className="bg-white rounded-2xl border border-slate-200/90 p-4.5 sm:p-5 shadow-xs text-center">

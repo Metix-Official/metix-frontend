@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   Settings,
+  Calendar,
 } from 'lucide-react';
 import Link from 'next/link';
 import { getDefaultRoleDashboard } from '@/lib/roles';
@@ -112,7 +113,24 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  const photoUrl = user ? getPhotoUrl(user.profile_photo_url || user.photo) : null;
+  const isEo = (() => {
+    if (!user) return false;
+    const role = (user.role || '').toUpperCase();
+    return role === 'EO' || role === 'MITRA' || role === 'ORGANIZER' || !!user.organizer_profile;
+  })();
+
+  const rawLogo =
+    (user as any)?.organizer?.logo ||
+    (user as any)?.organizer_profile?.logo ||
+    user?.profile_photo_url ||
+    user?.photo ||
+    (user as any)?.avatar;
+
+  const photoUrl = user
+    ? getPhotoUrl(rawLogo, undefined, isEo) ||
+      (typeof window !== 'undefined' ? localStorage.getItem('metix_organizer_logo_preview') : null)
+    : null;
+
   const userDisplayName = user?.name || user?.first_name || 'Pengguna Metix';
 
   return (
@@ -254,13 +272,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <LayoutDashboard className="w-4 h-4 text-blue-600" /> Dashboard Portal
                     </Link>
 
-                    <Link
-                      href="/dashboard/tickets"
-                      onClick={() => setIsProfileMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-extrabold text-slate-800 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                    >
-                      <Ticket className="w-4 h-4 text-blue-600" /> Tiket Saya
-                    </Link>
+                    {isEo ? (
+                      <Link
+                        href="/dashboard/events"
+                        onClick={() => setIsProfileMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-extrabold text-slate-800 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                      >
+                        <Calendar className="w-4 h-4 text-blue-600" /> Event Saya
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/dashboard/tickets"
+                        onClick={() => setIsProfileMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-extrabold text-slate-800 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                      >
+                        <Ticket className="w-4 h-4 text-blue-600" /> Tiket Saya
+                      </Link>
+                    )}
 
                     <Link
                       href="/dashboard/profile"

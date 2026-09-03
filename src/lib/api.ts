@@ -12,18 +12,34 @@ if (!envUrl.endsWith('/v1')) {
 export const API_BASE_URL = envUrl;
 
 export function getPhotoUrl(photoUrl?: string | null, eventId?: number | string, isEoProfile?: boolean): string | null {
-  if (!photoUrl || photoUrl === 'organizers/logo_default.png' || photoUrl === 'logo_default.png' || photoUrl.includes('logo_default')) return null;
   if (typeof window !== 'undefined') {
     if (eventId) {
-      const localBanner = localStorage.getItem(`metix_banner_preview_${eventId}`);
+      const localBanner =
+        localStorage.getItem(`metix_banner_preview_${eventId}`) ||
+        localStorage.getItem(`metix_banner_preview_${String(eventId)}`);
       if (localBanner) return localBanner;
     }
     if (isEoProfile) {
       const localLogo = localStorage.getItem(`metix_organizer_logo_preview`);
       if (localLogo) return localLogo;
     }
+    if (photoUrl && (photoUrl.startsWith('data:image') || photoUrl.startsWith('blob:'))) {
+      return photoUrl;
+    }
+    if (photoUrl) {
+      const cachedByPath = localStorage.getItem(`metix_banner_preview_${photoUrl}`);
+      if (cachedByPath) return cachedByPath;
+    }
   }
-  if (!photoUrl) return null;
+
+  if (!photoUrl || photoUrl === 'organizers/logo_default.png' || photoUrl === 'logo_default.png' || photoUrl.includes('logo_default')) {
+    if (typeof window !== 'undefined' && eventId) {
+      const fallbackLocal = localStorage.getItem(`metix_banner_preview_${eventId}`);
+      if (fallbackLocal) return fallbackLocal;
+    }
+    return null;
+  }
+
   if (
     photoUrl.startsWith('http://') ||
     photoUrl.startsWith('https://') ||
@@ -32,6 +48,7 @@ export function getPhotoUrl(photoUrl?: string | null, eventId?: number | string,
   ) {
     return photoUrl;
   }
+
   const backendBase = API_BASE_URL.replace(/\/api\/v1\/?$/, '').replace(/\/api\/?$/, '');
   const cleanPath = photoUrl.replace(/^\//, '');
   if (cleanPath.startsWith('storage/')) {
@@ -131,6 +148,25 @@ export interface ApiPromo {
   updated_at?: string;
 }
 
+export interface ApiLineupItem {
+  id?: number | string;
+  event_id?: number | string;
+  name: string;
+  image?: string | null;
+  description?: string | null;
+  role?: string;
+  perform_time?: string;
+  photo?: string | null;
+}
+
+export interface ApiSocialMedia {
+  instagram?: string;
+  tiktok?: string;
+  website?: string;
+  whatsapp?: string;
+  youtube?: string;
+}
+
 export interface ApiEvent {
   id: number;
   user_id?: number;
@@ -175,6 +211,9 @@ export interface ApiEvent {
   require_holder_name?: boolean;
   setting?: ApiEventSetting | null;
   organizer?: any;
+  lineups?: ApiLineupItem[];
+  facilities?: string[];
+  social_media?: ApiSocialMedia;
 }
 
 export interface ApiTicketDetail {

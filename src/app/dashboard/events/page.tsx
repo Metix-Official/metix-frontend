@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import {
   fetchMyEvents,
+  fetchPublicEventDetail,
   createEvent,
   updateEvent,
   publishEvent,
@@ -72,6 +73,13 @@ import {
   QrCode,
   SlidersHorizontal,
   Percent,
+  Users,
+  Music,
+  Share2,
+  Image as ImageIcon,
+  Phone,
+  Video,
+  Camera,
 } from 'lucide-react';
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -94,6 +102,34 @@ export default function EventsPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionEventId, setActionEventId] = useState<number | null>(null);
 
+  type ModalTab = 'info' | 'lineup' | 'facilities' | 'social_media' | 'venue' | 'banner';
+
+  const MODAL_TABS_ORDER: ModalTab[] = ['info', 'lineup', 'facilities', 'social_media', 'venue', 'banner'];
+
+  const PRESET_FACILITIES = [
+    'Parkir Luas',
+    'Musholla',
+    'Food Court / UMKM',
+    'Akses Disabilitas',
+    'Pos Medis & P3K',
+    'Toilet Bersih',
+    'AC & Full Indoor',
+    'Cashless / QRIS Station',
+    'Locker / Penitipan Barang',
+    'Free Wi-Fi Area',
+    'VIP Lounge Area',
+  ];
+
+  const getNextTab = (current: ModalTab): ModalTab => {
+    const idx = MODAL_TABS_ORDER.indexOf(current);
+    return idx < MODAL_TABS_ORDER.length - 1 ? MODAL_TABS_ORDER[idx + 1] : current;
+  };
+
+  const getPrevTab = (current: ModalTab): ModalTab => {
+    const idx = MODAL_TABS_ORDER.indexOf(current);
+    return idx > 0 ? MODAL_TABS_ORDER[idx - 1] : current;
+  };
+
   // New Event Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -104,7 +140,7 @@ export default function EventsPage() {
   const [createCityInput, setCreateCityInput] = useState<string>('');
   const [createBannerPreview, setCreateBannerPreview] = useState<string>('');
   const [createBannerUrlInput, setCreateBannerUrlInput] = useState<string>('');
-  const [createModalTab, setCreateModalTab] = useState<'info' | 'venue' | 'banner'>('info');
+  const [createModalTab, setCreateModalTab] = useState<ModalTab>('info');
 
   // Edit Event Modal State
   const [editingEvent, setEditingEvent] = useState<ApiEvent | null>(null);
@@ -116,16 +152,129 @@ export default function EventsPage() {
   const [editCityInput, setEditCityInput] = useState<string>('');
   const [editBannerPreview, setEditBannerPreview] = useState<string>('');
   const [editBannerUrlInput, setEditBannerUrlInput] = useState<string>('');
-  const [editModalTab, setEditModalTab] = useState<'info' | 'venue' | 'banner'>('info');
+  const [editModalTab, setEditModalTab] = useState<ModalTab>('info');
+
+  // Lineup States (API Spec: event_id, name, image, description)
+  const [createLineups, setCreateLineups] = useState<Array<{ id: string; name: string; image: string; description: string }>>([]);
+  const [editLineups, setEditLineups] = useState<Array<{ id: string; name: string; image: string; description: string }>>([]);
+
+  // Facilities States
+  const [createFacilities, setCreateFacilities] = useState<string[]>([
+    'Parkir Luas',
+    'Musholla',
+    'Food Court / UMKM',
+    'Akses Disabilitas',
+    'Pos Medis & P3K',
+    'Toilet Bersih',
+    'AC & Full Indoor',
+    'Cashless / QRIS Station',
+  ]);
+  const [editFacilities, setEditFacilities] = useState<string[]>([]);
+  const [customCreateFacility, setCustomCreateFacility] = useState<string>('');
+  const [customEditFacility, setCustomEditFacility] = useState<string>('');
+
+  // Social Media States
+  const [createSocials, setCreateSocials] = useState<{
+    instagram: string;
+    tiktok: string;
+    website: string;
+    whatsapp: string;
+    youtube: string;
+  }>({ instagram: '', tiktok: '', website: '', whatsapp: '', youtube: '' });
+
+  const [editSocials, setEditSocials] = useState<{
+    instagram: string;
+    tiktok: string;
+    website: string;
+    whatsapp: string;
+    youtube: string;
+  }>({ instagram: '', tiktok: '', website: '', whatsapp: '', youtube: '' });
+
+  // Lineup Handlers
+  const handleAddCreateLineup = () => {
+    setCreateLineups((prev) => [...prev, { id: String(Date.now()), name: '', image: '', description: '' }]);
+  };
+  const handleRemoveCreateLineup = (id: string) => {
+    setCreateLineups((prev) => prev.filter((item) => item.id !== id));
+  };
+  const handleUpdateCreateLineup = (id: string, field: string, value: string) => {
+    setCreateLineups((prev) => prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
+  };
+
+  const handleAddEditLineup = () => {
+    setEditLineups((prev) => [...prev, { id: String(Date.now()), name: '', image: '', description: '' }]);
+  };
+  const handleRemoveEditLineup = (id: string) => {
+    setEditLineups((prev) => prev.filter((item) => item.id !== id));
+  };
+  const handleUpdateEditLineup = (id: string, field: string, value: string) => {
+    setEditLineups((prev) => prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
+  };
+
+  const handleLineupFileChoose = async (id: string, file: File, mode: 'create' | 'edit') => {
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      if (mode === 'create') {
+        handleUpdateCreateLineup(id, 'image', dataUrl);
+      } else {
+        handleUpdateEditLineup(id, 'image', dataUrl);
+      }
+    } catch {}
+  };
+
+  // Facility Handlers
+  const toggleFacility = (facility: string, mode: 'create' | 'edit') => {
+    if (mode === 'create') {
+      setCreateFacilities((prev) =>
+        prev.includes(facility) ? prev.filter((f) => f !== facility) : [...prev, facility]
+      );
+    } else {
+      setEditFacilities((prev) =>
+        prev.includes(facility) ? prev.filter((f) => f !== facility) : [...prev, facility]
+      );
+    }
+  };
+
+  const handleAddCustomFacility = (mode: 'create' | 'edit') => {
+    if (mode === 'create') {
+      const val = customCreateFacility.trim();
+      if (val && !createFacilities.includes(val)) {
+        setCreateFacilities((prev) => [...prev, val]);
+        setCustomCreateFacility('');
+      }
+    } else {
+      const val = customEditFacility.trim();
+      if (val && !editFacilities.includes(val)) {
+        setEditFacilities((prev) => [...prev, val]);
+        setCustomEditFacility('');
+      }
+    }
+  };
+
+  const handleOpenEditModal = async (item: ApiEvent) => {
+    setEditingEvent(item);
+    try {
+      const detail = await fetchPublicEventDetail(item.id);
+      if (detail) {
+        setEditingEvent((prev) => (prev && prev.id === item.id ? { ...prev, ...detail } : prev));
+      }
+    } catch {}
+  };
 
   useEffect(() => {
     if (editingEvent) {
+      const localFallback =
+        typeof window !== 'undefined'
+          ? localStorage.getItem(`metix_banner_preview_${editingEvent.id}`) ||
+            localStorage.getItem('metix_last_uploaded_banner')
+          : null;
+
       if (editingEvent.banner) {
-        const photo = getPhotoUrl(editingEvent.banner);
-        setEditBannerPreview(photo || editingEvent.banner);
+        const photo = getPhotoUrl(editingEvent.banner, editingEvent.id) || localFallback || editingEvent.banner;
+        setEditBannerPreview(photo);
         setEditBannerUrlInput(editingEvent.banner.startsWith('http') ? editingEvent.banner : '');
       } else {
-        setEditBannerPreview('');
+        setEditBannerPreview(localFallback || '');
         setEditBannerUrlInput('');
       }
       setEditCityInput(editingEvent.venue?.city || editingEvent.city || '');
@@ -159,6 +308,92 @@ export default function EventsPage() {
       const initialLng = parseFloat(String(editingEvent.longitude || venueObj?.longitude || 106.8456));
       setEditLat(isNaN(initialLat) ? -6.2088 : initialLat);
       setEditLng(isNaN(initialLng) ? 106.8456 : initialLng);
+
+      // Populate Lineups (event_id, name, image, description)
+      let rawLineups = editingEvent.lineups || (editingEvent as any).lineup || (editingEvent as any).event_lineups || (editingEvent as any).lineup_event;
+
+      if ((!rawLineups || (Array.isArray(rawLineups) && rawLineups.length === 0)) && typeof window !== 'undefined') {
+        try {
+          const cachedStr = localStorage.getItem(`metix_event_details_${editingEvent.id}`);
+          if (cachedStr) {
+            const parsed = JSON.parse(cachedStr);
+            if (parsed.lineups || parsed.lineup) {
+              rawLineups = parsed.lineups || parsed.lineup;
+            }
+          }
+        } catch {}
+      }
+
+      if (typeof rawLineups === 'string') {
+        try {
+          rawLineups = JSON.parse(rawLineups);
+        } catch {}
+      }
+
+      if (Array.isArray(rawLineups) && rawLineups.length > 0) {
+        setEditLineups(
+          rawLineups.map((l: any, idx: number) => ({
+            id: String(l.id || Date.now() + idx),
+            name: l.name || '',
+            image: l.image || l.photo || l.foto || '',
+            description: l.description || l.desc || l.role || l.peran || '',
+          }))
+        );
+      } else {
+        setEditLineups([]);
+      }
+
+      // Populate Facilities
+      let rawFacilities = editingEvent.facilities || (editingEvent as any).facility;
+      if ((!rawFacilities || (Array.isArray(rawFacilities) && rawFacilities.length === 0)) && typeof window !== 'undefined') {
+        try {
+          const cachedStr = localStorage.getItem(`metix_event_details_${editingEvent.id}`);
+          if (cachedStr) {
+            const parsed = JSON.parse(cachedStr);
+            if (parsed.facilities) rawFacilities = parsed.facilities;
+          }
+        } catch {}
+      }
+
+      if (Array.isArray(rawFacilities)) {
+        setEditFacilities(rawFacilities);
+      } else if (typeof rawFacilities === 'string') {
+        try {
+          setEditFacilities(JSON.parse(rawFacilities));
+        } catch {
+          setEditFacilities([rawFacilities]);
+        }
+      } else {
+        setEditFacilities([
+          'Parkir Luas',
+          'Musholla',
+          'Food Court / UMKM',
+          'Akses Disabilitas',
+          'Pos Medis & P3K',
+          'Toilet Bersih',
+        ]);
+      }
+
+      // Populate Social Media
+      let soc = editingEvent.social_media || (editingEvent as any).socials || {};
+      if (Object.keys(soc).length === 0 && typeof window !== 'undefined') {
+        try {
+          const cachedStr = localStorage.getItem(`metix_event_details_${editingEvent.id}`);
+          if (cachedStr) {
+            const parsed = JSON.parse(cachedStr);
+            if (parsed.social_media) soc = parsed.social_media;
+          }
+        } catch {}
+      }
+
+      setEditSocials({
+        instagram: soc.instagram || (editingEvent as any).instagram || '',
+        tiktok: soc.tiktok || (editingEvent as any).tiktok || '',
+        website: soc.website || (editingEvent as any).website || '',
+        whatsapp: soc.whatsapp || (editingEvent as any).whatsapp || '',
+        youtube: soc.youtube || (editingEvent as any).youtube || '',
+      });
+
       setEditModalTab('info');
     }
   }, [editingEvent]);
@@ -170,6 +405,9 @@ export default function EventsPage() {
       try {
         const dataUrl = await fileToDataUrl(file);
         setCreateBannerPreview(dataUrl);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('metix_last_uploaded_banner', dataUrl);
+        }
       } catch {
         // Fallback
       }
@@ -182,6 +420,12 @@ export default function EventsPage() {
       try {
         const dataUrl = await fileToDataUrl(file);
         setEditBannerPreview(dataUrl);
+        if (typeof window !== 'undefined') {
+          if (editingEvent?.id) {
+            localStorage.setItem(`metix_banner_preview_${editingEvent.id}`, dataUrl);
+          }
+          localStorage.setItem('metix_last_uploaded_banner', dataUrl);
+        }
       } catch {
         // Fallback
       }
@@ -680,6 +924,52 @@ export default function EventsPage() {
         formData.set('banner', defaultShortBanner);
       }
 
+      // Serialize Lineup (name, image, description) for Laravel API compatibility
+      const createLineupsPayload = createLineups.map((l) => ({
+        name: l.name,
+        image: l.image || '',
+        description: l.description || '',
+      }));
+      const lineupsJson = JSON.stringify(createLineupsPayload);
+      formData.set('lineups', lineupsJson);
+      formData.set('lineup', lineupsJson);
+
+      createLineups.forEach((item, index) => {
+        formData.set(`lineups[${index}][name]`, item.name);
+        formData.set(`lineups[${index}][image]`, item.image || '');
+        formData.set(`lineups[${index}][description]`, item.description || '');
+
+        formData.set(`lineup[${index}][name]`, item.name);
+        formData.set(`lineup[${index}][image]`, item.image || '');
+        formData.set(`lineup[${index}][description]`, item.description || '');
+
+        formData.set(`lineups[${index}][role]`, item.description || '');
+        formData.set(`lineups[${index}][photo]`, item.image || '');
+      });
+
+      const facilitiesJson = JSON.stringify(createFacilities);
+      formData.set('facilities', facilitiesJson);
+      formData.set('facility', facilitiesJson);
+      createFacilities.forEach((fac, index) => {
+        formData.set(`facilities[${index}]`, fac);
+        formData.set(`facility[${index}]`, fac);
+      });
+
+      const socialsJson = JSON.stringify(createSocials);
+      formData.set('social_media', socialsJson);
+      formData.set('socials', socialsJson);
+      formData.set('instagram', createSocials.instagram || '');
+      formData.set('tiktok', createSocials.tiktok || '');
+      formData.set('website', createSocials.website || '');
+      formData.set('whatsapp', createSocials.whatsapp || '');
+      formData.set('youtube', createSocials.youtube || '');
+
+      formData.set('social_media[instagram]', createSocials.instagram || '');
+      formData.set('social_media[tiktok]', createSocials.tiktok || '');
+      formData.set('social_media[website]', createSocials.website || '');
+      formData.set('social_media[whatsapp]', createSocials.whatsapp || '');
+      formData.set('social_media[youtube]', createSocials.youtube || '');
+
       await createEvent(formData);
 
       setIsModalOpen(false);
@@ -793,6 +1083,63 @@ export default function EventsPage() {
         formData.set('banner', editingEvent.banner);
       } else {
         formData.set('banner', defaultShortBanner);
+      }
+
+      // Serialize Lineup (name, image, description) for Laravel API compatibility
+      const editLineupsPayload = editLineups.map((l) => ({
+        name: l.name,
+        image: l.image || '',
+        description: l.description || '',
+      }));
+      const lineupsJson = JSON.stringify(editLineupsPayload);
+      formData.set('lineups', lineupsJson);
+      formData.set('lineup', lineupsJson);
+
+      editLineups.forEach((item, index) => {
+        formData.set(`lineups[${index}][name]`, item.name);
+        formData.set(`lineups[${index}][image]`, item.image || '');
+        formData.set(`lineups[${index}][description]`, item.description || '');
+
+        formData.set(`lineup[${index}][name]`, item.name);
+        formData.set(`lineup[${index}][image]`, item.image || '');
+        formData.set(`lineup[${index}][description]`, item.description || '');
+
+        formData.set(`lineups[${index}][role]`, item.description || '');
+        formData.set(`lineups[${index}][photo]`, item.image || '');
+      });
+
+      const facilitiesJson = JSON.stringify(editFacilities);
+      formData.set('facilities', facilitiesJson);
+      formData.set('facility', facilitiesJson);
+      editFacilities.forEach((fac, index) => {
+        formData.set(`facilities[${index}]`, fac);
+        formData.set(`facility[${index}]`, fac);
+      });
+
+      const socialsJson = JSON.stringify(editSocials);
+      formData.set('social_media', socialsJson);
+      formData.set('socials', socialsJson);
+      formData.set('instagram', editSocials.instagram || '');
+      formData.set('tiktok', editSocials.tiktok || '');
+      formData.set('website', editSocials.website || '');
+      formData.set('whatsapp', editSocials.whatsapp || '');
+      formData.set('youtube', editSocials.youtube || '');
+
+      formData.set('social_media[instagram]', editSocials.instagram || '');
+      formData.set('social_media[tiktok]', editSocials.tiktok || '');
+      formData.set('social_media[website]', editSocials.website || '');
+      formData.set('social_media[whatsapp]', editSocials.whatsapp || '');
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(
+            `metix_event_details_${editingEvent.id}`,
+            JSON.stringify({
+              lineups: editLineupsPayload,
+              facilities: editFacilities,
+              social_media: editSocials,
+            })
+          );
+        } catch {}
       }
 
       await updateEvent(editingEvent.id, formData);
@@ -1288,7 +1635,7 @@ export default function EventsPage() {
                       })()}
 
                       <button
-                        onClick={() => setEditingEvent(item)}
+                        onClick={() => handleOpenEditModal(item)}
                         className="py-2 px-2.5 rounded-xl bg-white hover:bg-indigo-50 border border-slate-200 text-indigo-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
                         title="Edit Event"
                       >
@@ -1441,15 +1788,15 @@ export default function EventsPage() {
               </button>
               <h3 className="text-lg font-black tracking-tight">Edit Event — {editingEvent.title}</h3>
               <p className="text-xs text-blue-100/90 font-medium">
-                Perbarui detail rincian acara, lokasi venue, serta media banner.
+                Perbarui detail rincian acara, lineup, fasilitas, media sosial, lokasi venue, serta media banner.
               </p>
 
               {/* Navigation Tabs Bar */}
-              <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/15 overflow-x-auto">
+              <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-white/15 overflow-x-auto no-scrollbar">
                 <button
                   type="button"
                   onClick={() => setEditModalTab('info')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                     editModalTab === 'info'
                       ? 'bg-white text-indigo-950 shadow-md'
                       : 'bg-white/10 hover:bg-white/20 text-white'
@@ -1459,25 +1806,58 @@ export default function EventsPage() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setEditModalTab('lineup')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                    editModalTab === 'lineup'
+                      ? 'bg-white text-indigo-950 shadow-md'
+                      : 'bg-white/10 hover:bg-white/20 text-white'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" /> 2. Line Up
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditModalTab('facilities')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                    editModalTab === 'facilities'
+                      ? 'bg-white text-indigo-950 shadow-md'
+                      : 'bg-white/10 hover:bg-white/20 text-white'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> 3. Fasilitas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditModalTab('social_media')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                    editModalTab === 'social_media'
+                      ? 'bg-white text-indigo-950 shadow-md'
+                      : 'bg-white/10 hover:bg-white/20 text-white'
+                  }`}
+                >
+                  <Share2 className="w-3.5 h-3.5" /> 4. Media Sosial
+                </button>
+                <button
+                  type="button"
                   onClick={() => setEditModalTab('venue')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                     editModalTab === 'venue'
                       ? 'bg-white text-indigo-950 shadow-md'
                       : 'bg-white/10 hover:bg-white/20 text-white'
                   }`}
                 >
-                  <MapPin className="w-3.5 h-3.5" /> 2. Lokasi & Peta Venue
+                  <MapPin className="w-3.5 h-3.5" /> 5. Lokasi & Peta Venue
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditModalTab('banner')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                     editModalTab === 'banner'
                       ? 'bg-white text-indigo-950 shadow-md'
                       : 'bg-white/10 hover:bg-white/20 text-white'
                   }`}
                 >
-                  <Sparkles className="w-3.5 h-3.5" /> 3. Media Banner
+                  <ImageIcon className="w-3.5 h-3.5" /> 6. Media Banner
                 </button>
               </div>
             </div>
@@ -1562,7 +1942,297 @@ export default function EventsPage() {
                 </div>
               </div>
 
-              {/* TAB 2: DETAIL VENUE & PETA */}
+              {/* TAB 2: LINE UP */}
+              <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'lineup' ? 'block' : 'hidden'}`}>
+                <div className="flex items-center justify-between bg-blue-50/70 border border-blue-200/80 p-3.5 rounded-2xl">
+                  <div>
+                    <h4 className="text-xs font-extrabold text-blue-950 flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-blue-600" /> Lineup & Guest Stars Event
+                    </h4>
+                    <p className="text-[11px] text-blue-700 font-medium mt-0.5">
+                      Isi rincian pengisi acara: Nama (*name*), Foto (*image*), dan Deskripsi (*description*).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddEditLineup}
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1 shadow-sm shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Tambah Lineup
+                  </button>
+                </div>
+
+                {editLineups.length === 0 ? (
+                  <div className="p-8 border border-dashed border-slate-200 rounded-2xl text-center bg-slate-50/50">
+                    <Music className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-slate-600">Belum ada Lineup / Guest Star</p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Klik tombol "+ Tambah Lineup" di atas untuk menambahkan performer.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {editLineups.map((item, index) => (
+                      <div
+                        key={item.id}
+                        className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 relative group transition-all hover:bg-white hover:shadow-sm"
+                      >
+                        <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                          <span className="text-xs font-black text-blue-600 flex items-center gap-1">
+                            <Sparkles className="w-3.5 h-3.5" /> Lineup #{index + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEditLineup(item.id)}
+                            className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Hapus
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
+                          {/* Avatar Thumbnail */}
+                          <div className="sm:col-span-3 flex flex-col items-center justify-center space-y-2">
+                            <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-sm relative group/img">
+                              {item.image ? (
+                                <img src={item.image} alt={item.name || 'Lineup'} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-1 text-center">
+                                  <Music className="w-6 h-6 text-slate-400 mb-1" />
+                                  <span className="text-[9px] font-bold">Belum Ada Foto</span>
+                                </div>
+                              )}
+                            </div>
+                            <label className="px-2.5 py-1 bg-white border border-slate-200 hover:border-blue-500 rounded-xl text-[10px] font-extrabold text-blue-700 cursor-pointer shadow-xs transition-all">
+                              <span>Pilih Foto</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleLineupFileChoose(item.id, file, 'edit');
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+
+                          {/* Inputs: name, description, image url */}
+                          <div className="sm:col-span-9 space-y-2">
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-extrabold text-slate-700">Nama Performer / Guest Star (*name*) *</label>
+                              <input
+                                type="text"
+                                value={item.name}
+                                onChange={(e) => handleUpdateEditLineup(item.id, 'name', e.target.value)}
+                                placeholder="e.g. Coldplay / Sheila on 7"
+                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:border-blue-600 focus:outline-none"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-extrabold text-slate-700">Deskripsi / Peran Performer (*description*)</label>
+                              <textarea
+                                rows={2}
+                                value={item.description}
+                                onChange={(e) => handleUpdateEditLineup(item.id, 'description', e.target.value)}
+                                placeholder="e.g. Band rock asal Inggris sebagai bintang tamu utama di Main Stage."
+                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none resize-y"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-bold text-slate-500">URL Gambar Gambar (*image* / opsional via URL)</label>
+                              <input
+                                type="text"
+                                value={item.image}
+                                onChange={(e) => handleUpdateEditLineup(item.id, 'image', e.target.value)}
+                                placeholder="https://example.com/images/coldplay.jpg"
+                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-700 focus:border-blue-600 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* TAB 3: FASILITAS */}
+              <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'facilities' ? 'block' : 'hidden'}`}>
+                <div className="bg-emerald-50/70 border border-emerald-200/80 p-3.5 rounded-2xl">
+                  <h4 className="text-xs font-extrabold text-emerald-950 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Fasilitas & Amenities Venue
+                  </h4>
+                  <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                    Pilih fasilitas yang tersedia untuk penonton di lokasi acara.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-extrabold text-slate-700 block">Pilihan Fasilitas Populer (Klik untuk Toggle)</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {PRESET_FACILITIES.map((fac) => {
+                      const isSelected = editFacilities.includes(fac);
+                      return (
+                        <button
+                          key={fac}
+                          type="button"
+                          onClick={() => toggleFacility(fac, 'edit')}
+                          className={`p-2.5 rounded-xl border text-left text-xs font-extrabold transition-all cursor-pointer flex items-center justify-between ${
+                            isSelected
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
+                          }`}
+                        >
+                          <span className="truncate pr-1">{fac}</span>
+                          {isSelected ? (
+                            <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
+                          ) : (
+                            <Plus className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <label className="text-xs font-extrabold text-slate-700 block">Tambah Fasilitas Kustom</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={customEditFacility}
+                      onChange={(e) => setCustomEditFacility(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomFacility('edit');
+                        }
+                      }}
+                      placeholder="e.g. Charging Station / Booth Souvenir..."
+                      className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddCustomFacility('edit')}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition-all cursor-pointer shrink-0"
+                    >
+                      + Tambah
+                    </button>
+                  </div>
+                </div>
+
+                {/* Active Selected Facilities Tags */}
+                {editFacilities.length > 0 && (
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block">
+                      Fasilitas Terpilih ({editFacilities.length}):
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {editFacilities.map((fac) => (
+                        <span
+                          key={fac}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200/80 text-blue-800 text-xs font-bold rounded-xl"
+                        >
+                          {fac}
+                          <button
+                            type="button"
+                            onClick={() => toggleFacility(fac, 'edit')}
+                            className="text-blue-600 hover:text-rose-600 transition-colors cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* TAB 4: MEDIA SOSIAL */}
+              <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'social_media' ? 'block' : 'hidden'}`}>
+                <div className="bg-indigo-50/70 border border-indigo-200/80 p-3.5 rounded-2xl">
+                  <h4 className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5">
+                    <Share2 className="w-4 h-4 text-indigo-600" /> Media Sosial & Tautan Resmi Event
+                  </h4>
+                  <p className="text-[11px] text-indigo-700 font-medium mt-0.5">
+                    Tambahkan sosial media dan kontak customer service event untuk meningkatkan kepercayaan pengunjung.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5 text-pink-600" /> Instagram Event / EO
+                    </label>
+                    <input
+                      type="text"
+                      value={editSocials.instagram}
+                      onChange={(e) => setEditSocials({ ...editSocials, instagram: e.target.value })}
+                      placeholder="e.g. @soundwavefest_id / https://instagram.com/..."
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
+                      <Video className="w-3.5 h-3.5 text-slate-900" /> TikTok Event / Organizer
+                    </label>
+                    <input
+                      type="text"
+                      value={editSocials.tiktok}
+                      onChange={(e) => setEditSocials({ ...editSocials, tiktok: e.target.value })}
+                      placeholder="e.g. @soundwave_official"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-blue-600" /> Official Website
+                    </label>
+                    <input
+                      type="text"
+                      value={editSocials.website}
+                      onChange={(e) => setEditSocials({ ...editSocials, website: e.target.value })}
+                      placeholder="e.g. https://soundwavefest.com"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp CS / Helpdesk
+                    </label>
+                    <input
+                      type="text"
+                      value={editSocials.whatsapp}
+                      onChange={(e) => setEditSocials({ ...editSocials, whatsapp: e.target.value })}
+                      placeholder="e.g. 081234567890 atau https://wa.me/..."
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
+                    <Video className="w-3.5 h-3.5 text-rose-600" /> Youtube Teaser / Trailer Link
+                  </label>
+                  <input
+                    type="text"
+                    value={editSocials.youtube}
+                    onChange={(e) => setEditSocials({ ...editSocials, youtube: e.target.value })}
+                    placeholder="e.g. https://youtube.com/watch?v=..."
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* TAB 5: DETAIL VENUE & PETA */}
               <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'venue' ? 'block' : 'hidden'}`}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
@@ -1629,7 +2299,7 @@ export default function EventsPage() {
                   />
               </div>
 
-              {/* TAB 3: MEDIA BANNER */}
+              {/* TAB 6: MEDIA BANNER */}
               <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'banner' ? 'block' : 'hidden'}`}>
                 <div className="space-y-3">
                   <label className="text-xs font-extrabold text-slate-700 block">Foto Banner Event (Upload dari Komputer)</label>
@@ -1683,7 +2353,7 @@ export default function EventsPage() {
                   {editModalTab !== 'info' && (
                     <button
                       type="button"
-                      onClick={() => setEditModalTab(editModalTab === 'banner' ? 'venue' : 'info')}
+                      onClick={() => setEditModalTab(getPrevTab(editModalTab))}
                       className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold transition-all cursor-pointer"
                     >
                       &larr; Kembali
@@ -1693,7 +2363,7 @@ export default function EventsPage() {
                   {editModalTab !== 'banner' ? (
                     <button
                       type="button"
-                      onClick={() => setEditModalTab(editModalTab === 'info' ? 'venue' : 'banner')}
+                      onClick={() => setEditModalTab(getNextTab(editModalTab))}
                       className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold transition-all cursor-pointer"
                     >
                       Lanjut &rarr;
@@ -2227,15 +2897,15 @@ export default function EventsPage() {
               </button>
               <h3 className="text-lg font-black tracking-tight">Form Buat Event Baru</h3>
               <p className="text-xs text-blue-100/90 font-medium">
-                Isi rincian judul, tanggal, lokasi venue & peta, serta banner publikasi event Anda.
+                Isi rincian judul, tanggal, lineup, fasilitas, media sosial, lokasi venue & peta, serta banner publikasi event Anda.
               </p>
 
               {/* Navigation Tabs Bar */}
-              <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/15 overflow-x-auto">
+              <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-white/15 overflow-x-auto no-scrollbar">
                 <button
                   type="button"
                   onClick={() => setCreateModalTab('info')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                     createModalTab === 'info'
                       ? 'bg-white text-blue-950 shadow-md'
                       : 'bg-white/10 hover:bg-white/20 text-white'
@@ -2245,25 +2915,58 @@ export default function EventsPage() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setCreateModalTab('lineup')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                    createModalTab === 'lineup'
+                      ? 'bg-white text-blue-950 shadow-md'
+                      : 'bg-white/10 hover:bg-white/20 text-white'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" /> 2. Line Up
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreateModalTab('facilities')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                    createModalTab === 'facilities'
+                      ? 'bg-white text-blue-950 shadow-md'
+                      : 'bg-white/10 hover:bg-white/20 text-white'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> 3. Fasilitas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreateModalTab('social_media')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                    createModalTab === 'social_media'
+                      ? 'bg-white text-blue-950 shadow-md'
+                      : 'bg-white/10 hover:bg-white/20 text-white'
+                  }`}
+                >
+                  <Share2 className="w-3.5 h-3.5" /> 4. Media Sosial
+                </button>
+                <button
+                  type="button"
                   onClick={() => setCreateModalTab('venue')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                     createModalTab === 'venue'
                       ? 'bg-white text-blue-950 shadow-md'
                       : 'bg-white/10 hover:bg-white/20 text-white'
                   }`}
                 >
-                  <MapPin className="w-3.5 h-3.5" /> 2. Lokasi & Peta Venue
+                  <MapPin className="w-3.5 h-3.5" /> 5. Lokasi & Peta Venue
                 </button>
                 <button
                   type="button"
                   onClick={() => setCreateModalTab('banner')}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                     createModalTab === 'banner'
                       ? 'bg-white text-blue-950 shadow-md'
                       : 'bg-white/10 hover:bg-white/20 text-white'
                   }`}
                 >
-                  <Sparkles className="w-3.5 h-3.5" /> 3. Media Banner
+                  <ImageIcon className="w-3.5 h-3.5" /> 6. Media Banner
                 </button>
               </div>
             </div>
@@ -2346,7 +3049,297 @@ export default function EventsPage() {
                 </div>
               </div>
 
-              {/* TAB 2: DETAIL VENUE & PETA */}
+              {/* TAB 2: LINE UP */}
+              <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'lineup' ? 'block' : 'hidden'}`}>
+                <div className="flex items-center justify-between bg-blue-50/70 border border-blue-200/80 p-3.5 rounded-2xl">
+                  <div>
+                    <h4 className="text-xs font-extrabold text-blue-950 flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-blue-600" /> Lineup & Guest Stars Event
+                    </h4>
+                    <p className="text-[11px] text-blue-700 font-medium mt-0.5">
+                      Isi rincian pengisi acara: Nama (*name*), Foto (*image*), dan Deskripsi (*description*).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddCreateLineup}
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1 shadow-sm shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Tambah Lineup
+                  </button>
+                </div>
+
+                {createLineups.length === 0 ? (
+                  <div className="p-8 border border-dashed border-slate-200 rounded-2xl text-center bg-slate-50/50">
+                    <Music className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-slate-600">Belum ada Lineup / Guest Star</p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Klik tombol "+ Tambah Lineup" di atas untuk menambahkan performer.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {createLineups.map((item, index) => (
+                      <div
+                        key={item.id}
+                        className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 relative group transition-all hover:bg-white hover:shadow-sm"
+                      >
+                        <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                          <span className="text-xs font-black text-blue-600 flex items-center gap-1">
+                            <Sparkles className="w-3.5 h-3.5" /> Lineup #{index + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCreateLineup(item.id)}
+                            className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Hapus
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
+                          {/* Avatar Thumbnail */}
+                          <div className="sm:col-span-3 flex flex-col items-center justify-center space-y-2">
+                            <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-sm relative group/img">
+                              {item.image ? (
+                                <img src={item.image} alt={item.name || 'Lineup'} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-1 text-center">
+                                  <Music className="w-6 h-6 text-slate-400 mb-1" />
+                                  <span className="text-[9px] font-bold">Belum Ada Foto</span>
+                                </div>
+                              )}
+                            </div>
+                            <label className="px-2.5 py-1 bg-white border border-slate-200 hover:border-blue-500 rounded-xl text-[10px] font-extrabold text-blue-700 cursor-pointer shadow-xs transition-all">
+                              <span>Pilih Foto</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleLineupFileChoose(item.id, file, 'create');
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+
+                          {/* Inputs: name, description, image url */}
+                          <div className="sm:col-span-9 space-y-2">
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-extrabold text-slate-700">Nama Performer / Guest Star (*name*) *</label>
+                              <input
+                                type="text"
+                                value={item.name}
+                                onChange={(e) => handleUpdateCreateLineup(item.id, 'name', e.target.value)}
+                                placeholder="e.g. Coldplay / Sheila on 7"
+                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:border-blue-600 focus:outline-none"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-extrabold text-slate-700">Deskripsi / Peran Performer (*description*)</label>
+                              <textarea
+                                rows={2}
+                                value={item.description}
+                                onChange={(e) => handleUpdateCreateLineup(item.id, 'description', e.target.value)}
+                                placeholder="e.g. Band rock asal Inggris sebagai bintang tamu utama di Main Stage."
+                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none resize-y"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-bold text-slate-500">URL Gambar Gambar (*image* / opsional via URL)</label>
+                              <input
+                                type="text"
+                                value={item.image}
+                                onChange={(e) => handleUpdateCreateLineup(item.id, 'image', e.target.value)}
+                                placeholder="https://example.com/images/coldplay.jpg"
+                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-700 focus:border-blue-600 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* TAB 3: FASILITAS */}
+              <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'facilities' ? 'block' : 'hidden'}`}>
+                <div className="bg-emerald-50/70 border border-emerald-200/80 p-3.5 rounded-2xl">
+                  <h4 className="text-xs font-extrabold text-emerald-950 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Fasilitas & Amenities Venue
+                  </h4>
+                  <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                    Pilih fasilitas yang tersedia untuk penonton di lokasi acara.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-extrabold text-slate-700 block">Pilihan Fasilitas Populer (Klik untuk Toggle)</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {PRESET_FACILITIES.map((fac) => {
+                      const isSelected = createFacilities.includes(fac);
+                      return (
+                        <button
+                          key={fac}
+                          type="button"
+                          onClick={() => toggleFacility(fac, 'create')}
+                          className={`p-2.5 rounded-xl border text-left text-xs font-extrabold transition-all cursor-pointer flex items-center justify-between ${
+                            isSelected
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
+                          }`}
+                        >
+                          <span className="truncate pr-1">{fac}</span>
+                          {isSelected ? (
+                            <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
+                          ) : (
+                            <Plus className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <label className="text-xs font-extrabold text-slate-700 block">Tambah Fasilitas Kustom</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={customCreateFacility}
+                      onChange={(e) => setCustomCreateFacility(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomFacility('create');
+                        }
+                      }}
+                      placeholder="e.g. Charging Station / Booth Souvenir..."
+                      className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddCustomFacility('create')}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition-all cursor-pointer shrink-0"
+                    >
+                      + Tambah
+                    </button>
+                  </div>
+                </div>
+
+                {/* Active Selected Facilities Tags */}
+                {createFacilities.length > 0 && (
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block">
+                      Fasilitas Terpilih ({createFacilities.length}):
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {createFacilities.map((fac) => (
+                        <span
+                          key={fac}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200/80 text-blue-800 text-xs font-bold rounded-xl"
+                        >
+                          {fac}
+                          <button
+                            type="button"
+                            onClick={() => toggleFacility(fac, 'create')}
+                            className="text-blue-600 hover:text-rose-600 transition-colors cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* TAB 4: MEDIA SOSIAL */}
+              <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'social_media' ? 'block' : 'hidden'}`}>
+                <div className="bg-indigo-50/70 border border-indigo-200/80 p-3.5 rounded-2xl">
+                  <h4 className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5">
+                    <Share2 className="w-4 h-4 text-indigo-600" /> Media Sosial & Tautan Resmi Event
+                  </h4>
+                  <p className="text-[11px] text-indigo-700 font-medium mt-0.5">
+                    Tambahkan sosial media dan kontak customer service event untuk meningkatkan kepercayaan pengunjung.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5 text-pink-600" /> Instagram Event / EO
+                    </label>
+                    <input
+                      type="text"
+                      value={createSocials.instagram}
+                      onChange={(e) => setCreateSocials({ ...createSocials, instagram: e.target.value })}
+                      placeholder="e.g. @soundwavefest_id / https://instagram.com/..."
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
+                      <Video className="w-3.5 h-3.5 text-slate-900" /> TikTok Event / Organizer
+                    </label>
+                    <input
+                      type="text"
+                      value={createSocials.tiktok}
+                      onChange={(e) => setCreateSocials({ ...createSocials, tiktok: e.target.value })}
+                      placeholder="e.g. @soundwave_official"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-blue-600" /> Official Website
+                    </label>
+                    <input
+                      type="text"
+                      value={createSocials.website}
+                      onChange={(e) => setCreateSocials({ ...createSocials, website: e.target.value })}
+                      placeholder="e.g. https://soundwavefest.com"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp CS / Helpdesk
+                    </label>
+                    <input
+                      type="text"
+                      value={createSocials.whatsapp}
+                      onChange={(e) => setCreateSocials({ ...createSocials, whatsapp: e.target.value })}
+                      placeholder="e.g. 081234567890 atau https://wa.me/..."
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
+                    <Video className="w-3.5 h-3.5 text-rose-600" /> Youtube Teaser / Trailer Link
+                  </label>
+                  <input
+                    type="text"
+                    value={createSocials.youtube}
+                    onChange={(e) => setCreateSocials({ ...createSocials, youtube: e.target.value })}
+                    placeholder="e.g. https://youtube.com/watch?v=..."
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* TAB 5: DETAIL VENUE & PETA */}
               <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'venue' ? 'block' : 'hidden'}`}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
@@ -2411,7 +3404,7 @@ export default function EventsPage() {
                   />
               </div>
 
-              {/* TAB 3: MEDIA BANNER */}
+              {/* TAB 6: MEDIA BANNER */}
               <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'banner' ? 'block' : 'hidden'}`}>
                 <div className="space-y-3">
                   <label className="text-xs font-extrabold text-slate-700 block">Foto Banner Event (Upload dari Komputer)</label>
@@ -2465,7 +3458,7 @@ export default function EventsPage() {
                   {createModalTab !== 'info' && (
                     <button
                       type="button"
-                      onClick={() => setCreateModalTab(createModalTab === 'banner' ? 'venue' : 'info')}
+                      onClick={() => setCreateModalTab(getPrevTab(createModalTab))}
                       className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold transition-all cursor-pointer"
                     >
                       &larr; Kembali
@@ -2475,7 +3468,7 @@ export default function EventsPage() {
                   {createModalTab !== 'banner' ? (
                     <button
                       type="button"
-                      onClick={() => setCreateModalTab(createModalTab === 'info' ? 'venue' : 'banner')}
+                      onClick={() => setCreateModalTab(getNextTab(createModalTab))}
                       className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold transition-all cursor-pointer"
                     >
                       Lanjut &rarr;

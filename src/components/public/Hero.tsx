@@ -98,18 +98,17 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
 
   // Image URL logic with high-res music festival fallback for map/placeholder images
   const bannerUrl = useMemo(() => {
-    if (!currentEvent?.banner) {
-      return FALLBACK_BANNERS[currentIndex % FALLBACK_BANNERS.length];
+    const photo = currentEvent ? getPhotoUrl(currentEvent.banner, currentEvent.id) : null;
+    if (photo) return photo;
+    if (typeof window !== 'undefined' && currentEvent?.id) {
+      const cached = localStorage.getItem(`metix_banner_preview_${currentEvent.id}`);
+      if (cached) return cached;
     }
-    const raw = getPhotoUrl(currentEvent.banner);
-    if (!raw) {
-      return FALLBACK_BANNERS[currentIndex % FALLBACK_BANNERS.length];
+    if (typeof window !== 'undefined') {
+      const lastUploaded = localStorage.getItem('metix_last_uploaded_banner');
+      if (lastUploaded) return lastUploaded;
     }
-    // If backend returns map or placeholder image test, fallback to high-res concert stock image
-    if (raw.toLowerCase().includes('map') || raw.toLowerCase().includes('china') || raw.toLowerCase().includes('placeholder')) {
-      return FALLBACK_BANNERS[currentIndex % FALLBACK_BANNERS.length];
-    }
-    return raw;
+    return FALLBACK_BANNERS[currentIndex % FALLBACK_BANNERS.length];
   }, [currentEvent, currentIndex]);
 
   const eventLink = currentEvent ? `/events/${currentEvent.slug || currentEvent.id}` : '#';

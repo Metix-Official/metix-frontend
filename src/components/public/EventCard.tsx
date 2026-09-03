@@ -51,14 +51,15 @@ export const EventCard: React.FC<EventCardProps> = ({
   }, [rawApiEvent, event.organizer]);
 
   const rawBanner = rawApiEvent?.banner || (rawApiEvent as any)?.banner_url || (event as any)?.banner || (targetApiEvent as any)?.banner;
-  const initialBannerUrl = rawBanner ? getPhotoUrl(rawBanner) : fallbackUrl;
+  const eventId = rawApiEvent?.id || targetApiEvent?.id || event.id;
+  const initialBannerUrl = getPhotoUrl(rawBanner, eventId) || fallbackUrl;
 
   const [imgSrc, setImgSrc] = React.useState<string>(initialBannerUrl || fallbackUrl);
 
   React.useEffect(() => {
-    const url = rawBanner ? getPhotoUrl(rawBanner) : fallbackUrl;
+    const url = getPhotoUrl(rawBanner, eventId) || fallbackUrl;
     setImgSrc(url || fallbackUrl);
-  }, [rawBanner, fallbackUrl]);
+  }, [rawBanner, eventId, fallbackUrl]);
 
   const handleImageError = () => {
     if (imgSrc !== fallbackUrl) {

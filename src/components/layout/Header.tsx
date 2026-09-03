@@ -71,8 +71,17 @@ export const Header: React.FC<HeaderProps> = ({
 
   const displayName = user?.name || user?.first_name || CURRENT_USER.name;
   const displayEmail = user?.email || CURRENT_USER.email;
-  const isEo = getUserRole(user) === 'EO';
-  const photoUrl = getPhotoUrl(user?.profile_photo_url || user?.photo, undefined, isEo);
+  const isEo = getUserRole(user) === 'EO' || (user?.role || '').toUpperCase() === 'EO' || !!user?.organizer_profile;
+  const rawLogo =
+    (user as any)?.organizer?.logo ||
+    (user as any)?.organizer_profile?.logo ||
+    user?.profile_photo_url ||
+    user?.photo ||
+    (user as any)?.avatar;
+
+  const photoUrl =
+    getPhotoUrl(rawLogo, undefined, isEo) ||
+    (typeof window !== 'undefined' ? localStorage.getItem('metix_organizer_logo_preview') : null);
   const userInitials = displayName
     .split(' ')
     .map((n) => n[0])
@@ -401,74 +410,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Notifications Button & Dropdown */}
-        <div className="relative" ref={notifRef}>
-          <button
-            onClick={() => {
-              setIsNotificationsOpen(!isNotificationsOpen);
-              if (isProfileOpen) setIsProfileOpen(false);
-            }}
-            className="relative p-2.5 rounded-xl text-slate-700 hover:bg-slate-100 border border-slate-200/90 transition-all cursor-pointer"
-            aria-label="Notifications"
-          >
-            <Bell className="w-5 h-5 text-slate-700" />
-            {unreadCount > 0 && (
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-600 ring-4 ring-white animate-pulse" />
-            )}
-          </button>
 
-          {/* Notifications Dropdown */}
-          {isNotificationsOpen && (
-            <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white border border-slate-200/90 rounded-2xl shadow-xl z-50 p-4 space-y-3 animate-in fade-in-0">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-xs text-slate-900">Notifications</span>
-                  {unreadCount > 0 ? (
-                    <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-full border border-blue-100">
-                      {unreadCount} New
-                    </span>
-                  ) : (
-                    <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded-full border border-slate-200">
-                      Semua Dibaca
-                    </span>
-                  )}
-                </div>
-                {unreadCount > 0 && (
-                  <button
-                    onClick={handleMarkAllRead}
-                    className="text-xs text-blue-600 font-bold hover:underline cursor-pointer"
-                  >
-                    Mark all read
-                  </button>
-                )}
-              </div>
-
-              <div className="space-y-2 max-h-72 overflow-y-auto">
-                {notifications.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`p-3 rounded-xl border transition-colors flex items-start gap-3 ${
-                      item.unread
-                        ? 'bg-blue-50/50 border-blue-100'
-                        : 'bg-slate-50 border-slate-100 opacity-75'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                    <div className="flex-1 text-left">
-                      <p className="text-xs font-bold text-slate-900">{item.title}</p>
-                      <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
-                        {item.desc}
-                      </p>
-                      <span className="text-[10px] text-slate-400 font-medium block mt-1">
-                        {item.time}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* User Profile Dropdown */}
         <div className="relative" ref={profileRef}>

@@ -27,8 +27,16 @@ import {
   Phone,
   MessageSquare,
   Info,
+  Car,
+  Crown,
+  Camera,
+  Music,
+  Utensils,
+  Wifi,
+  Video,
+  Globe,
 } from 'lucide-react';
-import { fetchPublicEventDetail, fetchTicketTypes, ApiEvent, getPhotoUrl, getStoredToken } from '@/lib/api';
+import { fetchPublicEventDetail, fetchTicketTypes, ApiEvent, ApiLineupItem, ApiSocialMedia, getPhotoUrl, getStoredToken } from '@/lib/api';
 import { TicketCheckoutModal } from '@/components/public/TicketCheckoutModal';
 import { AuthModal } from '@/components/public/AuthModal';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -46,6 +54,7 @@ export default function EventDetailClient() {
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+  const [activeMobileTab, setActiveMobileTab] = useState<'deskripsi' | 'lineup' | 'fasilitas' | 'social_media'>('deskripsi');
 
   const [organizerLogoError, setOrganizerLogoError] = useState(false);
 
@@ -64,7 +73,7 @@ export default function EventDetailClient() {
     const rawId = params?.id;
     const targetId = Array.isArray(rawId) ? rawId[0] : rawId;
     const fetchId = targetId || (typeof window !== 'undefined' ? window.location.pathname.split('/').pop() : null);
-    
+
     if (fetchId) {
       fetchPublicEventDetail(fetchId).then(async (data) => {
         if (data) {
@@ -235,8 +244,80 @@ export default function EventDetailClient() {
   const organizerName = organizerDetails?.name || 'Metix Official Organizer';
   const organizerLogoUrl = organizerDetails?.logo || null;
 
-  const bannerUrl = event?.banner ? getPhotoUrl(event.banner, event.id) : (event?.venue_photo ? getPhotoUrl(event.venue_photo) : null);
+  const bannerUrl =
+    (event ? getPhotoUrl(event.banner, event.id) : null) ||
+    (typeof window !== 'undefined' && event?.id ? localStorage.getItem(`metix_banner_preview_${event.id}`) : null) ||
+    (typeof window !== 'undefined' ? localStorage.getItem('metix_last_uploaded_banner') : null) ||
+    (event?.venue_photo ? getPhotoUrl(event.venue_photo) : null);
   const venuePhotoUrl = event?.venue_photo ? getPhotoUrl(event.venue_photo) : null;
+
+  const parsedLineups: ApiLineupItem[] = (() => {
+    if (!event) return [];
+    let raw = event.lineups || (event as any).lineup || (event as any).event_lineups;
+    if ((!raw || (Array.isArray(raw) && raw.length === 0)) && typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(`metix_event_details_${event.id}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed.lineups || parsed.lineup) raw = parsed.lineups || parsed.lineup;
+        }
+      } catch {}
+    }
+    if (typeof raw === 'string') {
+      try {
+        raw = JSON.parse(raw);
+      } catch {}
+    }
+    if (Array.isArray(raw) && raw.length > 0) return raw;
+    return [];
+  })();
+
+  const parsedFacilities: string[] = (() => {
+    if (!event) return [];
+    let raw = event.facilities || (event as any).facility;
+    if ((!raw || (Array.isArray(raw) && raw.length === 0)) && typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(`metix_event_details_${event.id}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed.facilities) raw = parsed.facilities;
+        }
+      } catch {}
+    }
+    if (typeof raw === 'string') {
+      try {
+        raw = JSON.parse(raw);
+      } catch {}
+    }
+    if (Array.isArray(raw) && raw.length > 0) return raw;
+    return [];
+  })();
+
+  const parsedSocialMedia: ApiSocialMedia = (() => {
+    if (!event) return {};
+    let raw = event.social_media || (event as any).socials || {};
+    if (typeof raw === 'string') {
+      try {
+        raw = JSON.parse(raw);
+      } catch {}
+    }
+    if (Object.keys(raw).length === 0 && typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(`metix_event_details_${event.id}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed.social_media) raw = parsed.social_media;
+        }
+      } catch {}
+    }
+    return {
+      instagram: raw.instagram || (event as any).instagram || '',
+      tiktok: raw.tiktok || (event as any).tiktok || '',
+      website: raw.website || (event as any).website || '',
+      whatsapp: raw.whatsapp || (event as any).whatsapp || '',
+      youtube: raw.youtube || (event as any).youtube || '',
+    };
+  })();
 
   if (isLoading) {
     return (
@@ -310,7 +391,7 @@ export default function EventDetailClient() {
       {/* Main Content Grid matching user layout */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
+
           {/* LEFT COLUMN: Banner Image + Description */}
           <div className="lg:col-span-7 space-y-6">
             {/* Big Event Banner Container */}
@@ -332,15 +413,89 @@ export default function EventDetailClient() {
               )}
             </div>
 
-            {/* Clean Description Section Without Card Box */}
-            <div className="space-y-2.5 pt-1">
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+            {/* Mobile Navigation Tabs Bar (Visible on Mobile Only: lg:hidden) */}
+            <div className="lg:hidden border-b border-slate-200 bg-white pt-2 pb-0 -mx-4 px-4 sm:-mx-6 sm:px-6 mb-3">
+              <div className="flex items-center gap-6 overflow-x-auto no-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => setActiveMobileTab('deskripsi')}
+                  className={`pb-2.5 text-sm font-extrabold whitespace-nowrap transition-all relative cursor-pointer ${
+                    activeMobileTab === 'deskripsi'
+                      ? 'text-blue-600 font-extrabold'
+                      : 'text-slate-700 hover:text-slate-900 font-bold'
+                  }`}
+                >
+                  <span>Deskripsi</span>
+                  {activeMobileTab === 'deskripsi' && (
+                    <span className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-blue-600 rounded-full animate-in fade-in-0" />
+                  )}
+                </button>
+
+                {parsedLineups.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveMobileTab('lineup')}
+                    className={`pb-2.5 text-sm font-extrabold whitespace-nowrap transition-all relative cursor-pointer ${
+                      activeMobileTab === 'lineup'
+                        ? 'text-blue-600 font-extrabold'
+                        : 'text-slate-700 hover:text-slate-900 font-bold'
+                    }`}
+                  >
+                    <span>Lineup</span>
+                    {activeMobileTab === 'lineup' && (
+                      <span className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-blue-600 rounded-full animate-in fade-in-0" />
+                    )}
+                  </button>
+                )}
+
+                {parsedFacilities.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveMobileTab('fasilitas')}
+                    className={`pb-2.5 text-sm font-extrabold whitespace-nowrap transition-all relative cursor-pointer ${
+                      activeMobileTab === 'fasilitas'
+                        ? 'text-blue-600 font-extrabold'
+                        : 'text-slate-700 hover:text-slate-900 font-bold'
+                    }`}
+                  >
+                    <span>Fasilitas</span>
+                    {activeMobileTab === 'fasilitas' && (
+                      <span className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-blue-600 rounded-full animate-in fade-in-0" />
+                    )}
+                  </button>
+                )}
+
+                {(parsedSocialMedia.instagram ||
+                  parsedSocialMedia.tiktok ||
+                  parsedSocialMedia.website ||
+                  parsedSocialMedia.whatsapp ||
+                  parsedSocialMedia.youtube) && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveMobileTab('social_media')}
+                    className={`pb-2.5 text-sm font-extrabold whitespace-nowrap transition-all relative cursor-pointer ${
+                      activeMobileTab === 'social_media'
+                        ? 'text-blue-600 font-extrabold'
+                        : 'text-slate-700 hover:text-slate-900 font-bold'
+                    }`}
+                  >
+                    <span>Media Sosial</span>
+                    {activeMobileTab === 'social_media' && (
+                      <span className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-blue-600 rounded-full animate-in fade-in-0" />
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Deskripsi Section */}
+            <div className={`space-y-2.5 pt-1 ${activeMobileTab === 'deskripsi' ? 'block' : 'hidden lg:block'}`}>
+              <h3 className="hidden lg:block text-base sm:text-lg font-bold text-slate-900 tracking-tight">
                 Deskripsi Event
               </h3>
               <div
-                className={`prose prose-slate max-w-none text-xs sm:text-sm text-slate-600 leading-relaxed font-medium whitespace-pre-line ${
-                  !isDescriptionExpanded ? 'line-clamp-3' : ''
-                }`}
+                className={`prose prose-slate max-w-none text-xs sm:text-sm text-slate-600 leading-relaxed font-medium whitespace-pre-line ${!isDescriptionExpanded ? 'line-clamp-3' : ''
+                  }`}
               >
                 {event.description ||
                   'Deskripsi detail event ini belum ditambahkan oleh penyelenggara. Dapatkan tiket resmi event ini sekarang sebelum kehabisan!'}
@@ -358,71 +513,185 @@ export default function EventDetailClient() {
               )}
             </div>
 
-            {/* Divider Line */}
-            <div className="border-t border-slate-200 my-4" />
-
-            {/* Syarat & Ketentuan Section */}
-            {(() => {
-              const termsContent =
-                event.terms ||
-                event.terms_and_conditions ||
-                event.syarat_ketentuan ||
-                null;
-
-              return (
-                <div className="space-y-2.5 pt-2">
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                    <ShieldCheck className="w-4.5 h-4.5 text-blue-600" />
-                    <span>Syarat & Ketentuan</span>
-                  </h3>
-                  <div className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium whitespace-pre-line bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
-                    {termsContent ||
-                      `1. Tiket yang sudah dibeli tidak dapat ditukarkan atau dikembalikan (non-refundable).
-2. Wajib membawa kartu identitas resmi (KTP/SIM/Paspor) yang sesuai dengan nama pada e-tiket saat penukaran fisik/check-in.
-3. Pemegang tiket wajib mematuhi seluruh protokol keselamatan dan tata tertib di area venue acara.
-4. Panitia penyelenggara berhak menolak masuk pengunjung yang tidak memenuhi syarat & ketentuan yang berlaku.`}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Foto Venue Small Compact Card */}
-            {venuePhotoUrl && (
-              <div className="pt-2">
-                <div
-                  onClick={() => setIsVenueModalOpen(true)}
-                  className="bg-white rounded-xl border border-slate-200 p-3.5 sm:p-4 hover:border-blue-500 hover:shadow-md transition-all cursor-pointer flex items-center justify-between group"
-                >
-                  <div className="flex items-center gap-3.5 sm:gap-4 overflow-hidden">
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden bg-slate-900 shrink-0 border border-slate-200/80">
-                      <img
-                        src={venuePhotoUrl}
-                        alt={`Foto Venue ${event.location || event.title}`}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    </div>
-
-                    <div className="space-y-0.5 min-w-0">
-                      <h4 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight truncate group-hover:text-blue-600 transition-colors">
-                        {event.location || 'Foto Venue & Lokasi Event'}
-                      </h4>
-                      <p className="text-xs text-slate-500 font-medium truncate">
-                        Klik untuk melihat foto lokasi tempat event
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="p-2 rounded-lg bg-slate-50 group-hover:bg-blue-50 text-slate-400 group-hover:text-blue-600 transition-colors shrink-0 ml-3">
-                    <ArrowUpRight className="w-5 h-5" />
-                  </div>
+            {/* Lineup Section */}
+            {parsedLineups.length > 0 && (
+              <div className={`space-y-3 pt-2 ${activeMobileTab === 'lineup' ? 'block' : 'hidden lg:block'}`}>
+                <h3 className="hidden lg:block text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                  Lineup
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {parsedLineups.map((item, idx) => {
+                    const lineupImg = item.image || item.photo || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=200';
+                    return (
+                      <div
+                        key={item.id || idx}
+                        className="bg-white rounded-xl border border-slate-200 p-3 flex items-center justify-between shadow-2xs hover:shadow-sm transition-all group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-900 shrink-0 border border-slate-200">
+                            <img
+                              src={lineupImg}
+                              alt={item.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-tight truncate">
+                              {item.name}
+                            </h4>
+                            {item.description && (
+                              <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                                {item.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <ArrowUpRight className="w-4.5 h-4.5 text-blue-600 shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
+
+            {/* Fasilitas Section */}
+            {parsedFacilities.length > 0 && (
+              <div className={`space-y-3 pt-3 ${activeMobileTab === 'fasilitas' ? 'block' : 'hidden lg:block'}`}>
+                <h3 className="hidden lg:block text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                  Fasilitas
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {parsedFacilities.map((fac, idx) => {
+                    const getFacilityIcon = (name: string) => {
+                      const lower = name.toLowerCase();
+                      if (lower.includes('parkir')) return <Car className="w-5 h-5 text-blue-600" />;
+                      if (lower.includes('vip')) return <Crown className="w-5 h-5 text-blue-600" />;
+                      if (lower.includes('photo') || lower.includes('foto')) return <Camera className="w-5 h-5 text-blue-600" />;
+                      if (lower.includes('stage') || lower.includes('panggung') || lower.includes('hiburan') || lower.includes('musik')) return <Music className="w-5 h-5 text-blue-600" />;
+                      if (lower.includes('makanan') || lower.includes('tenant') || lower.includes('food') || lower.includes('kuliner')) return <Utensils className="w-5 h-5 text-blue-600" />;
+                      if (lower.includes('toilet') || lower.includes('wc')) return <Sparkles className="w-5 h-5 text-blue-600" />;
+                      if (lower.includes('wifi') || lower.includes('internet')) return <Wifi className="w-5 h-5 text-blue-600" />;
+                      if (lower.includes('medis') || lower.includes('p3k')) return <ShieldCheck className="w-5 h-5 text-blue-600" />;
+                      return <CheckCircle2 className="w-5 h-5 text-blue-600" />;
+                    };
+
+                    return (
+                      <div
+                        key={idx}
+                        className="bg-white rounded-xl border border-slate-200 p-3.5 flex items-center gap-3.5 shadow-2xs hover:shadow-sm transition-all"
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-blue-50/80 border border-blue-100 flex items-center justify-center shrink-0">
+                          {getFacilityIcon(fac)}
+                        </div>
+                        <span className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">
+                          {fac}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Media Sosial Section (Only visible on Mobile when activeMobileTab === 'social_media') */}
+            {(parsedSocialMedia.instagram ||
+              parsedSocialMedia.tiktok ||
+              parsedSocialMedia.website ||
+              parsedSocialMedia.whatsapp ||
+              parsedSocialMedia.youtube) && (
+              <div className={`space-y-3 pt-3 lg:hidden ${activeMobileTab === 'social_media' ? 'block' : 'hidden'}`}>
+                <div className="flex flex-wrap gap-2">
+                  {parsedSocialMedia.instagram && (
+                    <a
+                      href={
+                        parsedSocialMedia.instagram.startsWith('http')
+                          ? parsedSocialMedia.instagram
+                          : `https://instagram.com/${parsedSocialMedia.instagram.replace('@', '')}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-pink-300 hover:bg-pink-50/30 transition-all shadow-2xs cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4 text-pink-600 shrink-0" />
+                      <span>Instagram</span>
+                    </a>
+                  )}
+
+                  {parsedSocialMedia.tiktok && (
+                    <a
+                      href={
+                        parsedSocialMedia.tiktok.startsWith('http')
+                          ? parsedSocialMedia.tiktok
+                          : `https://tiktok.com/@${parsedSocialMedia.tiktok.replace('@', '')}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-slate-400 hover:bg-slate-50 transition-all shadow-2xs cursor-pointer"
+                    >
+                      <Video className="w-4 h-4 text-slate-900 shrink-0" />
+                      <span>TikTok</span>
+                    </a>
+                  )}
+
+                  {parsedSocialMedia.website && (
+                    <a
+                      href={
+                        parsedSocialMedia.website.startsWith('http')
+                          ? parsedSocialMedia.website
+                          : `https://${parsedSocialMedia.website}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-blue-400 hover:bg-blue-50/30 transition-all shadow-2xs cursor-pointer"
+                    >
+                      <Globe className="w-4 h-4 text-blue-600 shrink-0" />
+                      <span>Website</span>
+                    </a>
+                  )}
+
+                  {parsedSocialMedia.whatsapp && (
+                    <a
+                      href={
+                        parsedSocialMedia.whatsapp.startsWith('http')
+                          ? parsedSocialMedia.whatsapp
+                          : `https://wa.me/${parsedSocialMedia.whatsapp.replace(/[^0-9]/g, '')}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-emerald-400 hover:bg-emerald-50/30 transition-all shadow-2xs cursor-pointer"
+                    >
+                      <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>WhatsApp</span>
+                    </a>
+                  )}
+
+                  {parsedSocialMedia.youtube && (
+                    <a
+                      href={
+                        parsedSocialMedia.youtube.startsWith('http')
+                          ? parsedSocialMedia.youtube
+                          : `https://youtube.com/${parsedSocialMedia.youtube}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-rose-400 hover:bg-rose-50/30 transition-all shadow-2xs cursor-pointer"
+                    >
+                      <Video className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>YouTube</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Divider Line */}
+            <div className="hidden lg:block border-t border-slate-200 my-4" />
+
           </div>
 
           {/* RIGHT COLUMN: Event Summary Card + Pricing / Beli Sekarang Button */}
           <div className="lg:col-span-5 space-y-5">
-            
+
             {/* Card 1: Event Summary Details */}
             <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-5">
               <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight uppercase leading-snug">
@@ -558,6 +827,100 @@ export default function EventDetailClient() {
                 </button>
               )}
             </div>
+
+            {/* Card: Media Sosial (Desktop Only: hidden lg:block) */}
+            {(parsedSocialMedia.instagram ||
+              parsedSocialMedia.tiktok ||
+              parsedSocialMedia.website ||
+              parsedSocialMedia.whatsapp ||
+              parsedSocialMedia.youtube) && (
+              <div className="hidden lg:block space-y-2 pt-1">
+                <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">
+                  Media Sosial
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {parsedSocialMedia.instagram && (
+                    <a
+                      href={
+                        parsedSocialMedia.instagram.startsWith('http')
+                          ? parsedSocialMedia.instagram
+                          : `https://instagram.com/${parsedSocialMedia.instagram.replace('@', '')}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-pink-300 hover:bg-pink-50/30 transition-all shadow-2xs cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4 text-pink-600 shrink-0" />
+                      <span>Instagram</span>
+                    </a>
+                  )}
+
+                  {parsedSocialMedia.tiktok && (
+                    <a
+                      href={
+                        parsedSocialMedia.tiktok.startsWith('http')
+                          ? parsedSocialMedia.tiktok
+                          : `https://tiktok.com/@${parsedSocialMedia.tiktok.replace('@', '')}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-slate-400 hover:bg-slate-50 transition-all shadow-2xs cursor-pointer"
+                    >
+                      <Video className="w-4 h-4 text-slate-900 shrink-0" />
+                      <span>TikTok</span>
+                    </a>
+                  )}
+
+                  {parsedSocialMedia.website && (
+                    <a
+                      href={
+                        parsedSocialMedia.website.startsWith('http')
+                          ? parsedSocialMedia.website
+                          : `https://${parsedSocialMedia.website}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-blue-400 hover:bg-blue-50/30 transition-all shadow-2xs cursor-pointer"
+                    >
+                      <Globe className="w-4 h-4 text-blue-600 shrink-0" />
+                      <span>Website</span>
+                    </a>
+                  )}
+
+                  {parsedSocialMedia.whatsapp && (
+                    <a
+                      href={
+                        parsedSocialMedia.whatsapp.startsWith('http')
+                          ? parsedSocialMedia.whatsapp
+                          : `https://wa.me/${parsedSocialMedia.whatsapp.replace(/[^0-9]/g, '')}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-emerald-400 hover:bg-emerald-50/30 transition-all shadow-2xs cursor-pointer"
+                    >
+                      <Phone className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>WhatsApp</span>
+                    </a>
+                  )}
+
+                  {parsedSocialMedia.youtube && (
+                    <a
+                      href={
+                        parsedSocialMedia.youtube.startsWith('http')
+                          ? parsedSocialMedia.youtube
+                          : `https://youtube.com/${parsedSocialMedia.youtube}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-rose-400 hover:bg-rose-50/30 transition-all shadow-2xs cursor-pointer"
+                    >
+                      <Video className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>YouTube</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Card 3: Ticket Authenticity Check Card */}
             <div className="bg-white rounded-2xl border border-slate-200/90 p-4.5 sm:p-5 shadow-xs text-center">

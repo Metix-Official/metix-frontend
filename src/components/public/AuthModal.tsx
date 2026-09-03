@@ -1,8 +1,7 @@
-'use me';
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, ArrowLeft, UserCheck, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+import { X, ArrowLeft, UserCheck, Eye, EyeOff, Loader2, AlertCircle, Ticket, Building2, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   Select,
@@ -309,32 +308,64 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
               {/* Registration Form Fields */}
               <form onSubmit={handleApiRegisterSubmit} className="space-y-4">
-                {/* Peran / Role Akun */}
-                <div className="space-y-1.5 text-left">
-                  <label className="text-xs font-bold text-slate-800">
-                    Daftar Sebagai
+                {/* Peran / Role Akun (Animated Segmented Tab Control) */}
+                <div className="space-y-2 text-left">
+                  <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                    <span>Daftar Sebagai</span>
+                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 animate-in fade-in-50 duration-200">
+                      {registerRole === 'BUYER' ? 'Akun Pembeli' : 'Akun Pengelenggara'}
+                    </span>
                   </label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="relative p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-inner grid grid-cols-2 gap-1 overflow-hidden">
+                    {/* Animated Sliding Background Indicator */}
+                    <div
+                      className={`absolute top-1 bottom-1 w-[calc(50%-0.375rem)] rounded-xl bg-white shadow-md shadow-slate-900/10 border border-blue-600/30 transition-all duration-300 ease-out ${
+                        registerRole === 'BUYER' ? 'left-1' : 'left-[calc(50%+0.125rem)]'
+                      }`}
+                    />
+
+                    {/* Tab 1: Pembeli Tiket */}
                     <button
                       type="button"
                       onClick={() => setRegisterRole('BUYER')}
-                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${registerRole === 'BUYER'
-                          ? 'border-blue-600 bg-blue-50/70 text-blue-700 shadow-xs'
-                          : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-                        }`}
+                      className={`relative z-10 py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 ${
+                        registerRole === 'BUYER'
+                          ? 'text-blue-700'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
                     >
+                      <Ticket className={`w-3.5 h-3.5 transition-transform duration-300 ${registerRole === 'BUYER' ? 'scale-110 text-blue-600' : 'text-slate-400'}`} />
                       <span>Pembeli Tiket</span>
                     </button>
+
+                    {/* Tab 2: Event Organizer (EO) */}
                     <button
                       type="button"
                       onClick={() => setRegisterRole('EO')}
-                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${registerRole === 'EO'
-                          ? 'border-purple-600 bg-purple-50/70 text-purple-700 shadow-xs'
-                          : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-                        }`}
+                      className={`relative z-10 py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 ${
+                        registerRole === 'EO'
+                          ? 'text-blue-700'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
                     >
+                      <Building2 className={`w-3.5 h-3.5 transition-transform duration-300 ${registerRole === 'EO' ? 'scale-110 text-blue-600' : 'text-slate-400'}`} />
                       <span>Event Organizer (EO)</span>
                     </button>
+                  </div>
+
+                  {/* Role Detail Description Banner with Fade/Slide Animation */}
+                  <div className="overflow-hidden">
+                    {registerRole === 'BUYER' ? (
+                      <div className="p-2.5 rounded-xl bg-blue-50/70 border border-blue-100 text-[11px] text-blue-700 font-medium flex items-center gap-2 animate-in fade-in-50 slide-in-from-top-1 duration-200">
+                        <Ticket className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span>Akun Pembeli: Cari event favorit, beli tiket resmi, dan dapatkan E-Ticket cepat.</span>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-100 text-[11px] text-indigo-700 font-medium flex items-center gap-2 animate-in fade-in-50 slide-in-from-top-1 duration-200">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                        <span>Akun Event Organizer: Buat event, kelola tiket, scanner QR & laporan transaksi.</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -368,22 +399,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   />
                 </div>
 
-                {/* Jenis Kelamin Cards */}
+                {/* Jenis Kelamin Cards (Animated Segmented Control) */}
                 <div className="space-y-1.5 text-left">
                   <label className="text-xs font-bold text-slate-800">
                     Jenis Kelamin
                   </label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="relative p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-inner grid grid-cols-2 gap-1 overflow-hidden">
+                    {/* Animated Sliding Background Indicator */}
+                    <div
+                      className={`absolute top-1 bottom-1 w-[calc(50%-0.375rem)] rounded-xl bg-white shadow-md shadow-slate-900/10 border border-blue-600/30 transition-all duration-300 ease-out ${
+                        gender === 'male' ? 'left-1' : 'left-[calc(50%+0.125rem)]'
+                      }`}
+                    />
+
                     <button
                       type="button"
                       onClick={() => setGender('male')}
-                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${gender === 'male'
-                          ? 'border-blue-600 bg-blue-50/70 text-blue-700 shadow-xs'
-                          : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-                        }`}
+                      className={`relative z-10 py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 ${
+                        gender === 'male'
+                          ? 'text-blue-700'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
                     >
-                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${gender === 'male' ? 'border-blue-600 bg-blue-600' : 'border-slate-400'}`}>
-                        {gender === 'male' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all ${gender === 'male' ? 'border-blue-600 bg-blue-600 scale-110' : 'border-slate-400 bg-white'}`}>
+                        {gender === 'male' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-in zoom-in-50 duration-150" />}
                       </span>
                       <span>Laki – Laki ♂</span>
                     </button>
@@ -391,13 +430,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setGender('female')}
-                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${gender === 'female'
-                          ? 'border-pink-600 bg-pink-50/70 text-pink-700 shadow-xs'
-                          : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
-                        }`}
+                      className={`relative z-10 py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 ${
+                        gender === 'female'
+                          ? 'text-blue-700'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
                     >
-                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${gender === 'female' ? 'border-pink-600 bg-pink-600' : 'border-slate-400'}`}>
-                        {gender === 'female' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all ${gender === 'female' ? 'border-blue-600 bg-blue-600 scale-110' : 'border-slate-400 bg-white'}`}>
+                        {gender === 'female' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-in zoom-in-50 duration-150" />}
                       </span>
                       <span>Perempuan ♀</span>
                     </button>

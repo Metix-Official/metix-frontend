@@ -520,28 +520,30 @@ export default function EventDetailClient() {
                   Lineup
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {parsedLineups.map((item, idx) => {
-                    const lineupImg = item.image || item.photo || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=200';
+                  {parsedLineups.map((item: any, idx) => {
+                    const lineupName = typeof item === 'string' ? item : (item?.name || '');
+                    const lineupImg = (typeof item === 'object' ? (item?.image || item?.photo) : null) || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=200';
+                    const lineupDesc = typeof item === 'object' ? item?.description : null;
                     return (
                       <div
-                        key={item.id || idx}
+                        key={item?.id || idx}
                         className="bg-white rounded-xl border border-slate-200 p-3 flex items-center justify-between shadow-2xs hover:shadow-sm transition-all group"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-900 shrink-0 border border-slate-200">
                             <img
                               src={lineupImg}
-                              alt={item.name}
+                              alt={lineupName}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             />
                           </div>
                           <div className="min-w-0">
                             <h4 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-tight truncate">
-                              {item.name}
+                              {lineupName}
                             </h4>
-                            {item.description && (
+                            {lineupDesc && (
                               <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
-                                {item.description}
+                                {lineupDesc}
                               </p>
                             )}
                           </div>
@@ -562,8 +564,11 @@ export default function EventDetailClient() {
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {parsedFacilities.map((fac, idx) => {
-                    const getFacilityIcon = (name: string) => {
-                      const lower = name.toLowerCase();
+                    const facName = typeof fac === 'string' ? fac : (fac && typeof fac === 'object' ? (fac.name || '') : String(fac || ''));
+
+                    const getFacilityIcon = (nameInput: any) => {
+                      const facStr = typeof nameInput === 'string' ? nameInput : (nameInput && typeof nameInput === 'object' ? (nameInput.name || '') : String(nameInput || ''));
+                      const lower = facStr.toLowerCase();
                       if (lower.includes('parkir')) return <Car className="w-5 h-5 text-blue-600" />;
                       if (lower.includes('vip')) return <Crown className="w-5 h-5 text-blue-600" />;
                       if (lower.includes('photo') || lower.includes('foto')) return <Camera className="w-5 h-5 text-blue-600" />;
@@ -581,10 +586,10 @@ export default function EventDetailClient() {
                         className="bg-white rounded-xl border border-slate-200 p-3.5 flex items-center gap-3.5 shadow-2xs hover:shadow-sm transition-all"
                       >
                         <div className="w-9 h-9 rounded-xl bg-blue-50/80 border border-blue-100 flex items-center justify-center shrink-0">
-                          {getFacilityIcon(fac)}
+                          {getFacilityIcon(facName)}
                         </div>
                         <span className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">
-                          {fac}
+                          {facName}
                         </span>
                       </div>
                     );

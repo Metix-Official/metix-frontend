@@ -1,4 +1,8 @@
-let envUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://metix-backend.lufexa.id/api/v1').trim().replace(/\/+$/, '');
+let envUrl = (
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  'https://metix-backend.lufexa.id/api/v1'
+).trim().replace(/\/+$/, '');
 
 // Ensure /v1 is always appended to API_BASE_URL
 if (!envUrl.endsWith('/v1')) {

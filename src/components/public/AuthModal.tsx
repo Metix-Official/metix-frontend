@@ -51,12 +51,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [isSubmittingRegister, setIsSubmittingRegister] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
 
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [agreeDataProcessing, setAgreeDataProcessing] = useState(false);
+  const [agreeMarketing, setAgreeMarketing] = useState(false);
+
   // Synchronize mode whenever initialMode or isOpen changes
   useEffect(() => {
     if (isOpen) {
       setMode(initialMode);
       setLoginError(null);
       setRegisterError(null);
+      setAgreeTerms(false);
+      setAgreeDataProcessing(false);
+      setAgreeMarketing(false);
     }
   }, [isOpen, initialMode]);
 
@@ -528,19 +535,76 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </div>
                 </div>
 
+                {/* Persetujuan & Syarat Ketentuan (Consent Checkboxes) */}
+                <div className="space-y-3 pt-3 text-left text-xs border-t border-slate-100">
+                  {/* Checkbox 1 */}
+                  <label className="flex items-start gap-2.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={agreeTerms}
+                      onChange={(e) => setAgreeTerms(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 accent-blue-600 focus:ring-blue-500 shrink-0 cursor-pointer"
+                    />
+                    <span className="text-slate-600 leading-relaxed text-[11px] font-medium group-hover:text-slate-900 transition-colors">
+                      Saya telah membaca dan menyetujui{' '}
+                      <Link href="/terms" target="_blank" onClick={(e) => e.stopPropagation()} className="font-bold text-blue-600 hover:underline">
+                        Syarat dan Ketentuan
+                      </Link>{' '}
+                      dan{' '}
+                      <Link href="/terms" target="_blank" onClick={(e) => e.stopPropagation()} className="font-bold text-blue-600 hover:underline">
+                        Kebijakan Privasi
+                      </Link>{' '}
+                      di METIX
+                    </span>
+                  </label>
+
+                  {/* Checkbox 2 */}
+                  <label className="flex items-start gap-2.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={agreeDataProcessing}
+                      onChange={(e) => setAgreeDataProcessing(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 accent-blue-600 focus:ring-blue-500 shrink-0 cursor-pointer"
+                    />
+                    <span className="text-slate-600 leading-relaxed text-[11px] font-medium group-hover:text-slate-900 transition-colors">
+                      Saya telah membaca dan memberikan persetujuan kepada METIX untuk memproses data pribadi saya sesuai dengan{' '}
+                      <Link href="/terms" target="_blank" onClick={(e) => e.stopPropagation()} className="font-bold text-blue-600 hover:underline">
+                        Pemrosesan Data Pribadi
+                      </Link>
+                    </span>
+                  </label>
+
+                  {/* Checkbox 3 */}
+                  <label className="flex items-start gap-2.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={agreeMarketing}
+                      onChange={(e) => setAgreeMarketing(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 accent-blue-600 focus:ring-blue-500 shrink-0 cursor-pointer"
+                    />
+                    <span className="text-slate-600 leading-relaxed text-[11px] font-medium group-hover:text-slate-900 transition-colors">
+                      Saya bersedia menerima informasi terkini terkait event dan promosi di METIX
+                    </span>
+                  </label>
+                </div>
+
                 {/* Submit CTA Button */}
-                <div className="pt-3">
+                <div className="pt-2">
                   <button
                     type="submit"
-                    disabled={isSubmittingRegister}
-                    className="w-full py-3.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold shadow-md shadow-blue-700/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                    disabled={isSubmittingRegister || !agreeTerms || !agreeDataProcessing}
+                    className={`w-full py-3.5 rounded-2xl text-xs font-extrabold shadow-md transition-all flex items-center justify-center gap-2 ${
+                      agreeTerms && agreeDataProcessing && !isSubmittingRegister
+                        ? 'bg-blue-700 hover:bg-blue-800 text-white shadow-blue-700/20 cursor-pointer hover:scale-[1.01] active:scale-95'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300/60 shadow-none'
+                    }`}
                   >
                     {isSubmittingRegister ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" /> Mendaftarkan Akun...
                       </>
                     ) : (
-                      'Daftar Sekarang'
+                      'Simpan & Daftar Sekarang'
                     )}
                   </button>
                 </div>

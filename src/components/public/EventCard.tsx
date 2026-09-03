@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Ticket, Calendar, MapPin, Tag, ArrowRight } from 'lucide-react';
+import { Ticket, Calendar, MapPin, Tag, ArrowRight, Building2 } from 'lucide-react';
 import { PublicEvent } from '@/data/publicMockData';
 import { ApiEvent, getPhotoUrl } from '@/lib/api';
 import Link from 'next/link';
@@ -39,6 +39,16 @@ export const EventCard: React.FC<EventCardProps> = ({
     category: event.category,
     location: event.venue,
   };
+
+  const organizerName = React.useMemo(() => {
+    if (rawApiEvent?.organizer) {
+      if (typeof rawApiEvent.organizer === 'object') {
+        return rawApiEvent.organizer.organization_name || rawApiEvent.organizer.name || 'Metix Organizer';
+      }
+      return String(rawApiEvent.organizer);
+    }
+    return event.organizer || 'Metix Organizer';
+  }, [rawApiEvent, event.organizer]);
 
   const rawBanner = rawApiEvent?.banner || (rawApiEvent as any)?.banner_url || (event as any)?.banner || (targetApiEvent as any)?.banner;
   const initialBannerUrl = rawBanner ? getPhotoUrl(rawBanner) : fallbackUrl;
@@ -123,6 +133,12 @@ export const EventCard: React.FC<EventCardProps> = ({
             <div className="flex items-center gap-2 text-slate-500">
               <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
               <span className="truncate">{event.venue}</span>
+            </div>
+            <div className="flex items-center gap-2 text-slate-500 pt-0.5 border-t border-slate-100/80">
+              <Building2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+              <span className="truncate">
+                Oleh : <strong className="text-slate-800 font-bold">{organizerName}</strong>
+              </span>
             </div>
           </div>
         </div>

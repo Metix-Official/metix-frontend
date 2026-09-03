@@ -1386,7 +1386,7 @@ export async function saveEventLineupsApi(eventId: number | string, lineups: Api
       const jsonPayload = {
         event_id: Number(eventId),
         name: item.name,
-        image: item.image || item.photo || '',
+        image: item.image && item.image.length <= 1000 ? item.image : '',
         description: item.description || item.role || '',
       };
 
@@ -1434,24 +1434,15 @@ export async function saveEventFacilitiesApi(eventId: number | string, facilitie
   const token = getStoredToken();
   if (!token || !eventId || !facilities || facilities.length === 0) return false;
 
-  try {
-    const jsonPayload = {
-      event_id: Number(eventId),
-      facilities,
-      facility: facilities,
-    };
+  for (const fac of facilities) {
+    if (!fac || !fac.trim()) continue;
+    try {
+      const jsonPayload = {
+        name: fac.trim(),
+        description: fac.trim(),
+      };
 
-    let res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facilities`, {
-      method: 'POST',
-      headers: {
-        ...getHeaders(token),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(jsonPayload),
-    });
-
-    if (!res.ok && res.status === 404) {
-      res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facility`, {
+      let res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facilities`, {
         method: 'POST',
         headers: {
           ...getHeaders(token),
@@ -1459,9 +1450,23 @@ export async function saveEventFacilitiesApi(eventId: number | string, facilitie
         },
         body: JSON.stringify(jsonPayload),
       });
+
+      if (!res.ok && res.status === 404) {
+        await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facility`, {
+          method: 'POST',
+          headers: {
+            ...getHeaders(token),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            event_id: Number(eventId),
+            facilities,
+          }),
+        });
+      }
+    } catch (e) {
+      console.warn('saveEventFacilitiesApi failed for item:', fac, e);
     }
-  } catch (e) {
-    console.warn('saveEventFacilitiesApi failed:', e);
   }
   return true;
 }
@@ -1470,27 +1475,22 @@ export async function saveEventSocialMediaApi(eventId: number | string, socials:
   const token = getStoredToken();
   if (!token || !eventId || !socials) return false;
 
-  try {
-    const jsonPayload = {
-      event_id: Number(eventId),
-      instagram: socials.instagram || '',
-      tiktok: socials.tiktok || '',
-      website: socials.website || '',
-      whatsapp: socials.whatsapp || '',
-      youtube: socials.youtube || '',
-    };
+  const list: Array<{ name: string; url: string }> = [
+    { name: 'Instagram', url: socials.instagram || '' },
+    { name: 'TikTok', url: socials.tiktok || '' },
+    { name: 'Website', url: socials.website || '' },
+    { name: 'WhatsApp', url: socials.whatsapp || '' },
+    { name: 'YouTube', url: socials.youtube || '' },
+  ].filter((s) => s.url.trim() !== '');
 
-    let res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/social-media`, {
-      method: 'POST',
-      headers: {
-        ...getHeaders(token),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(jsonPayload),
-    });
+  for (const item of list) {
+    try {
+      const jsonPayload = {
+        name: item.name,
+        description: item.url,
+      };
 
-    if (!res.ok && res.status === 404) {
-      res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/socials`, {
+      let res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/social-medias`, {
         method: 'POST',
         headers: {
           ...getHeaders(token),
@@ -1498,9 +1498,27 @@ export async function saveEventSocialMediaApi(eventId: number | string, socials:
         },
         body: JSON.stringify(jsonPayload),
       });
+
+      if (!res.ok && res.status === 404) {
+        await fetch(`${API_BASE_URL}/organizer/events/${eventId}/social-media`, {
+          method: 'POST',
+          headers: {
+            ...getHeaders(token),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            event_id: Number(eventId),
+            instagram: socials.instagram || '',
+            tiktok: socials.tiktok || '',
+            website: socials.website || '',
+            whatsapp: socials.whatsapp || '',
+            youtube: socials.youtube || '',
+          }),
+        });
+      }
+    } catch (e) {
+      console.warn('saveEventSocialMediaApi failed for item:', item, e);
     }
-  } catch (e) {
-    console.warn('saveEventSocialMediaApi failed:', e);
   }
   return true;
 }

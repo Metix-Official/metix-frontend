@@ -1380,6 +1380,135 @@ export async function createVenue(payload: CreateVenuePayload): Promise<{ id: nu
   return null;
 }
 
+export async function saveEventLineupsApi(eventId: number | string, lineups: ApiLineupItem[]): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token || !eventId || !lineups || lineups.length === 0) return false;
+
+  for (const item of lineups) {
+    if (!item.name || !item.name.trim()) continue;
+    try {
+      const jsonPayload = {
+        event_id: Number(eventId),
+        name: item.name,
+        image: item.image || item.photo || '',
+        description: item.description || item.role || '',
+      };
+
+      let res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineups`, {
+        method: 'POST',
+        headers: {
+          ...getHeaders(token),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(jsonPayload),
+      });
+
+      if (!res.ok && res.status === 404) {
+        res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineup`, {
+          method: 'POST',
+          headers: {
+            ...getHeaders(token),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(jsonPayload),
+        });
+      }
+
+      if (!res.ok) {
+        const formData = new FormData();
+        formData.append('event_id', String(eventId));
+        formData.append('name', item.name);
+        if (item.image) formData.append('image', item.image);
+        if (item.description) formData.append('description', item.description);
+
+        await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineups`, {
+          method: 'POST',
+          headers: getHeaders(token),
+          body: formData,
+        });
+      }
+    } catch (e) {
+      console.warn('saveEventLineupsApi failed:', e);
+    }
+  }
+  return true;
+}
+
+export async function saveEventFacilitiesApi(eventId: number | string, facilities: string[]): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token || !eventId || !facilities || facilities.length === 0) return false;
+
+  try {
+    const jsonPayload = {
+      event_id: Number(eventId),
+      facilities,
+      facility: facilities,
+    };
+
+    let res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facilities`, {
+      method: 'POST',
+      headers: {
+        ...getHeaders(token),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(jsonPayload),
+    });
+
+    if (!res.ok && res.status === 404) {
+      res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facility`, {
+        method: 'POST',
+        headers: {
+          ...getHeaders(token),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(jsonPayload),
+      });
+    }
+  } catch (e) {
+    console.warn('saveEventFacilitiesApi failed:', e);
+  }
+  return true;
+}
+
+export async function saveEventSocialMediaApi(eventId: number | string, socials: ApiSocialMedia): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token || !eventId || !socials) return false;
+
+  try {
+    const jsonPayload = {
+      event_id: Number(eventId),
+      instagram: socials.instagram || '',
+      tiktok: socials.tiktok || '',
+      website: socials.website || '',
+      whatsapp: socials.whatsapp || '',
+      youtube: socials.youtube || '',
+    };
+
+    let res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/social-media`, {
+      method: 'POST',
+      headers: {
+        ...getHeaders(token),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(jsonPayload),
+    });
+
+    if (!res.ok && res.status === 404) {
+      res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/socials`, {
+        method: 'POST',
+        headers: {
+          ...getHeaders(token),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(jsonPayload),
+      });
+    }
+  } catch (e) {
+    console.warn('saveEventSocialMediaApi failed:', e);
+  }
+  return true;
+}
+
 export async function createEvent(formData: FormData): Promise<boolean> {
   const token = getStoredToken();
   if (!token) throw new Error('Unauthenticated');
@@ -1399,6 +1528,31 @@ export async function createEvent(formData: FormData): Promise<boolean> {
   const localPreview = formData.get('_local_banner_preview');
   formData.delete('_local_banner_preview');
 
+  // Extract lineups, facilities, socials for dedicated sub-resource API calls
+  const rawLineups = formData.get('lineups');
+  let parsedLineups: ApiLineupItem[] = [];
+  if (typeof rawLineups === 'string') {
+    try {
+      parsedLineups = JSON.parse(rawLineups);
+    } catch {}
+  }
+
+  const rawFacilities = formData.get('facilities');
+  let parsedFacilities: string[] = [];
+  if (typeof rawFacilities === 'string') {
+    try {
+      parsedFacilities = JSON.parse(rawFacilities);
+    } catch {}
+  }
+
+  const rawSocials = formData.get('social_media');
+  let parsedSocials: ApiSocialMedia | null = null;
+  if (typeof rawSocials === 'string') {
+    try {
+      parsedSocials = JSON.parse(rawSocials);
+    } catch {}
+  }
+
   try {
     const response = await fetch(`${API_BASE_URL}/organizer/events`, {
       method: 'POST',
@@ -1417,10 +1571,25 @@ export async function createEvent(formData: FormData): Promise<boolean> {
     }
 
     const newEvt = data?.data || data?.event;
-    if (newEvt && newEvt.id && localPreview && typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(`metix_banner_preview_${newEvt.id}`, String(localPreview));
-      } catch {}
+    const createdId = newEvt?.id;
+
+    if (createdId) {
+      if (localPreview && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`metix_banner_preview_${createdId}`, String(localPreview));
+        } catch {}
+      }
+
+      // Synchronize sub-resource APIs for Lineup, Facilities, Social Media
+      if (parsedLineups.length > 0) {
+        await saveEventLineupsApi(createdId, parsedLineups);
+      }
+      if (parsedFacilities.length > 0) {
+        await saveEventFacilitiesApi(createdId, parsedFacilities);
+      }
+      if (parsedSocials) {
+        await saveEventSocialMediaApi(createdId, parsedSocials);
+      }
     }
 
     return true;
@@ -1505,6 +1674,31 @@ export async function updateEvent(eventId: number, formData: FormData): Promise<
   const localPreview = formData.get('_local_banner_preview');
   formData.delete('_local_banner_preview');
 
+  // Extract lineups, facilities, socials for dedicated sub-resource API calls
+  const rawLineups = formData.get('lineups');
+  let parsedLineups: ApiLineupItem[] = [];
+  if (typeof rawLineups === 'string') {
+    try {
+      parsedLineups = JSON.parse(rawLineups);
+    } catch {}
+  }
+
+  const rawFacilities = formData.get('facilities');
+  let parsedFacilities: string[] = [];
+  if (typeof rawFacilities === 'string') {
+    try {
+      parsedFacilities = JSON.parse(rawFacilities);
+    } catch {}
+  }
+
+  const rawSocials = formData.get('social_media');
+  let parsedSocials: ApiSocialMedia | null = null;
+  if (typeof rawSocials === 'string') {
+    try {
+      parsedSocials = JSON.parse(rawSocials);
+    } catch {}
+  }
+
   const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}`, {
     method: 'POST',
     headers: getHeaders(token),
@@ -1521,11 +1715,22 @@ export async function updateEvent(eventId: number, formData: FormData): Promise<
     throw new Error(errorMsg);
   }
 
-  if (eventId && localPreview && typeof window !== 'undefined') {
-    try {
-      localStorage.setItem(`metix_banner_preview_${eventId}`, String(localPreview));
-    } catch {
-      // Ignore quota overflow
+  if (eventId) {
+    if (localPreview && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`metix_banner_preview_${eventId}`, String(localPreview));
+      } catch {}
+    }
+
+    // Synchronize sub-resource APIs for Lineup, Facilities, Social Media
+    if (parsedLineups.length > 0) {
+      await saveEventLineupsApi(eventId, parsedLineups);
+    }
+    if (parsedFacilities.length > 0) {
+      await saveEventFacilitiesApi(eventId, parsedFacilities);
+    }
+    if (parsedSocials) {
+      await saveEventSocialMediaApi(eventId, parsedSocials);
     }
   }
 

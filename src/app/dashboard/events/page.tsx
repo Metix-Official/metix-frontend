@@ -357,18 +357,26 @@ export default function EventsPage() {
 
       if (Array.isArray(rawFacilities)) {
         setEditFacilities(
-          rawFacilities
-            .map((f: any) => (typeof f === 'string' ? f : String(f?.name || f?.title || f?.facility || '')))
-            .filter(Boolean)
+          Array.from(
+            new Set(
+              rawFacilities
+                .map((f: any) => (typeof f === 'string' ? f : String(f?.name || f?.title || f?.facility || '')))
+                .filter(Boolean)
+            )
+          )
         );
       } else if (typeof rawFacilities === 'string') {
         try {
           const parsed = JSON.parse(rawFacilities);
           if (Array.isArray(parsed)) {
             setEditFacilities(
-              parsed
-                .map((f: any) => (typeof f === 'string' ? f : String(f?.name || f?.title || f?.facility || '')))
-                .filter(Boolean)
+              Array.from(
+                new Set(
+                  parsed
+                    .map((f: any) => (typeof f === 'string' ? f : String(f?.name || f?.title || f?.facility || '')))
+                    .filter(Boolean)
+                )
+              )
             );
           } else {
             setEditFacilities([rawFacilities]);
@@ -2148,7 +2156,7 @@ export default function EventsPage() {
                         const facText = typeof fac === 'string' ? fac : String(fac?.name || fac?.title || fac?.facility || '');
                         return (
                           <span
-                            key={typeof fac === 'string' ? fac : idx}
+                            key={`edit-fac-${idx}-${facText}`}
                             className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200/80 text-blue-800 text-xs font-bold rounded-xl"
                           >
                             {facText}
@@ -3258,7 +3266,7 @@ export default function EventsPage() {
                         const facText = typeof fac === 'string' ? fac : String(fac?.name || fac?.title || fac?.facility || '');
                         return (
                           <span
-                            key={typeof fac === 'string' ? fac : idx}
+                            key={`create-fac-${idx}-${facText}`}
                             className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200/80 text-blue-800 text-xs font-bold rounded-xl"
                           >
                             {facText}

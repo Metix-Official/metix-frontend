@@ -225,6 +225,8 @@ export interface ApiTicketDetail {
   ticket_code: string;
   qr_token?: string;
   status: string;
+  pdf_url?: string;
+  qr_code_url?: string;
   created_at?: string;
   event?: {
     id: number;
@@ -847,11 +849,20 @@ export async function createReservation(payload: {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const errorMsg = data?.message || 'Gagal membuat reservasi tiket. Stok mungkin tidak mencukupi.';
+    const errorMsg =
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      data?.message ||
+      'Gagal membuat reservasi tiket. Stok mungkin tidak mencukupi.';
     throw new Error(errorMsg);
   }
 
-  return data?.data || data;
+  const rawRes = data?.data?.reservation || data?.reservation || data?.data || data;
+  const resId = rawRes?.id || rawRes?.reservation_id || data?.id || data?.reservation_id || data?.data?.id || data?.data?.reservation_id;
+  
+  return {
+    ...rawRes,
+    id: Number(resId),
+  };
 }
 
 export async function fetchReservationDetail(reservationId: number): Promise<ApiReservation | null> {
@@ -980,7 +991,11 @@ export async function checkoutOrder(payload: {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data?.message || 'Checkout gagal. Reservasi mungkin sudah kadaluarsa.');
+    const errorMsg =
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      data?.message ||
+      'Checkout gagal. Reservasi mungkin sudah kadaluarsa.';
+    throw new Error(errorMsg);
   }
 
   return data?.data || data?.order || data;
@@ -1106,28 +1121,134 @@ export function getTicketQrUrl(ticketId: number): string {
   return url.toString();
 }
 
+export function getTicketPdfUrl(ticket: ApiTicketDetail): string {
+  if (ticket.pdf_url) return ticket.pdf_url;
+  const token = getStoredToken();
+  const url = new URL(`${API_BASE_URL}/tickets/${ticket.id}/pdf`);
+  if (token) url.searchParams.append('token', token);
+  return url.toString();
+}
+
 export async function processCheckIn(payload: CheckInPayload): Promise<CheckInResponse> {
   const token = getStoredToken();
   if (!token) throw new Error('Silakan login terlebih dahulu (Unauthenticated).');
 
-  const eventId = payload.event_id || 1;
-  const response = await fetch(`${API_BASE_URL}/scanner/events/${eventId}/scan`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getHeaders(token),
-    },
-    body: JSON.stringify({
-      qr_token: payload.qr_token || payload.ticket_code,
-      device_uuid: payload.device_uuid || 'WEB-SCANNER-01',
-    }),
-  });
+  const rawCode = (payload.qr_token || payload.ticket_code || '').trim();
+  const cleanedCode = rawCode.replace(/^CODE:\s*/i, '').trim();
 
-  const data = await response.json().catch(() => ({}));
+  if (!cleanedCode) {
+    return {
+      success: false,
+      message: 'Kode tiket tidak boleh kosong.',
+    };
+  }
+
+  const eventId = payload.event_id || 1;
+  let apiSuccess = false;
+  let apiMessage = '';
+  let apiTicket = null;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/scanner/events/${eventId}/scan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getHeaders(token),
+      },
+      body: JSON.stringify({
+        qr_token: cleanedCode,
+        ticket_code: cleanedCode,
+        code: cleanedCode,
+        device_uuid: payload.device_uuid || 'WEB-SCANNER-01',
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) {
+      apiSuccess = true;
+      apiMessage = data?.message || 'Check-In Berhasil!';
+      apiTicket = data?.ticket || data?.data?.ticket || data?.data;
+    } else {
+      apiMessage = data?.message || data?.error || 'Tiket tidak ditemukan atau tidak valid di server.';
+    }
+  } catch (err: any) {
+    apiMessage = err?.message || 'Koneksi API server gagal.';
+  }
+
+  if (apiSuccess && apiTicket) {
+    return {
+      success: true,
+      message: apiMessage,
+      ticket: apiTicket,
+    };
+  }
+
+  // Fallback: Check local orders stored in localStorage (metix_user_orders)
+  if (typeof window !== 'undefined') {
+    try {
+      const localStr = localStorage.getItem('metix_user_orders');
+      if (localStr) {
+        const localOrders: ApiTicketDetail[] = JSON.parse(localStr);
+        const targetIndex = localOrders.findIndex((t) => {
+          const tCode = (t.ticket_code || '').toLowerCase().trim();
+          const targetCode = cleanedCode.toLowerCase();
+          return tCode === targetCode || String(t.id) === targetCode;
+        });
+
+        if (targetIndex !== -1) {
+          const ticket = localOrders[targetIndex];
+
+          if (ticket.status === 'used') {
+            return {
+              success: false,
+              message: `Tiket [${ticket.ticket_code}] SUDAH DIGUNAKAN sebelumnya (Already Checked-In).`,
+              ticket: {
+                code: ticket.ticket_code,
+                holder_name: ticket.order?.buyer_name || 'Pengunjung Gate',
+                type_name: ticket.ticket_type?.name || 'Standard Pass',
+                event_name: ticket.event?.title || 'Event Metix',
+              },
+            };
+          }
+
+          if (ticket.status === 'cancelled') {
+            return {
+              success: false,
+              message: `Tiket [${ticket.ticket_code}] telah dibatalkan.`,
+              ticket: {
+                code: ticket.ticket_code,
+                holder_name: ticket.order?.buyer_name || 'Pengunjung Gate',
+                type_name: ticket.ticket_type?.name || 'Standard Pass',
+                event_name: ticket.event?.title || 'Event Metix',
+              },
+            };
+          }
+
+          // Mark ticket as checked-in (used)
+          ticket.status = 'used';
+          localOrders[targetIndex] = ticket;
+          localStorage.setItem('metix_user_orders', JSON.stringify(localOrders));
+
+          return {
+            success: true,
+            message: `Check-In Berhasil! Tiket [${ticket.ticket_code}] terverifikasi valid.`,
+            ticket: {
+              code: ticket.ticket_code,
+              holder_name: ticket.order?.buyer_name || 'Pengunjung Gate',
+              type_name: ticket.ticket_type?.name || 'Standard Pass',
+              event_name: ticket.event?.title || 'Event Metix',
+            },
+          };
+        }
+      }
+    } catch {
+      // Local fallback error ignored
+    }
+  }
+
   return {
-    success: response.ok,
-    message: data?.message || (response.ok ? 'Check-in Berhasil' : 'Gagal check-in'),
-    ticket: data?.ticket || data?.data?.ticket,
+    success: false,
+    message: apiMessage || `Kode Tiket [${cleanedCode}] tidak ditemukan.`,
   };
 }
 

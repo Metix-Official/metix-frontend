@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useRouter } from 'next/navigation';
-import { fetchUserTickets, ApiTicketDetail, getStoredUser } from '@/lib/api';
+import { fetchUserTickets, ApiTicketDetail, getStoredUser, getTicketPdfUrl } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
 import { Ticket, Search, Calendar, MapPin, QrCode, Sparkles, X, Printer, CheckCircle2, XCircle } from 'lucide-react';
@@ -18,7 +18,6 @@ export default function TicketsPage() {
   const [tickets, setTickets] = useState<ApiTicketDetail[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'used'>('all');
-  const [selectedTicket, setSelectedTicket] = useState<ApiTicketDetail | null>(null);
 
   useEffect(() => {
     const user = getStoredUser();
@@ -56,10 +55,30 @@ export default function TicketsPage() {
     });
   }, [tickets, searchQuery, activeTab]);
 
-  // Pure Next.js Client-Side PDF Generation Handler using jsPDF
+  // PDF Generation & Print Handler (Checks Laravel Storage URL first)
   const handlePrintTicketPdf = async (ticket: ApiTicketDetail) => {
     try {
-      toast.loading('Membangun dokumen PDF E-Tiket...', { id: 'jspdf-toast' });
+      toast.loading('Membuka dokumen PDF E-Tiket...', { id: 'jspdf-toast' });
+
+      // 1. If backend PDF URL is directly present on ticket model (Laravel Storage)
+      if (ticket.pdf_url) {
+        toast.success('Membuka PDF E-Tiket dari Storage Laravel...', { id: 'jspdf-toast' });
+        window.open(ticket.pdf_url, '_blank');
+        return;
+      }
+
+      // 2. Check Laravel backend PDF endpoint /tickets/{id}/pdf
+      const backendPdfUrl = getTicketPdfUrl(ticket);
+      try {
+        const checkRes = await fetch(backendPdfUrl, { method: 'HEAD' });
+        if (checkRes.ok) {
+          toast.success('Membuka PDF E-Tiket dari Server Laravel...', { id: 'jspdf-toast' });
+          window.open(backendPdfUrl, '_blank');
+          return;
+        }
+      } catch {
+        // Fallback to client jsPDF if backend endpoint is not ready
+      }
 
       const doc = new jsPDF({
         orientation: 'portrait',
@@ -86,7 +105,7 @@ export default function TicketsPage() {
             month: 'long',
             year: 'numeric',
           });
-        } catch {}
+        } catch { }
       }
 
       // Card Dimensions: 180mm x 140mm (Perfect proportion, zero excessive white space)
@@ -175,10 +194,9 @@ export default function TicketsPage() {
       };
 
       drawRow('Kategori Tiket', ticketType, true);
-      drawRow('Pemilik Tiket (Holder)', `${buyerName} (${buyerEmail})`);
+      drawRow('Pemilik Tiket (Holder)', `${buyerName}`);
       drawRow('Waktu & Tanggal Event', dateStr);
       drawRow('Lokasi Venue', venue);
-      drawRow('Nominal Tiket', priceStr);
 
       // 5. Bottom Ticket Stub Footer Section (Separated by Dashed Line)
       const footerY = cardY + 114;
@@ -242,31 +260,28 @@ export default function TicketsPage() {
             <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80 shrink-0">
               <button
                 onClick={() => setActiveTab('all')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                  activeTab === 'all'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${activeTab === 'all'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 Semua Tiket ({tickets.length})
               </button>
               <button
                 onClick={() => setActiveTab('active')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                  activeTab === 'active'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${activeTab === 'active'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 Siap Check-In ({tickets.filter((t) => t.status === 'active').length})
               </button>
               <button
                 onClick={() => setActiveTab('used')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                  activeTab === 'used'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${activeTab === 'used'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 Sudah Digunakan ({tickets.filter((t) => t.status === 'used').length})
               </button>
@@ -329,13 +344,12 @@ export default function TicketsPage() {
                           {ticketType}
                         </span>
                         <span
-                          className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
-                            isUsed
-                              ? 'bg-slate-900/40 text-slate-200 border-white/20'
-                              : isCancelled
+                          className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${isUsed
+                            ? 'bg-slate-900/40 text-slate-200 border-white/20'
+                            : isCancelled
                               ? 'bg-rose-500/40 text-rose-100 border-rose-300/30'
                               : 'bg-emerald-500/40 text-emerald-100 border-emerald-300/30'
-                          }`}
+                            }`}
                         >
                           {isUsed ? 'Sudah Digunakan' : isCancelled ? 'Dibatalkan' : 'Siap Check-In'}
                         </span>
@@ -402,10 +416,10 @@ export default function TicketsPage() {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => setSelectedTicket(item)}
+                          onClick={() => handlePrintTicketPdf(item)}
                           className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold flex items-center justify-center gap-2 shadow-md shadow-blue-600/20 hover:shadow-lg transition-all cursor-pointer"
                         >
-                          <QrCode className="w-4 h-4" /> Lihat E-Tiket Pass & QR Code
+                          <Printer className="w-4 h-4" /> Cetak E-Tiket PDF
                         </button>
                       )}
                     </div>
@@ -431,96 +445,6 @@ export default function TicketsPage() {
           )}
         </div>
       </div>
-
-      {/* ================= ULTRA PREMIUM E-TICKET PASS & QR CODE MODAL ================= */}
-      {selectedTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 space-y-0">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-700 p-6 text-white text-center relative">
-              <button
-                onClick={() => setSelectedTicket(null)}
-                className="absolute right-4 top-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-                aria-label="Close"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-[10px] font-black uppercase tracking-widest mb-2">
-                <Sparkles className="w-3 h-3 text-amber-300" /> Official VIP E-Ticket Pass
-              </div>
-
-              <h3 className="text-lg font-extrabold tracking-tight line-clamp-1">
-                {selectedTicket.event?.title || 'Metix Event Pass'}
-              </h3>
-              <p className="text-xs text-blue-100 font-mono font-bold mt-1">
-                CODE: {selectedTicket.ticket_code || 'TKT-84920'}
-              </p>
-            </div>
-
-            {/* Modal QR Code Section */}
-            <div className="p-6 text-center space-y-4 bg-white">
-              <div className="bg-white p-4 rounded-2xl border-2 border-dashed border-blue-200 inline-block shadow-sm">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
-                    selectedTicket.ticket_code || 'TKT-84920'
-                  )}`}
-                  alt="E-Ticket QR Code"
-                  className="w-48 h-48 mx-auto object-contain"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
-                  Scan QR Code di Gate Check-In Venue
-                </p>
-                <p className="text-[11px] text-slate-500 font-medium">
-                  Tunjukkan tampilan layar ini atau hasil cetak PDF ke petugas check-in.
-                </p>
-              </div>
-
-              {/* Detail Ringkasan */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 text-left text-xs space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-semibold">Tipe Tiket:</span>
-                  <span className="font-extrabold text-blue-700">
-                    {selectedTicket.ticket_type?.name || 'VIP Pass'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-semibold">Pemilik Tiket:</span>
-                  <span className="font-extrabold text-slate-900">
-                    {selectedTicket.order?.buyer_name || 'Pembeli Metix'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-semibold">Venue Location:</span>
-                  <span className="font-bold text-slate-800 truncate max-w-[180px]">
-                    {selectedTicket.event?.location || 'GBK Senayan, Jakarta'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center gap-3">
-              <button
-                onClick={() => handlePrintTicketPdf(selectedTicket)}
-                className="flex-1 py-2.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
-              >
-                <Printer className="w-4 h-4 text-blue-600" /> Cetak E-Pass PDF
-              </button>
-
-              <button
-                onClick={() => setSelectedTicket(null)}
-                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold transition-all cursor-pointer shadow-md shadow-blue-600/20"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </DashboardLayout>
   );
 }

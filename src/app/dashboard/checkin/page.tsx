@@ -324,13 +324,11 @@ export default function CheckInPage() {
                     <SelectValue placeholder="Pilih Event Gate Scanner" />
                   </SelectTrigger>
                   <SelectContent>
-                    {events
-                      .filter((ev) => String(ev.status || '').toLowerCase() === 'published')
-                      .map((ev) => (
-                        <SelectItem key={ev.id} value={String(ev.id)}>
-                          {ev.title}
-                        </SelectItem>
-                      ))}
+                    {events.map((ev) => (
+                      <SelectItem key={ev.id} value={String(ev.id)}>
+                        {ev.title}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

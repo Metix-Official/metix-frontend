@@ -60,7 +60,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                 const catName = typeof cat === 'string' ? cat : String(cat?.name || cat?.title || cat || '');
                 return (
                   <button
-                    key={typeof cat === 'string' ? cat : idx}
+                    key={`cat-${typeof cat === 'string' ? cat : (cat?.id || idx)}-${idx}`}
                     type="button"
                     onClick={() => handleCategoryClick(catName)}
                     className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
@@ -208,7 +208,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                     const catName = typeof cat === 'string' ? cat : String(cat?.name || cat?.title || cat || '');
                     return (
                       <button
-                        key={typeof cat === 'string' ? cat : idx}
+                        key={`cat-grid-${typeof cat === 'string' ? cat : (cat?.id || idx)}-${idx}`}
                         type="button"
                         onClick={() => handleCategoryClick(catName)}
                         className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${

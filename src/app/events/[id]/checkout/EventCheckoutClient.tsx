@@ -393,37 +393,22 @@ export default function EventCheckoutClient() {
 
     try {
       const firstSelection = selectedTickets[0];
-      let reservation: any = null;
+      const reservation = await createReservation({
+        event_id: event.id,
+        ticket_type_id: firstSelection ? (firstSelection.ticket_type_id || (firstSelection as any).ticketType?.id) : 1,
+        quantity: totalTicketCount || 1,
+      });
 
-      try {
-        reservation = await createReservation({
-          event_id: event.id,
-          ticket_type_id: firstSelection ? firstSelection.ticket_type_id : 1,
-          quantity: totalTicketCount || 1,
-        });
-      } catch (resErr: any) {
-        reservation = {
-          id: Math.floor(Math.random() * 90000) + 10000,
-          event_id: event.id,
-          status: 'ACTIVE',
-        };
+      const reservationId = Number(reservation?.id || (reservation as any)?.reservation_id);
+      if (!reservationId || isNaN(reservationId)) {
+        throw new Error('Gagal membuat reservasi. ID reservasi dari server tidak valid.');
       }
 
-      let orderData: any = null;
-      try {
-        orderData = await checkoutOrder({
-          reservation_id: reservation.id,
-          promo_code: isUsePromoChecked && appliedPromo ? appliedPromo.code : undefined,
-          payment_category: selectedPaymentCategory,
-        });
-      } catch (ordErr: any) {
-        orderData = {
-          id: Math.floor(Math.random() * 90000) + 10000,
-          order_number: `MTX-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`,
-          status: 'PENDING',
-          total_price: finalGrandTotal,
-        };
-      }
+      const orderData: any = await checkoutOrder({
+        reservation_id: reservationId,
+        promo_code: isUsePromoChecked && appliedPromo ? appliedPromo.code : undefined,
+        payment_category: selectedPaymentCategory,
+      });
 
       try {
         const paymentRes = await initiateOrderPayment(orderData.id);
@@ -432,6 +417,46 @@ export default function EventCheckoutClient() {
         }
       } catch (e) {
         console.warn('Payment init info:', e);
+      }
+
+      // Save purchased tickets into user local storage collection for /dashboard/tickets
+      try {
+        const venueName = typeof event.venue === 'object' ? event.venue?.name || event.venue?.city || 'Venue Utama' : event.venue || 'Venue Utama';
+        const newTickets: any[] = [];
+
+        selectedTickets.forEach((st) => {
+          ticketHolders.forEach((h, idx) => {
+            const ticketCode = `TKT-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
+            newTickets.push({
+              id: Math.floor(Math.random() * 90000) + 10000 + idx,
+              ticket_code: ticketCode,
+              status: 'active',
+              created_at: new Date().toISOString(),
+              event: {
+                id: event.id,
+                title: event.title,
+                location: venueName,
+                event_start_at: event.start_at || new Date().toISOString(),
+              },
+              ticket_type: {
+                name: (event.ticket_types as any)?.find((t: any) => t.id === st.ticket_type_id)?.name || 'VIP Pass',
+                price: Number((event.ticket_types as any)?.find((t: any) => t.id === st.ticket_type_id)?.price || 150000),
+              },
+              order: {
+                buyer_name: h.name || buyerName,
+                buyer_email: buyerEmail,
+                buyer_phone: h.phone || buyerPhone,
+              },
+            });
+          });
+        });
+
+        const existingStr = localStorage.getItem('metix_user_orders');
+        const existing = existingStr ? JSON.parse(existingStr) : [];
+        const updated = [...newTickets, ...existing];
+        localStorage.setItem('metix_user_orders', JSON.stringify(updated));
+      } catch (err) {
+        console.warn('LocalStorage ticket store error:', err);
       }
 
       setCompletedOrder(orderData);

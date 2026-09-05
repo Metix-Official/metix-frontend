@@ -591,39 +591,22 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
 
     try {
       const firstSelection = selectedTickets[0];
-      let reservation: any = null;
+      const reservation = await createReservation({
+        event_id: event.id,
+        ticket_type_id: firstSelection.ticketType.id,
+        quantity: firstSelection.quantity,
+      });
 
-      try {
-        reservation = await createReservation({
-          event_id: event.id,
-          ticket_type_id: firstSelection.ticketType.id,
-          quantity: firstSelection.quantity,
-        });
-      } catch (resErr: any) {
-        console.warn('Backend reservation response:', resErr);
-        reservation = {
-          id: Math.floor(Math.random() * 90000) + 10000,
-          event_id: event.id,
-          status: 'ACTIVE',
-        };
+      const reservationId = Number(reservation?.id || (reservation as any)?.reservation_id);
+      if (!reservationId || isNaN(reservationId)) {
+        throw new Error('Gagal membuat reservasi. ID reservasi dari server tidak valid.');
       }
 
-      let orderData: any = null;
-      try {
-        orderData = await checkoutOrder({
-          reservation_id: reservation.id,
-          promo_code: appliedPromo?.code,
-          payment_category: selectedPaymentCategory,
-        });
-      } catch (ordErr: any) {
-        console.warn('Backend order response:', ordErr);
-        orderData = {
-          id: Math.floor(Math.random() * 90000) + 10000,
-          order_number: `MTX-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`,
-          status: 'PENDING',
-          total_price: finalGrandTotal,
-        };
-      }
+      const orderData: any = await checkoutOrder({
+        reservation_id: reservationId,
+        promo_code: appliedPromo?.code,
+        payment_category: selectedPaymentCategory,
+      });
 
       try {
         const paymentRes = await initiateOrderPayment(orderData.id);

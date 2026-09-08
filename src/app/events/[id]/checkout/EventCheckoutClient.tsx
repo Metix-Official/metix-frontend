@@ -59,8 +59,30 @@ export default function EventCheckoutClient() {
   // Stepper Timeline State (Step 1: Identitas, Step 2: Pembayaran, Step 3: E-Ticket Berhasil)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
 
-  // Countdown Reservation Timer (600 seconds = 10 minutes)
-  const [timeLeft, setTimeLeft] = useState<number>(600);
+  // Countdown Reservation Timer (600 seconds = 10 minutes) with Page Reload Persistence
+  const [timeLeft, setTimeLeft] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const rawId = params?.id;
+        const eventIdKey = Array.isArray(rawId) ? rawId[0] : (rawId || 'default');
+        const timerStorageKey = `metix_reservation_timer_${eventIdKey}`;
+        const storedExpire = sessionStorage.getItem(timerStorageKey);
+        if (storedExpire) {
+          const expireTime = parseInt(storedExpire, 10);
+          const diffSeconds = Math.floor((expireTime - Date.now()) / 1000);
+          if (diffSeconds > 0) {
+            return diffSeconds;
+          }
+        }
+        const newExpireTime = Date.now() + 600 * 1000;
+        sessionStorage.setItem(timerStorageKey, newExpireTime.toString());
+        return 600;
+      } catch {
+        return 600;
+      }
+    }
+    return 600;
+  });
 
   // Ticket Selection State
   const [selectedTickets, setSelectedTickets] = useState<{ ticket_type_id: number; quantity: number }[]>([]);
@@ -162,10 +184,37 @@ export default function EventCheckoutClient() {
     }
   }, [params]);
 
-  // Reservation Timer Countdown
+  // Reservation Timer Countdown with persistent target timestamp across reloads
   useEffect(() => {
-    if (currentStep === 3) return; // Stop countdown on success step
+    const rawId = params?.id;
+    const eventIdKey = Array.isArray(rawId) ? rawId[0] : (rawId || 'default');
+    const timerStorageKey = `metix_reservation_timer_${eventIdKey}`;
+
+    if (currentStep === 3) {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(timerStorageKey);
+      }
+      return;
+    }
+
+    if (typeof window !== 'undefined' && !sessionStorage.getItem(timerStorageKey)) {
+      sessionStorage.setItem(timerStorageKey, (Date.now() + 600 * 1000).toString());
+    }
+
     const timer = setInterval(() => {
+      if (typeof window !== 'undefined') {
+        const storedExpire = sessionStorage.getItem(timerStorageKey);
+        if (storedExpire) {
+          const expireTime = parseInt(storedExpire, 10);
+          const diffSeconds = Math.max(0, Math.floor((expireTime - Date.now()) / 1000));
+          setTimeLeft(diffSeconds);
+          if (diffSeconds <= 0) {
+            clearInterval(timer);
+          }
+          return;
+        }
+      }
+
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
@@ -174,8 +223,9 @@ export default function EventCheckoutClient() {
         return prev - 1;
       });
     }, 1000);
+
     return () => clearInterval(timer);
-  }, [currentStep]);
+  }, [currentStep, params]);
 
   // Calculate Ticket Subtotal
   const totalPrice = React.useMemo(() => {
@@ -622,9 +672,20 @@ export default function EventCheckoutClient() {
 
         {/* Countdown Reservation Timer Badge */}
         {currentStep !== 3 && (
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-black shadow-xs">
-            <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
-            <span>Batas Waktu: <strong className="text-amber-700 font-mono">{formatTimer(timeLeft)}</strong></span>
+          <div
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-2xl border text-xs font-black shadow-xs transition-colors ${
+              timeLeft <= 60
+                ? 'bg-rose-50 border-rose-200 text-rose-800'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}
+          >
+            <Clock className={`w-4 h-4 ${timeLeft <= 60 ? 'text-rose-600' : 'text-amber-600'} animate-pulse`} />
+            <span>
+              {timeLeft <= 0 ? 'Waktu Habis' : 'Batas Waktu:'}{' '}
+              <strong className={`font-mono ${timeLeft <= 60 ? 'text-rose-700' : 'text-amber-700'}`}>
+                {formatTimer(timeLeft)}
+              </strong>
+            </span>
           </div>
         )}
       </header>

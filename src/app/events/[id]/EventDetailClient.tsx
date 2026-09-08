@@ -62,6 +62,9 @@ export default function EventDetailClient() {
     if (!event) return;
     const token = getStoredToken();
     if (!token) {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('metix_pending_redirect', `/events/${event.id}/checkout`);
+      }
       setAuthModalMode('login');
       setIsAuthModalOpen(true);
       return;
@@ -993,6 +996,9 @@ export default function EventDetailClient() {
         initialMode={authModalMode}
         onSuccess={() => {
           setIsAuthModalOpen(false);
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('metix_pending_redirect');
+          }
           if (event) {
             router.push(`/events/${event.id}/checkout`);
           }

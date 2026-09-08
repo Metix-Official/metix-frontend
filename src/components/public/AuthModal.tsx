@@ -71,6 +71,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleAuthCompletion = (userObj?: UserProfile | null) => {
     onClose();
+    if (typeof window !== 'undefined') {
+      const pendingRedirect = sessionStorage.getItem('metix_pending_redirect');
+      if (pendingRedirect) {
+        sessionStorage.removeItem('metix_pending_redirect');
+        if (onSuccess) onSuccess();
+        router.push(pendingRedirect);
+        return;
+      }
+    }
+
     if (onSuccess) {
       onSuccess();
     } else if (typeof window !== 'undefined') {

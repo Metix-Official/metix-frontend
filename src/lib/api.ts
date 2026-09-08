@@ -1000,7 +1000,7 @@ export async function checkoutOrder(payload: {
     throw new Error(errorMsg);
   }
 
-  return data?.data || data?.order || data;
+  return data?.data?.order || data?.data || data?.order || data;
 }
 
 export async function initiateOrderPayment(orderId: number): Promise<{ payment_url?: string; snap_token?: string }> {
@@ -1069,7 +1069,12 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
                 ? data
                 : [];
         if (Array.isArray(list) && list.length > 0) {
-          apiTickets = list;
+          apiTickets = list.map((t: any) => ({
+            ...t,
+            ticket_type: t.ticket_type || t.ticketType,
+            ticket_code: t.ticket_code || t.code || t.ticket_number,
+            status: (t.status || 'active').toLowerCase(),
+          }));
         }
       }
     } catch (error) {

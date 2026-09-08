@@ -487,6 +487,10 @@ export async function loginUser(payload: LoginPayload): Promise<LoginResponse> {
       const user = data.user || data.data?.user;
       const token = data.token || data.data?.token;
 
+      if (user) {
+        user.phone = user.phone || (user as any).phone_number || (user as any).whatsapp || (user as any).no_hp || null;
+      }
+
       if (typeof window !== 'undefined' && token) {
         localStorage.setItem('metix_token', token);
         if (user) {
@@ -556,6 +560,10 @@ export async function registerUser(payload: RegisterPayload): Promise<LoginRespo
       password: payload.password || 'password123',
       password_confirmation: payload.password_confirmation || payload.password || 'password123',
       role: mappedRole,
+      phone: payload.phone,
+      phone_number: payload.phone,
+      gender: payload.gender,
+      birth_date: payload.birth_date,
     }),
   });
 
@@ -574,6 +582,10 @@ export async function registerUser(payload: RegisterPayload): Promise<LoginRespo
   const user = data.user || data.data?.user;
   const token = data.token || data.data?.token;
 
+  if (user) {
+    user.phone = user.phone || user.phone_number || payload.phone || null;
+  }
+
   if (mappedRole === 'EO' && user) {
     user.mitra_status = 'pending';
     user.organizer_status = 'PENDING_APPROVAL';
@@ -587,7 +599,7 @@ export async function registerUser(payload: RegisterPayload): Promise<LoginRespo
           user_id: user.id,
           organization_name: user.name ? `Organisasi ${user.name}` : 'Organisasi EO Baru',
           email: user.email,
-          phone: user.phone || '081234567890',
+          phone: user.phone || payload.phone || '081234567890',
           address: 'Belum diisi',
           description: 'Pendaftaran mitra Event Organizer baru dari platform Metix',
           status: 'PENDING_APPROVAL',
@@ -642,6 +654,10 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
 
     const data = await response.json();
     const user = data?.data || data?.user || data;
+
+    if (user) {
+      user.phone = user.phone || (user as any).phone_number || (user as any).whatsapp || (user as any).no_hp || null;
+    }
 
     if (user && typeof window !== 'undefined') {
       if (user.organizer_profile && user.organizer_profile.status) {

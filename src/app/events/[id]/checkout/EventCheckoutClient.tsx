@@ -136,11 +136,12 @@ export default function EventCheckoutClient() {
       setIsUserLoggedIn(true);
       const getAddressValue = (u: any) => u?.address || u?.location || '';
       const getNikValue = (u: any) => u?.nik || '';
+      const getPhoneValue = (u: any) => u?.phone || u?.phone_number || u?.whatsapp || u?.no_hp || '';
 
       if (user) {
         setBuyerName(user.name || user.first_name || '');
         setBuyerEmail(user.email || '');
-        setBuyerPhone(user.phone || '');
+        setBuyerPhone(getPhoneValue(user));
         setBuyerAddress(getAddressValue(user));
         setBuyerNik(getNikValue(user));
       }
@@ -149,7 +150,7 @@ export default function EventCheckoutClient() {
         if (freshUser) {
           setBuyerName(freshUser.name || freshUser.first_name || '');
           setBuyerEmail(freshUser.email || '');
-          setBuyerPhone(freshUser.phone || '');
+          setBuyerPhone(getPhoneValue(freshUser));
           setBuyerAddress(getAddressValue(freshUser));
           setBuyerNik(getNikValue(freshUser));
         }
@@ -1392,16 +1393,17 @@ export default function EventCheckoutClient() {
           setIsAuthModalOpen(false);
           setIsUserLoggedIn(true);
           const user = getStoredUser();
+          const getPhoneValue = (u: any) => u?.phone || u?.phone_number || u?.whatsapp || u?.no_hp || '';
           if (user) {
             setBuyerName(user.name || user.first_name || '');
             setBuyerEmail(user.email || '');
-            setBuyerPhone(user.phone || '');
+            setBuyerPhone(getPhoneValue(user));
           }
           fetchUserProfile().then((freshUser) => {
             if (freshUser) {
               setBuyerName(freshUser.name || freshUser.first_name || '');
               setBuyerEmail(freshUser.email || '');
-              setBuyerPhone(freshUser.phone || '');
+              setBuyerPhone(getPhoneValue(freshUser));
             }
           });
         }}

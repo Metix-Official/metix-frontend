@@ -175,12 +175,13 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
         setIsUserLoggedIn(true);
         const getAddressValue = (u: any) => u?.address || u?.location || '';
         const getNikValue = (u: any) => u?.nik || '';
+        const getPhoneValue = (u: any) => u?.phone || u?.phone_number || u?.whatsapp || u?.no_hp || '';
 
         if (user) {
           setCurrentUser(user);
           setBuyerName(user.name || user.first_name || '');
           setBuyerEmail(user.email || '');
-          setBuyerPhone(user.phone || '');
+          setBuyerPhone(getPhoneValue(user));
           setBuyerAddress(getAddressValue(user));
           setBuyerNik(getNikValue(user));
         }
@@ -190,7 +191,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
             setCurrentUser(freshUser);
             setBuyerName(freshUser.name || freshUser.first_name || '');
             setBuyerEmail(freshUser.email || '');
-            setBuyerPhone(freshUser.phone || '');
+            setBuyerPhone(getPhoneValue(freshUser));
             setBuyerAddress(getAddressValue(freshUser));
             setBuyerNik(getNikValue(freshUser));
           }
@@ -550,11 +551,13 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
     setIsUserLoggedIn(true);
 
     const user = getStoredUser();
+    const getPhoneValue = (u: any) => u?.phone || u?.phone_number || u?.whatsapp || u?.no_hp || '';
+
     if (user) {
       setCurrentUser(user);
       setBuyerName(user.name || user.first_name || '');
       setBuyerEmail(user.email || '');
-      setBuyerPhone(user.phone || '');
+      setBuyerPhone(getPhoneValue(user));
       setBuyerNik(user.nik || '');
     }
 
@@ -563,7 +566,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
         setCurrentUser(freshUser);
         setBuyerName(freshUser.name || freshUser.first_name || '');
         setBuyerEmail(freshUser.email || '');
-        setBuyerPhone(freshUser.phone || '');
+        setBuyerPhone(getPhoneValue(freshUser));
         setBuyerNik(freshUser.nik || '');
       }
     });

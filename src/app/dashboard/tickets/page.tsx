@@ -1,13 +1,12 @@
-'use me';
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useRouter } from 'next/navigation';
 import { fetchUserTickets, ApiTicketDetail, getStoredUser, getTicketPdfUrl } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
-import { Ticket, Search, Calendar, MapPin, QrCode, Sparkles, X, Printer, CheckCircle2, XCircle } from 'lucide-react';
+import { Ticket, Search, Calendar, MapPin, QrCode, Sparkles, X, Printer, CheckCircle2, XCircle, RotateCw } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 import { getUserRole } from '@/lib/roles';
@@ -19,37 +18,50 @@ export default function TicketsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'used'>('all');
 
+  const loadTickets = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await fetchUserTickets();
+      setTickets(data);
+    } catch (err) {
+      console.warn('Gagal memuat tiket:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const user = getStoredUser();
     const role = getUserRole(user);
-    if (role !== 'BUYER') {
-      toast.error('Halaman E-Tiket hanya dapat diakses oleh akun Pembeli (Buyer).');
-      router.replace('/dashboard');
+    if (role === 'SCANNER') {
+      toast.error('Akun Petugas Scanner hanya dapat mengakses halaman scan check-in.');
+      router.replace('/dashboard/checkin');
       return;
     }
 
-    async function loadTickets() {
-      setIsLoading(true);
-      const data = await fetchUserTickets();
-      setTickets(data);
-      setIsLoading(false);
-    }
     loadTickets();
-  }, [router]);
+  }, [router, loadTickets]);
 
   const filteredTickets = React.useMemo(() => {
     return tickets.filter((item) => {
-      const matchSearch =
-        (item.event?.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.ticket_code || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const title = (item.event?.title || (item as any).event_title || (item as any).title || '').toLowerCase();
+      const code = (item.ticket_code || '').toLowerCase();
+      const typeName = (item.ticket_type?.name || (item as any).ticket_type_name || (item as any).type_name || '').toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
 
+      const matchSearch = !q || title.includes(q) || code.includes(q) || typeName.includes(q);
       if (!matchSearch) return false;
 
+      const rawStatus = (item.status || 'active').toLowerCase();
+      const isUsed = rawStatus === 'used' || rawStatus === 'checked_in' || rawStatus === 'checked-in';
+      const isCancelled = rawStatus === 'cancelled' || rawStatus === 'canceled';
+      const isActive = !isUsed && !isCancelled;
+
       if (activeTab === 'active') {
-        return item.status === 'active';
+        return isActive;
       }
       if (activeTab === 'used') {
-        return item.status === 'used';
+        return isUsed;
       }
       return true;
     });
@@ -274,7 +286,10 @@ export default function TicketsPage() {
                   : 'text-slate-600 hover:text-slate-900'
                   }`}
               >
-                Siap Check-In ({tickets.filter((t) => t.status === 'active').length})
+                Siap Check-In ({tickets.filter((t) => {
+                  const s = (t.status || 'active').toLowerCase();
+                  return s !== 'used' && s !== 'checked_in' && s !== 'checked-in' && s !== 'cancelled' && s !== 'canceled';
+                }).length})
               </button>
               <button
                 onClick={() => setActiveTab('used')}
@@ -283,20 +298,37 @@ export default function TicketsPage() {
                   : 'text-slate-600 hover:text-slate-900'
                   }`}
               >
-                Sudah Digunakan ({tickets.filter((t) => t.status === 'used').length})
+                Sudah Digunakan ({tickets.filter((t) => {
+                  const s = (t.status || '').toLowerCase();
+                  return s === 'used' || s === 'checked_in' || s === 'checked-in';
+                }).length})
               </button>
             </div>
 
-            {/* Search Input */}
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari event atau kode tiket..."
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
-              />
+            {/* Search Input & Sync Button */}
+            <div className="flex items-center gap-2 flex-1 max-w-md">
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari event atau kode tiket..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  toast.loading('Memperbarui data tiket...', { id: 'refresh-tickets' });
+                  loadTickets().then(() => toast.success('Data tiket berhasil disinkronkan!', { id: 'refresh-tickets' }));
+                }}
+                title="Sinkronkan & Muat Ulang Tiket"
+                disabled={isLoading}
+                className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-white text-slate-600 hover:text-blue-600 transition-all cursor-pointer shrink-0 disabled:opacity-50 shadow-2xs"
+              >
+                <RotateCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+              </button>
             </div>
           </div>
 
@@ -310,19 +342,22 @@ export default function TicketsPage() {
           ) : filteredTickets.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
               {filteredTickets.map((item) => {
-                const isUsed = item.status === 'used';
-                const isCancelled = item.status === 'cancelled';
-                const eventTitle = item.event?.title || 'Event Metix Pass';
-                const venue = item.event?.location || 'Venue Utama';
-                const ticketType = item.ticket_type?.name || 'VIP Pass';
-                const priceStr = item.ticket_type?.price
-                  ? `Rp ${Number(item.ticket_type.price).toLocaleString('id-ID')}`
+                const rawStatus = (item.status || 'active').toLowerCase();
+                const isUsed = rawStatus === 'used' || rawStatus === 'checked_in' || rawStatus === 'checked-in';
+                const isCancelled = rawStatus === 'cancelled' || rawStatus === 'canceled';
+                const eventTitle = item.event?.title || (item as any).event_title || (item as any).title || 'Event Metix Pass';
+                const venue = item.event?.location || (item as any).event_location || (item as any).venue || 'Venue Utama';
+                const ticketType = item.ticket_type?.name || (item as any).ticket_type_name || (item as any).type_name || 'VIP Pass';
+                const priceVal = item.ticket_type?.price || (item as any).price || (item as any).amount;
+                const priceStr = priceVal
+                  ? `Rp ${Number(priceVal).toLocaleString('id-ID')}`
                   : 'Rp 150.000';
 
                 let dateStr = '15 Sep 2026';
-                if (item.event?.event_start_at) {
+                const dateCandidate = item.event?.event_start_at || item.event?.start_at || (item as any).event_date || item.created_at;
+                if (dateCandidate) {
                   try {
-                    dateStr = new Date(item.event.event_start_at).toLocaleDateString('id-ID', {
+                    dateStr = new Date(dateCandidate).toLocaleDateString('id-ID', {
                       day: '2-digit',
                       month: 'short',
                       year: 'numeric',

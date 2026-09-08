@@ -621,15 +621,21 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
       try {
         const venueName = typeof event.venue === 'object' ? event.venue?.name || event.venue?.city || 'Venue Utama' : event.venue || 'Venue Utama';
         const newTickets: any[] = [];
+        const loggedUser = getStoredUser();
+        const effectiveBuyerEmail = (buyerEmail || loggedUser?.email || '').trim();
+        const effectiveBuyerName = (buyerName || loggedUser?.name || 'Guest User').trim();
+        const effectiveBuyerPhone = (buyerPhone || loggedUser?.phone || '').trim();
 
-        selectedTickets.forEach((st) => {
-          st.holders.forEach((h, idx) => {
-            const ticketCode = `TKT-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
+        // Check if backend returned real tickets in orderData
+        const backendTickets = orderData?.tickets || orderData?.order?.tickets || orderData?.items || [];
+        if (Array.isArray(backendTickets) && backendTickets.length > 0) {
+          backendTickets.forEach((bt: any, idx: number) => {
             newTickets.push({
-              id: Math.floor(Math.random() * 90000) + 10000 + idx,
-              ticket_code: ticketCode,
-              status: 'active',
-              created_at: new Date().toISOString(),
+              id: bt.id || Math.floor(Math.random() * 90000) + 10000 + idx,
+              ticket_code: bt.ticket_code || bt.code || `TKT-${orderData.id || Date.now()}-${idx + 1}`,
+              status: (bt.status || 'active').toLowerCase(),
+              created_at: bt.created_at || new Date().toISOString(),
+              user_id: loggedUser?.id,
               event: {
                 id: event.id,
                 title: event.title,
@@ -637,17 +643,49 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                 event_start_at: event.start_at || new Date().toISOString(),
               },
               ticket_type: {
-                name: st.ticketType.name || 'VIP Pass',
-                price: Number(st.ticketType.price || 150000),
+                name: bt.ticket_type?.name || selectedTickets[0]?.ticketType?.name || 'VIP Pass',
+                price: Number(bt.ticket_type?.price || selectedTickets[0]?.ticketType?.price || 150000),
               },
               order: {
-                buyer_name: h.name || buyerName,
-                buyer_email: buyerEmail,
-                buyer_phone: h.phone || buyerPhone,
+                id: orderData.id,
+                buyer_name: effectiveBuyerName,
+                buyer_email: effectiveBuyerEmail,
+                buyer_phone: effectiveBuyerPhone,
               },
             });
           });
-        });
+        }
+
+        if (newTickets.length === 0) {
+          selectedTickets.forEach((st) => {
+            st.holders.forEach((h, idx) => {
+              const ticketCode = `TKT-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
+              newTickets.push({
+                id: Math.floor(Math.random() * 90000) + 10000 + idx,
+                ticket_code: ticketCode,
+                status: 'active',
+                created_at: new Date().toISOString(),
+                user_id: loggedUser?.id,
+                event: {
+                  id: event.id,
+                  title: event.title,
+                  location: venueName,
+                  event_start_at: event.start_at || new Date().toISOString(),
+                },
+                ticket_type: {
+                  name: st.ticketType.name || 'VIP Pass',
+                  price: Number(st.ticketType.price || 150000),
+                },
+                order: {
+                  id: orderData.id,
+                  buyer_name: h.name || effectiveBuyerName,
+                  buyer_email: effectiveBuyerEmail,
+                  buyer_phone: h.phone || effectiveBuyerPhone,
+                },
+              });
+            });
+          });
+        }
 
         const existingStr = localStorage.getItem('metix_user_orders');
         const existing = existingStr ? JSON.parse(existingStr) : [];

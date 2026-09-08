@@ -236,6 +236,7 @@ export interface ApiTicketDetail {
     city?: string;
     address?: string;
     event_start_at?: string;
+    start_at?: string;
     event_end_at?: string;
     banner?: string;
     venue_photo?: string;
@@ -248,6 +249,7 @@ export interface ApiTicketDetail {
     order_number?: string;
     buyer_name?: string;
     buyer_email?: string;
+    buyer_phone?: string;
   };
 }
 
@@ -1045,6 +1047,7 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
   const token = getStoredToken();
   const user = getStoredUser();
   const currentUserEmail = (user?.email || '').toLowerCase().trim();
+  const currentUserId = user?.id;
 
   let apiTickets: ApiTicketDetail[] = [];
   if (token) {
@@ -1055,28 +1058,95 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
 
       if (response.ok) {
         const data = await response.json();
-        const list = data?.data || data?.tickets || data || [];
-        if (Array.isArray(list)) {
+        // Support standard array, Laravel Resource Pagination (data.data.data), or data.tickets
+        const list = Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.data?.data)
+            ? data.data.data
+            : Array.isArray(data?.tickets)
+              ? data.tickets
+              : Array.isArray(data)
+                ? data
+                : [];
+        if (Array.isArray(list) && list.length > 0) {
           apiTickets = list;
         }
       }
     } catch (error) {
       console.warn('Failed to fetch user tickets from API:', error);
     }
+
+    // Secondary fallback: If /tickets returned empty or 500, check /orders for tickets
+    if (apiTickets.length === 0) {
+      try {
+        const ordersRes = await fetch(`${API_BASE_URL}/orders`, {
+          headers: getHeaders(token),
+        });
+        if (ordersRes.ok) {
+          const ordersData = await ordersRes.json();
+          const ordersList = Array.isArray(ordersData?.data)
+            ? ordersData.data
+            : Array.isArray(ordersData?.data?.data)
+              ? ordersData.data.data
+              : Array.isArray(ordersData)
+                ? ordersData
+                : [];
+
+          ordersList.forEach((ord: any) => {
+            const rawTickets = ord?.tickets || ord?.ticket_items || ord?.items || [];
+            if (Array.isArray(rawTickets) && rawTickets.length > 0) {
+              rawTickets.forEach((t: any, idx: number) => {
+                apiTickets.push({
+                  id: t.id || ord.id * 100 + idx,
+                  ticket_code: t.ticket_code || t.code || `TKT-${ord.id}-${t.id || idx + 1}`,
+                  status: (t.status || (ord.status === 'PAID' ? 'active' : ord.status) || 'active').toLowerCase(),
+                  created_at: t.created_at || ord.created_at || new Date().toISOString(),
+                  event: t.event || ord.event,
+                  ticket_type: t.ticket_type || ord.ticket_type,
+                  order: {
+                    buyer_name: ord.buyer_name || ord.user?.name,
+                    buyer_email: ord.buyer_email || ord.user?.email,
+                    buyer_phone: ord.buyer_phone || ord.user?.phone,
+                  },
+                });
+              });
+            }
+          });
+        }
+      } catch (ordersErr) {
+        console.warn('Orders fallback fetch error:', ordersErr);
+      }
+    }
   }
 
-  // Retrieve stored local user orders filtered STRICTLY by current logged-in user's email
+  // Retrieve stored local user orders from browser localStorage (metix_user_orders)
   let localTickets: ApiTicketDetail[] = [];
-  if (typeof window !== 'undefined' && currentUserEmail) {
+  if (typeof window !== 'undefined') {
     try {
       const localStr = localStorage.getItem('metix_user_orders');
       if (localStr) {
         const parsed = JSON.parse(localStr);
-        if (Array.isArray(parsed)) {
-          localTickets = parsed.filter((t: any) => {
-            const ticketEmail = (t.order?.buyer_email || t.buyer_email || '').toLowerCase().trim();
-            return ticketEmail === currentUserEmail;
-          });
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // If logged in with email, attempt matching by email or user ID
+          if (currentUserEmail) {
+            const matched = parsed.filter((t: any) => {
+              const ticketEmail = (t.order?.buyer_email || t.buyer_email || '').toLowerCase().trim();
+              const ticketUserId = t.user_id || t.order?.user_id;
+
+              return (
+                ticketEmail === currentUserEmail ||
+                (currentUserId && ticketUserId && String(ticketUserId) === String(currentUserId)) ||
+                !ticketEmail
+              );
+            });
+
+            // If matched found, use them. If no strict match but orders exist on this device,
+            // fallback to showing all local orders from this browser so tickets don't vanish.
+            localTickets = matched.length > 0 ? matched : parsed;
+          } else {
+            // Guest session or email missing
+            localTickets = parsed;
+          }
         }
       }
     } catch (e) {
@@ -1084,15 +1154,15 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
     }
   }
 
-  // Merge local tickets matching current user with API tickets
+  // Merge local tickets with API tickets (API tickets take precedence)
   const combinedMap = new Map<string | number, ApiTicketDetail>();
   localTickets.forEach((t) => {
     const key = t.ticket_code || t.id;
-    combinedMap.set(key, t);
+    if (key) combinedMap.set(key, t);
   });
   apiTickets.forEach((t) => {
     const key = t.ticket_code || t.id;
-    combinedMap.set(key, t);
+    if (key) combinedMap.set(key, t);
   });
 
   return Array.from(combinedMap.values());

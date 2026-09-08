@@ -54,11 +54,11 @@ export function getUserRole(
   if (rawRole === 'SCANNER' || rawRole === 'STAFF') {
     return ROLES.SCANNER;
   }
-  if (rawRole === 'BUYER' || rawRole === 'PEMBELI') {
+  if (rawRole === 'BUYER' || rawRole === 'PEMBELI' || rawRole === 'USER' || rawRole === 'CUSTOMER') {
     return ROLES.BUYER;
   }
 
-  return null;
+  return ROLES.BUYER;
 }
 
 export function hasRole(

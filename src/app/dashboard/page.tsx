@@ -30,26 +30,43 @@ export default function DashboardPage() {
 
     async function loadData() {
       setIsLoading(true);
-      const [res, myEventsRes, userTickets, salesReportRes] = await Promise.all([
-        fetchDashboardData(),
-        fetchMyEvents(),
-        fetchUserTickets(),
-        fetchSalesReportData({ month: 'all', year: 'all' }),
-      ]);
+      const isOrganizer = role === 'EO' || role === 'OWNER' || (u?.role || '').toUpperCase() === 'EO' || !!u?.organizer_profile;
 
-      const finalEvents = (res?.eventsList && res.eventsList.length > 0) ? res.eventsList : (myEventsRes?.events || []);
+      if (isOrganizer) {
+        const [res, myEventsRes, userTickets, salesReportRes] = await Promise.all([
+          fetchDashboardData(),
+          fetchMyEvents(),
+          fetchUserTickets(),
+          fetchSalesReportData({ month: 'all', year: 'all' }),
+        ]);
 
-      setDashboardData({
-        ...res,
-        eventsList: finalEvents,
-        tickets: (res?.tickets?.data && res.tickets.data.length > 0) ? res.tickets : { data: userTickets || [] },
-        salesReport: salesReportRes,
-      } as any);
+        const finalEvents = (res?.eventsList && res.eventsList.length > 0) ? res.eventsList : (myEventsRes?.events || []);
 
-      const admins = await fetchEoAdmins();
-      if (admins) {
-        setEoAdmins(admins);
+        setDashboardData({
+          ...res,
+          eventsList: finalEvents,
+          tickets: (res?.tickets?.data && res.tickets.data.length > 0) ? res.tickets : { data: userTickets || [] },
+          salesReport: salesReportRes,
+        } as any);
+
+        const admins = await fetchEoAdmins();
+        if (admins) {
+          setEoAdmins(admins);
+        }
+      } else {
+        // Akun Pembeli (BUYER) - hanya ambil data pembeli agar tidak 403
+        const [res, userTickets] = await Promise.all([
+          fetchDashboardData(),
+          fetchUserTickets(),
+        ]);
+
+        setDashboardData({
+          ...res,
+          eventsList: res?.eventsList || [],
+          tickets: (res?.tickets?.data && res.tickets.data.length > 0) ? res.tickets : { data: userTickets || [] },
+        } as any);
       }
+
       setIsLoading(false);
     }
     loadData();
@@ -278,7 +295,7 @@ export default function DashboardPage() {
         value: `Rp ${(s?.totalRevenue || 0).toLocaleString('id-ID')}`,
         change: '+0.0%',
         isPositive: true,
-        period: 'via Midtrans',
+        period: 'via Metix',
         iconName: 'DollarSign',
       },
     ];

@@ -246,6 +246,7 @@ export interface ApiTicketDetail {
     price: string | number;
   };
   order?: {
+    id?: number | string;
     order_number?: string;
     buyer_name?: string;
     buyer_email?: string;
@@ -1085,12 +1086,20 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
                 ? data
                 : [];
         if (Array.isArray(list) && list.length > 0) {
-          apiTickets = list.map((t: any) => ({
-            ...t,
-            ticket_type: t.ticket_type || t.ticketType,
-            ticket_code: t.ticket_code || t.code || t.ticket_number,
-            status: (t.status || 'active').toLowerCase(),
-          }));
+          apiTickets = list.map((t: any, idx: number) => {
+            const rawCode = t.ticket_code || t.code || t.ticket_number || t.qr_token;
+            const orderNum = t.order?.order_number || t.order_number;
+            const finalCode = (rawCode && !rawCode.startsWith('TKT-'))
+              ? rawCode
+              : (orderNum || rawCode || `MTX-${t.id || idx + 1}`);
+
+            return {
+              ...t,
+              ticket_type: t.ticket_type || t.ticketType,
+              ticket_code: finalCode,
+              status: (t.status || 'active').toLowerCase(),
+            };
+          });
         }
       }
     } catch (error) {
@@ -1115,21 +1124,45 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
 
           ordersList.forEach((ord: any) => {
             const rawTickets = ord?.tickets || ord?.ticket_items || ord?.items || [];
+            const orderNum = ord?.order_number || ord?.code;
             if (Array.isArray(rawTickets) && rawTickets.length > 0) {
               rawTickets.forEach((t: any, idx: number) => {
+                const rawCode = t.ticket_code || t.code || t.ticket_number;
+                const finalCode = (rawCode && !rawCode.startsWith('TKT-'))
+                  ? rawCode
+                  : (orderNum ? (rawTickets.length > 1 ? `${orderNum}-${idx + 1}` : orderNum) : `MTX-${ord.id}-${t.id || idx + 1}`);
+
                 apiTickets.push({
                   id: t.id || ord.id * 100 + idx,
-                  ticket_code: t.ticket_code || t.code || `TKT-${ord.id}-${t.id || idx + 1}`,
+                  ticket_code: finalCode,
                   status: (t.status || (ord.status === 'PAID' ? 'active' : ord.status) || 'active').toLowerCase(),
                   created_at: t.created_at || ord.created_at || new Date().toISOString(),
                   event: t.event || ord.event,
                   ticket_type: t.ticket_type || ord.ticket_type,
                   order: {
+                    id: ord.id,
+                    order_number: orderNum,
                     buyer_name: ord.buyer_name || ord.user?.name,
                     buyer_email: ord.buyer_email || ord.user?.email,
                     buyer_phone: ord.buyer_phone || ord.user?.phone,
                   },
                 });
+              });
+            } else if (ord.id) {
+              apiTickets.push({
+                id: ord.id,
+                ticket_code: orderNum || `MTX-${ord.id}`,
+                status: (ord.status === 'PAID' ? 'active' : ord.status || 'active').toLowerCase(),
+                created_at: ord.created_at || new Date().toISOString(),
+                event: ord.event,
+                ticket_type: ord.ticket_type || { name: 'VIP Pass', price: ord.total_amount || 0 },
+                order: {
+                  id: ord.id,
+                  order_number: orderNum,
+                  buyer_name: ord.buyer_name || ord.user?.name,
+                  buyer_email: ord.buyer_email || ord.user?.email,
+                  buyer_phone: ord.buyer_phone || ord.user?.phone,
+                },
               });
             }
           });
@@ -1148,6 +1181,32 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
       if (localStr) {
         const parsed = JSON.parse(localStr);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          // Build orderNum lookup map from apiTickets to repair legacy TKT-... codes
+          const orderNumMap = new Map<number | string, string>();
+          apiTickets.forEach((at) => {
+            const oId = at.order?.id;
+            const oNum = at.order?.order_number || (at.ticket_code && at.ticket_code.startsWith('MTX-') ? at.ticket_code : null);
+            if (oId && oNum) orderNumMap.set(oId, oNum);
+          });
+
+          // Normalize local tickets: migrate any TKT-... to MTX-... order_number
+          parsed.forEach((t: any) => {
+            const oId = t.order?.id || t.order_id;
+            const knownOrderNum = t.order?.order_number || (oId ? orderNumMap.get(oId) : null);
+            if (knownOrderNum) {
+              if (!t.ticket_code || t.ticket_code.startsWith('TKT-')) {
+                t.ticket_code = knownOrderNum;
+              }
+              if (t.order) t.order.order_number = knownOrderNum;
+            }
+          });
+
+          try {
+            localStorage.setItem('metix_user_orders', JSON.stringify(parsed));
+          } catch {
+            // Ignore quota errors
+          }
+
           // If logged in with email, attempt matching by email or user ID
           if (currentUserEmail) {
             const matched = parsed.filter((t: any) => {
@@ -1161,11 +1220,8 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
               );
             });
 
-            // If matched found, use them. If no strict match but orders exist on this device,
-            // fallback to showing all local orders from this browser so tickets don't vanish.
             localTickets = matched.length > 0 ? matched : parsed;
           } else {
-            // Guest session or email missing
             localTickets = parsed;
           }
         }
@@ -1178,11 +1234,11 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
   // Merge local tickets with API tickets (API tickets take precedence)
   const combinedMap = new Map<string | number, ApiTicketDetail>();
   localTickets.forEach((t) => {
-    const key = t.ticket_code || t.id;
+    const key = t.order?.order_number || t.ticket_code || t.id;
     if (key) combinedMap.set(key, t);
   });
   apiTickets.forEach((t) => {
-    const key = t.ticket_code || t.id;
+    const key = t.order?.order_number || t.ticket_code || t.id;
     if (key) combinedMap.set(key, t);
   });
 

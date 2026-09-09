@@ -479,13 +479,16 @@ export default function EventCheckoutClient() {
         const effectiveBuyerName = (buyerName || loggedUser?.name || 'Guest User').trim();
         const effectiveBuyerPhone = (buyerPhone || loggedUser?.phone || '').trim();
 
+        const effectiveOrderNumber = orderData?.order_number || completedOrder?.order_number || (orderData?.id ? `MTX-${orderData.id}` : null);
+
         // Check if backend returned real tickets in orderData
         const backendTickets = orderData?.tickets || orderData?.order?.tickets || orderData?.items || [];
         if (Array.isArray(backendTickets) && backendTickets.length > 0) {
           backendTickets.forEach((bt: any, idx: number) => {
+            const finalCode = bt.ticket_code || bt.code || (effectiveOrderNumber ? (backendTickets.length > 1 ? `${effectiveOrderNumber}-${idx + 1}` : effectiveOrderNumber) : `MTX-${orderData.id || Date.now()}-${idx + 1}`);
             newTickets.push({
               id: bt.id || Math.floor(Math.random() * 90000) + 10000 + idx,
-              ticket_code: bt.ticket_code || bt.code || `TKT-${orderData.id || Date.now()}-${idx + 1}`,
+              ticket_code: finalCode,
               status: (bt.status || 'active').toLowerCase(),
               created_at: bt.created_at || new Date().toISOString(),
               user_id: loggedUser?.id,
@@ -501,6 +504,7 @@ export default function EventCheckoutClient() {
               },
               order: {
                 id: orderData.id,
+                order_number: effectiveOrderNumber,
                 buyer_name: effectiveBuyerName,
                 buyer_email: effectiveBuyerEmail,
                 buyer_phone: effectiveBuyerPhone,
@@ -512,7 +516,7 @@ export default function EventCheckoutClient() {
         if (newTickets.length === 0) {
           selectedTickets.forEach((st) => {
             ticketHolders.forEach((h, idx) => {
-              const ticketCode = `TKT-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
+              const ticketCode = effectiveOrderNumber ? (ticketHolders.length > 1 ? `${effectiveOrderNumber}-${idx + 1}` : effectiveOrderNumber) : `MTX-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
               newTickets.push({
                 id: Math.floor(Math.random() * 90000) + 10000 + idx,
                 ticket_code: ticketCode,
@@ -531,6 +535,7 @@ export default function EventCheckoutClient() {
                 },
                 order: {
                   id: orderData.id,
+                  order_number: effectiveOrderNumber,
                   buyer_name: h.name || effectiveBuyerName,
                   buyer_email: effectiveBuyerEmail,
                   buyer_phone: h.phone || effectiveBuyerPhone,

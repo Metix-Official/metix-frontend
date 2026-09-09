@@ -3,10 +3,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useRouter } from 'next/navigation';
-import { fetchUserTickets, ApiTicketDetail, getStoredUser, getTicketPdfUrl } from '@/lib/api';
+import { fetchUserTickets, ApiTicketDetail, getStoredUser, getTicketPdfUrl, getTicketQrUrl } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
-import { Ticket, Search, Calendar, MapPin, QrCode, Sparkles, X, Printer, CheckCircle2, XCircle, RotateCw } from 'lucide-react';
+import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 import { getUserRole } from '@/lib/roles';
@@ -67,15 +67,52 @@ export default function TicketsPage() {
     });
   }, [tickets, searchQuery, activeTab]);
 
-  // PDF Generation & Print Handler (Checks Laravel Storage URL first)
-  const handlePrintTicketPdf = async (ticket: ApiTicketDetail) => {
+  // Helper to force download a file from a URL
+  const downloadFileFromUrl = async (url: string, filename: string) => {
     try {
-      toast.loading('Membuka dokumen PDF E-Tiket...', { id: 'jspdf-toast' });
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Network error');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+    } catch {
+      // Fallback direct link download
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
+  // PDF Generation & Direct Download Handler (No _blank popup)
+  const handlePrintTicketPdf = async (ticket: ApiTicketDetail) => {
+    if (ticket.status === 'used') {
+      toast.error('Tiket ini sudah digunakan (checked-in) dan tidak dapat diunduh kembali.', { id: 'jspdf-toast' });
+      return;
+    }
+
+    const rawCode = ticket.ticket_code || (ticket as any).code || '';
+    const orderNum = ticket.order?.order_number || (ticket as any).order_number;
+    const ticketCode = (rawCode && !rawCode.startsWith('TKT-'))
+      ? rawCode
+      : (orderNum || rawCode || `MTX-${ticket.id}`);
+    const filename = `METIX-ETicket-${ticketCode}.pdf`;
+
+    try {
+      toast.loading('Menyiapkan download PDF E-Tiket...', { id: 'jspdf-toast' });
 
       // 1. If backend PDF URL is directly present on ticket model (Laravel Storage)
       if (ticket.pdf_url) {
-        toast.success('Membuka PDF E-Tiket dari Storage Laravel...', { id: 'jspdf-toast' });
-        window.open(ticket.pdf_url, '_blank');
+        toast.success('Mengunduh PDF E-Tiket...', { id: 'jspdf-toast' });
+        await downloadFileFromUrl(ticket.pdf_url, filename);
         return;
       }
 
@@ -84,8 +121,8 @@ export default function TicketsPage() {
       try {
         const checkRes = await fetch(backendPdfUrl, { method: 'HEAD' });
         if (checkRes.ok) {
-          toast.success('Membuka PDF E-Tiket dari Server Laravel...', { id: 'jspdf-toast' });
-          window.open(backendPdfUrl, '_blank');
+          toast.success('Mengunduh PDF E-Tiket...', { id: 'jspdf-toast' });
+          await downloadFileFromUrl(backendPdfUrl, filename);
           return;
         }
       } catch {
@@ -102,10 +139,6 @@ export default function TicketsPage() {
       const venue = ticket.event?.location || 'Stadion Gelora Bung Karno, Jakarta';
       const ticketType = ticket.ticket_type?.name || 'VIP Early Bird Pass';
       const buyerName = ticket.order?.buyer_name || 'Guest User';
-      const buyerEmail = ticket.order?.buyer_email || 'buyer@metix.id';
-      const priceStr = ticket.ticket_type?.price
-        ? `Rp ${Number(ticket.ticket_type.price).toLocaleString('id-ID')}`
-        : 'Rp 150.000';
       const ticketCode = ticket.ticket_code || 'TKT-H1DLZTWIOW';
 
       let dateStr = '15 September 2026';
@@ -227,21 +260,161 @@ export default function TicketsPage() {
       doc.text('Petunjuk Check-in: Tunjukkan PDF E-Ticket Pass ini kepada petugas gate venue event.', cardX + 8, footerY + 9);
       doc.text('QR Code hanya berlaku untuk 1x scan check-in di venue event.', cardX + 8, footerY + 15);
 
-      // Brand Logo Watermark - METIX (NOT METIX PRO)
+      // Brand Logo Watermark - METIX
       doc.setFont('helvetica', 'black');
       doc.setFontSize(12);
       doc.setTextColor(30, 58, 138); // Navy #1e3a8a
       doc.text('METIX', cardX + cardWidth - 28, footerY + 13);
 
-      // 6. Output PDF to Browser Blob URL Viewport
-      const pdfBlob = doc.output('blob');
-      const blobUrl = URL.createObjectURL(pdfBlob);
+      // =========================================================================
+      // 6. TEAR / FOLD DIVIDER LINE
+      // =========================================================================
+      const dividerY = 168;
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.3);
+      doc.setLineDashPattern([2, 2], 0);
+      doc.line(cardX, dividerY, cardX + cardWidth, dividerY);
+      doc.setLineDashPattern([], 0); // Reset dash
 
-      toast.success('Dokumen PDF E-Tiket METIX berhasil dibuat!', { id: 'jspdf-toast' });
-      window.open(blobUrl, '_blank');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(148, 163, 184); // Slate 400
+      doc.text('- - - GUNTING ATAU LIPAT DI SINI (TEAR OR FOLD HERE) - - -', cardX + (cardWidth / 2), dividerY - 1, { align: 'center' });
+
+      // =========================================================================
+      // 7. TERMS & CONDITIONS SECTION (SYARAT & KETENTUAN MASUK EVENT)
+      // =========================================================================
+      const tcY = 173;
+      const tcHeight = 108;
+
+      // Outer T&C Container Box
+      doc.setDrawColor(226, 232, 240); // Slate 200
+      doc.setFillColor(250, 250, 252); // Slate 50
+      doc.roundedRect(cardX, tcY, cardWidth, tcHeight, 4, 4, 'FD');
+
+      // T&C Header Strip
+      doc.setFillColor(30, 41, 59); // Slate 800
+      doc.roundedRect(cardX, tcY, cardWidth, 13, 4, 4, 'F');
+      doc.rect(cardX, tcY + 8, cardWidth, 5, 'F'); // Cover bottom curve of header
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text('TERMS & CONDITIONS  *  SYARAT & KETENTUAN MASUK ACARA', cardX + 8, tcY + 8.5);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(253, 224, 71); // Gold accent
+      doc.text('METIX OFFICIAL POLICY', cardX + cardWidth - 8, tcY + 8.5, { align: 'right' });
+
+      // Two-Column T&C Grid
+      const colWidth = 80;
+      const leftColX = cardX + 8;
+      const rightColX = cardX + 96;
+
+      const drawTcItem = (x: number, y: number, num: string, title: string, desc: string) => {
+        // Number badge
+        doc.setFillColor(30, 58, 138); // Navy
+        doc.roundedRect(x, y - 2.5, 4, 4, 1, 1, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6);
+        doc.setTextColor(255, 255, 255);
+        doc.text(num, x + 2, y + 0.5, { align: 'center' });
+
+        // Title
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.text(title, x + 6.5, y + 0.5);
+
+        // Description (Multi-line wrap)
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.5);
+        doc.setTextColor(100, 116, 139); // Slate 500
+        const splitDesc = doc.splitTextToSize(desc, colWidth);
+        doc.text(splitDesc, x, y + 5);
+      };
+
+      // Column 1 (Left Side)
+      let itemY = tcY + 19;
+      drawTcItem(
+        leftColX,
+        itemY,
+        '1',
+        'Validasi 1x Scan (Single Entry)',
+        'QR Code e-tiket hanya berlaku untuk 1 (satu) kali pemindaian masuk. Tiket yang sudah di-scan tidak dapat digunakan kembali atau dipindahtangankan.'
+      );
+
+      itemY += 16;
+      drawTcItem(
+        leftColX,
+        itemY,
+        '2',
+        'Wajib Membawa Identitas Asli',
+        'Pemegang tiket wajib menunjukkan kartu identitas resmi asli (KTP/SIM/Paspor) yang sah dan masih berlaku sesuai nama yang terdaftar pada pesanan tiket.'
+      );
+
+      itemY += 16;
+      drawTcItem(
+        leftColX,
+        itemY,
+        '3',
+        'Larangan Barang Terlarang',
+        'Dilarang membawa senjata tajam, obat terlarang, minuman keras, flare/kembang api, laser pointer, dan kamera profesional (DSLR/Mirrorless tanpa ID pers).'
+      );
+
+      // Column 2 (Right Side)
+      itemY = tcY + 19;
+      drawTcItem(
+        rightColX,
+        itemY,
+        '4',
+        'Kebijakan Tiket (Non-Refundable)',
+        'Tiket yang telah dibeli tidak dapat ditukar, dibatalkan, atau diuangkan kembali dengan alasan apapun, kecuali apabila acara resmi dibatalkan oleh penyelenggara.'
+      );
+
+      itemY += 16;
+      drawTcItem(
+        rightColX,
+        itemY,
+        '5',
+        'Hak Penyelenggara & Keamanan',
+        'Penyelenggara berhak memeriksa barang bawaan serta menolak masuk atau mengeluarkan pengunjung yang tidak mematuhi norma ketertiban dan keamanan venue.'
+      );
+
+      itemY += 16;
+      drawTcItem(
+        rightColX,
+        itemY,
+        '6',
+        'Dokumentasi & Hak Publikasi',
+        'Pengunjung memberikan izin kepada penyelenggara untuk mengambil foto atau rekaman video selama acara untuk keperluan dokumentasi dan publikasi resmi.'
+      );
+
+      // Bottom Support Banner inside T&C Box
+      const helpY = tcY + 92;
+      doc.setFillColor(238, 242, 255); // Indigo 50
+      doc.setDrawColor(199, 210, 254); // Indigo 200
+      doc.roundedRect(cardX + 4, helpY, cardWidth - 8, 12, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(30, 58, 138); // Indigo 900
+      doc.text('BUTUH BANTUAN TIKET? Hubungi Layanan Metix: support@metix.id | partnership.metix.id', cardX + 8, helpY + 7.5);
+
+      doc.setFont('helvetica', 'black');
+      doc.setFontSize(7);
+      doc.setTextColor(16, 185, 129); // Emerald 600
+      doc.text('* VERIFIED AUTHENTIC PASS', cardX + cardWidth - 8, helpY + 7.5, { align: 'right' });
+
+      // =========================================================================
+      // 8. Output & Trigger Direct Download
+      // =========================================================================
+      doc.save(filename);
+      toast.success('PDF E-Tiket berhasil diunduh!', { id: 'jspdf-toast' });
     } catch (err) {
-      console.error('jsPDF Client Generation Error:', err);
-      toast.error('Gagal memproses dokumen PDF E-Tiket.', { id: 'jspdf-toast' });
+      console.error('jsPDF Client Download Error:', err);
+      toast.error('Gagal mengunduh dokumen PDF E-Tiket.', { id: 'jspdf-toast' });
     }
   };
 
@@ -353,6 +526,13 @@ export default function TicketsPage() {
                   ? `Rp ${Number(priceVal).toLocaleString('id-ID')}`
                   : 'Rp 150.000';
 
+                // Display MTX order_number format (e.g. MTX-20260909-FOW0V5) instead of fallback TKT-10-1
+                const rawCode = item.ticket_code || (item as any).code || '';
+                const orderNum = item.order?.order_number || (item as any).order_number;
+                const displayTicketCode = (rawCode && !rawCode.startsWith('TKT-'))
+                  ? rawCode
+                  : (orderNum || rawCode || `MTX-${item.id}`);
+
                 let dateStr = '15 Sep 2026';
                 const dateCandidate = item.event?.event_start_at || item.event?.start_at || (item as any).event_date || item.created_at;
                 if (dateCandidate) {
@@ -394,14 +574,14 @@ export default function TicketsPage() {
                         <h3 className="text-base font-extrabold tracking-tight leading-snug line-clamp-1">
                           {eventTitle}
                         </h3>
-                        <p className="text-xs text-blue-100 font-mono font-bold mt-0.5">
-                          {item.ticket_code || 'TKT-84920'}
+                        <p className="text-xs text-blue-100 font-mono font-bold mt-0.5 tracking-wider">
+                          {displayTicketCode}
                         </p>
                       </div>
                     </div>
 
                     {/* Middle Card Details */}
-                    <div className="p-5 space-y-3 flex-1 bg-white">
+                    <div className="p-5 space-y-3 bg-white">
                       <div className="space-y-2 text-xs text-slate-600 font-medium">
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
@@ -412,34 +592,81 @@ export default function TicketsPage() {
                           <span className="truncate">{venue}</span>
                         </div>
                       </div>
+                    </div>
 
-                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                        <span className="text-slate-400 font-semibold">Harga Tiket:</span>
-                        <span className="font-extrabold text-slate-900">{priceStr}</span>
+                    {/* Ticket Stub Perforation Divider */}
+                    <div className="relative flex items-center justify-between bg-slate-50/50 py-1">
+                      <div className="w-4 h-6 bg-slate-100/90 rounded-r-full -ml-2 border-y border-r border-slate-200" />
+                      <div className="flex-1 border-b-2 border-dashed border-slate-200 mx-3" />
+                      <div className="w-4 h-6 bg-slate-100/90 rounded-l-full -mr-2 border-y border-l border-slate-200" />
+                    </div>
+
+                    {/* QR Code Section (from Laravel Backend) */}
+                    <div className="px-5 py-3.5 bg-slate-50/50 flex flex-col items-center justify-center text-center">
+                      <div className="relative p-2 bg-white rounded-2xl border border-slate-200/90 shadow-2xs group-hover:border-blue-300/80 transition-all">
+                        {/* QR Code Image from Laravel API / Storage */}
+                        <img
+                          src={item.qr_code_url || getTicketQrUrl(item.id)}
+                          alt={`QR Code ${displayTicketCode}`}
+                          className={`w-28 h-28 object-contain transition-all duration-300 ${isUsed
+                            ? 'filter blur-[3.5px] opacity-25 grayscale'
+                            : isCancelled
+                              ? 'filter blur-[3px] opacity-25 grayscale'
+                              : 'hover:scale-105'
+                            }`}
+                          onError={(e) => {
+                            // Safe fallback in case Laravel QR endpoint is not yet configured on server
+                            (e.target as HTMLImageElement).src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                              displayTicketCode || String(item.id)
+                            )}`;
+                          }}
+                        />
+
+                        {/* Watermark / Badge if Used (Sudah Di-scan) */}
+                        {isUsed && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center p-2 rounded-2xl bg-slate-950/40 backdrop-blur-[1px] select-none animate-in fade-in zoom-in-95 duration-200">
+                            <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30 mb-1 border-2 border-white">
+                              <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-white px-2 py-0.5 rounded-md bg-slate-900/90 border border-white/20 shadow-xs">
+                              Sudah Digunakan
+                            </span>
+                            <span className="text-[9px] font-bold text-emerald-300 mt-0.5">
+                              Checked-In
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Watermark / Badge if Cancelled */}
+                        {isCancelled && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center p-2 rounded-2xl bg-slate-950/40 backdrop-blur-[1px] select-none">
+                            <div className="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-md mb-1 border-2 border-white">
+                              <XCircle className="w-5 h-5 stroke-[2.5]" />
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-white px-2 py-0.5 rounded-md bg-rose-950/90 border border-rose-300/30 shadow-xs">
+                              Dibatalkan
+                            </span>
+                          </div>
+                        )}
                       </div>
+
+                      {/* QR helper text */}
+                      <p className="text-[11px] text-slate-500 font-medium mt-2 flex items-center gap-1.5">
+                        <QrCode className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span>{isUsed ? 'Tiket telah diverifikasi di gerbang' : 'Scan QR code di gerbang masuk'}</span>
+                      </p>
                     </div>
 
                     {/* Bottom Action Button */}
                     <div className="p-4 bg-slate-50 border-t border-slate-100">
                       {isUsed ? (
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            disabled
-                            className="flex-1 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black flex items-center justify-center gap-2 cursor-not-allowed opacity-90 shadow-2xs"
-                          >
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Sudah Di-Scan (Checked-In)
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handlePrintTicketPdf(item)}
-                            title="Cetak Bukti E-Tiket PDF"
-                            className="p-2.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 transition-colors cursor-pointer shadow-xs"
-                          >
-                            <Printer className="w-4 h-4 text-blue-600" />
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          disabled
+                          className="w-full py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black flex items-center justify-center gap-2 cursor-not-allowed opacity-90 shadow-2xs"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Sudah Di-Scan (Checked-In)
+                        </button>
                       ) : isCancelled ? (
                         <button
                           type="button"
@@ -451,10 +678,10 @@ export default function TicketsPage() {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => handlePrintTicketPdf(item)}
+                          onClick={() => handlePrintTicketPdf({ ...item, ticket_code: displayTicketCode })}
                           className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold flex items-center justify-center gap-2 shadow-md shadow-blue-600/20 hover:shadow-lg transition-all cursor-pointer"
                         >
-                          <Printer className="w-4 h-4" /> Cetak E-Tiket PDF
+                          <Download className="w-4 h-4" /> Download E-Tiket PDF
                         </button>
                       )}
                     </div>

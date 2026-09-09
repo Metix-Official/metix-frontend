@@ -8,7 +8,9 @@ import {
   createEoAdmin,
   updateEoAdmin,
   deleteEoAdmin,
+  fetchMyEvents,
   EoAdminUser,
+  ApiEvent,
 } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import {
@@ -26,10 +28,12 @@ import {
   AlertCircle,
   QrCode,
   ShieldCheck,
+  Calendar,
 } from 'lucide-react';
 
 export default function EoAdminsPage() {
   const [admins, setAdmins] = useState<EoAdminUser[]>([]);
+  const [events, setEvents] = useState<ApiEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -44,6 +48,7 @@ export default function EoAdminsPage() {
     password: '',
     phone: '',
     scan_quota: '200',
+    event_id: '',
   });
   
   const [formError, setFormError] = useState<string | null>(null);
@@ -55,8 +60,12 @@ export default function EoAdminsPage() {
 
   async function loadAdmins() {
     setIsLoading(true);
-    const list = await fetchEoAdmins();
+    const [list, myEvts] = await Promise.all([
+      fetchEoAdmins(),
+      fetchMyEvents().catch(() => null),
+    ]);
     setAdmins(list);
+    setEvents(myEvts?.events || []);
     setIsLoading(false);
   }
 
@@ -73,7 +82,14 @@ export default function EoAdminsPage() {
 
   const openAddModal = () => {
     setEditingAdmin(null);
-    setFormData({ name: '', email: '', password: '', phone: '', scan_quota: '200' });
+    setFormData({
+      name: '',
+      email: '',
+      password: '',
+      phone: '',
+      scan_quota: '200',
+      event_id: events[0]?.id ? String(events[0].id) : 'all',
+    });
     setFormError(null);
     setIsAddModalOpen(true);
   };
@@ -86,6 +102,7 @@ export default function EoAdminsPage() {
       password: '',
       phone: admin.phone || '',
       scan_quota: admin.scan_quota !== null && admin.scan_quota !== undefined ? String(admin.scan_quota) : '200',
+      event_id: admin.event_id ? String(admin.event_id) : 'all',
     });
     setFormError(null);
     setIsAddModalOpen(true);
@@ -113,6 +130,10 @@ export default function EoAdminsPage() {
     try {
       setIsSubmitting(true);
       const quotaNum = formData.scan_quota ? parseInt(formData.scan_quota, 10) : 200;
+      const selectedEvt = events.find((ev) => String(ev.id) === formData.event_id);
+      const eventIdNum = formData.event_id && formData.event_id !== 'all' ? Number(formData.event_id) : null;
+      const eventTitleStr = selectedEvt?.title || (formData.event_id === 'all' ? 'Semua Event (Global)' : undefined);
+
       if (editingAdmin) {
         await updateEoAdmin(editingAdmin.id, {
           name: formData.name.trim(),
@@ -120,6 +141,8 @@ export default function EoAdminsPage() {
           password: formData.password || undefined,
           phone: formData.phone.trim() || undefined,
           scan_quota: quotaNum,
+          event_id: eventIdNum,
+          event_title: eventTitleStr,
         });
       } else {
         await createEoAdmin({
@@ -128,6 +151,8 @@ export default function EoAdminsPage() {
           password: formData.password,
           phone: formData.phone.trim() || undefined,
           scan_quota: quotaNum,
+          event_id: eventIdNum,
+          event_title: eventTitleStr,
         });
       }
       setIsAddModalOpen(false);
@@ -238,6 +263,7 @@ export default function EoAdminsPage() {
                     <th className="px-6 py-4">Nama & Email</th>
                     <th className="px-6 py-4">Kontak / Telepon</th>
                     <th className="px-6 py-4">Status & Kuota Scan</th>
+                    <th className="px-6 py-4">Penugasan Event</th>
                     <th className="px-6 py-4">Hak Akses Role</th>
                     <th className="px-6 py-4">Tanggal Buat</th>
                     <th className="px-6 py-4 text-right">Aksi</th>
@@ -297,6 +323,12 @@ export default function EoAdminsPage() {
                             </div>
                           );
                         })()}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80 max-w-[180px] truncate" title={admin.event_title || 'Semua Event'}>
+                          <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          <span className="truncate">{admin.event_title || 'Semua Event'}</span>
+                        </span>
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
@@ -429,6 +461,30 @@ export default function EoAdminsPage() {
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:outline-none transition-all"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>Penugasan Event Gate Scanner <span className="text-rose-500">*</span></span>
+                  <span className="text-[10px] text-indigo-600 font-semibold">Event yang Dijaga</span>
+                </label>
+                <div className="relative">
+                  <select
+                    value={formData.event_id}
+                    onChange={(e) => setFormData({ ...formData, event_id: e.target.value })}
+                    className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:outline-none transition-all font-bold text-slate-800 cursor-pointer"
+                  >
+                    <option value="all">🌐 Semua Event EO (Akses Penuh Seluruh Gate)</option>
+                    {events.map((ev) => (
+                      <option key={ev.id} value={String(ev.id)}>
+                        🎫 {ev.title} {ev.status ? `(${ev.status})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Petugas scanner ini akan memiliki hak akses penuh untuk memvalidasi tiket event yang dipilih.
+                </p>
               </div>
 
               <div>

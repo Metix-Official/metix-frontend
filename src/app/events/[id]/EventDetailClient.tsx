@@ -946,15 +946,7 @@ export default function EventDetailClient() {
                 </div>
               )}
 
-            {/* Card 3: Ticket Authenticity Check Card */}
-            <div className="bg-white rounded-2xl border border-slate-200/90 p-4.5 sm:p-5 shadow-xs text-center">
-              <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                Beli tiket dari orang lain?{' '}
-                <Link href="/dashboard/tickets" className="text-blue-600 font-extrabold hover:text-blue-700 hover:underline">
-                  Cek keaslian tiketmu disini
-                </Link>
-              </p>
-            </div>
+
 
           </div>
         </div>

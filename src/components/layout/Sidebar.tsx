@@ -48,14 +48,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
   user,
 }) => {
   const pathname = usePathname();
-  const displayName = user?.name || user?.first_name || 'Guest User';
-  const photoUrl = getPhotoUrl(user?.profile_photo_url || user?.photo);
-  const userInitials = displayName
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .substring(0, 2)
-    .toUpperCase();
+  const displayName =
+    (user as any)?.organizer_profile?.organization_name ||
+    (user as any)?.organizer?.name ||
+    user?.name ||
+    user?.first_name ||
+    'Guest User';
+
+  const isEo = getUserRole(user) === 'EO' || (user?.role || '').toUpperCase() === 'EO' || !!user?.organizer_profile;
+  const rawLogo =
+    (user as any)?.organizer?.logo ||
+    (user as any)?.organizer?.logo_url ||
+    (user as any)?.organizer_profile?.logo ||
+    (user as any)?.organizer_profile?.logo_url ||
+    user?.profile_photo_url ||
+    user?.photo ||
+    (user as any)?.avatar ||
+    (user as any)?.avatar_url;
+
+  const photoUrl = getPhotoUrl(rawLogo, undefined, isEo);
+
+  const userInitials = React.useMemo(() => {
+    if (!displayName) return 'M';
+    const words = displayName.trim().split(/\s+/).filter(Boolean);
+    if (words.length >= 2) {
+      return (words[0][0] + words[1][0]).toUpperCase();
+    }
+    return displayName.trim().substring(0, 2).toUpperCase();
+  }, [displayName]);
 
   const currentRole = React.useMemo(() => getUserRole(user), [user]);
 

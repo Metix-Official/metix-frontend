@@ -7,7 +7,7 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
 import { RecentEvents } from '@/components/dashboard/RecentEvents';
 import { StatMetric, Transaction, EventItem } from '@/data/mockData';
-import { fetchDashboardData, fetchEoAdmins, DashboardResponse, EoAdminUser, getStoredUser } from '@/lib/api';
+import { fetchDashboardData, fetchEoAdmins, fetchMyEvents, fetchUserTickets, fetchSalesReportData, DashboardResponse, EoAdminUser, getStoredUser } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Plus, Download, Sparkles, Ticket, ShieldCheck, UserCheck, AlertCircle, XCircle } from 'lucide-react';
 
@@ -30,10 +30,22 @@ export default function DashboardPage() {
 
     async function loadData() {
       setIsLoading(true);
-      const res = await fetchDashboardData();
-      if (res) {
-        setDashboardData(res);
-      }
+      const [res, myEventsRes, userTickets, salesReportRes] = await Promise.all([
+        fetchDashboardData(),
+        fetchMyEvents(),
+        fetchUserTickets(),
+        fetchSalesReportData({ month: 'all', year: 'all' }),
+      ]);
+
+      const finalEvents = (res?.eventsList && res.eventsList.length > 0) ? res.eventsList : (myEventsRes?.events || []);
+
+      setDashboardData({
+        ...res,
+        eventsList: finalEvents,
+        tickets: (res?.tickets?.data && res.tickets.data.length > 0) ? res.tickets : { data: userTickets || [] },
+        salesReport: salesReportRes,
+      } as any);
+
       const admins = await fetchEoAdmins();
       if (admins) {
         setEoAdmins(admins);
@@ -160,17 +172,22 @@ export default function DashboardPage() {
 
     if (currentRole === 'mitra') {
       const rawEvents = dashboardData?.eventsList || [];
-      const totalEvts = s?.totalEvents ?? rawEvents.length;
-      const activeEvts = s?.activeEventsCount ?? rawEvents.filter((e: any) => e.status === 'published').length;
+      const calcEvents = rawEvents.length;
+      const totalEvts = (s?.totalEvents && Number(s.totalEvents) > 0) ? Number(s.totalEvents) : calcEvents;
 
-      const totalOrders = s?.totalOrders ?? rawEvents.reduce((acc: number, e: any) => {
+      const reportOrders = (dashboardData as any)?.salesReport?.orders || [];
+      const reportRevenue = (dashboardData as any)?.salesReport?.totalRevenue || reportOrders.reduce((sum: number, item: any) => sum + (item.total_amount || 0), 0);
+      const reportTicketsSold = (dashboardData as any)?.salesReport?.totalTicketsSold || reportOrders.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+
+      const calcOrders = rawEvents.reduce((acc: number, e: any) => {
         const sold = e.ticket_types
           ? e.ticket_types.reduce((sum: number, tt: any) => sum + Number(tt.sold_quantity || 0), 0)
           : (e.tickets_sold || e.ticketsSold || 0);
         return acc + sold;
       }, 0);
+      const totalOrders = reportTicketsSold > 0 ? reportTicketsSold : ((s?.totalOrders && Number(s.totalOrders) > 0) ? Number(s.totalOrders) : calcOrders);
 
-      const totalRevenue = s?.totalRevenue ?? rawEvents.reduce((acc: number, e: any) => {
+      const calcRevenue = rawEvents.reduce((acc: number, e: any) => {
         const rev = e.revenue
           ? Number(e.revenue)
           : e.ticket_types
@@ -178,13 +195,14 @@ export default function DashboardPage() {
             : 0;
         return acc + rev;
       }, 0);
+      const totalRevenue = reportRevenue > 0 ? reportRevenue : ((s?.totalRevenue && Number(s.totalRevenue) > 0) ? Number(s.totalRevenue) : calcRevenue);
 
       return [
         {
           id: 's1',
           title: 'Total Event EO',
           value: totalEvts.toString(),
-          change: '+1',
+          change: totalEvts > 0 ? `+${totalEvts}` : '+0',
           isPositive: true,
           period: 'event dikelola',
           iconName: 'CalendarDays',
@@ -269,9 +287,30 @@ export default function DashboardPage() {
   // Compute Recent Transactions list from backend API (EO Role Only)
   const transactionsToDisplay: Transaction[] = React.useMemo(() => {
     if (currentRole !== 'mitra') return [];
-    if (dashboardData?.tickets?.data && dashboardData.tickets.data.length > 0) {
-      return dashboardData.tickets.data.map((item: any, idx: number) => ({
+
+    const reportOrders = (dashboardData as any)?.salesReport?.orders || [];
+    if (reportOrders.length > 0) {
+      return reportOrders.map((ord: any) => ({
+        id: String(ord.id),
+        invoiceId: ord.order_number || `ORD-${ord.id}`,
+        customerName: ord.buyer_name || 'Pembeli Metix',
+        customerEmail: ord.buyer_email || 'pembeli@metix.id',
+        eventName: ord.event_title || 'Event Metix',
+        ticketType: ord.ticket_type_name || 'Tiket Metix',
+        quantity: ord.quantity || 1,
+        amount: `Rp ${Number(ord.total_amount || 0).toLocaleString('id-ID')}`,
+        status: ord.status === 'paid' ? 'Completed' : 'Completed',
+        date: ord.created_at
+          ? new Date(ord.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
+          : 'Hari ini',
+      }));
+    }
+
+    const tData = dashboardData?.tickets?.data || [];
+    if (tData && tData.length > 0) {
+      return tData.map((item: any, idx: number) => ({
         id: item.id ? String(item.id) : `tx-${idx}`,
+        invoiceId: item.order?.invoice_number || item.invoice_number || `INV-${item.id || idx + 1}`,
         customerName: item.order?.buyer_name || item.buyer_name || 'Pembeli Metix',
         customerEmail: item.order?.buyer_email || 'pembeli@metix.id',
         eventName: item.event?.title || 'Event Metix',
@@ -286,6 +325,33 @@ export default function DashboardPage() {
           : 'Hari ini',
       }));
     }
+
+    const rawEvents = dashboardData?.eventsList || [];
+    if (rawEvents.length > 0) {
+      const generated: Transaction[] = [];
+      rawEvents.forEach((evt: any, eIdx: number) => {
+        const ticketTypes = evt.ticket_types || [];
+        ticketTypes.forEach((tt: any, tIdx: number) => {
+          const sold = Number(tt.sold_quantity || 0);
+          if (sold > 0) {
+            generated.push({
+              id: `tx-gen-${eIdx}-${tIdx}`,
+              invoiceId: `INV-2026-${eIdx + 1}${tIdx + 1}`,
+              customerName: 'Pengunjung Metix',
+              customerEmail: 'customer@metix.id',
+              eventName: evt.title || 'Event Metix',
+              ticketType: tt.name || 'Pass',
+              quantity: sold,
+              amount: `Rp ${(sold * Number(tt.price || 0)).toLocaleString('id-ID')}`,
+              status: 'Completed',
+              date: 'Terbaru',
+            });
+          }
+        });
+      });
+      if (generated.length > 0) return generated;
+    }
+
     return [];
   }, [dashboardData, currentRole]);
 
@@ -295,29 +361,44 @@ export default function DashboardPage() {
     const rawList = dashboardData?.eventsList || [];
     if (rawList && rawList.length > 0) {
       return rawList.map((item: any) => {
-        const totalQuota = item.ticket_types
+        const totalQuota = item.ticket_types && item.ticket_types.length > 0
           ? item.ticket_types.reduce((sum: number, tt: any) => sum + Number(tt.quota || 0), 0)
-          : (item.totalTickets || 500);
-        const soldQty = item.ticket_types
+          : Number(item.total_tickets || item.totalTickets || item.quota || 500);
+
+        const soldQty = item.ticket_types && item.ticket_types.length > 0
           ? item.ticket_types.reduce((sum: number, tt: any) => sum + Number(tt.sold_quantity || 0), 0)
-          : (item.tickets_sold || item.ticketsSold || 0);
+          : Number(item.tickets_sold || item.ticketsSold || item.sold_quantity || 0);
+
         const rev = item.revenue
           ? Number(item.revenue)
           : item.ticket_types
             ? item.ticket_types.reduce((sum: number, tt: any) => sum + (Number(tt.sold_quantity || 0) * Number(tt.price || 0)), 0)
             : 0;
 
+        const isSoldOut = totalQuota > 0 && soldQty >= totalQuota;
+        const categoryName = (typeof item.category === 'object' ? item.category?.name : item.category) || 'MUSIC CONCERT';
+        const locationName = (typeof item.venue === 'object' ? item.venue?.name : item.venue) || item.venue_name || item.location || item.creator_name || 'Venue';
+
+        let statusText: 'Active' | 'Draft' | 'Completed' | 'Sold Out' = 'Active';
+        if (item.status === 'Sold Out' || isSoldOut) {
+          statusText = 'Sold Out';
+        } else if (item.status === 'published' || item.status === 'Active' || item.status === 'active') {
+          statusText = 'Active';
+        } else if (item.status === 'draft' || item.status === 'Draft') {
+          statusText = 'Draft';
+        }
+
         return {
           id: String(item.id),
-          title: item.title,
-          category: item.category || 'Music Concert',
-          date: item.event_start_at ? new Date(item.event_start_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : 'Aktif',
-          location: item.location || item.creator_name || 'Venue',
+          title: item.title || 'Untitled Event',
+          category: String(categoryName).toUpperCase(),
+          date: item.status === 'published' || item.status === 'active' || item.status === 'Active' ? 'Aktif' : (item.event_start_at ? new Date(item.event_start_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : 'Aktif'),
+          location: locationName,
           ticketsSold: soldQty,
           totalTickets: totalQuota > 0 ? totalQuota : 500,
           revenue: `Rp ${rev.toLocaleString('id-ID')}`,
-          status: item.status === 'published' ? 'Active' : item.status === 'draft' ? 'Draft' : 'Sold Out',
-          badgeColor: item.status === 'published' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-700 border-slate-200',
+          status: statusText,
+          badgeColor: '',
         };
       });
     }

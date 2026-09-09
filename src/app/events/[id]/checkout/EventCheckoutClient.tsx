@@ -800,9 +800,15 @@ export default function EventCheckoutClient() {
                         <div className="space-y-1">
                           <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                             {ticket.name}
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                              Tersedia {ticket.available_quota ?? ticket.quota}
-                            </span>
+                            {(ticket.available_quota ?? ticket.quota ?? 1) > 0 ? (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                Tersedia
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200">
+                                Sold Out
+                              </span>
+                            )}
                           </h4>
                           <p className="text-xs text-slate-500 font-medium">
                             {ticket.description || 'Akses resmi ke venue event.'}
@@ -1224,11 +1230,11 @@ export default function EventCheckoutClient() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
-                    { id: 'VA', label: 'Virtual Account', feeText: '5% + Rp 4.500', icon: Building2 },
-                    { id: 'EWALLET', label: 'E-Wallet (GoPay/OVO)', feeText: '9.0%', icon: Wallet },
-                    { id: 'CREDIT_CARD', label: 'Kartu Kredit / Debit', feeText: '7,8% + Rp 2.000', icon: CreditCard },
-                    { id: 'ALFAMART', label: 'Alfamart Retail', feeText: '5% + Rp 6.500', icon: Store },
-                    { id: 'PAYLATER', label: 'Paylater (Akulaku)', feeText: '7.5%', icon: Zap },
+                    { id: 'VA', label: 'Virtual Account (BCA, Mandiri, BNI, BRI, Permata, BSI)', feeText: '5% + Rp 4.500', icon: Building2 },
+                    { id: 'EWALLET', label: 'E-Wallet (GoPay, OVO, ShopeePay, DANA, LinkAja)', feeText: '9.0%', icon: Wallet },
+                    { id: 'CREDIT_CARD', label: 'Kartu Kredit / Debit (Visa, Mastercard, JCB)', feeText: '7,8% + Rp 2.000', icon: CreditCard },
+                    { id: 'ALFAMART', label: 'Gerai Retail (Alfamart / Indomaret)', feeText: '5% + Rp 6.500', icon: Store },
+                    { id: 'PAYLATER', label: 'Paylater (Akulaku / Kredivo / Indodana)', feeText: '7.5%', icon: Zap },
                   ].map((cat) => {
                     const IconComp = cat.icon;
                     const isSelected = selectedPaymentCategory === cat.id;
@@ -1268,23 +1274,23 @@ export default function EventCheckoutClient() {
 
               <div className="space-y-2.5 text-xs text-slate-700 font-medium">
                 <div className="flex justify-between items-center">
-                  <span>Subtotal Tiket ({totalTicketCount} Tiket)</span>
+                  <span>Subtotal Tiket</span>
                   <span className="font-extrabold text-slate-900">Rp {totalPrice.toLocaleString('id-ID')}</span>
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span>Pajak Daerah (Local Tax {localTaxPercentage}%)</span>
+                  <span>Pajak Daerah</span>
                   <span className="font-extrabold text-slate-800">+Rp {localTaxAmount.toLocaleString('id-ID')}</span>
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span>Biaya Layanan Platform ({selectedPaymentCategory})</span>
+                  <span>Biaya Layanan Platform</span>
                   <span className="font-extrabold text-slate-800">+Rp {platformFee.toLocaleString('id-ID')}</span>
                 </div>
 
                 {appliedPromo && (
                   <div className="flex justify-between items-center text-emerald-600 font-bold">
-                    <span>Potongan Promo ({appliedPromo.code})</span>
+                    <span>Potongan Promo</span>
                     <span>-Rp {appliedPromo.discountAmount.toLocaleString('id-ID')}</span>
                   </div>
                 )}

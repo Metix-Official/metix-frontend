@@ -53,6 +53,7 @@ export default function ReportsPage() {
   const [selectedEventId, setSelectedEventId] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>(String(new Date().getMonth() + 1));
   const [selectedYear, setSelectedYear] = useState<string>('2026');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Role Determination
@@ -88,7 +89,16 @@ export default function ReportsPage() {
     return events.filter((ev) => String(ev.status || '').toLowerCase() === 'published');
   }, [events]);
 
-  // Filtered Orders strictly matching logged-in EO's created events & Search Query
+  // Distinct payment methods extracted from orders
+  const availablePaymentMethods = useMemo(() => {
+    const set = new Set<string>();
+    orders.forEach((o) => {
+      if (o.payment_method && o.payment_method.trim()) set.add(o.payment_method.trim());
+    });
+    return Array.from(set);
+  }, [orders]);
+
+  // Filtered Orders strictly matching logged-in EO's created events, Payment Method & Search Query
   const filteredOrders = useMemo(() => {
     let result = orders;
 
@@ -104,6 +114,27 @@ export default function ReportsPage() {
       );
     }
 
+    // Filter by Payment Method Select Option
+    if (selectedPaymentMethod !== 'all') {
+      result = result.filter((ord) => {
+        const pm = (ord.payment_method || '').toLowerCase();
+        const sel = selectedPaymentMethod.toLowerCase();
+        if (sel === 'pos' || sel === 'cash') {
+          return pm.includes('pos') || pm.includes('cash') || pm.includes('kasir') || pm.includes('tunai');
+        }
+        if (sel === 'qris') {
+          return pm.includes('qris');
+        }
+        if (sel === 'va') {
+          return pm.includes('va') || pm.includes('virtual account') || pm.includes('bank');
+        }
+        if (sel === 'gopay') {
+          return pm.includes('gopay') || pm.includes('ewallet') || pm.includes('e-wallet');
+        }
+        return pm.includes(sel) || pm === sel;
+      });
+    }
+
     if (!searchQuery.trim()) return result;
 
     const q = searchQuery.toLowerCase().trim();
@@ -113,9 +144,10 @@ export default function ReportsPage() {
         ord.buyer_name.toLowerCase().includes(q) ||
         ord.buyer_email.toLowerCase().includes(q) ||
         (ord.event_title || '').toLowerCase().includes(q) ||
-        (ord.ticket_type_name || '').toLowerCase().includes(q)
+        (ord.ticket_type_name || '').toLowerCase().includes(q) ||
+        (ord.payment_method || '').toLowerCase().includes(q)
     );
-  }, [orders, publishedEvents, currentRole, searchQuery]);
+  }, [orders, publishedEvents, currentRole, selectedPaymentMethod, searchQuery]);
 
   // Computed Report Aggregations
   const totalGrossRevenue = useMemo(
@@ -424,6 +456,32 @@ export default function ReportsPage() {
                         {ev.title}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Payment Method / Type Filter */}
+              <div className="min-w-[180px]">
+                <Select value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
+                  <SelectTrigger className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white">
+                    <SelectValue placeholder="Tipe Pembayaran" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Pembayaran</SelectItem>
+                    <SelectItem value="qris">DOKU QRIS</SelectItem>
+                    <SelectItem value="va">Virtual Account (VA)</SelectItem>
+                    <SelectItem value="pos">Kasir Offline (POS / Tunai)</SelectItem>
+                    <SelectItem value="gopay">E-Wallet / GoPay</SelectItem>
+                    {availablePaymentMethods
+                      .filter((pm) => {
+                        const l = pm.toLowerCase();
+                        return !['qris', 'va', 'pos', 'cash', 'gopay', 'doku', 'tunai'].some((k) => l.includes(k));
+                      })
+                      .map((pm) => (
+                        <SelectItem key={pm} value={pm}>
+                          {pm}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>

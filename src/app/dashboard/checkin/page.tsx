@@ -85,15 +85,30 @@ export default function CheckInPage() {
 
   const loadEvents = async () => {
     setIsLoading(true);
-    let evts = await fetchScannerEvents();
+    let evts: ApiEvent[] = [];
+    try {
+      const scannerEvts = await fetchScannerEvents();
+      if (scannerEvts && scannerEvts.length > 0) {
+        evts = scannerEvts;
+      }
+    } catch {}
+
     if (!evts || evts.length === 0) {
-      const data = await fetchMyEvents();
-      evts = data?.events || [];
+      try {
+        const myData = await fetchMyEvents();
+        if (myData?.events && myData.events.length > 0) {
+          evts = myData.events;
+        }
+      } catch {}
     }
+
     if (!evts || evts.length === 0) {
-      const pubData = await fetchPublicEvents();
-      evts = pubData?.events || [];
+      try {
+        const pubData = await fetchPublicEvents();
+        evts = pubData?.events || [];
+      } catch {}
     }
+
     setEvents(evts);
     if (evts && evts.length > 0) {
       const activeEvt = evts.find((e: ApiEvent) => e.status?.toLowerCase() === 'published') || evts[0];
@@ -200,8 +215,47 @@ export default function CheckInPage() {
     }
   };
 
+  // Real-time Barcode / QR Detection loop for Camera Mode
+  useEffect(() => {
+    let isActive = true;
+    let scanTimer: any = null;
+
+    if (scannerMode === 'camera' && isCameraActive && videoRef.current) {
+      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+        try {
+          const detector = new (window as any).BarcodeDetector({
+            formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8'],
+          });
+
+          scanTimer = setInterval(async () => {
+            if (!videoRef.current || isScanning || videoRef.current.readyState < 2 || !isActive) return;
+            try {
+              const barcodes = await detector.detect(videoRef.current);
+              if (barcodes && barcodes.length > 0 && isActive) {
+                const detectedCode = barcodes[0].rawValue;
+                if (detectedCode && !isScanning) {
+                  handleScanSubmit(detectedCode);
+                }
+              }
+            } catch {
+              // Frame decoding skip
+            }
+          }, 450);
+        } catch (e) {
+          console.warn('BarcodeDetector warning:', e);
+        }
+      }
+    }
+
+    return () => {
+      isActive = false;
+      if (scanTimer) clearInterval(scanTimer);
+    };
+  }, [scannerMode, isCameraActive, isScanning, selectedEvent]);
+
   const handleScanSubmit = async (codeToScan?: string) => {
-    const code = codeToScan || ticketInput.trim();
+    const raw = (codeToScan || ticketInput || '').trim();
+    const code = raw.replace(/^CODE:\s*/i, '').replace(/[\r\n\t]+/g, '').trim();
     if (!code) return;
 
     setIsScanning(true);
@@ -216,12 +270,35 @@ export default function CheckInPage() {
       setScanResult(result);
       playBeep(result.success);
 
+      // If check-in is successful and the returned ticket indicates a specific event,
+      // update selectedEvent if needed
+      if (result.success && result.ticket?.event_name) {
+        const eventNameLower = result.ticket.event_name.toLowerCase();
+        const matched = events.find(
+          (ev) => ev.title?.toLowerCase() === eventNameLower
+        );
+        if (matched) {
+          if (matched.id !== selectedEvent?.id) {
+            setSelectedEvent(matched);
+          }
+        } else {
+          const dynamicEvent: ApiEvent = {
+            id: Number(selectedEvent?.id || 1),
+            title: result.ticket.event_name,
+            slug: result.ticket.event_name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+            status: 'PUBLISHED',
+          };
+          setEvents((prev) => [dynamicEvent, ...prev]);
+          setSelectedEvent(dynamicEvent);
+        }
+      }
+
       const logItem: ScanLogItem = {
         id: Math.random().toString(),
         code: result.ticket?.code || code,
         holderName: result.ticket?.holder_name || 'Pengunjung Gate',
         typeName: result.ticket?.type_name || 'Tiket Masuk',
-        eventName: result.ticket?.event_name || selectedEvent?.title || 'Event',
+        eventName: result.ticket?.event_name || selectedEvent?.title || 'Event Metix',
         status: result.success ? 'valid' : 'invalid',
         timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         message: result.message,
@@ -247,7 +324,9 @@ export default function CheckInPage() {
       playBeep(false);
     } finally {
       setIsScanning(false);
-      if (inputRef.current) inputRef.current.focus();
+      setTimeout(() => {
+        if (inputRef.current) inputRef.current.focus();
+      }, 50);
     }
   };
 

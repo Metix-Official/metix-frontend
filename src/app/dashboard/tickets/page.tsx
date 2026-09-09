@@ -3,13 +3,54 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useRouter } from 'next/navigation';
-import { fetchUserTickets, ApiTicketDetail, getStoredUser, getTicketPdfUrl, getTicketQrUrl } from '@/lib/api';
+import { fetchUserTickets, fetchPublicEvents, ApiTicketDetail, getStoredUser, getTicketPdfUrl, getTicketQrUrl } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
 import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 import { getUserRole } from '@/lib/roles';
+
+// Helper komprehensif untuk membaca nama venue dari relasi event (venue_id / venue object)
+export function resolveVenueName(eventObj: any): string {
+  if (!eventObj) return '-';
+
+  // 1. Cek relasi objek venue (Laravel belongsTo: $event->venue)
+  if (eventObj.venue && typeof eventObj.venue === 'object') {
+    const vName = (eventObj.venue.name || eventObj.venue.venue_name || '').trim();
+    const vCity = (eventObj.venue.city || '').trim();
+    if (vName && vCity && vName.toLowerCase() !== vCity.toLowerCase()) {
+      return `${vName}, ${vCity}`;
+    }
+    if (vName) return vName;
+    if (vCity) return vCity;
+    if (eventObj.venue.address) return eventObj.venue.address;
+  }
+
+  // 2. Cek jika venue adalah string langsung
+  if (typeof eventObj.venue === 'string' && eventObj.venue.trim() && eventObj.venue !== 'Venue Utama') {
+    return eventObj.venue.trim();
+  }
+
+  // 3. Cek properti venue_name
+  if (eventObj.venue_name && typeof eventObj.venue_name === 'string' && eventObj.venue_name.trim()) {
+    const vCity = eventObj.city ? `, ${eventObj.city.trim()}` : '';
+    return `${eventObj.venue_name.trim()}${vCity}`;
+  }
+
+  // 4. Cek properti location
+  if (eventObj.location && typeof eventObj.location === 'string' && eventObj.location.trim() && eventObj.location !== 'Venue Utama') {
+    return eventObj.location.trim();
+  }
+
+  // 5. Cek properti city / address
+  if (eventObj.city || eventObj.address) {
+    const parts = [eventObj.address, eventObj.city].filter(Boolean);
+    if (parts.length > 0) return parts.join(', ');
+  }
+
+  return 'Venue Utama';
+}
 
 export default function TicketsPage() {
   const router = useRouter();
@@ -21,8 +62,39 @@ export default function TicketsPage() {
   const loadTickets = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await fetchUserTickets();
-      setTickets(data);
+      const [data, pubData] = await Promise.all([
+        fetchUserTickets(),
+        fetchPublicEvents().catch(() => null),
+      ]);
+
+      const eventsMap = new Map<number, any>();
+      if (pubData?.events) {
+        pubData.events.forEach((ev: any) => {
+          if (ev && ev.id) eventsMap.set(Number(ev.id), ev);
+        });
+      }
+
+      // Gabungkan relasi venue dari public event jika di ticket.event belum termuat
+      const enriched = data.map((t) => {
+        const evId = t.event?.id;
+        const matched = evId ? eventsMap.get(Number(evId)) : null;
+        if (matched) {
+          return {
+            ...t,
+            event: {
+              ...matched,
+              ...t.event,
+              venue: t.event?.venue || matched.venue,
+              location: t.event?.location || matched.location || matched.venue?.name,
+              venue_name: (t.event as any)?.venue_name || (matched as any)?.venue_name || matched.venue?.name,
+              city: t.event?.city || matched.city || matched.venue?.city,
+            },
+          };
+        }
+        return t;
+      });
+
+      setTickets(enriched);
     } catch (err) {
       console.warn('Gagal memuat tiket:', err);
     } finally {
@@ -99,11 +171,11 @@ export default function TicketsPage() {
       return;
     }
 
-    const rawCode = ticket.ticket_code || (ticket as any).code || '';
-    const orderNum = ticket.order?.order_number || (ticket as any).order_number;
-    const ticketCode = (rawCode && !rawCode.startsWith('TKT-'))
+    const rawCode = ticket.qr_token || ticket.ticket_code || (ticket as any).code || '';
+    const orderNum = ticket.order?.order_number || ticket.order_number;
+    const ticketCode = (rawCode && !rawCode.startsWith('MTX-'))
       ? rawCode
-      : (orderNum || rawCode || `MTX-${ticket.id}`);
+      : (rawCode || (orderNum ? `TKT-${orderNum}-1` : `TKT-${ticket.id}`));
     const filename = `METIX-ETicket-${ticketCode}.pdf`;
 
     try {
@@ -135,13 +207,13 @@ export default function TicketsPage() {
         format: 'a4',
       });
 
-      const eventTitle = ticket.event?.title || 'Metix National Event 2026';
-      const venue = ticket.event?.location || 'Stadion Gelora Bung Karno, Jakarta';
-      const ticketType = ticket.ticket_type?.name || 'VIP Early Bird Pass';
-      const buyerName = ticket.order?.buyer_name || 'Guest User';
-      const ticketCode = ticket.ticket_code || 'TKT-H1DLZTWIOW';
+      const eventTitle = ticket.event?.title || '-';
+      const venue = resolveVenueName(ticket.event);
+      const ticketType = ticket.ticket_type?.name || '-';
+      const buyerName = ticket.order?.buyer_name || '-';
+      const ticketCode = ticket.ticket_code || '-';
 
-      let dateStr = '15 September 2026';
+      let dateStr = '-';
       if (ticket.event?.event_start_at) {
         try {
           dateStr = new Date(ticket.event.event_start_at).toLocaleDateString('id-ID', {
@@ -519,19 +591,15 @@ export default function TicketsPage() {
                 const isUsed = rawStatus === 'used' || rawStatus === 'checked_in' || rawStatus === 'checked-in';
                 const isCancelled = rawStatus === 'cancelled' || rawStatus === 'canceled';
                 const eventTitle = item.event?.title || (item as any).event_title || (item as any).title || 'Event Metix Pass';
-                const venue = item.event?.location || (item as any).event_location || (item as any).venue || 'Venue Utama';
+                const venue = resolveVenueName(item.event);
                 const ticketType = item.ticket_type?.name || (item as any).ticket_type_name || (item as any).type_name || 'VIP Pass';
-                const priceVal = item.ticket_type?.price || (item as any).price || (item as any).amount;
-                const priceStr = priceVal
-                  ? `Rp ${Number(priceVal).toLocaleString('id-ID')}`
-                  : 'Rp 150.000';
 
-                // Display MTX order_number format (e.g. MTX-20260909-FOW0V5) instead of fallback TKT-10-1
-                const rawCode = item.ticket_code || (item as any).code || '';
-                const orderNum = item.order?.order_number || (item as any).order_number;
-                const displayTicketCode = (rawCode && !rawCode.startsWith('TKT-'))
+                // Authentic ticket_code generated by Laravel Backend
+                const rawCode = item.qr_token || item.ticket_code || (item as any).code || '';
+                const orderNum = item.order?.order_number || item.order_number;
+                const displayTicketCode = (rawCode && !rawCode.startsWith('MTX-'))
                   ? rawCode
-                  : (orderNum || rawCode || `MTX-${item.id}`);
+                  : (rawCode || (orderNum ? `TKT-${orderNum}-1` : `TKT-${item.id}`));
 
                 let dateStr = '15 Sep 2026';
                 const dateCandidate = item.event?.event_start_at || item.event?.start_at || (item as any).event_date || item.created_at;
@@ -574,9 +642,16 @@ export default function TicketsPage() {
                         <h3 className="text-base font-extrabold tracking-tight leading-snug line-clamp-1">
                           {eventTitle}
                         </h3>
-                        <p className="text-xs text-blue-100 font-mono font-bold mt-0.5 tracking-wider">
-                          {displayTicketCode}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
+                          <p className="text-xs text-white font-mono font-black tracking-wider bg-white/20 px-2 py-0.5 rounded-md border border-white/30">
+                            {displayTicketCode}
+                          </p>
+                          {orderNum && orderNum !== displayTicketCode && (
+                            <span className="text-[10px] text-blue-200 font-mono">
+                              (Order: {orderNum})
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -616,8 +691,9 @@ export default function TicketsPage() {
                             }`}
                           onError={(e) => {
                             // Safe fallback in case Laravel QR endpoint is not yet configured on server
+                            const qrData = item.qr_token || item.ticket_code || displayTicketCode || String(item.id);
                             (e.target as HTMLImageElement).src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                              displayTicketCode || String(item.id)
+                              qrData
                             )}`;
                           }}
                         />

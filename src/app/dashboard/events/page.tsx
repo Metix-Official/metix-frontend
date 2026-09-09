@@ -141,6 +141,9 @@ export default function EventsPage() {
   const [createBannerPreview, setCreateBannerPreview] = useState<string>('');
   const [createBannerUrlInput, setCreateBannerUrlInput] = useState<string>('');
   const [createModalTab, setCreateModalTab] = useState<ModalTab>('info');
+  const [createTitleInput, setCreateTitleInput] = useState<string>('');
+  const [createSlugInput, setCreateSlugInput] = useState<string>('');
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState<boolean>(false);
 
   // Edit Event Modal State
   const [editingEvent, setEditingEvent] = useState<ApiEvent | null>(null);
@@ -854,15 +857,23 @@ export default function EventsPage() {
         return;
       }
 
-      const slugVal = formData.get('slug');
-      if (!slugVal || String(slugVal).trim() === '') {
+      let slugVal = String(formData.get('slug') || createSlugInput || '').trim();
+      if (!slugVal && titleVal) {
+        slugVal = String(titleVal)
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-');
+      }
+
+      if (!slugVal) {
         setCreateModalTab('info');
         setErrorMessage('Data Slug / URL Event belum diisi! Silakan isi bidang slug terlebih dahulu.');
         setIsSubmitting(false);
         toast.error('Data Slug / URL Event belum diisi!');
-        alert('⚠️ PERINGATAN: Data Slug / URL Event belum diisi!\n\nDiharapkan mengisi bidang Slug / URL Event terlebih dahulu sebelum membuat event.');
         return;
       }
+      formData.set('slug', slugVal);
 
       const venueName = formData.get('name') || formData.get('venue_name') || formData.get('location');
       if (!venueName || String(venueName).trim() === '') {
@@ -1893,16 +1904,33 @@ export default function EventsPage() {
             <form onSubmit={handleEditSubmit} noValidate className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               {/* TAB 1: INFO EVENT & TANGGAL */}
               <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'info' ? 'block' : 'hidden'}`}>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-extrabold text-slate-700">Judul Event / Konser</label>
-                  <input
-                    type="text"
-                    name="title"
-                    required
-                    defaultValue={editingEvent.title}
-                    placeholder="e.g. Soundwave Music Fest 2026"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700">Judul Event / Konser</label>
+                    <input
+                      type="text"
+                      name="title"
+                      required
+                      defaultValue={editingEvent.title}
+                      placeholder="e.g. Soundwave Music Fest 2026"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                      <span>Slug / URL Event</span>
+                      <span className="text-[10px] text-blue-600 font-semibold font-mono">/events/[slug]</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="slug"
+                      required
+                      defaultValue={editingEvent.slug || editingEvent.title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}
+                      placeholder="e.g. bayfest-2026"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-blue-900 focus:bg-white focus:border-blue-600 focus:outline-none font-mono"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -3005,15 +3033,50 @@ export default function EventsPage() {
             <form onSubmit={handleCreateSubmit} noValidate className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               {/* TAB 1: INFO EVENT & TANGGAL */}
               <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'info' ? 'block' : 'hidden'}`}>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-extrabold text-slate-700">Judul Event / Konser</label>
-                  <input
-                    type="text"
-                    name="title"
-                    required
-                    placeholder="e.g. Soundwave Music Fest 2026"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700">Judul Event / Konser</label>
+                    <input
+                      type="text"
+                      name="title"
+                      required
+                      value={createTitleInput}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCreateTitleInput(val);
+                        if (!isSlugManuallyEdited) {
+                          setCreateSlugInput(
+                            val
+                              .toLowerCase()
+                              .trim()
+                              .replace(/[^a-z0-9\s-]/g, '')
+                              .replace(/\s+/g, '-')
+                          );
+                        }
+                      }}
+                      placeholder="e.g. Soundwave Music Fest 2026"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                      <span>Slug / URL Event</span>
+                      <span className="text-[10px] text-blue-600 font-semibold font-mono">/events/[slug]</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="slug"
+                      required
+                      value={createSlugInput}
+                      onChange={(e) => {
+                        setIsSlugManuallyEdited(true);
+                        setCreateSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'));
+                      }}
+                      placeholder="e.g. bayfest-2026"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-blue-900 focus:bg-white focus:border-blue-600 focus:outline-none font-mono"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">

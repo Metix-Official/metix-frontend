@@ -150,7 +150,7 @@ export default function PosPage() {
     const randomId = Math.floor(1000 + Math.random() * 9000);
     setBuyerName('Pembeli Walk-in (Kasir)');
     setBuyerEmail(`walkin.${randomId}@metix.id`);
-    setBuyerPhone('081234567890');
+    setBuyerPhone('');
     setBuyerNik('');
   };
 
@@ -174,10 +174,10 @@ export default function PosPage() {
         return prev.map((item) =>
           item.ticketType.id === type.id
             ? {
-                ...item,
-                quantity: item.quantity + 1,
-                holderNames: [...item.holderNames, ''],
-              }
+              ...item,
+              quantity: item.quantity + 1,
+              holderNames: [...item.holderNames, ''],
+            }
             : item
         );
       } else {
@@ -478,7 +478,7 @@ export default function PosPage() {
 
         {/* Main POS Interface (Grid 2 Column: Ticket Catalog + Checkout Cart) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
+
           {/* Left Column: Ticket Catalog Cards (7 Cols) */}
           <div className="lg:col-span-7 space-y-4">
             <div className="rounded-3xl bg-white border border-slate-200/90 p-6 shadow-xs space-y-4">
@@ -518,23 +518,21 @@ export default function PosPage() {
                     return (
                       <div
                         key={type.id}
-                        className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 ${
-                          inCartQty > 0
-                            ? 'border-blue-600 bg-blue-50/40 shadow-xs'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
+                        className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 ${inCartQty > 0
+                          ? 'border-blue-600 bg-blue-50/40 shadow-xs'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
                       >
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
                             <span className="font-extrabold text-sm text-slate-900 line-clamp-1">{type.name}</span>
                             <span
-                              className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
-                                availableStock > 10
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                  : availableStock > 0
+                              className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${availableStock > 10
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : availableStock > 0
                                   ? 'bg-amber-50 text-amber-700 border-amber-200'
                                   : 'bg-rose-50 text-rose-700 border-rose-200'
-                              }`}
+                                }`}
                             >
                               Sisa: {availableStock} pcs
                             </span>
@@ -795,11 +793,10 @@ export default function PosPage() {
                     <button
                       type="button"
                       onClick={() => setPaymentMethod('cash')}
-                      className={`p-2.5 rounded-xl border text-xs font-extrabold flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                        paymentMethod === 'cash'
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-800 shadow-xs'
-                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                      }`}
+                      className={`p-2.5 rounded-xl border text-xs font-extrabold flex flex-col items-center gap-1 transition-all cursor-pointer ${paymentMethod === 'cash'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-800 shadow-xs'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
                     >
                       <DollarSign className="w-4 h-4 text-emerald-600" />
                       <span>Tunai (Cash)</span>
@@ -808,11 +805,10 @@ export default function PosPage() {
                     <button
                       type="button"
                       onClick={() => setPaymentMethod('qris_offline')}
-                      className={`p-2.5 rounded-xl border text-xs font-extrabold flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                        paymentMethod === 'qris_offline'
-                          ? 'border-blue-600 bg-blue-50 text-blue-800 shadow-xs'
-                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                      }`}
+                      className={`p-2.5 rounded-xl border text-xs font-extrabold flex flex-col items-center gap-1 transition-all cursor-pointer ${paymentMethod === 'qris_offline'
+                        ? 'border-blue-600 bg-blue-50 text-blue-800 shadow-xs'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
                     >
                       <QrCode className="w-4 h-4 text-blue-600" />
                       <span>QRIS Offline</span>
@@ -821,11 +817,10 @@ export default function PosPage() {
                     <button
                       type="button"
                       onClick={() => setPaymentMethod('bank_transfer')}
-                      className={`p-2.5 rounded-xl border text-xs font-extrabold flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                        paymentMethod === 'bank_transfer'
-                          ? 'border-indigo-600 bg-indigo-50 text-indigo-800 shadow-xs'
-                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                      }`}
+                      className={`p-2.5 rounded-xl border text-xs font-extrabold flex flex-col items-center gap-1 transition-all cursor-pointer ${paymentMethod === 'bank_transfer'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-800 shadow-xs'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
                     >
                       <Building2 className="w-4 h-4 text-indigo-600" />
                       <span>Bank Transfer</span>

@@ -1,4 +1,3 @@
-'use me';
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -8,6 +7,7 @@ import {
   fetchScannerEvents,
   fetchPublicEvents,
   processCheckIn,
+  fetchScannerCheckIns,
   getStoredUser,
   fetchUserProfile,
   incrementStaffScanCount,
@@ -129,6 +129,16 @@ export default function CheckInPage() {
       if (u) setCurrentUser(u);
     });
   }, []);
+
+  // Load real-time check-in history from API when event changes
+  useEffect(() => {
+    if (selectedEvent?.id) {
+      fetchScannerCheckIns(selectedEvent.id).then((history) => {
+        setScanHistory(history);
+        setTotalCheckInCount(history.length);
+      });
+    }
+  }, [selectedEvent?.id]);
 
   // WebCam Live Camera Controls
   const startCamera = async () => {
@@ -299,6 +309,12 @@ export default function CheckInPage() {
         if (currentUser?.email) {
           incrementStaffScanCount(currentUser.email);
         }
+        if (selectedEvent?.id) {
+          fetchScannerCheckIns(selectedEvent.id).then((history) => {
+            setScanHistory(history);
+            setTotalCheckInCount(history.length);
+          });
+        }
       }
 
       setTicketInput('');
@@ -390,8 +406,8 @@ export default function CheckInPage() {
                     <SelectValue placeholder="Pilih Event Gate Scanner" />
                   </SelectTrigger>
                   <SelectContent>
-                    {events.map((ev) => (
-                      <SelectItem key={ev.id} value={String(ev.id)}>
+                    {events.map((ev, index) => (
+                      <SelectItem key={`evt_option_${ev.id}_${index}`} value={String(ev.id)}>
                         {ev.title}
                       </SelectItem>
                     ))}

@@ -322,7 +322,8 @@ export default function EventsPage() {
         setEditBannerPreview(photo);
         setEditBannerUrlInput(editingEvent.banner.startsWith('http') ? editingEvent.banner : '');
       } else {
-        setEditBannerPreview('');
+        const photo = getPhotoUrl(editingEvent.venue_photo, editingEvent.id);
+        setEditBannerPreview(photo || '');
         setEditBannerUrlInput('');
       }
       setEditCityInput(editingEvent.venue?.city || editingEvent.city || '');
@@ -441,6 +442,11 @@ export default function EventsPage() {
       try {
         const dataUrl = await fileToDataUrl(file);
         setCreateBannerPreview(dataUrl);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('metix_latest_created_banner', dataUrl);
+          } catch {}
+        }
       } catch {
         // Fallback
       }
@@ -453,6 +459,11 @@ export default function EventsPage() {
       try {
         const dataUrl = await fileToDataUrl(file);
         setEditBannerPreview(dataUrl);
+        if (editingEvent && typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(`metix_banner_preview_${editingEvent.id}`, dataUrl);
+          } catch {}
+        }
       } catch {
         // Fallback
       }
@@ -558,6 +569,9 @@ export default function EventsPage() {
   const [promoMinPurchaseDisplay, setPromoMinPurchaseDisplay] = useState('');
   const [rawPromoMinPurchase, setRawPromoMinPurchase] = useState(0);
 
+  const [promoStartAt, setPromoStartAt] = useState<string>(format(new Date(), "yyyy-MM-dd'T'00:00"));
+  const [promoEndAt, setPromoEndAt] = useState<string>(format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), "yyyy-MM-dd'T'23:59"));
+
   const handlePromoDiscountValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/\D/g, '');
     if (!rawValue) {
@@ -599,6 +613,8 @@ export default function EventsPage() {
     setRawPromoDiscountValue(0);
     setPromoMinPurchaseDisplay('');
     setRawPromoMinPurchase(0);
+    setPromoStartAt(format(new Date(), "yyyy-MM-dd'T'00:00"));
+    setPromoEndAt(format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), "yyyy-MM-dd'T'23:59"));
 
     const promoList = await fetchPromos(evt.id);
     setPromos(promoList);
@@ -958,7 +974,8 @@ export default function EventsPage() {
         const cleanUrl = String(bannerUrlInput).trim().slice(0, 255);
         formData.set('banner', cleanUrl);
       } else if (createBannerPreview && createBannerPreview.startsWith('data:image')) {
-        formData.set('banner', createBannerPreview);
+        const shortPlaceholder = `local_banner_${Date.now()}.png`;
+        formData.set('banner', shortPlaceholder);
       } else if (bannerFile instanceof File && bannerFile.size > 0) {
         const shortName = `events/banner_${Date.now()}_${bannerFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`.slice(0, 255);
         formData.set('banner', shortName);
@@ -1126,11 +1143,12 @@ export default function EventsPage() {
         const cleanUrl = String(bannerUrlInput).trim().slice(0, 255);
         formData.set('banner', cleanUrl);
       } else if (editBannerPreview && editBannerPreview.startsWith('data:image')) {
-        formData.set('banner', editBannerPreview);
+        const shortPlaceholder = `local_banner_${Date.now()}.png`;
+        formData.set('banner', shortPlaceholder);
       } else if (bannerFile instanceof File && bannerFile.size > 0) {
         const shortName = `events/banner_${Date.now()}_${bannerFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`.slice(0, 255);
         formData.set('banner', shortName);
-      } else if (editBannerPreview && editBannerPreview.length <= 255) {
+      } else if (editBannerPreview && editBannerPreview.startsWith('http') && editBannerPreview.length <= 255) {
         formData.set('banner', editBannerPreview);
       } else if (editingEvent.banner && editingEvent.banner.length <= 255) {
         formData.set('banner', editingEvent.banner);
@@ -1948,26 +1966,98 @@ export default function EventsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-extrabold text-slate-700">Waktu Mulai Event (Start At)</label>
-                    <input
-                      type="datetime-local"
-                      name="start_at"
-                      required
-                      value={editStartAt}
-                      onChange={(e) => setEditStartAt(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
+                    <input type="hidden" name="start_at" value={editStartAt} />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+                            {editStartAt ? (
+                              format(new Date(editStartAt), 'dd MMM yyyy, HH:mm')
+                            ) : (
+                              <span className="text-slate-400">Pilih waktu mulai</span>
+                            )}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-3" align="start">
+                        <CalendarPicker
+                          mode="single"
+                          selected={editStartAt ? new Date(editStartAt) : undefined}
+                          onSelect={(d) => {
+                            if (!d) return;
+                            const currentTime = editStartAt ? editStartAt.split('T')[1] || '18:00' : '18:00';
+                            const dateStr = format(d, 'yyyy-MM-dd');
+                            setEditStartAt(`${dateStr}T${currentTime}`);
+                          }}
+                        />
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
+                          <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" /> Jam:
+                          </span>
+                          <input
+                            type="time"
+                            value={editStartAt ? editStartAt.split('T')[1] || '18:00' : '18:00'}
+                            onChange={(e) => {
+                              const currentDate = editStartAt ? editStartAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                              setEditStartAt(`${currentDate}T${e.target.value}`);
+                            }}
+                            className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-extrabold text-slate-700">Waktu Selesai Event (End At)</label>
-                    <input
-                      type="datetime-local"
-                      name="end_at"
-                      required
-                      value={editEndAt}
-                      onChange={(e) => setEditEndAt(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
+                    <input type="hidden" name="end_at" value={editEndAt} />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+                            {editEndAt ? (
+                              format(new Date(editEndAt), 'dd MMM yyyy, HH:mm')
+                            ) : (
+                              <span className="text-slate-400">Pilih waktu selesai</span>
+                            )}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-3" align="start">
+                        <CalendarPicker
+                          mode="single"
+                          selected={editEndAt ? new Date(editEndAt) : undefined}
+                          onSelect={(d) => {
+                            if (!d) return;
+                            const currentTime = editEndAt ? editEndAt.split('T')[1] || '23:00' : '23:00';
+                            const dateStr = format(d, 'yyyy-MM-dd');
+                            setEditEndAt(`${dateStr}T${currentTime}`);
+                          }}
+                        />
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
+                          <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" /> Jam:
+                          </span>
+                          <input
+                            type="time"
+                            value={editEndAt ? editEndAt.split('T')[1] || '23:00' : '23:00'}
+                            onChange={(e) => {
+                              const currentDate = editEndAt ? editEndAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                              setEditEndAt(`${currentDate}T${e.target.value}`);
+                            }}
+                            className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div className="space-y-1.5">
@@ -2760,25 +2850,99 @@ export default function EventsPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Waktu Mulai</label>
-                    <input
-                      type="datetime-local"
-                      name="start_at"
-                      required
-                      defaultValue={new Date().toISOString().slice(0, 16)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none"
-                    />
+                    <label className="text-[11px] font-extrabold text-slate-700">Waktu Mulai Promo</label>
+                    <input type="hidden" name="start_at" value={promoStartAt} />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
+                        >
+                          <span className="flex items-center gap-1.5 truncate">
+                            <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                            {promoStartAt ? (
+                              format(new Date(promoStartAt), 'dd MMM yyyy, HH:mm')
+                            ) : (
+                              <span className="text-slate-400">Pilih waktu mulai</span>
+                            )}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-3" align="start">
+                        <CalendarPicker
+                          mode="single"
+                          selected={promoStartAt ? new Date(promoStartAt) : undefined}
+                          onSelect={(d) => {
+                            if (!d) return;
+                            const currentTime = promoStartAt ? promoStartAt.split('T')[1] || '00:00' : '00:00';
+                            const dateStr = format(d, 'yyyy-MM-dd');
+                            setPromoStartAt(`${dateStr}T${currentTime}`);
+                          }}
+                        />
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
+                          <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" /> Jam:
+                          </span>
+                          <input
+                            type="time"
+                            value={promoStartAt ? promoStartAt.split('T')[1] || '00:00' : '00:00'}
+                            onChange={(e) => {
+                              const currentDate = promoStartAt ? promoStartAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                              setPromoStartAt(`${currentDate}T${e.target.value}`);
+                            }}
+                            className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Waktu Berakhir</label>
-                    <input
-                      type="datetime-local"
-                      name="end_at"
-                      required
-                      defaultValue={new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none"
-                    />
+                    <label className="text-[11px] font-extrabold text-slate-700">Waktu Berakhir Promo</label>
+                    <input type="hidden" name="end_at" value={promoEndAt} />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
+                        >
+                          <span className="flex items-center gap-1.5 truncate">
+                            <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                            {promoEndAt ? (
+                              format(new Date(promoEndAt), 'dd MMM yyyy, HH:mm')
+                            ) : (
+                              <span className="text-slate-400">Pilih waktu berakhir</span>
+                            )}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-3" align="start">
+                        <CalendarPicker
+                          mode="single"
+                          selected={promoEndAt ? new Date(promoEndAt) : undefined}
+                          onSelect={(d) => {
+                            if (!d) return;
+                            const currentTime = promoEndAt ? promoEndAt.split('T')[1] || '23:59' : '23:59';
+                            const dateStr = format(d, 'yyyy-MM-dd');
+                            setPromoEndAt(`${dateStr}T${currentTime}`);
+                          }}
+                        />
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
+                          <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" /> Jam:
+                          </span>
+                          <input
+                            type="time"
+                            value={promoEndAt ? promoEndAt.split('T')[1] || '23:59' : '23:59'}
+                            onChange={(e) => {
+                              const currentDate = promoEndAt ? promoEndAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                              setPromoEndAt(`${currentDate}T${e.target.value}`);
+                            }}
+                            className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
 
@@ -3061,26 +3225,98 @@ export default function EventsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-extrabold text-slate-700">Waktu Mulai Event (Start At)</label>
-                    <input
-                      type="datetime-local"
-                      name="start_at"
-                      required
-                      value={createStartAt}
-                      onChange={(e) => setCreateStartAt(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
+                    <input type="hidden" name="start_at" value={createStartAt} />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+                            {createStartAt ? (
+                              format(new Date(createStartAt), 'dd MMM yyyy, HH:mm')
+                            ) : (
+                              <span className="text-slate-400">Pilih waktu mulai</span>
+                            )}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-3" align="start">
+                        <CalendarPicker
+                          mode="single"
+                          selected={createStartAt ? new Date(createStartAt) : undefined}
+                          onSelect={(d) => {
+                            if (!d) return;
+                            const currentTime = createStartAt ? createStartAt.split('T')[1] || '18:00' : '18:00';
+                            const dateStr = format(d, 'yyyy-MM-dd');
+                            setCreateStartAt(`${dateStr}T${currentTime}`);
+                          }}
+                        />
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
+                          <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" /> Jam:
+                          </span>
+                          <input
+                            type="time"
+                            value={createStartAt ? createStartAt.split('T')[1] || '18:00' : '18:00'}
+                            onChange={(e) => {
+                              const currentDate = createStartAt ? createStartAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                              setCreateStartAt(`${currentDate}T${e.target.value}`);
+                            }}
+                            className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-extrabold text-slate-700">Waktu Selesai Event (End At)</label>
-                    <input
-                      type="datetime-local"
-                      name="end_at"
-                      required
-                      value={createEndAt}
-                      onChange={(e) => setCreateEndAt(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
+                    <input type="hidden" name="end_at" value={createEndAt} />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+                            {createEndAt ? (
+                              format(new Date(createEndAt), 'dd MMM yyyy, HH:mm')
+                            ) : (
+                              <span className="text-slate-400">Pilih waktu selesai</span>
+                            )}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-3" align="start">
+                        <CalendarPicker
+                          mode="single"
+                          selected={createEndAt ? new Date(createEndAt) : undefined}
+                          onSelect={(d) => {
+                            if (!d) return;
+                            const currentTime = createEndAt ? createEndAt.split('T')[1] || '23:00' : '23:00';
+                            const dateStr = format(d, 'yyyy-MM-dd');
+                            setCreateEndAt(`${dateStr}T${currentTime}`);
+                          }}
+                        />
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
+                          <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" /> Jam:
+                          </span>
+                          <input
+                            type="time"
+                            value={createEndAt ? createEndAt.split('T')[1] || '23:00' : '23:00'}
+                            onChange={(e) => {
+                              const currentDate = createEndAt ? createEndAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                              setCreateEndAt(`${currentDate}T${e.target.value}`);
+                            }}
+                            className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
+                          />
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div className="space-y-1.5">
@@ -3461,6 +3697,9 @@ export default function EventsPage() {
                       <img
                         src={createBannerPreview}
                         alt="Banner Event Preview"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=800&q=80';
+                        }}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                     ) : (

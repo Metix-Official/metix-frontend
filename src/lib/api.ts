@@ -20,6 +20,19 @@ export function getPhotoUrl(photoUrl?: string | null, eventId?: number | string,
     return photoUrl;
   }
 
+  if (typeof window !== 'undefined') {
+    try {
+      if (eventId) {
+        const savedLocal = localStorage.getItem(`metix_banner_preview_${eventId}`);
+        if (savedLocal) return savedLocal;
+      }
+      if (photoUrl && (photoUrl.includes('local_banner_') || photoUrl.startsWith('events/banner_'))) {
+        const latestCreated = localStorage.getItem('metix_latest_created_banner');
+        if (latestCreated) return latestCreated;
+      }
+    } catch {}
+  }
+
   if (!photoUrl || photoUrl === 'organizers/logo_default.png' || photoUrl === 'logo_default.png' || photoUrl.includes('logo_default')) {
     return null;
   }
@@ -1132,75 +1145,6 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
     } catch (error) {
       console.warn('Failed to fetch user tickets from API:', error);
     }
-
-    // Secondary fallback: If /tickets returned empty or 500, check /orders for tickets
-    if (apiTickets.length === 0) {
-      try {
-        const ordersRes = await fetch(`${API_BASE_URL}/orders`, {
-          headers: getHeaders(token),
-        });
-        if (ordersRes.ok) {
-          const ordersData = await ordersRes.json();
-          const ordersList = Array.isArray(ordersData?.data)
-            ? ordersData.data
-            : Array.isArray(ordersData?.data?.data)
-              ? ordersData.data.data
-              : Array.isArray(ordersData)
-                ? ordersData
-                : [];
-
-          ordersList.forEach((ord: any) => {
-            const rawTickets = ord?.tickets || ord?.ticket_items || ord?.items || [];
-            const orderNum = ord?.order_number || ord?.code;
-            if (Array.isArray(rawTickets) && rawTickets.length > 0) {
-              rawTickets.forEach((t: any, idx: number) => {
-                const rawCode = t.ticket_code || t.code || t.ticket_number || t.qr_token;
-                const finalCode = rawCode || (orderNum ? `TKT-${orderNum}-${idx + 1}` : `TKT-${ord.id}-${t.id || idx + 1}`);
-
-                apiTickets.push({
-                  id: t.id || ord.id * 100 + idx,
-                  ticket_code: finalCode,
-                  qr_token: t.qr_token || finalCode,
-                  order_number: orderNum,
-                  status: (t.status || (ord.status === 'PAID' ? 'active' : ord.status) || 'active').toLowerCase(),
-                  created_at: t.created_at || ord.created_at || new Date().toISOString(),
-                  event: t.event || ord.event,
-                  ticket_type: t.ticket_type || ord.ticket_type,
-                  order: {
-                    id: ord.id,
-                    order_number: orderNum,
-                    buyer_name: ord.buyer_name || ord.user?.name,
-                    buyer_email: ord.buyer_email || ord.user?.email,
-                    buyer_phone: ord.buyer_phone || ord.user?.phone,
-                  },
-                });
-              });
-            } else if (ord.id) {
-              const finalCode = orderNum ? `TKT-${orderNum}-1` : `TKT-${ord.id}`;
-              apiTickets.push({
-                id: ord.id,
-                ticket_code: finalCode,
-                qr_token: finalCode,
-                order_number: orderNum,
-                status: (ord.status === 'PAID' ? 'active' : ord.status || 'active').toLowerCase(),
-                created_at: ord.created_at || new Date().toISOString(),
-                event: ord.event,
-                ticket_type: ord.ticket_type || { name: 'VIP Pass', price: ord.total_amount || 0 },
-                order: {
-                  id: ord.id,
-                  order_number: orderNum,
-                  buyer_name: ord.buyer_name || ord.user?.name,
-                  buyer_email: ord.buyer_email || ord.user?.email,
-                  buyer_phone: ord.buyer_phone || ord.user?.phone,
-                },
-              });
-            }
-          });
-        }
-      } catch (ordersErr) {
-        console.warn('Orders fallback fetch error:', ordersErr);
-      }
-    }
   }
 
   return apiTickets;
@@ -1374,6 +1318,25 @@ export async function processCheckIn(payload: CheckInPayload): Promise<CheckInRe
   }
 
   for (const eventId of candidateEventIds) {
+    const deviceUuid = payload.device_uuid || 'WEB-SCANNER-01';
+
+    // Auto-register scanner device for the current event & user if needed
+    try {
+      await fetch(`${API_BASE_URL}/scanner/devices`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...getHeaders(token),
+        },
+        body: JSON.stringify({
+          event_id: eventId,
+          device_uuid: deviceUuid,
+          device_name: 'Web Gate Scanner Device',
+        }),
+      }).catch(() => {});
+    } catch {}
+
     for (const codeAttempt of codesToTry) {
       try {
         const response = await fetch(`${API_BASE_URL}/scanner/events/${eventId}/scan`, {
@@ -1388,7 +1351,7 @@ export async function processCheckIn(payload: CheckInPayload): Promise<CheckInRe
             ticket_code: codeAttempt,
             code: codeAttempt,
             order_number: cleanedCode,
-            device_uuid: payload.device_uuid || 'WEB-SCANNER-01',
+            device_uuid: deviceUuid,
           }),
         });
 
@@ -1421,7 +1384,6 @@ export async function processCheckIn(payload: CheckInPayload): Promise<CheckInRe
           };
         }
 
-        // Collect specific error details
         let errMsg = data?.message || data?.error;
         if (data?.errors && typeof data.errors === 'object') {
           const errArr = Object.values(data.errors).flat();
@@ -1560,6 +1522,56 @@ export async function fetchScannerEvents(): Promise<ApiEvent[]> {
         return myEvts.events;
       }
     } catch {}
+  }
+
+  return [];
+}
+
+export async function fetchScannerCheckIns(eventId: number | string): Promise<any[]> {
+  const token = getStoredToken();
+  if (!token || !eventId) return [];
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/scanner/events/${eventId}/check-ins`, {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const list = data?.data || data?.check_ins || (Array.isArray(data) ? data : []);
+      if (Array.isArray(list)) {
+        const currentUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('metix_user') || '{}') : {};
+        return list.map((item: any) => {
+          const tkt = item.ticket || {};
+          const att = tkt.attendee || {};
+          const evt = item.event || tkt.event || {};
+          const typeObj = tkt.ticket_type || tkt.ticketType || {};
+          const userObj = item.checked_in_by_user || item.scanner_user || (typeof item.checked_in_by === 'object' ? item.checked_in_by : null) || currentUser;
+          const checkedInUserId = item.checked_in_by_id || (typeof item.checked_in_by === 'object' ? item.checked_in_by?.id : item.checked_in_by) || userObj?.id || null;
+          const checkedInUserEmail = item.checked_in_by_email || item.checked_in_by?.email || userObj?.email || null;
+
+          return {
+            id: String(item.id || Date.now() + Math.random()),
+            code: item.ticket_code || tkt.ticket_code || tkt.qr_token || item.code || '',
+            holderName: item.attendee_name || att.full_name || tkt.holder_name || '',
+            buyerEmail: att.email || tkt.owner?.email || item.buyer_email || '',
+            typeName: item.ticket_type || typeObj.name || '',
+            eventName: evt.title || item.event_name || '',
+            status: 'valid',
+            timestamp: item.checked_in_at
+              ? new Date(item.checked_in_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+              : new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            message: 'Check-In Valid (API Real-time)',
+            scanner_user: typeof userObj === 'object' ? userObj.name || userObj.email : String(userObj || ''),
+            checked_in_by_id: checkedInUserId,
+            checked_in_by_email: checkedInUserEmail,
+          };
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch real-time scanner check-ins from API:', err);
   }
 
   return [];
@@ -2442,53 +2454,12 @@ export async function createOfflineOrder(
       return data;
     }
 
-    if (response.status === 404) {
-      // Fallback response generator if backend route is updating
-      const orderNum = 'POS-' + Math.random().toString(36).substring(2, 9).toUpperCase();
-      const grandTotal = payload.items.reduce((acc, i) => acc + (i.quantity * 100000), 0);
-      return {
-        success: true,
-        message: 'Pesanan POS offline berhasil dibuat.',
-        order: {
-          id: Date.now(),
-          order_number: orderNum,
-          buyer_name: payload.buyer_name,
-          buyer_email: payload.buyer_email,
-          buyer_phone: payload.buyer_phone,
-          payment_method: payload.payment_method || 'cash',
-          grand_total: grandTotal,
-          status: 'paid',
-          items: payload.items,
-          created_at: new Date().toISOString(),
-        },
-      };
-    }
-
     const errorMsg =
       data?.message ||
       (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
       'Gagal memproses pesanan kasir POS offline.';
     throw new Error(errorMsg);
   } catch (err: any) {
-    if (err?.message && (err.message.includes('not be found') || err.message.includes('404'))) {
-      const orderNum = 'POS-' + Math.random().toString(36).substring(2, 9).toUpperCase();
-      return {
-        success: true,
-        message: 'Pesanan POS offline berhasil dibuat.',
-        order: {
-          id: Date.now(),
-          order_number: orderNum,
-          buyer_name: payload.buyer_name,
-          buyer_email: payload.buyer_email,
-          buyer_phone: payload.buyer_phone,
-          payment_method: payload.payment_method || 'cash',
-          grand_total: 100000,
-          status: 'paid',
-          items: payload.items,
-          created_at: new Date().toISOString(),
-        },
-      };
-    }
     throw err;
   }
 }
@@ -2824,83 +2795,6 @@ export async function fetchAuditLogs(params?: {
 
   let rawLogs = Array.from(combinedMap.values());
   rawLogs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-  if (rawLogs.length === 0) {
-      const defaultLogs: AuditLogItem[] = [
-        {
-          id: 1089,
-          user_id: 1,
-          user_name: 'Super Admin Owner',
-          user_email: 'owner@metix.id',
-          action: 'AUTH_LOGIN',
-          description: 'Login berhasil ke Dashboard Platform Metix dari IP terdaftar',
-          ip_address: '180.252.164.12',
-          user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36',
-          created_at: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-        },
-        {
-          id: 1088,
-          user_id: 2,
-          user_name: 'Soundwave Festival EO',
-          user_email: 'eo.soundwave@gmail.com',
-          action: 'EVENT_CREATE',
-          description: 'Membuat event baru "Java Jazz Festival 2026 Edisi Spesial"',
-          ip_address: '114.124.210.88',
-          user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15',
-          created_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-        },
-        {
-          id: 1087,
-          user_id: 1,
-          user_name: 'Super Admin Owner',
-          user_email: 'owner@metix.id',
-          action: 'WITHDRAWAL_APPROVE',
-          description: 'Persetujuan pencairan dana EO Soundwave sebesar Rp 45.000.000 (BCA 8830192831)',
-          ip_address: '180.252.164.12',
-          user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36',
-          created_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-        },
-        {
-          id: 1086,
-          user_id: 4,
-          user_name: 'Budi Gatekeeper',
-          user_email: 'budi.scanner@metix.id',
-          action: 'TICKET_CHECKIN',
-          description: 'Validasi Check-in tiket #MTX-98213-VIP (Gate Utama A)',
-          ip_address: '36.85.12.94',
-          user_agent: 'MetixMobileScannerApp/2.1 Android/14',
-          created_at: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
-        },
-        {
-          id: 1085,
-          user_id: 1,
-          user_name: 'Super Admin Owner',
-          user_email: 'owner@metix.id',
-          action: 'ROLE_UPDATE',
-          description: 'Memperbarui persetujuan status akun EO Mitra "Jakarta Live Event" menjadi ACTIVE',
-          ip_address: '180.252.164.12',
-          user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36',
-          created_at: new Date(Date.now() - 1000 * 60 * 360).toISOString(),
-        },
-        {
-          id: 1084,
-          user_id: 2,
-          user_name: 'Soundwave Festival EO',
-          user_email: 'eo.soundwave@gmail.com',
-          action: 'SETTINGS_UPDATE',
-          description: 'Mengubah konfigurasi pembayaran QRIS Offline & Rekening Penampungan EO',
-          ip_address: '114.124.210.88',
-          user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15',
-          created_at: new Date(Date.now() - 1000 * 60 * 720).toISOString(),
-        },
-      ];
-      rawLogs = defaultLogs;
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('metix_audit_logs', JSON.stringify(defaultLogs));
-        } catch {}
-      }
-    }
 
   // Extract unique actions list for dropdown filter
   const actionsSet = new Set<string>();

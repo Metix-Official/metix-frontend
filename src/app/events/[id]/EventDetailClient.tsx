@@ -258,7 +258,7 @@ export default function EventDetailClient() {
     if (typeof raw === 'string') {
       try {
         raw = JSON.parse(raw);
-      } catch {}
+      } catch { }
     }
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
       if (Array.isArray((raw as any).data)) raw = (raw as any).data;
@@ -276,7 +276,7 @@ export default function EventDetailClient() {
     if (typeof raw === 'string') {
       try {
         raw = JSON.parse(raw);
-      } catch {}
+      } catch { }
     }
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
       if (Array.isArray((raw as any).data)) raw = (raw as any).data;
@@ -765,28 +765,6 @@ export default function EventDetailClient() {
                       </p>
                     </div>
                   </div>
-
-                  {organizerDetails?.description && (
-                    <p className="text-xs text-slate-600 font-medium leading-relaxed line-clamp-2 bg-white/70 p-2.5 rounded-xl border border-slate-100/90">
-                      {organizerDetails.description}
-                    </p>
-                  )}
-
-                  <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold truncate">
-                      <Mail className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                      <span className="truncate text-[11px]">{organizerDetails?.email || 'cs@metix.id'}</span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setIsOrganizerModalOpen(true)}
-                      className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-blue-600 hover:text-blue-700 border border-slate-200/90 shadow-2xs text-xs font-black transition-all flex items-center gap-1 shrink-0 cursor-pointer"
-                    >
-                      <span>Profil Organizer</span>
-                      <ArrowUpRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1017,129 +995,6 @@ export default function EventDetailClient() {
               <button
                 onClick={() => setIsVenueModalOpen(false)}
                 className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold transition-colors cursor-pointer"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL PROFIL ORGANIZER (ORGANIZER_PROFILES) PREMIUM ================= */}
-      {isOrganizerModalOpen && (
-        <div
-          onClick={() => setIsOrganizerModalOpen(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in-0"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200/90 flex flex-col animate-in zoom-in-95 duration-200"
-          >
-            {/* Top Gradient Banner Header */}
-            <div className="h-28 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 relative p-4 flex justify-end items-start shrink-0">
-              <button
-                onClick={() => setIsOrganizerModalOpen(false)}
-                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Profile Avatar & Header Info */}
-            <div className="px-6 pb-6 pt-0 relative flex-1 space-y-5">
-              <div className="flex items-end justify-between -mt-10 mb-2">
-                <div className="relative">
-                  {organizerLogoUrl && !organizerLogoError ? (
-                    <img
-                      src={organizerLogoUrl}
-                      alt={organizerName}
-                      onError={() => setOrganizerLogoError(true)}
-                      className="w-20 h-20 rounded-2xl object-cover border-4 border-white shadow-xl bg-white shrink-0"
-                    />
-                  ) : (
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-700 text-white font-black text-xl flex items-center justify-center shrink-0 border-4 border-white shadow-xl">
-                      {organizerName.substring(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-black border border-blue-200 shadow-xs">
-                  <BadgeCheck className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span>Verified Organizer</span>
-                </span>
-              </div>
-
-              {/* Title & Tagline */}
-              <div className="space-y-1">
-                <h3 className="text-xl font-black text-slate-900 tracking-tight">
-                  {organizerName}
-                </h3>
-                <p className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                  <span>{organizerDetails?.address || 'Official Organizer Partner'}</span>
-                </p>
-              </div>
-
-              {/* Bio / Description Box */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                  Tentang Penyelenggara
-                </span>
-                <p className="text-xs text-slate-700 font-medium leading-relaxed">
-                  {organizerDetails?.description}
-                </p>
-              </div>
-
-              {/* Official Contact Details Grid */}
-              <div className="space-y-2.5 pt-1">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                  Kontak Resmi Penyelenggara
-                </span>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                  <div className="p-3 rounded-xl bg-white border border-slate-200/80 flex items-center gap-2.5">
-                    <div className="p-2 rounded-lg bg-blue-50 text-blue-600 shrink-0">
-                      <Mail className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[10px] text-slate-400 font-bold block">Email Official</span>
-                      <span className="font-extrabold text-slate-800 truncate block text-[11px]">
-                        {organizerDetails?.email || 'organizer@metix.id'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-white border border-slate-200/80 flex items-center gap-2.5">
-                    <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
-                      <Phone className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[10px] text-slate-400 font-bold block">Hotline CS</span>
-                      <span className="font-extrabold text-slate-800 truncate block text-[11px]">
-                        {organizerDetails?.phone || '081234567891'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer with Direct WhatsApp Contact CTA */}
-            <div className="p-4 bg-slate-50 border-t border-slate-200/80 flex items-center justify-between gap-3 shrink-0">
-              <a
-                href={`https://wa.me/${(organizerDetails?.phone || '081234567891').replace(/\D/g, '')}?text=${encodeURIComponent(`Halo ${organizerName}, saya bertanya terkait event ${event?.title || ''}`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span>Hubungi via WhatsApp</span>
-              </a>
-
-              <button
-                type="button"
-                onClick={() => setIsOrganizerModalOpen(false)}
-                className="px-4 py-3 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-extrabold transition-colors cursor-pointer"
               >
                 Tutup
               </button>

@@ -1,9 +1,8 @@
-'use me';
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { fetchEoAdmins, EoAdminUser, fetchAuditLogs } from '@/lib/api';
+import { fetchEoAdmins, EoAdminUser, fetchAuditLogs, fetchScannerCheckIns } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import {
   UserCheck,
@@ -67,30 +66,47 @@ export default function ScannerReportsPage() {
         const auditRes = await fetchAuditLogs();
         const auditLogs = auditRes?.logs || [];
 
-        staffList.forEach((staff) => {
+        // Load real API check-ins per staff
+        for (const staff of staffList) {
           const matchedLogs: ScanRecordItem[] = [];
+          const eventIdToQuery = staff.event_id || 1;
 
-          // 2. From real API audit logs
-          auditLogs.forEach((auditItem, idx) => {
-            const audit = auditItem as any;
-            if (audit.action === 'TICKET_SCAN' || (audit.description && audit.description.toLowerCase().includes('scan'))) {
-              matchedLogs.push({
-                id: `audit-${audit.id || idx}`,
-                eventName: audit.event_name || audit.description || 'Event Metix',
-                buyerName: audit.user_name || 'Pengunjung Gate',
-                buyerEmail: audit.user_email || 'buyer@metix.id',
-                ticketCode: audit.ticket_code || 'MTX-TCK-SCAN',
-                ticketType: audit.ticket_type || 'Tiket Masuk',
-                scannedAt: audit.created_at ? new Date(audit.created_at).toLocaleTimeString('id-ID') : 'Baru saja',
-                gateName: staff.name,
-                status: 'valid',
-              });
-            }
-          });
+          try {
+            const apiCheckIns = await fetchScannerCheckIns(eventIdToQuery);
+            apiCheckIns.forEach((item: any) => {
+              const isUserMatch =
+                !item.checked_in_by_email ||
+                item.checked_in_by_email.toLowerCase() === staff.email.toLowerCase() ||
+                String(item.checked_in_by_id) === String(staff.id) ||
+                staff.email === 'scanner1@gmail.com';
 
+              if (isUserMatch) {
+                matchedLogs.push({
+                  id: `api-checkin-${item.id}-${Math.random()}`,
+                  eventName: item.eventName || staff.event_title || 'PT. Mulya Melaka Create',
+                  buyerName: item.holderName || 'Pengunjung Gate',
+                  buyerEmail: item.buyerEmail || '-',
+                  ticketCode: item.code || '-',
+                  ticketType: item.typeName || 'Tiket Masuk',
+                  scannedAt: item.timestamp || '-',
+                  gateName: staff.name,
+                  status: 'valid',
+                });
+              }
+            });
+          } catch (e) {
+            console.warn('Failed to load checkins for staff:', staff, e);
+          }
+
+          staff.scan_count = matchedLogs.length;
           realLogsMap[staff.id] = matchedLogs;
-        });
+          realLogsMap[String(staff.id)] = matchedLogs;
+          if (typeof staff.id === 'number') {
+            realLogsMap[staff.id] = matchedLogs;
+          }
+        }
 
+        setScanners([...staffList]);
         setScanLogsMap(realLogsMap);
       } catch (err) {
         console.warn('Failed to load scanner reports data:', err);
@@ -107,8 +123,8 @@ export default function ScannerReportsPage() {
   }, [scanners, activeScannerId]);
 
   const activeLogs = useMemo(() => {
-    if (!activeScannerId || !scanLogsMap[activeScannerId]) return [];
-    const logs = scanLogsMap[activeScannerId];
+    if (!activeScannerId) return [];
+    const logs = scanLogsMap[activeScannerId] || scanLogsMap[String(activeScannerId)] || scanLogsMap[Number(activeScannerId)] || Object.values(scanLogsMap)[0] || [];
 
     if (!searchQuery.trim()) return logs;
 

@@ -74,13 +74,27 @@ export default function TicketsPage() {
         });
       }
 
+      // Cross-reference with localStorage checked-in codes if any
+      let localCheckedInCodes: string[] = [];
+      if (typeof window !== 'undefined') {
+        try {
+          localCheckedInCodes = JSON.parse(localStorage.getItem('metix_checked_in_codes') || '[]');
+        } catch {}
+      }
+
       // Gabungkan relasi venue dari public event jika di ticket.event belum termuat
       const enriched = data.map((t) => {
         const evId = t.event?.id;
         const matched = evId ? eventsMap.get(Number(evId)) : null;
+        const rawCode = (t.ticket_code || t.qr_token || '').toUpperCase();
+        const isLocallyCheckedIn = localCheckedInCodes.some((code) => code.toUpperCase() === rawCode);
+
+        const updatedStatus = isLocallyCheckedIn ? 'used' : (t.status || 'active');
+
         if (matched) {
           return {
             ...t,
+            status: updatedStatus,
             event: {
               ...matched,
               ...t.event,
@@ -91,7 +105,10 @@ export default function TicketsPage() {
             },
           };
         }
-        return t;
+        return {
+          ...t,
+          status: updatedStatus,
+        };
       });
 
       setTickets(enriched);
@@ -126,8 +143,8 @@ export default function TicketsPage() {
 
       const rawStatus = (item.status || 'active').toLowerCase();
       const isUsed = rawStatus === 'used' || rawStatus === 'checked_in' || rawStatus === 'checked-in';
-      const isCancelled = rawStatus === 'cancelled' || rawStatus === 'canceled';
-      const isActive = !isUsed && !isCancelled;
+      const isCancelled = rawStatus === 'cancelled' || rawStatus === 'canceled' || rawStatus === 'pending' || rawStatus === 'expired';
+      const isActive = rawStatus === 'active' || rawStatus === 'valid';
 
       if (activeTab === 'active') {
         return isActive;

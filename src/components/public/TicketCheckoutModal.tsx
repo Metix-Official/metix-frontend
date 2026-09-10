@@ -217,57 +217,11 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
           } else if (event.ticket_types && event.ticket_types.length > 0) {
             setTicketTypes(event.ticket_types);
           } else {
-            setTicketTypes([
-              {
-                id: 1,
-                event_id: event.id,
-                name: 'Reguler Pass',
-                price: 150000,
-                quota: 500,
-                sold_quantity: 0,
-                max_per_order: 5,
-                available_quota: 500,
-                status: 'ACTIVE',
-              },
-              {
-                id: 2,
-                event_id: event.id,
-                name: 'VIP Pass (Front Row)',
-                price: 350000,
-                quota: 100,
-                sold_quantity: 0,
-                max_per_order: 3,
-                available_quota: 100,
-                status: 'ACTIVE',
-              },
-            ]);
+            setTicketTypes([]);
           }
         })
         .catch(() => {
-          setTicketTypes([
-            {
-              id: 1,
-              event_id: event.id,
-              name: 'Reguler Pass',
-              price: 150000,
-              quota: 500,
-              sold_quantity: 0,
-              max_per_order: 5,
-              available_quota: 500,
-              status: 'ACTIVE',
-            },
-            {
-              id: 2,
-              event_id: event.id,
-              name: 'VIP Pass (Front Row)',
-              price: 350000,
-              quota: 100,
-              sold_quantity: 0,
-              max_per_order: 3,
-              available_quota: 100,
-              status: 'ACTIVE',
-            },
-          ]);
+          setTicketTypes(event.ticket_types || []);
         })
         .finally(() => {
           setIsLoadingTickets(false);

@@ -1297,63 +1297,142 @@ export default function EventCheckoutClient() {
         {/* ================= TAHAP 3: E-TICKET BERHASIL ================= */}
         {currentStep === 3 && completedOrder && (
           <div className="space-y-6 animate-in zoom-in-95 duration-300">
-            <div className="bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-900 text-white backdrop-blur-xl rounded-3xl p-6 sm:p-10 border border-blue-500 text-center space-y-6 shadow-2xl relative overflow-hidden">
-              <div className="w-20 h-20 rounded-full bg-white/20 border-2 border-white flex items-center justify-center mx-auto text-white shadow-xl animate-bounce">
-                <CheckCircle2 className="w-10 h-10" />
-              </div>
+            {completedOrder.status === 'PAID' ? (
+              <div className="bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-900 text-white backdrop-blur-xl rounded-3xl p-6 sm:p-10 border border-blue-500 text-center space-y-6 shadow-2xl relative overflow-hidden">
+                <div className="w-20 h-20 rounded-full bg-white/20 border-2 border-white flex items-center justify-center mx-auto text-white shadow-xl animate-bounce">
+                  <CheckCircle2 className="w-10 h-10" />
+                </div>
 
-              <div className="space-y-2">
-                <span className="px-4 py-1.5 rounded-full bg-emerald-400 text-slate-950 text-xs font-black uppercase tracking-wider">
-                  PEMBAYARAN TERKONFIRMASI & TIKET RESMI TERBIT
-                </span>
-                <h2 className="text-3xl font-black text-white tracking-tight">Selamat! E-Ticket Berhasil Diterbitkan</h2>
-                <p className="text-xs sm:text-sm text-blue-100 max-w-lg mx-auto font-medium">
-                  Order <strong>#{completedOrder.order_number || completedOrder.id || 'MTX-9823'}</strong> telah berhasil diproses. E-Ticket resmi telah dikirim ke email <strong>{buyerEmail}</strong>.
-                </p>
-              </div>
+                <div className="space-y-2">
+                  <span className="px-4 py-1.5 rounded-full bg-emerald-400 text-slate-950 text-xs font-black uppercase tracking-wider">
+                    PEMBAYARAN TERKONFIRMASI & TIKET RESMI TERBIT
+                  </span>
+                  <h2 className="text-3xl font-black text-white tracking-tight">Selamat! E-Ticket Berhasil Diterbitkan</h2>
+                  <p className="text-xs sm:text-sm text-blue-100 max-w-lg mx-auto font-medium">
+                    Order <strong>#{completedOrder.order_number || completedOrder.id}</strong> telah berhasil diproses. E-Ticket resmi telah dikirim ke email <strong>{buyerEmail}</strong>.
+                  </p>
+                </div>
 
-              {/* Order Ticket QR Card */}
-              <div className="max-w-md mx-auto p-6 rounded-3xl bg-white text-slate-900 border border-slate-200 space-y-4 text-left shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div>
-                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">EVENT</span>
-                    <h4 className="font-black text-sm text-slate-900">{event.title}</h4>
+                {/* Order Ticket QR Card */}
+                <div className="max-w-md mx-auto p-6 rounded-3xl bg-white text-slate-900 border border-slate-200 space-y-4 text-left shadow-xl">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div>
+                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">EVENT</span>
+                      <h4 className="font-black text-sm text-slate-900">{event.title}</h4>
+                    </div>
+                    <span className="text-xs font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-xl border border-blue-200">
+                      {totalTicketCount} Tiket
+                    </span>
                   </div>
-                  <span className="text-xs font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-xl border border-blue-200">
-                    {totalTicketCount} Tiket
-                  </span>
+
+                  <div className="flex items-center justify-center p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                    <QrCode className="w-36 h-36 text-slate-900" />
+                  </div>
+
+                  <div className="text-center space-y-1">
+                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest block">KODE TIKET QR</span>
+                    <span className="text-sm font-black text-blue-700 font-mono tracking-wider">
+                      {completedOrder.order_number || 'MTX-TICKET-OFFICIAL-2026'}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-center p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                  <QrCode className="w-36 h-36 text-slate-900" />
-                </div>
+                {/* Action Buttons */}
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
+                  <Link
+                    href="/dashboard/tickets"
+                    className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg transition-all flex items-center justify-center gap-2"
+                  >
+                    <Ticket className="w-4 h-4 text-slate-950" />
+                    <span>Lihat Tiket Saya</span>
+                  </Link>
 
-                <div className="text-center space-y-1">
-                  <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest block">KODE TIKET QR</span>
-                  <span className="text-sm font-black text-blue-700 font-mono tracking-wider">
-                    {completedOrder.order_number || 'MTX-TICKET-OFFICIAL-2026'}
-                  </span>
+                  <Link
+                    href="/"
+                    className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-extrabold text-xs transition-all text-center"
+                  >
+                    Ke Beranda
+                  </Link>
                 </div>
               </div>
+            ) : (
+              /* PENDING PAYMENT STATE - AWAITING USER TRANSFER */
+              <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 text-white backdrop-blur-xl rounded-3xl p-6 sm:p-10 border border-slate-700 text-center space-y-6 shadow-2xl relative overflow-hidden">
+                <div className="w-20 h-20 rounded-full bg-amber-400/20 border-2 border-amber-400 flex items-center justify-center mx-auto text-amber-300 shadow-xl">
+                  <Clock className="w-10 h-10 animate-pulse text-amber-400" />
+                </div>
 
-              {/* Action Buttons */}
-              <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
-                <Link
-                  href="/dashboard/tickets"
-                  className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg transition-all flex items-center justify-center gap-2"
-                >
-                  <Ticket className="w-4 h-4 text-slate-950" />
-                  <span>Lihat Tiket Saya</span>
-                </Link>
+                <div className="space-y-2">
+                  <span className="px-4 py-1.5 rounded-full bg-amber-400 text-slate-950 text-xs font-black uppercase tracking-wider">
+                    MENUNGGU PEMBAYARAN (PENDING)
+                  </span>
+                  <h2 className="text-3xl font-black text-white tracking-tight">Pesanan Berhasil Dibuat</h2>
+                  <p className="text-xs sm:text-sm text-slate-300 max-w-lg mx-auto font-medium leading-relaxed">
+                    Pesanan <strong>#{completedOrder.order_number || completedOrder.id}</strong> telah tercatat. Silakan lakukan pembayaran tagihan sebesar <strong>Rp {finalGrandTotal.toLocaleString('id-ID')}</strong> agar E-Tiket Anda resmi diterbitkan.
+                  </p>
+                </div>
 
-                <Link
-                  href="/"
-                  className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-extrabold text-xs transition-all text-center"
-                >
-                  Ke Beranda
-                </Link>
+                {/* Instruction Card */}
+                <div className="max-w-md mx-auto p-6 rounded-3xl bg-white text-slate-900 border border-slate-200 space-y-4 text-left shadow-xl">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div>
+                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest block">EVENT</span>
+                      <h4 className="font-black text-sm text-slate-900">{event.title}</h4>
+                    </div>
+                    <span className="text-xs font-black text-amber-800 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200">
+                      {totalTicketCount} Tiket Pending
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-2 text-xs text-amber-900 font-medium">
+                    <div className="flex items-center gap-2 font-bold text-amber-800">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Tiket Belum Diterbitkan</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed">
+                      Sesuai prosedur, E-Tiket dan QR Code baru akan dibuat & dikirim ke email Anda <strong>setelah pembayaran lunas (PAID)</strong>.
+                    </p>
+                  </div>
+
+                  <div className="pt-1 space-y-1 text-center">
+                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest block">TOTAL TAGIHAN</span>
+                    <span className="text-2xl font-black text-blue-700 font-mono tracking-wider">
+                      Rp {finalGrandTotal.toLocaleString('id-ID')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
+                  {completedOrder.payment_url ? (
+                    <a
+                      href={completedOrder.payment_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg transition-all flex items-center justify-center gap-2"
+                    >
+                      <CreditCard className="w-4 h-4 text-slate-950" />
+                      <span>Bayar Tagihan Sekarang</span>
+                    </a>
+                  ) : (
+                    <Link
+                      href="/dashboard/tickets"
+                      className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg transition-all flex items-center justify-center gap-2"
+                    >
+                      <Ticket className="w-4 h-4 text-slate-950" />
+                      <span>Cek Pesanan Saya</span>
+                    </Link>
+                  )}
+
+                  <Link
+                    href="/"
+                    className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-extrabold text-xs transition-all text-center"
+                  >
+                    Ke Beranda
+                  </Link>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </main>

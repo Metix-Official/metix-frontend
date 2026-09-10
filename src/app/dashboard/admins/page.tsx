@@ -1,8 +1,8 @@
-'use me';
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { toast } from '@/components/ui/sonner';
 import {
   fetchEoAdmins,
   createEoAdmin,
@@ -96,13 +96,18 @@ export default function EoAdminsPage() {
 
   const openEditModal = (admin: EoAdminUser) => {
     setEditingAdmin(admin);
+    const matchedEvt = events.find(
+      (ev) => String(ev.id) === String(admin.event_id) || (admin.event_title && ev.title.trim().toLowerCase() === admin.event_title.trim().toLowerCase())
+    );
+    const selectedEventId = matchedEvt ? String(matchedEvt.id) : (admin.event_id ? String(admin.event_id) : 'all');
+
     setFormData({
       name: admin.name,
       email: admin.email,
       password: '',
       phone: admin.phone || '',
       scan_quota: admin.scan_quota !== null && admin.scan_quota !== undefined ? String(admin.scan_quota) : '200',
-      event_id: admin.event_id ? String(admin.event_id) : 'all',
+      event_id: selectedEventId,
     });
     setFormError(null);
     setIsAddModalOpen(true);
@@ -154,11 +159,16 @@ export default function EoAdminsPage() {
           event_id: eventIdNum,
           event_title: eventTitleStr,
         });
+        toast.success(editingAdmin ? 'Data Staff Berhasil Diperbarui! 🎉' : 'Staff Scanner Berhasil Ditambahkan! 🎉', {
+          description: `Akun ${formData.name} kini terdaftar di database server.`,
+        });
       }
       setIsAddModalOpen(false);
       await loadAdmins();
     } catch (err: any) {
-      setFormError(err.message || 'Terjadi kesalahan saat menyimpan data admin.');
+      const msg = err.message || 'Terjadi kesalahan saat menyimpan data admin.';
+      setFormError(msg);
+      toast.error('Gagal Menyimpan Staff Scanner', { description: msg });
     } finally {
       setIsSubmitting(false);
     }
@@ -169,10 +179,11 @@ export default function EoAdminsPage() {
     try {
       setIsDeleting(true);
       await deleteEoAdmin(deletingAdmin.id);
+      toast.success('Staff Admin Berhasil Dihapus! 🗑️');
       setDeletingAdmin(null);
       await loadAdmins();
     } catch (err: any) {
-      alert(err.message || 'Gagal menghapus admin.');
+      toast.error('Gagal Menghapus Staff', { description: err.message || 'Gagal menghapus admin.' });
     } finally {
       setIsDeleting(false);
     }

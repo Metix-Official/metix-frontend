@@ -6,6 +6,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import {
   fetchOrganizerProfile,
   saveOrganizerProfile,
+  fetchUserProfile,
   ApiOrganizerProfile,
   getPhotoUrl,
 } from '@/lib/api';
@@ -56,21 +57,20 @@ export default function OrganizationPage() {
   const loadData = async () => {
     setIsLoading(true);
     const data = await fetchOrganizerProfile();
-    const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('metix_user') || '{}') : null;
+    const user = await fetchUserProfile();
     setProfile(data);
 
     if (data) {
       setOrganizationName(data.organization_name || user?.name || '');
       setDescription(data.description || '');
       setAddress(data.address || '');
-      setPhone((prev) => prev || data.phone || user?.phone || '081234567891');
-      setEmail((prev) => prev || data.email || user?.email || 'eo@metix.id');
-      const localLogo = typeof window !== 'undefined' ? localStorage.getItem('metix_organizer_logo_preview') : null;
-      setLogoPreview(localLogo || (data.logo ? getPhotoUrl(data.logo) : null));
+      setPhone((prev) => prev || data.phone || user?.phone || '');
+      setEmail((prev) => prev || data.email || user?.email || '');
+      setLogoPreview(data.logo ? getPhotoUrl(data.logo) : null);
     } else {
       setOrganizationName(user?.name || '');
-      setPhone(user?.phone || '081234567891');
-      setEmail(user?.email || 'eo@metix.id');
+      setPhone(user?.phone || '');
+      setEmail(user?.email || '');
       setIsEditing(true);
     }
     setIsLoading(false);

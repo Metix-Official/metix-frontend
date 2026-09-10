@@ -126,10 +126,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     user?.photo ||
     (user as any)?.avatar;
 
-  const photoUrl = user
-    ? getPhotoUrl(rawLogo, undefined, isEo) ||
-      (typeof window !== 'undefined' ? localStorage.getItem('metix_organizer_logo_preview') : null)
-    : null;
+  const photoUrl = user ? getPhotoUrl(rawLogo, undefined, isEo) : null;
 
   const userDisplayName = user?.name || user?.first_name || 'Pengguna Metix';
 

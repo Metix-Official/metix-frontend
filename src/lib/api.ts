@@ -16,31 +16,11 @@ if (!envUrl.endsWith('/v1')) {
 export const API_BASE_URL = envUrl;
 
 export function getPhotoUrl(photoUrl?: string | null, eventId?: number | string, isEoProfile?: boolean): string | null {
-  if (typeof window !== 'undefined') {
-    if (eventId) {
-      const localBanner =
-        localStorage.getItem(`metix_banner_preview_${eventId}`) ||
-        localStorage.getItem(`metix_banner_preview_${String(eventId)}`);
-      if (localBanner) return localBanner;
-    }
-    if (isEoProfile) {
-      const localLogo = localStorage.getItem(`metix_organizer_logo_preview`);
-      if (localLogo) return localLogo;
-    }
-    if (photoUrl && (photoUrl.startsWith('data:image') || photoUrl.startsWith('blob:'))) {
-      return photoUrl;
-    }
-    if (photoUrl) {
-      const cachedByPath = localStorage.getItem(`metix_banner_preview_${photoUrl}`);
-      if (cachedByPath) return cachedByPath;
-    }
+  if (photoUrl && (photoUrl.startsWith('data:image') || photoUrl.startsWith('blob:'))) {
+    return photoUrl;
   }
 
   if (!photoUrl || photoUrl === 'organizers/logo_default.png' || photoUrl === 'logo_default.png' || photoUrl.includes('logo_default')) {
-    if (typeof window !== 'undefined' && eventId) {
-      const fallbackLocal = localStorage.getItem(`metix_banner_preview_${eventId}`);
-      if (fallbackLocal) return fallbackLocal;
-    }
     return null;
   }
 
@@ -169,6 +149,55 @@ export interface ApiSocialMedia {
   website?: string;
   whatsapp?: string;
   youtube?: string;
+}
+
+export function parseSocialMediaObject(rawSocials: any, eventData?: any): {
+  instagram: string;
+  tiktok: string;
+  website: string;
+  whatsapp: string;
+  youtube: string;
+} {
+  const res = { instagram: '', tiktok: '', website: '', whatsapp: '', youtube: '' };
+
+  if (!rawSocials && eventData) {
+    rawSocials = eventData.social_media || eventData.socials || eventData.social_medias;
+  }
+
+  if (typeof rawSocials === 'string') {
+    try {
+      rawSocials = JSON.parse(rawSocials);
+    } catch {}
+  }
+
+  if (Array.isArray(rawSocials)) {
+    rawSocials.forEach((item: any) => {
+      if (!item) return;
+      const name = String(item.name || item.type || item.platform || '').toLowerCase();
+      const val = String(item.url || item.link || item.description || item.value || '').trim();
+      if (name.includes('insta')) res.instagram = val;
+      else if (name.includes('tik')) res.tiktok = val;
+      else if (name.includes('web') || name.includes('site')) res.website = val;
+      else if (name.includes('wa') || name.includes('what')) res.whatsapp = val;
+      else if (name.includes('you') || name.includes('tube')) res.youtube = val;
+    });
+  } else if (rawSocials && typeof rawSocials === 'object') {
+    res.instagram = String(rawSocials.instagram || rawSocials.Instagram || '').trim();
+    res.tiktok = String(rawSocials.tiktok || rawSocials.TikTok || '').trim();
+    res.website = String(rawSocials.website || rawSocials.Website || '').trim();
+    res.whatsapp = String(rawSocials.whatsapp || rawSocials.WhatsApp || '').trim();
+    res.youtube = String(rawSocials.youtube || rawSocials.YouTube || '').trim();
+  }
+
+  if (eventData) {
+    if (!res.instagram && eventData.instagram) res.instagram = String(eventData.instagram).trim();
+    if (!res.tiktok && eventData.tiktok) res.tiktok = String(eventData.tiktok).trim();
+    if (!res.website && eventData.website) res.website = String(eventData.website).trim();
+    if (!res.whatsapp && eventData.whatsapp) res.whatsapp = String(eventData.whatsapp).trim();
+    if (!res.youtube && eventData.youtube) res.youtube = String(eventData.youtube).trim();
+  }
+
+  return res;
 }
 
 export interface ApiEvent {
@@ -396,10 +425,6 @@ export interface CheckInResponse {
 
 export function getStoredToken(): string | null {
   if (typeof window !== 'undefined') {
-    try {
-      if (localStorage.getItem('metix_user_orders')) localStorage.removeItem('metix_user_orders');
-      if (localStorage.getItem('metix_created_events')) localStorage.removeItem('metix_created_events');
-    } catch {}
     return localStorage.getItem('metix_token');
   }
   return null;
@@ -410,33 +435,7 @@ export function getStoredUser(): UserProfile | null {
     const userStr = localStorage.getItem('metix_user');
     if (userStr) {
       try {
-        const user = JSON.parse(userStr);
-        const storedEos = localStorage.getItem('metix_pending_eo_registrations');
-        if (storedEos && user) {
-          try {
-            const list: ApiOrganizerProfile[] = JSON.parse(storedEos);
-            const found = list.find(
-              (o) => o.email?.toLowerCase() === user.email?.toLowerCase() || o.user_id === user.id
-            );
-            if (found) {
-              if (found.status === 'REJECTED') {
-                user.mitra_status = 'rejected';
-                user.organizer_status = 'REJECTED';
-                user.rejection_reason =
-                  found.rejection_reason || 'Pengajuan pendaftaran Event Organizer (EO) Anda ditolak oleh Owner/Admin Platform.';
-                if (!user.organizer_profile) user.organizer_profile = {};
-                user.organizer_profile.status = 'REJECTED';
-                user.organizer_profile.rejection_reason = found.rejection_reason || user.rejection_reason;
-              } else if (found.status === 'ACTIVE') {
-                user.mitra_status = 'approved';
-                user.organizer_status = 'ACTIVE';
-                if (!user.organizer_profile) user.organizer_profile = {};
-                user.organizer_profile.status = 'ACTIVE';
-              }
-            }
-          } catch {}
-        }
-        return user;
+        return JSON.parse(userStr);
       } catch {
         return null;
       }
@@ -616,6 +615,7 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/me`, {
       headers: getHeaders(token),
+      cache: 'no-store',
     });
 
     if (response.status === 401) {
@@ -632,13 +632,11 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
     }
 
     const data = await response.json();
-    const user = data?.data || data?.user || data;
+    const user: UserProfile = data?.data || data?.user || data;
 
     if (user) {
       user.phone = user.phone || (user as any).phone_number || (user as any).whatsapp || (user as any).no_hp || null;
-    }
 
-    if (user && typeof window !== 'undefined') {
       if (user.organizer_profile && user.organizer_profile.status) {
         user.organizer_status = user.organizer_profile.status;
         user.mitra_status =
@@ -650,35 +648,11 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
         if (user.organizer_profile.rejection_reason) {
           user.rejection_reason = user.organizer_profile.rejection_reason;
         }
-      } else {
-        try {
-          const storedEos = localStorage.getItem('metix_pending_eo_registrations');
-          if (storedEos) {
-            const list: ApiOrganizerProfile[] = JSON.parse(storedEos);
-            const found = list.find(
-              (o) => o.email?.toLowerCase() === user.email?.toLowerCase() || o.user_id === user.id
-            );
-            if (found) {
-              if (found.status === 'REJECTED') {
-                user.mitra_status = 'rejected';
-                user.organizer_status = 'REJECTED';
-                user.rejection_reason =
-                  found.rejection_reason || 'Pengajuan pendaftaran Event Organizer (EO) Anda ditolak oleh Owner/Admin Platform.';
-                if (!user.organizer_profile) user.organizer_profile = {};
-                user.organizer_profile.status = 'REJECTED';
-                user.organizer_profile.rejection_reason = found.rejection_reason || user.rejection_reason;
-              } else if (found.status === 'ACTIVE') {
-                user.mitra_status = 'approved';
-                user.organizer_status = 'ACTIVE';
-                if (!user.organizer_profile) user.organizer_profile = {};
-                user.organizer_profile.status = 'ACTIVE';
-              }
-            }
-          }
-        } catch {}
       }
 
-      localStorage.setItem('metix_user', JSON.stringify(user));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('metix_user', JSON.stringify(user));
+      }
     }
 
     return user;
@@ -789,6 +763,114 @@ export async function fetchPublicEventDetail(slugOrId: string | number): Promise
     console.warn('Failed to fetch event detail from API:', error);
     return null;
   }
+}
+
+export async function fetchOrganizerEventDetail(eventId: number | string): Promise<ApiEvent | null> {
+  const token = getStoredToken();
+  if (!token || !eventId) return null;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}`, {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const eventData = data?.data || data?.event || data;
+      if (eventData) return eventData;
+    }
+  } catch {}
+
+  return fetchPublicEventDetail(eventId);
+}
+
+export async function fetchEventLineupsApi(eventId: number | string): Promise<ApiLineupItem[]> {
+  const token = getStoredToken();
+  if (!eventId) return [];
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineups`, {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const list = data?.data || data?.lineups || data;
+      if (Array.isArray(list)) return list;
+    }
+  } catch {}
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/public/events/${eventId}/lineups`, {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const list = data?.data || data?.lineups || data;
+      if (Array.isArray(list)) return list;
+    }
+  } catch {}
+
+  return [];
+}
+
+export async function fetchEventFacilitiesApi(eventId: number | string): Promise<string[]> {
+  const token = getStoredToken();
+  if (!eventId) return [];
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facilities`, {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const list = data?.data || data?.facilities || data;
+      if (Array.isArray(list)) {
+        return list.map((f: any) => (typeof f === 'string' ? f : String(f?.name || f?.title || f?.facility || ''))).filter(Boolean);
+      }
+    }
+  } catch {}
+
+  return [];
+}
+
+export async function fetchEventSocialMediaApi(eventId: number | string): Promise<ApiSocialMedia | null> {
+  const token = getStoredToken();
+  if (!eventId) return null;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/social-medias`, {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const raw = data?.data || data?.social_media || data?.socials || data;
+      const parsed = parseSocialMediaObject(raw);
+      if (parsed && (parsed.instagram || parsed.tiktok || parsed.website || parsed.whatsapp || parsed.youtube)) {
+        return parsed;
+      }
+    }
+  } catch {}
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/social-media`, {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const raw = data?.data || data?.social_media || data?.socials || data;
+      const parsed = parseSocialMediaObject(raw);
+      if (parsed && (parsed.instagram || parsed.tiktok || parsed.website || parsed.whatsapp || parsed.youtube)) {
+        return parsed;
+      }
+    }
+  } catch {}
+
+  return null;
 }
 
 // ----------------------------------------------------------------------
@@ -1692,29 +1774,73 @@ export async function createVenue(payload: CreateVenuePayload): Promise<{ id: nu
 
 export async function saveEventLineupsApi(eventId: number | string, lineups: ApiLineupItem[]): Promise<boolean> {
   const token = getStoredToken();
-  if (!token || !eventId || !lineups || lineups.length === 0) return false;
+  if (!token || !eventId) return false;
 
-  for (const item of lineups) {
-    if (!item.name || !item.name.trim()) continue;
+  const validLineups = (lineups || []).filter((item) => item && item.name && item.name.trim());
+
+  // Fetch current lineups in DB
+  let currentItems: any[] = [];
+  try {
+    const listRes = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineups?per_page=100`, {
+      headers: getHeaders(token),
+    });
+    if (listRes.ok) {
+      const listData = await listRes.json().catch(() => ({}));
+      currentItems = Array.isArray(listData?.data) ? listData.data : (listData?.data?.data || []);
+    }
+  } catch {}
+
+  const payloadItemIds = new Set(validLineups.map((item) => String(item.id)).filter(Boolean));
+
+  // Delete items that are no longer present in payload
+  for (const item of currentItems) {
+    if (item?.id && !payloadItemIds.has(String(item.id))) {
+      try {
+        await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineups/${item.id}`, {
+          method: 'DELETE',
+          headers: getHeaders(token),
+        });
+      } catch {}
+    }
+  }
+
+  // Create or Update items
+  for (const item of validLineups) {
     try {
       const jsonPayload = {
         event_id: Number(eventId),
-        name: item.name,
-        image: item.image && item.image.length <= 1000 ? item.image : '',
+        name: item.name.trim(),
+        image: item.image || '',
         description: item.description || item.role || '',
       };
 
-      let res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineups`, {
-        method: 'POST',
-        headers: {
-          ...getHeaders(token),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(jsonPayload),
-      });
+      const isExisting =
+        item.id &&
+        !String(item.id).startsWith('new_') &&
+        !isNaN(Number(item.id)) &&
+        currentItems.some((c) => String(c.id) === String(item.id));
 
-      if (!res.ok && res.status === 404) {
-        res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineup`, {
+      if (isExisting) {
+        const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineups/${item.id}`, {
+          method: 'PUT',
+          headers: {
+            ...getHeaders(token),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(jsonPayload),
+        });
+        if (!res.ok) {
+          await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineups`, {
+            method: 'POST',
+            headers: {
+              ...getHeaders(token),
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(jsonPayload),
+          });
+        }
+      } else {
+        await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineups`, {
           method: 'POST',
           headers: {
             ...getHeaders(token),
@@ -1723,22 +1849,8 @@ export async function saveEventLineupsApi(eventId: number | string, lineups: Api
           body: JSON.stringify(jsonPayload),
         });
       }
-
-      if (!res.ok) {
-        const formData = new FormData();
-        formData.append('event_id', String(eventId));
-        formData.append('name', item.name);
-        if (item.image) formData.append('image', item.image);
-        if (item.description) formData.append('description', item.description);
-
-        await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineups`, {
-          method: 'POST',
-          headers: getHeaders(token),
-          body: formData,
-        });
-      }
     } catch (e) {
-      console.warn('saveEventLineupsApi failed:', e);
+      console.warn('saveEventLineupsApi item failed:', e);
     }
   }
   return true;
@@ -1746,14 +1858,38 @@ export async function saveEventLineupsApi(eventId: number | string, lineups: Api
 
 export async function saveEventFacilitiesApi(eventId: number | string, facilities: string[]): Promise<boolean> {
   const token = getStoredToken();
-  if (!token || !eventId || !facilities || facilities.length === 0) return false;
+  if (!token || !eventId) return false;
 
-  for (const fac of facilities) {
-    if (!fac || !fac.trim()) continue;
+  const cleanList = (facilities || []).map((f) => (typeof f === 'string' ? f.trim() : '')).filter(Boolean);
+
+  // First fetch existing facilities for this event and clear them to prevent duplication on edit
+  try {
+    const listRes = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facilities?per_page=100`, {
+      headers: getHeaders(token),
+    });
+    if (listRes.ok) {
+      const listData = await listRes.json().catch(() => ({}));
+      const items = Array.isArray(listData?.data) ? listData.data : (listData?.data?.data || []);
+      for (const item of items) {
+        if (item?.id) {
+          await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facilities/${item.id}`, {
+            method: 'DELETE',
+            headers: getHeaders(token),
+          }).catch(() => {});
+        }
+      }
+    }
+  } catch {}
+
+  if (cleanList.length === 0) return true;
+
+  for (const fac of cleanList) {
     try {
       const jsonPayload = {
-        name: fac.trim(),
-        description: fac.trim(),
+        event_id: Number(eventId),
+        name: fac,
+        description: fac,
+        facility: fac,
       };
 
       let res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facilities`, {
@@ -1772,10 +1908,7 @@ export async function saveEventFacilitiesApi(eventId: number | string, facilitie
             ...getHeaders(token),
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            event_id: Number(eventId),
-            facilities,
-          }),
+          body: JSON.stringify(jsonPayload),
         });
       }
     } catch (e) {
@@ -1838,13 +1971,27 @@ export async function saveEventSocialMediaApi(eventId: number | string, socials:
 }
 
 export async function createEvent(formData: FormData): Promise<boolean> {
-  const token = getStoredToken();
-  if (!token) throw new Error('Unauthenticated');
+  let token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu (Unauthenticated).');
 
-  const user = getStoredUser();
-  if (user && !formData.has('organizer_id')) {
-    const orgId = (user as any).organizer_id || (user as any).organizer?.id || user.id || 1;
-    formData.set('organizer_id', String(orgId));
+  // Auto-sync fresh user profile from API database before submission
+  try {
+    const freshUser = await fetchUserProfile();
+    if (freshUser) {
+      const freshToken = getStoredToken();
+      if (freshToken) token = freshToken;
+    }
+  } catch {}
+
+  const orgProfile = await fetchOrganizerProfile().catch(() => null);
+  if (orgProfile && orgProfile.id) {
+    formData.set('organizer_id', String(orgProfile.id));
+  } else {
+    const user = getStoredUser();
+    if (user) {
+      const orgId = (user as any).organizer_id || (user as any).organizer?.id || user.id;
+      if (orgId) formData.set('organizer_id', String(orgId));
+    }
   }
 
   // Sanitize venue_id so exists:venues,id validation passes
@@ -1882,11 +2029,26 @@ export async function createEvent(formData: FormData): Promise<boolean> {
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/organizer/events`, {
+    let response = await fetch(`${API_BASE_URL}/organizer/events`, {
       method: 'POST',
       headers: getHeaders(token),
       body: formData,
     });
+
+    // If 403 or 401 occurs, auto-refresh user session from database and retry once
+    if (response.status === 403 || response.status === 401) {
+      const freshProfile = await fetchOrganizerProfile().catch(() => null);
+      if (freshProfile && freshProfile.id) {
+        formData.set('organizer_id', String(freshProfile.id));
+      }
+      token = getStoredToken() || token;
+
+      response = await fetch(`${API_BASE_URL}/organizer/events`, {
+        method: 'POST',
+        headers: getHeaders(token),
+        body: formData,
+      });
+    }
 
     const data = await response.json().catch(() => ({}));
 
@@ -1909,12 +2071,8 @@ export async function createEvent(formData: FormData): Promise<boolean> {
       }
 
       // Synchronize sub-resource APIs for Lineup, Facilities, Social Media
-      if (parsedLineups.length > 0) {
-        await saveEventLineupsApi(createdId, parsedLineups);
-      }
-      if (parsedFacilities.length > 0) {
-        await saveEventFacilitiesApi(createdId, parsedFacilities);
-      }
+      await saveEventLineupsApi(createdId, parsedLineups || []);
+      await saveEventFacilitiesApi(createdId, parsedFacilities || []);
       if (parsedSocials) {
         await saveEventSocialMediaApi(createdId, parsedSocials);
       }
@@ -1997,12 +2155,8 @@ export async function updateEvent(eventId: number, formData: FormData): Promise<
     }
 
     // Synchronize sub-resource APIs for Lineup, Facilities, Social Media
-    if (parsedLineups.length > 0) {
-      await saveEventLineupsApi(eventId, parsedLineups);
-    }
-    if (parsedFacilities.length > 0) {
-      await saveEventFacilitiesApi(eventId, parsedFacilities);
-    }
+    await saveEventLineupsApi(eventId, parsedLineups || []);
+    await saveEventFacilitiesApi(eventId, parsedFacilities || []);
     if (parsedSocials) {
       await saveEventSocialMediaApi(eventId, parsedSocials);
     }
@@ -2435,8 +2589,6 @@ export async function updateUserProfile(formData: FormData): Promise<UserProfile
 
   if (typeof window !== 'undefined') {
     localStorage.setItem('metix_user', JSON.stringify(updatedUser));
-    if (nik) localStorage.setItem('metix_user_nik', nik);
-    if (address) localStorage.setItem('metix_user_address', address);
   }
 
   return updatedUser;
@@ -2850,144 +3002,280 @@ export function incrementStaffScanCount(email?: string): void {
 
 export async function fetchEoAdmins(): Promise<EoAdminUser[]> {
   const token = getStoredToken();
-  const currentUser = getStoredUser();
-  const storageKey = currentUser?.email ? `metix_eo_admins_${currentUser.email.toLowerCase()}` : 'metix_eo_admins';
-  let isApiSuccess = false;
-  let apiAdmins: EoAdminUser[] = [];
+  if (!token) return [];
 
-  if (token) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/organizer/team`, {
+  try {
+    let response = await fetch(`${API_BASE_URL}/organizer/team`, {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+
+    if (!response.ok && response.status === 404) {
+      response = await fetch(`${API_BASE_URL}/organizer/scanners`, {
         headers: getHeaders(token),
+        cache: 'no-store',
       });
+    }
 
-      if (response.ok) {
-        const data = await response.json();
-        apiAdmins = data?.data || data?.team || [];
-        isApiSuccess = true;
+    if (response.ok) {
+      const data = await response.json();
+      const list = data?.data || data?.team || data?.scanners || (Array.isArray(data) ? data : []);
+      if (Array.isArray(list)) {
+        return list.map((item: any) => {
+          const evtObj = item.event || (Array.isArray(item.events) ? item.events[0] : null) || item.assigned_event;
+          const evtId = item.event_id || evtObj?.id || item.user?.event_id || (Array.isArray(item.event_ids) ? item.event_ids[0] : null);
+          const evtTitle = item.event_title || evtObj?.title || evtObj?.name || item.user?.event_title;
+
+          return {
+            id: item.id || item.user_id || item.user?.id || Date.now(),
+            name: item.name || item.user?.name || item.full_name || 'Staff Scanner',
+            email: item.email || item.user?.email || '',
+            phone: item.phone || item.user?.phone || null,
+            scan_quota: item.scan_quota !== undefined ? item.scan_quota : (item.quota ?? item.user?.scan_quota ?? 200),
+            scan_count: item.scan_count || item.scanned_count || item.user?.scan_count || 0,
+            event_id: evtId ? Number(evtId) : null,
+            event_title: evtTitle || (evtId ? `Event #${evtId}` : 'Semua Event (Global)'),
+            created_at: item.joined_at || item.created_at || item.user?.created_at || new Date().toISOString(),
+          };
+        });
       }
-    } catch {
-      // Ignore API errors
     }
+  } catch (err) {
+    console.warn('Failed to fetch EO admins from API:', err);
   }
 
-  if (isApiSuccess) {
-    return apiAdmins.map((item) => ({
-      id: item.id,
-      name: item.name,
-      email: item.email,
-      phone: item.phone || null,
-      scan_quota: (item as any).scan_quota !== undefined ? (item as any).scan_quota : 200,
-      scan_count: (item as any).scan_count || 0,
-      event_id: item.event_id || (item as any).event?.id || null,
-      event_title: item.event_title || (item as any).event?.title || null,
-      created_at: (item as any).joined_at || (item as any).created_at || new Date().toISOString(),
-    }));
-  }
-
-  let localAdmins: EoAdminUser[] = [];
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) localAdmins = JSON.parse(stored);
-    } catch {
-      localAdmins = [];
-    }
-  }
-
-  return localAdmins;
+  return [];
 }
 
 export async function createEoAdmin(payload: CreateEoAdminPayload): Promise<EoAdminUser> {
   const token = getStoredToken();
-  const currentUser = getStoredUser();
-  const storageKey = currentUser?.email ? `metix_eo_admins_${currentUser.email.toLowerCase()}` : 'metix_eo_admins';
-  let createdUser: EoAdminUser | null = null;
+  if (!token) throw new Error('Silakan login terlebih dahulu (Unauthenticated).');
 
-  if (token) {
+  const jsonPayload = {
+    name: payload.name,
+    email: payload.email,
+    password: payload.password,
+    password_confirmation: payload.password,
+    phone: payload.phone || null,
+    role: 'scanner',
+    scan_quota: payload.scan_quota !== undefined ? payload.scan_quota : 200,
+    quota: payload.scan_quota !== undefined ? payload.scan_quota : 200,
+    event_id: payload.event_id || null,
+    event_ids: payload.event_id ? [payload.event_id] : [],
+    events: payload.event_id ? [payload.event_id] : [],
+  };
+
+  let response = await fetch(`${API_BASE_URL}/organizer/team`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getHeaders(token),
+    },
+    body: JSON.stringify(jsonPayload),
+  });
+
+  if (!response.ok && response.status === 404) {
+    response = await fetch(`${API_BASE_URL}/organizer/scanners`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getHeaders(token),
+      },
+      body: JSON.stringify(jsonPayload),
+    });
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal menambahkan akun staff scanner baru ke API server.';
+    throw new Error(errorMsg);
+  }
+
+  const createdUser = data?.data || data?.user || data?.team || data;
+
+  if (payload.event_id && createdUser?.id) {
     try {
-      const response = await fetch(`${API_BASE_URL}/organizer/team`, {
+      await fetch(`${API_BASE_URL}/organizer/events/${payload.event_id}/scanners`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...getHeaders(token),
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          user_id: createdUser.id,
+          scanner_id: createdUser.id,
+          email: payload.email,
+        }),
       });
+    } catch {}
+  }
 
-      const data = await response.json().catch(() => ({}));
-      if (response.ok) {
-        createdUser = data?.data || data;
-      }
-    } catch {
-      // Fallback
-    }
+  const evtObj = createdUser?.event || (Array.isArray(createdUser?.events) ? createdUser.events[0] : null);
+  const evtId = payload.event_id || createdUser?.event_id || evtObj?.id || null;
 
-    // Also attempt linking scanner directly to event if event_id is supplied
+  return {
+    id: createdUser?.id || createdUser?.user_id || Date.now(),
+    name: createdUser?.name || createdUser?.user?.name || payload.name,
+    email: createdUser?.email || createdUser?.user?.email || payload.email,
+    phone: createdUser?.phone || createdUser?.user?.phone || payload.phone || null,
+    scan_quota: payload.scan_quota !== undefined ? payload.scan_quota : (createdUser?.scan_quota ?? createdUser?.quota ?? 200),
+    scan_count: createdUser?.scan_count || 0,
+    event_id: evtId ? Number(evtId) : null,
+    event_title: payload.event_title || createdUser?.event_title || evtObj?.title || (evtId ? `Event #${evtId}` : 'Semua Event (Global)'),
+    created_at: createdUser?.created_at || createdUser?.joined_at || new Date().toISOString(),
+  };
+}
+
+export async function updateEoAdmin(adminId: number, payload: CreateEoAdminPayload): Promise<EoAdminUser> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu (Unauthenticated).');
+
+  const jsonPayload = {
+    id: adminId,
+    user_id: adminId,
+    name: payload.name,
+    email: payload.email,
+    password: payload.password || undefined,
+    password_confirmation: payload.password || undefined,
+    phone: payload.phone || null,
+    role: 'scanner',
+    scan_quota: payload.scan_quota !== undefined ? payload.scan_quota : 200,
+    quota: payload.scan_quota !== undefined ? payload.scan_quota : 200,
+    event_id: payload.event_id || null,
+    event_ids: payload.event_id ? [payload.event_id] : [],
+    events: payload.event_id ? [payload.event_id] : [],
+  };
+
+  let response: Response | null = null;
+
+  // 1. Try PUT /organizer/team/${adminId}
+  try {
+    const res = await fetch(`${API_BASE_URL}/organizer/team/${adminId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getHeaders(token),
+      },
+      body: JSON.stringify(jsonPayload),
+    });
+    if (res.ok) response = res;
+    else response = res;
+  } catch {}
+
+  // 2. Try POST /organizer/events/${event_id}/scanners if event_id is supplied
+  if (!response || !response.ok) {
     if (payload.event_id) {
       try {
-        await fetch(`${API_BASE_URL}/organizer/events/${payload.event_id}/scanners`, {
+        const res = await fetch(`${API_BASE_URL}/organizer/events/${payload.event_id}/scanners`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...getHeaders(token),
           },
-          body: JSON.stringify({ email: payload.email, user_id: createdUser?.id }),
+          body: JSON.stringify(jsonPayload),
         });
+        if (res.ok) response = res;
       } catch {}
     }
   }
 
-  if (!createdUser) {
-    createdUser = {
-      id: Date.now(),
-      name: payload.name,
-      email: payload.email,
-      phone: payload.phone || null,
-      scan_quota: payload.scan_quota !== undefined ? payload.scan_quota : 200,
-      scan_count: 0,
-      event_id: payload.event_id || null,
-      event_title: payload.event_title || null,
-      created_at: new Date().toISOString(),
-    };
-  } else {
-    createdUser.scan_quota = payload.scan_quota !== undefined ? payload.scan_quota : (createdUser.scan_quota ?? 200);
-    createdUser.scan_count = createdUser.scan_count || 0;
-    createdUser.event_id = payload.event_id !== undefined ? payload.event_id : (createdUser.event_id ?? null);
-    createdUser.event_title = payload.event_title || createdUser.event_title || null;
-  }
-
-  if (typeof window !== 'undefined' && createdUser) {
+  // 2. Try PUT /organizer/scanners/${adminId}
+  if (!response || !response.ok) {
     try {
-      const stored = localStorage.getItem(storageKey);
-      const list: EoAdminUser[] = stored ? JSON.parse(stored) : [];
-      const updated = [createdUser, ...list.filter((a) => a.email.toLowerCase() !== payload.email.toLowerCase())];
-      localStorage.setItem(storageKey, JSON.stringify(updated));
-    } catch {
-      // Ignore
-    }
+      const res = await fetch(`${API_BASE_URL}/organizer/scanners/${adminId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getHeaders(token),
+        },
+        body: JSON.stringify(jsonPayload),
+      });
+      if (res.ok) response = res;
+    } catch {}
   }
 
-  return createdUser;
-}
+  // 3. Try POST /organizer/scanners
+  if (!response || !response.ok) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/organizer/scanners`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getHeaders(token),
+        },
+        body: JSON.stringify(jsonPayload),
+      });
+      if (res.ok) response = res;
+    } catch {}
+  }
 
-export async function updateEoAdmin(adminId: number, payload: CreateEoAdminPayload): Promise<EoAdminUser> {
-  return createEoAdmin(payload);
+  // 4. Try POST /organizer/team (which acts as upsert or create/update)
+  if (!response || !response.ok) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/organizer/team`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getHeaders(token),
+        },
+        body: JSON.stringify(jsonPayload),
+      });
+      if (res.ok) response = res;
+      else if (!response) response = res;
+    } catch {}
+  }
+
+  const data = response ? await response.json().catch(() => ({})) : {};
+
+  if (!response || !response.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal memperbarui akun staff scanner di API server.';
+    throw new Error(errorMsg);
+  }
+
+  const updatedUser = data?.data || data?.user || data?.team || data;
+  const evtObj = updatedUser?.event || (Array.isArray(updatedUser?.events) ? updatedUser.events[0] : null);
+  const evtId = payload.event_id || updatedUser?.event_id || evtObj?.id || null;
+
+  return {
+    id: updatedUser?.id || adminId,
+    name: updatedUser?.name || payload.name,
+    email: updatedUser?.email || payload.email,
+    phone: updatedUser?.phone || payload.phone || null,
+    scan_quota: payload.scan_quota !== undefined ? payload.scan_quota : (updatedUser?.scan_quota ?? updatedUser?.quota ?? 200),
+    scan_count: updatedUser?.scan_count || 0,
+    event_id: evtId ? Number(evtId) : null,
+    event_title: payload.event_title || updatedUser?.event_title || evtObj?.title || (evtId ? `Event #${evtId}` : 'Semua Event (Global)'),
+    created_at: updatedUser?.created_at || new Date().toISOString(),
+  };
 }
 
 export async function deleteEoAdmin(adminId: number): Promise<boolean> {
   const token = getStoredToken();
   const currentUser = getStoredUser();
-  const storageKey = currentUser?.email ? `metix_eo_admins_${currentUser.email.toLowerCase()}` : 'metix_eo_admins';
+  const storageKey = currentUser?.email ? `metix_cached_scanners_${currentUser.email.toLowerCase()}` : 'metix_cached_scanners';
 
   if (token) {
     try {
-      await fetch(`${API_BASE_URL}/organizer/team/${adminId}`, {
+      let response = await fetch(`${API_BASE_URL}/organizer/team/${adminId}`, {
         method: 'DELETE',
         headers: getHeaders(token),
       });
-    } catch {
-      // Ignore
+
+      if (!response.ok && response.status === 404) {
+        await fetch(`${API_BASE_URL}/organizer/scanners/${adminId}`, {
+          method: 'DELETE',
+          headers: getHeaders(token),
+        });
+      }
+    } catch (e) {
+      console.warn('Backend API delete team staff warning:', e);
     }
   }
 
@@ -2999,9 +3287,7 @@ export async function deleteEoAdmin(adminId: number): Promise<boolean> {
         const filtered = list.filter((a) => a.id !== adminId);
         localStorage.setItem(storageKey, JSON.stringify(filtered));
       }
-    } catch {
-      // Ignore
-    }
+    } catch {}
   }
 
   return true;
@@ -3133,165 +3419,71 @@ export async function fetchOwnerOrganizers(params?: {
   };
 }> {
   const token = getStoredToken();
-  let apiOrganizers: ApiOrganizerProfile[] = [];
-  let metaData: any = undefined;
+  if (!token) return { organizers: [] };
 
-  if (token) {
-    try {
-      const url = new URL(`${API_BASE_URL}/owner/organizers`);
-      if (params?.search) url.searchParams.append('search', params.search);
-      if (params?.status) url.searchParams.append('status', params.status);
-      if (params?.page) url.searchParams.append('page', String(params.page));
+  try {
+    const url = new URL(`${API_BASE_URL}/owner/organizers`);
+    if (params?.search) url.searchParams.append('search', params.search);
+    if (params?.status) url.searchParams.append('status', params.status);
+    if (params?.page) url.searchParams.append('page', String(params.page));
 
-      const response = await fetch(url.toString(), {
-        headers: getHeaders(token),
-      });
+    const response = await fetch(url.toString(), {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
 
-      if (response.ok) {
-        const data = await response.json();
-        apiOrganizers = data?.data || [];
-        metaData = data?.meta;
-      }
-    } catch (error) {
-      console.warn('Failed to fetch owner organizers:', error);
+    if (response.ok) {
+      const data = await response.json();
+      const organizers = data?.data || data?.organizers || [];
+      return {
+        organizers,
+        meta: data?.meta || {
+          current_page: 1,
+          last_page: 1,
+          per_page: 20,
+          total: organizers.length,
+        },
+      };
     }
+  } catch (error) {
+    console.warn('Failed to fetch owner organizers from API:', error);
   }
 
-  let localPendingEos: ApiOrganizerProfile[] = [];
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = localStorage.getItem('metix_pending_eo_registrations');
-      if (stored) localPendingEos = JSON.parse(stored);
-    } catch {}
-  }
-
-  const mergedMap = new Map<string | number, ApiOrganizerProfile>();
-  [...localPendingEos, ...apiOrganizers].forEach((org) => {
-    if (org && org.id) {
-      const key = org.email ? org.email.toLowerCase() : org.id;
-      mergedMap.set(key, org);
-    }
-  });
-
-  let result = Array.from(mergedMap.values());
-
-  if (params?.status && params.status !== 'all') {
-    result = result.filter((o) => o.status === params.status);
-  }
-
-  if (params?.search) {
-    const q = params.search.toLowerCase();
-    result = result.filter(
-      (o) =>
-        o.organization_name?.toLowerCase().includes(q) ||
-        o.email?.toLowerCase().includes(q) ||
-        o.phone?.includes(q)
-    );
-  }
-
-  return {
-    organizers: result,
-    meta: metaData || {
-      current_page: 1,
-      last_page: 1,
-      per_page: 20,
-      total: result.length,
-    },
-  };
+  return { organizers: [] };
 }
 
 export async function approveOwnerOrganizer(profileId: number): Promise<boolean> {
   const token = getStoredToken();
+  if (!token) return false;
 
-  if (token) {
-    try {
-      await fetch(`${API_BASE_URL}/owner/organizers/${profileId}/approve`, {
-        method: 'POST',
-        headers: getHeaders(token),
-      }).catch(() => {});
-    } catch {}
+  try {
+    const response = await fetch(`${API_BASE_URL}/owner/organizers/${profileId}/approve`, {
+      method: 'POST',
+      headers: getHeaders(token),
+    });
+    return response.ok;
+  } catch {
+    return false;
   }
-
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = localStorage.getItem('metix_pending_eo_registrations');
-      if (stored) {
-        const list: ApiOrganizerProfile[] = JSON.parse(stored);
-        const updated = list.map((org) => {
-          if (org.id === profileId || org.user_id === profileId) {
-            return { ...org, status: 'ACTIVE' as const };
-          }
-          return org;
-        });
-        localStorage.setItem('metix_pending_eo_registrations', JSON.stringify(updated));
-      }
-
-      const storedUser = localStorage.getItem('metix_user');
-      if (storedUser) {
-        const u = JSON.parse(storedUser);
-        if (u.id === profileId || u.email) {
-          u.mitra_status = 'approved';
-          u.organizer_status = 'ACTIVE';
-          if (!u.organizer_profile) u.organizer_profile = {};
-          u.organizer_profile.status = 'ACTIVE';
-          localStorage.setItem('metix_user', JSON.stringify(u));
-          window.dispatchEvent(new Event('user-profile-updated'));
-        }
-      }
-    } catch {}
-  }
-
-  return true;
 }
 
 export async function rejectOwnerOrganizer(profileId: number, reason: string): Promise<boolean> {
   const token = getStoredToken();
+  if (!token) return false;
 
-  if (token) {
-    try {
-      await fetch(`${API_BASE_URL}/owner/organizers/${profileId}/reject`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getHeaders(token),
-        },
-        body: JSON.stringify({ reason }),
-      }).catch(() => {});
-    } catch {}
+  try {
+    const response = await fetch(`${API_BASE_URL}/owner/organizers/${profileId}/reject`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getHeaders(token),
+      },
+      body: JSON.stringify({ reason }),
+    });
+    return response.ok;
+  } catch {
+    return false;
   }
-
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = localStorage.getItem('metix_pending_eo_registrations');
-      if (stored) {
-        const list: ApiOrganizerProfile[] = JSON.parse(stored);
-        const updated = list.map((org) => {
-          if (org.id === profileId || org.user_id === profileId) {
-            return { ...org, status: 'REJECTED' as const, rejection_reason: reason };
-          }
-          return org;
-        });
-        localStorage.setItem('metix_pending_eo_registrations', JSON.stringify(updated));
-      }
-
-      const storedUser = localStorage.getItem('metix_user');
-      if (storedUser) {
-        const u = JSON.parse(storedUser);
-        if (u.id === profileId || u.organizer_profile?.id === profileId || u.email) {
-          u.mitra_status = 'rejected';
-          u.organizer_status = 'REJECTED';
-          u.rejection_reason = reason;
-          if (!u.organizer_profile) u.organizer_profile = {};
-          u.organizer_profile.status = 'REJECTED';
-          u.organizer_profile.rejection_reason = reason;
-          localStorage.setItem('metix_user', JSON.stringify(u));
-          window.dispatchEvent(new Event('user-profile-updated'));
-        }
-      }
-    } catch {}
-  }
-
-  return true;
 }
 
 // ----------------------------------------------------------------------

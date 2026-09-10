@@ -150,7 +150,7 @@ export default function EventCheckoutClient() {
       setIsLoadingEvent(false);
     }
 
-    // Auto-fill user identity from Profile / LocalStorage
+    // Auto-fill user identity from Profile 
     const token = getStoredToken();
     const user = getStoredUser();
 
@@ -595,11 +595,10 @@ export default function EventCheckoutClient() {
         {/* Countdown Reservation Timer Badge */}
         {currentStep !== 3 && (
           <div
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-2xl border text-xs font-black shadow-xs transition-colors ${
-              timeLeft <= 60
-                ? 'bg-rose-50 border-rose-200 text-rose-800'
-                : 'bg-amber-50 border-amber-200 text-amber-800'
-            }`}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-2xl border text-xs font-black shadow-xs transition-colors ${timeLeft <= 60
+              ? 'bg-rose-50 border-rose-200 text-rose-800'
+              : 'bg-amber-50 border-amber-200 text-amber-800'
+              }`}
           >
             <Clock className={`w-4 h-4 ${timeLeft <= 60 ? 'text-rose-600' : 'text-amber-600'} animate-pulse`} />
             <span>
@@ -632,22 +631,20 @@ export default function EventCheckoutClient() {
                   onClick={() => {
                     if (item.step === 1 && currentStep === 2) setCurrentStep(1);
                   }}
-                  className={`flex flex-col items-center text-center p-2 sm:p-3 rounded-2xl transition-all ${
-                    isActive
-                      ? 'bg-blue-50 border border-blue-300 text-blue-900 shadow-xs'
-                      : isCompleted
+                  className={`flex flex-col items-center text-center p-2 sm:p-3 rounded-2xl transition-all ${isActive
+                    ? 'bg-blue-50 border border-blue-300 text-blue-900 shadow-xs'
+                    : isCompleted
                       ? 'bg-emerald-50 border border-emerald-200 text-emerald-800 cursor-pointer'
                       : 'bg-slate-50 border border-slate-200/80 text-slate-400'
-                  }`}
+                    }`}
                 >
                   <div
-                    className={`w-7 h-7 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center font-extrabold text-xs mb-1 sm:mb-2 transition-all ${
-                      isActive
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-2 sm:ring-4 ring-blue-600/15'
-                        : isCompleted
+                    className={`w-7 h-7 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center font-extrabold text-xs mb-1 sm:mb-2 transition-all ${isActive
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-2 sm:ring-4 ring-blue-600/15'
+                      : isCompleted
                         ? 'bg-emerald-600 text-white font-black'
                         : 'bg-slate-200 text-slate-500'
-                    }`}
+                      }`}
                   >
                     {isCompleted ? <Check className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3]" /> : <IconComp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                   </div>
@@ -668,7 +665,7 @@ export default function EventCheckoutClient() {
 
       {/* MAIN CHECKOUT CONTAINER CONTENT */}
       <main className="max-w-4xl mx-auto px-4 sm:px-8 pb-20 space-y-6">
-        
+
         {/* ================= TAHAP 1: PILIH TIKET & DATA PEMESAN ================= */}
         {currentStep === 1 && (
           <div className="space-y-6 animate-in fade-in-0">
@@ -713,11 +710,10 @@ export default function EventCheckoutClient() {
                     return (
                       <div
                         key={ticket.id}
-                        className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
-                          qty > 0
-                            ? 'bg-blue-50/70 border-blue-300 ring-1 ring-blue-500/20'
-                            : 'bg-white border-slate-200 hover:border-slate-300'
-                        }`}
+                        className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${qty > 0
+                          ? 'bg-blue-50/70 border-blue-300 ring-1 ring-blue-500/20'
+                          : 'bg-white border-slate-200 hover:border-slate-300'
+                          }`}
                       >
                         <div className="space-y-1">
                           <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
@@ -890,9 +886,8 @@ export default function EventCheckoutClient() {
                             });
                           }}
                           placeholder="Nama Pemegang Tiket"
-                          className={`px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none ${
-                            isHolderSame ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500' : 'bg-white border-slate-300 focus:border-blue-600'
-                          }`}
+                          className={`px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none ${isHolderSame ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500' : 'bg-white border-slate-300 focus:border-blue-600'
+                            }`}
                         />
 
                         <input
@@ -909,9 +904,8 @@ export default function EventCheckoutClient() {
                             });
                           }}
                           placeholder="WhatsApp Pemegang Tiket"
-                          className={`px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none ${
-                            isHolderSame ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500' : 'bg-white border-slate-300 focus:border-blue-600'
-                          }`}
+                          className={`px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none ${isHolderSame ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500' : 'bg-white border-slate-300 focus:border-blue-600'
+                            }`}
                         />
 
                         <input
@@ -928,9 +922,8 @@ export default function EventCheckoutClient() {
                             });
                           }}
                           placeholder="NIK KTP Pemegang Tiket"
-                          className={`px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none font-mono ${
-                            isHolderSame ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500' : 'bg-white border-slate-300 focus:border-blue-600'
-                          }`}
+                          className={`px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none font-mono ${isHolderSame ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500' : 'bg-white border-slate-300 focus:border-blue-600'
+                            }`}
                         />
                       </div>
                     </div>
@@ -1018,8 +1011,8 @@ export default function EventCheckoutClient() {
                     {totalTicketCount === 0
                       ? 'Pilih minimal 1 tiket terlebih dahulu.'
                       : !isAgreedTerms
-                      ? 'Centang persetujuan Ketentuan Layanan di atas.'
-                      : 'Lengkapi seluruh field identitas (Nama, Email, WA, NIK KTP, Alamat) dengan benar.'}
+                        ? 'Centang persetujuan Ketentuan Layanan di atas.'
+                        : 'Lengkapi seluruh field identitas (Nama, Email, WA, NIK KTP, Alamat) dengan benar.'}
                   </span>
                 </div>
               )}
@@ -1057,8 +1050,8 @@ export default function EventCheckoutClient() {
                     {totalTicketCount === 0
                       ? 'Pilih minimal 1 tiket terlebih dahulu.'
                       : !isAgreedTerms
-                      ? 'Centang persetujuan Ketentuan Layanan di atas.'
-                      : 'Lengkapi seluruh field identitas.'}
+                        ? 'Centang persetujuan Ketentuan Layanan di atas.'
+                        : 'Lengkapi seluruh field identitas.'}
                   </span>
                 </div>
               )}
@@ -1107,11 +1100,10 @@ export default function EventCheckoutClient() {
                 return (
                   <div
                     onClick={() => setSelectedPaymentCategory('QRIS')}
-                    className={`relative rounded-3xl p-4 sm:p-5 transition-all duration-300 cursor-pointer overflow-hidden border ${
-                      isQris
-                        ? 'bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-900 border-amber-400 text-white shadow-xl shadow-blue-700/20 ring-2 ring-amber-400/50'
-                        : 'bg-slate-900 text-white hover:border-amber-400/50'
-                    }`}
+                    className={`relative rounded-3xl p-4 sm:p-5 transition-all duration-300 cursor-pointer overflow-hidden border ${isQris
+                      ? 'bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-900 border-amber-400 text-white shadow-xl shadow-blue-700/20 ring-2 ring-amber-400/50'
+                      : 'bg-slate-900 text-white hover:border-amber-400/50'
+                      }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                       <span className="px-2.5 py-1 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-wider whitespace-nowrap">
@@ -1166,11 +1158,10 @@ export default function EventCheckoutClient() {
                         key={cat.id}
                         type="button"
                         onClick={() => setSelectedPaymentCategory(cat.id)}
-                        className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
-                          isSelected
-                            ? 'border-blue-600 bg-blue-50 text-blue-900 font-extrabold shadow-xs ring-1 ring-blue-600/30'
-                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                        }`}
+                        className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2.5 ${isSelected
+                          ? 'border-blue-600 bg-blue-50 text-blue-900 font-extrabold shadow-xs ring-1 ring-blue-600/30'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
                       >
                         <div className="flex items-center gap-3">
                           <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>

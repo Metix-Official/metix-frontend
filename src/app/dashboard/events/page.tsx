@@ -5,6 +5,10 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import {
   fetchMyEvents,
   fetchPublicEventDetail,
+  fetchOrganizerEventDetail,
+  fetchEventLineupsApi,
+  fetchEventFacilitiesApi,
+  fetchEventSocialMediaApi,
   createEvent,
   updateEvent,
   publishEvent,
@@ -21,6 +25,7 @@ import {
   fetchEventSetting,
   updateEventSetting,
   createVenue,
+  parseSocialMediaObject,
   ApiEvent,
   ApiTicketType,
   ApiPromo,
@@ -195,7 +200,7 @@ export default function EventsPage() {
 
   // Lineup Handlers
   const handleAddCreateLineup = () => {
-    setCreateLineups((prev) => [...prev, { id: String(Date.now()), name: '', image: '', description: '' }]);
+    setCreateLineups((prev) => [...prev, { id: `new_${Date.now()}_${Math.random()}`, name: '', image: '', description: '' }]);
   };
   const handleRemoveCreateLineup = (id: string) => {
     setCreateLineups((prev) => prev.filter((item) => item.id !== id));
@@ -205,7 +210,7 @@ export default function EventsPage() {
   };
 
   const handleAddEditLineup = () => {
-    setEditLineups((prev) => [...prev, { id: String(Date.now()), name: '', image: '', description: '' }]);
+    setEditLineups((prev) => [...prev, { id: `new_${Date.now()}_${Math.random()}`, name: '', image: '', description: '' }]);
   };
   const handleRemoveEditLineup = (id: string) => {
     setEditLineups((prev) => prev.filter((item) => item.id !== id));
@@ -222,7 +227,7 @@ export default function EventsPage() {
       } else {
         handleUpdateEditLineup(id, 'image', dataUrl);
       }
-    } catch {}
+    } catch { }
   };
 
   // Facility Handlers
@@ -257,27 +262,67 @@ export default function EventsPage() {
   const handleOpenEditModal = async (item: ApiEvent) => {
     setEditingEvent(item);
     try {
-      const detail = await fetchPublicEventDetail(item.id);
-      if (detail) {
-        setEditingEvent((prev) => (prev && prev.id === item.id ? { ...prev, ...detail } : prev));
+      let detail = await fetchOrganizerEventDetail(item.id);
+      if (!detail) {
+        detail = await fetchPublicEventDetail(item.id);
       }
-    } catch {}
+      if (detail) {
+        const extraLineups = await fetchEventLineupsApi(item.id);
+        detail.lineups = extraLineups;
+        if (Array.isArray(extraLineups)) {
+          const mappedLineups = extraLineups.map((l: any, idx: number) => {
+            const name = String(l?.name || l?.artist_name || l?.performer || '').trim();
+            const rawImg = l?.image || l?.photo || l?.foto || '';
+            const imgUrl = rawImg ? (getPhotoUrl(rawImg) || rawImg) : '';
+            return {
+              id: String(l?.id || Date.now() + idx),
+              name: name,
+              image: imgUrl,
+              description: l?.description || l?.desc || l?.role || l?.peran || '',
+            };
+          });
+          setEditLineups(mappedLineups);
+        }
+        if (!detail.facilities || !Array.isArray(detail.facilities) || detail.facilities.length === 0) {
+          const extraFacilities = await fetchEventFacilitiesApi(item.id);
+          if (extraFacilities.length > 0) detail.facilities = extraFacilities;
+        }
+
+        const socParsed = parseSocialMediaObject(detail.social_media, detail);
+        const hasSoc = Boolean(socParsed.instagram || socParsed.tiktok || socParsed.website || socParsed.whatsapp || socParsed.youtube);
+        if (!hasSoc) {
+          const extraSoc = await fetchEventSocialMediaApi(item.id);
+          if (extraSoc) detail.social_media = extraSoc;
+        }
+
+        setEditingEvent((prev) => {
+          if (!prev || prev.id !== item.id) return prev;
+          const merged = { ...prev, ...detail };
+          const prevSoc = parseSocialMediaObject(prev.social_media, prev);
+          const detailSoc = parseSocialMediaObject(detail.social_media, detail);
+          merged.social_media = {
+            instagram: detailSoc.instagram || prevSoc.instagram || '',
+            tiktok: detailSoc.tiktok || prevSoc.tiktok || '',
+            website: detailSoc.website || prevSoc.website || '',
+            whatsapp: detailSoc.whatsapp || prevSoc.whatsapp || '',
+            youtube: detailSoc.youtube || prevSoc.youtube || '',
+          };
+          return merged;
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to load full detail for edit modal:', e);
+    }
   };
 
   useEffect(() => {
     if (editingEvent) {
-      const localFallback =
-        typeof window !== 'undefined'
-          ? localStorage.getItem(`metix_banner_preview_${editingEvent.id}`) ||
-            localStorage.getItem('metix_last_uploaded_banner')
-          : null;
-
       if (editingEvent.banner) {
-        const photo = getPhotoUrl(editingEvent.banner, editingEvent.id) || localFallback || editingEvent.banner;
+        const photo = getPhotoUrl(editingEvent.banner, editingEvent.id) || editingEvent.banner;
         setEditBannerPreview(photo);
         setEditBannerUrlInput(editingEvent.banner.startsWith('http') ? editingEvent.banner : '');
       } else {
-        setEditBannerPreview(localFallback || '');
+        setEditBannerPreview('');
         setEditBannerUrlInput('');
       }
       setEditCityInput(editingEvent.venue?.city || editingEvent.city || '');
@@ -313,52 +358,59 @@ export default function EventsPage() {
       setEditLng(isNaN(initialLng) ? 106.8456 : initialLng);
 
       // Populate Lineups (event_id, name, image, description)
-      let rawLineups = editingEvent.lineups || (editingEvent as any).lineup || (editingEvent as any).event_lineups || (editingEvent as any).lineup_event;
-
-      if ((!rawLineups || (Array.isArray(rawLineups) && rawLineups.length === 0)) && typeof window !== 'undefined') {
-        try {
-          const cachedStr = localStorage.getItem(`metix_event_details_${editingEvent.id}`);
-          if (cachedStr) {
-            const parsed = JSON.parse(cachedStr);
-            if (parsed.lineups || parsed.lineup) {
-              rawLineups = parsed.lineups || parsed.lineup;
-            }
-          }
-        } catch {}
-      }
+      let rawLineups: any = editingEvent.lineups || (editingEvent as any).lineup || (editingEvent as any).event_lineups || (editingEvent as any).lineup_event;
 
       if (typeof rawLineups === 'string') {
         try {
           rawLineups = JSON.parse(rawLineups);
-        } catch {}
+        } catch { }
+      }
+      if (rawLineups && typeof rawLineups === 'object' && !Array.isArray(rawLineups)) {
+        if (Array.isArray(rawLineups.data)) rawLineups = rawLineups.data;
+        else if (Array.isArray(rawLineups.lineups)) rawLineups = rawLineups.lineups;
+        else if (Array.isArray(rawLineups.items)) rawLineups = rawLineups.items;
       }
 
       if (Array.isArray(rawLineups) && rawLineups.length > 0) {
-        setEditLineups(
-          rawLineups.map((l: any, idx: number) => ({
-            id: String(l.id || Date.now() + idx),
-            name: l.name || '',
-            image: l.image || l.photo || l.foto || '',
-            description: l.description || l.desc || l.role || l.peran || '',
-          }))
-        );
+        const uniqueLineups: Array<{ id: string; name: string; image: string; description: string }> = [];
+        rawLineups.forEach((l: any, idx: number) => {
+          if (typeof l === 'string') {
+            if (l.trim()) {
+              uniqueLineups.push({ id: String(Date.now() + idx), name: l.trim(), image: '', description: '' });
+            }
+            return;
+          }
+          const name = String(l?.name || l?.artist_name || l?.performer || '').trim();
+          if (!name) return;
+          const rawImg = l?.image || l?.photo || l?.foto || '';
+          const imgUrl = rawImg ? (getPhotoUrl(rawImg) || rawImg) : '';
+          uniqueLineups.push({
+            id: String(l?.id || Date.now() + idx),
+            name: name,
+            image: imgUrl,
+            description: l?.description || l?.desc || l?.role || l?.peran || '',
+          });
+        });
+        setEditLineups(uniqueLineups);
       } else {
         setEditLineups([]);
       }
 
       // Populate Facilities
-      let rawFacilities = editingEvent.facilities || (editingEvent as any).facility;
-      if ((!rawFacilities || (Array.isArray(rawFacilities) && rawFacilities.length === 0)) && typeof window !== 'undefined') {
+      let rawFacilities: any = editingEvent.facilities || (editingEvent as any).facility || (editingEvent as any).facilities_list;
+
+      if (typeof rawFacilities === 'string') {
         try {
-          const cachedStr = localStorage.getItem(`metix_event_details_${editingEvent.id}`);
-          if (cachedStr) {
-            const parsed = JSON.parse(cachedStr);
-            if (parsed.facilities) rawFacilities = parsed.facilities;
-          }
-        } catch {}
+          rawFacilities = JSON.parse(rawFacilities);
+        } catch { }
+      }
+      if (rawFacilities && typeof rawFacilities === 'object' && !Array.isArray(rawFacilities)) {
+        if (Array.isArray(rawFacilities.data)) rawFacilities = rawFacilities.data;
+        else if (Array.isArray(rawFacilities.facilities)) rawFacilities = rawFacilities.facilities;
+        else if (Array.isArray(rawFacilities.items)) rawFacilities = rawFacilities.items;
       }
 
-      if (Array.isArray(rawFacilities)) {
+      if (Array.isArray(rawFacilities) && rawFacilities.length > 0) {
         setEditFacilities(
           Array.from(
             new Set(
@@ -368,55 +420,15 @@ export default function EventsPage() {
             )
           )
         );
-      } else if (typeof rawFacilities === 'string') {
-        try {
-          const parsed = JSON.parse(rawFacilities);
-          if (Array.isArray(parsed)) {
-            setEditFacilities(
-              Array.from(
-                new Set(
-                  parsed
-                    .map((f: any) => (typeof f === 'string' ? f : String(f?.name || f?.title || f?.facility || '')))
-                    .filter(Boolean)
-                )
-              )
-            );
-          } else {
-            setEditFacilities([rawFacilities]);
-          }
-        } catch {
-          setEditFacilities([rawFacilities]);
-        }
+      } else if (typeof rawFacilities === 'string' && rawFacilities.trim() !== '') {
+        setEditFacilities([rawFacilities.trim()]);
       } else {
-        setEditFacilities([
-          'Parkir Luas',
-          'Musholla',
-          'Food Court / UMKM',
-          'Akses Disabilitas',
-          'Pos Medis & P3K',
-          'Toilet Bersih',
-        ]);
+        setEditFacilities([]);
       }
 
-      // Populate Social Media
-      let soc = editingEvent.social_media || (editingEvent as any).socials || {};
-      if (Object.keys(soc).length === 0 && typeof window !== 'undefined') {
-        try {
-          const cachedStr = localStorage.getItem(`metix_event_details_${editingEvent.id}`);
-          if (cachedStr) {
-            const parsed = JSON.parse(cachedStr);
-            if (parsed.social_media) soc = parsed.social_media;
-          }
-        } catch {}
-      }
-
-      setEditSocials({
-        instagram: soc.instagram || (editingEvent as any).instagram || '',
-        tiktok: soc.tiktok || (editingEvent as any).tiktok || '',
-        website: soc.website || (editingEvent as any).website || '',
-        whatsapp: soc.whatsapp || (editingEvent as any).whatsapp || '',
-        youtube: soc.youtube || (editingEvent as any).youtube || '',
-      });
+      // Populate Social Media safely handling all backend API data formats
+      const parsedSoc = parseSocialMediaObject(editingEvent.social_media, editingEvent);
+      setEditSocials(parsedSoc);
 
       setEditModalTab('info');
     }
@@ -429,9 +441,6 @@ export default function EventsPage() {
       try {
         const dataUrl = await fileToDataUrl(file);
         setCreateBannerPreview(dataUrl);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('metix_last_uploaded_banner', dataUrl);
-        }
       } catch {
         // Fallback
       }
@@ -444,12 +453,6 @@ export default function EventsPage() {
       try {
         const dataUrl = await fileToDataUrl(file);
         setEditBannerPreview(dataUrl);
-        if (typeof window !== 'undefined') {
-          if (editingEvent?.id) {
-            localStorage.setItem(`metix_banner_preview_${editingEvent.id}`, dataUrl);
-          }
-          localStorage.setItem('metix_last_uploaded_banner', dataUrl);
-        }
       } catch {
         // Fallback
       }
@@ -922,7 +925,14 @@ export default function EventsPage() {
       if (endAtVal && endAtVal.length === 16) endAtVal += ':00';
 
       if (!startAtVal) startAtVal = format(new Date(), 'yyyy-MM-dd') + ' 18:00:00';
-      if (!endAtVal) endAtVal = format(new Date(), 'yyyy-MM-dd') + ' 23:00:00';
+
+      const createStartDateObj = new Date(startAtVal.replace(' ', 'T'));
+      let createEndDateObj = endAtVal ? new Date(endAtVal.replace(' ', 'T')) : null;
+
+      if (!createEndDateObj || isNaN(createEndDateObj.getTime()) || createEndDateObj <= createStartDateObj) {
+        createEndDateObj = new Date(createStartDateObj.getTime() + 5 * 60 * 60 * 1000);
+        endAtVal = format(createEndDateObj, 'yyyy-MM-dd HH:mm:ss');
+      }
 
       formData.set('start_at', startAtVal);
       formData.set('end_at', endAtVal);
@@ -947,6 +957,8 @@ export default function EventsPage() {
       if (bannerUrlInput && String(bannerUrlInput).trim() !== '') {
         const cleanUrl = String(bannerUrlInput).trim().slice(0, 255);
         formData.set('banner', cleanUrl);
+      } else if (createBannerPreview && createBannerPreview.startsWith('data:image')) {
+        formData.set('banner', createBannerPreview);
       } else if (bannerFile instanceof File && bannerFile.size > 0) {
         const shortName = `events/banner_${Date.now()}_${bannerFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`.slice(0, 255);
         formData.set('banner', shortName);
@@ -1081,7 +1093,14 @@ export default function EventsPage() {
       if (endAtVal && endAtVal.length === 16) endAtVal += ':00';
 
       if (!startAtVal) startAtVal = format(new Date(), 'yyyy-MM-dd') + ' 18:00:00';
-      if (!endAtVal) endAtVal = format(new Date(), 'yyyy-MM-dd') + ' 23:00:00';
+
+      const editStartDateObj = new Date(startAtVal.replace(' ', 'T'));
+      let editEndDateObj = endAtVal ? new Date(endAtVal.replace(' ', 'T')) : null;
+
+      if (!editEndDateObj || isNaN(editEndDateObj.getTime()) || editEndDateObj <= editStartDateObj) {
+        editEndDateObj = new Date(editStartDateObj.getTime() + 5 * 60 * 60 * 1000);
+        endAtVal = format(editEndDateObj, 'yyyy-MM-dd HH:mm:ss');
+      }
 
       formData.set('start_at', startAtVal);
       formData.set('end_at', endAtVal);
@@ -1106,6 +1125,8 @@ export default function EventsPage() {
       if (bannerUrlInput && String(bannerUrlInput).trim() !== '') {
         const cleanUrl = String(bannerUrlInput).trim().slice(0, 255);
         formData.set('banner', cleanUrl);
+      } else if (editBannerPreview && editBannerPreview.startsWith('data:image')) {
+        formData.set('banner', editBannerPreview);
       } else if (bannerFile instanceof File && bannerFile.size > 0) {
         const shortName = `events/banner_${Date.now()}_${bannerFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`.slice(0, 255);
         formData.set('banner', shortName);
@@ -1117,8 +1138,9 @@ export default function EventsPage() {
         formData.set('banner', defaultShortBanner);
       }
 
-      // Serialize Lineup (name, image, description) for Laravel API compatibility
+      // Serialize Lineup (id, name, image, description) for Laravel API compatibility
       const editLineupsPayload = editLineups.map((l) => ({
+        id: l.id,
         name: l.name,
         image: l.image || '',
         description: l.description || '',
@@ -1161,18 +1183,7 @@ export default function EventsPage() {
       formData.set('social_media[tiktok]', editSocials.tiktok || '');
       formData.set('social_media[website]', editSocials.website || '');
       formData.set('social_media[whatsapp]', editSocials.whatsapp || '');
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(
-            `metix_event_details_${editingEvent.id}`,
-            JSON.stringify({
-              lineups: editLineupsPayload,
-              facilities: editFacilities,
-              social_media: editSocials,
-            })
-          );
-        } catch {}
-      }
+      formData.set('social_media[youtube]', editSocials.youtube || '');
 
       await updateEvent(editingEvent.id, formData);
 
@@ -1440,41 +1451,37 @@ export default function EventsPage() {
             <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80 shrink-0">
               <button
                 onClick={() => setActiveTab('all')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                  activeTab === 'all'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${activeTab === 'all'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 Semua ({events.length})
               </button>
               <button
                 onClick={() => setActiveTab('published')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                  activeTab === 'published'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${activeTab === 'published'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 Published ({events.filter((e) => ['published', 'active'].includes((e.status || '').toLowerCase())).length})
               </button>
               <button
                 onClick={() => setActiveTab('draft')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                  activeTab === 'draft'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${activeTab === 'draft'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 Draft ({events.filter((e) => (e.status || '').toLowerCase() === 'draft').length})
               </button>
               <button
                 onClick={() => setActiveTab('closed')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                  activeTab === 'closed'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${activeTab === 'closed'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 Archived ({events.filter((e) => ['closed', 'cancelled', 'archived'].includes((e.status || '').toLowerCase())).length})
               </button>
@@ -1828,66 +1835,60 @@ export default function EventsPage() {
                 <button
                   type="button"
                   onClick={() => setEditModalTab('info')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                    editModalTab === 'info'
-                      ? 'bg-white text-indigo-950 shadow-md'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${editModalTab === 'info'
+                    ? 'bg-white text-indigo-950 shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
                 >
                   <Tag className="w-3.5 h-3.5" /> 1. Info Acara
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditModalTab('lineup')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                    editModalTab === 'lineup'
-                      ? 'bg-white text-indigo-950 shadow-md'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${editModalTab === 'lineup'
+                    ? 'bg-white text-indigo-950 shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
                 >
                   <Users className="w-3.5 h-3.5" /> 2. Line Up
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditModalTab('facilities')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                    editModalTab === 'facilities'
-                      ? 'bg-white text-indigo-950 shadow-md'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${editModalTab === 'facilities'
+                    ? 'bg-white text-indigo-950 shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
                 >
                   <Sparkles className="w-3.5 h-3.5" /> 3. Fasilitas
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditModalTab('social_media')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                    editModalTab === 'social_media'
-                      ? 'bg-white text-indigo-950 shadow-md'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${editModalTab === 'social_media'
+                    ? 'bg-white text-indigo-950 shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
                 >
                   <Share2 className="w-3.5 h-3.5" /> 4. Media Sosial
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditModalTab('venue')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                    editModalTab === 'venue'
-                      ? 'bg-white text-indigo-950 shadow-md'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${editModalTab === 'venue'
+                    ? 'bg-white text-indigo-950 shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
                 >
                   <MapPin className="w-3.5 h-3.5" /> 5. Lokasi & Peta Venue
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditModalTab('banner')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                    editModalTab === 'banner'
-                      ? 'bg-white text-indigo-950 shadow-md'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${editModalTab === 'banner'
+                    ? 'bg-white text-indigo-950 shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
                 >
                   <ImageIcon className="w-3.5 h-3.5" /> 6. Media Banner
                 </button>
@@ -2044,7 +2045,7 @@ export default function EventsPage() {
                           <div className="sm:col-span-3 flex flex-col items-center justify-center space-y-2">
                             <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-sm relative group/img">
                               {item.image ? (
-                                <img src={item.image} alt={item.name || 'Lineup'} className="w-full h-full object-cover" />
+                                <img src={getPhotoUrl(item.image) || item.image} alt={item.name || 'Lineup'} className="w-full h-full object-cover" />
                               ) : (
                                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-1 text-center">
                                   <Music className="w-6 h-6 text-slate-400 mb-1" />
@@ -2089,17 +2090,6 @@ export default function EventsPage() {
                                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none resize-y"
                               />
                             </div>
-
-                            <div className="space-y-1">
-                              <label className="text-[11px] font-bold text-slate-500">URL Gambar Gambar (*image* / opsional via URL)</label>
-                              <input
-                                type="text"
-                                value={item.image}
-                                onChange={(e) => handleUpdateEditLineup(item.id, 'image', e.target.value)}
-                                placeholder="https://example.com/images/coldplay.jpg"
-                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-700 focus:border-blue-600 focus:outline-none"
-                              />
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -2129,11 +2119,10 @@ export default function EventsPage() {
                           key={fac}
                           type="button"
                           onClick={() => toggleFacility(fac, 'edit')}
-                          className={`p-2.5 rounded-xl border text-left text-xs font-extrabold transition-all cursor-pointer flex items-center justify-between ${
-                            isSelected
-                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
-                          }`}
+                          className={`p-2.5 rounded-xl border text-left text-xs font-extrabold transition-all cursor-pointer flex items-center justify-between ${isSelected
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
+                            }`}
                         >
                           <span className="truncate pr-1">{fac}</span>
                           {isSelected ? (
@@ -2286,69 +2275,69 @@ export default function EventsPage() {
 
               {/* TAB 5: DETAIL VENUE & PETA */}
               <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'venue' ? 'block' : 'hidden'}`}>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-extrabold text-slate-700">Nama Venue / Tempat</label>
-                      <input
-                        type="text"
-                        name="name"
-                        required
-                        defaultValue={editingEvent.venue?.name || editingEvent.venue_name || editingEvent.location || ''}
-                        placeholder="e.g. GBK Senayan / JIExpo Kemayoran"
-                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-extrabold text-slate-700">Alamat Lengkap</label>
-                      <input
-                        type="text"
-                        name="address"
-                        defaultValue={editingEvent.venue?.address || editingEvent.address || ''}
-                        placeholder="e.g. Jl. Jendral Sudirman No. 1, Gelora"
-                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700">Nama Venue / Tempat</label>
+                    <input
+                      type="text"
+                      name="name"
+                      required
+                      defaultValue={editingEvent.venue?.name || editingEvent.venue_name || editingEvent.location || ''}
+                      placeholder="e.g. GBK Senayan / JIExpo Kemayoran"
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-extrabold text-slate-700">Kota / Lokasi Cari</label>
-                      <input
-                        type="text"
-                        name="city"
-                        value={editCityInput}
-                        onChange={(e) => setEditCityInput(e.target.value)}
-                        placeholder="e.g. Jakarta Pusat, Bandung, Surabaya"
-                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700">Alamat Lengkap</label>
+                    <input
+                      type="text"
+                      name="address"
+                      defaultValue={editingEvent.venue?.address || editingEvent.address || ''}
+                      placeholder="e.g. Jl. Jendral Sudirman No. 1, Gelora"
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-extrabold text-slate-700">Kapasitas Penonton</label>
-                      <input
-                        type="number"
-                        name="capacity"
-                        defaultValue={editingEvent.venue?.capacity || editingEvent.capacity || 5000}
-                        placeholder="e.g. 50000"
-                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700">Kota / Lokasi Cari</label>
+                    <input
+                      type="text"
+                      name="city"
+                      value={editCityInput}
+                      onChange={(e) => setEditCityInput(e.target.value)}
+                      placeholder="e.g. Jakarta Pusat, Bandung, Surabaya"
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
                   </div>
 
-                  {/* Leaflet Interactive Map JS Picker */}
-                  <input type="hidden" name="latitude" value={editLat} />
-                  <input type="hidden" name="longitude" value={editLng} />
-                  <VenueMapPicker
-                    initialLat={editLat}
-                    initialLng={editLng}
-                    cityValue={editCityInput}
-                    onCityChange={(cityName) => setEditCityInput(cityName)}
-                    onLocationSelect={(lat, lng) => {
-                      setEditLat(lat);
-                      setEditLng(lng);
-                    }}
-                  />
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700">Kapasitas Penonton</label>
+                    <input
+                      type="number"
+                      name="capacity"
+                      defaultValue={editingEvent.venue?.capacity || editingEvent.capacity || 5000}
+                      placeholder="e.g. 50000"
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Leaflet Interactive Map JS Picker */}
+                <input type="hidden" name="latitude" value={editLat} />
+                <input type="hidden" name="longitude" value={editLng} />
+                <VenueMapPicker
+                  initialLat={editLat}
+                  initialLng={editLng}
+                  cityValue={editCityInput}
+                  onCityChange={(cityName) => setEditCityInput(cityName)}
+                  onLocationSelect={(lat, lng) => {
+                    setEditLat(lat);
+                    setEditLng(lng);
+                  }}
+                />
               </div>
 
               {/* TAB 6: MEDIA BANNER */}
@@ -2360,6 +2349,9 @@ export default function EventsPage() {
                       <img
                         src={editBannerPreview}
                         alt="Banner Event Preview"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=800&q=80';
+                        }}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                     ) : (
@@ -2682,10 +2674,10 @@ export default function EventsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[11px] font-extrabold text-slate-700">Tipe Diskon</label>
-                    <div className="grid grid-cols-2 gap-1 p-1 bg-white border border-slate-200 rounded-xl">
+                    <div className="grid grid-cols-2 gap-1 p-1 bg-white border border-slate-200 rounded-xl h-[38px] items-center">
                       <button
                         type="button"
                         onClick={() => {
@@ -2693,11 +2685,10 @@ export default function EventsPage() {
                           setPromoDiscountValueDisplay('');
                           setRawPromoDiscountValue(0);
                         }}
-                        className={`py-1 text-[11px] font-black rounded-lg transition-all cursor-pointer ${
-                          promoDiscountType === 'FIXED'
-                            ? 'bg-indigo-600 text-white shadow-xs'
-                            : 'bg-transparent text-slate-600 hover:bg-slate-100'
-                        }`}
+                        className={`h-full py-1 text-[11px] font-black rounded-lg transition-all cursor-pointer flex items-center justify-center ${promoDiscountType === 'FIXED'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-transparent text-slate-600 hover:bg-slate-100'
+                          }`}
                       >
                         Rp (Nominal)
                       </button>
@@ -2708,11 +2699,10 @@ export default function EventsPage() {
                           setPromoDiscountValueDisplay('');
                           setRawPromoDiscountValue(0);
                         }}
-                        className={`py-1 text-[11px] font-black rounded-lg transition-all cursor-pointer ${
-                          promoDiscountType === 'PERCENTAGE'
-                            ? 'bg-indigo-600 text-white shadow-xs'
-                            : 'bg-transparent text-slate-600 hover:bg-slate-100'
-                        }`}
+                        className={`h-full py-1 text-[11px] font-black rounded-lg transition-all cursor-pointer flex items-center justify-center ${promoDiscountType === 'PERCENTAGE'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-transparent text-slate-600 hover:bg-slate-100'
+                          }`}
                       >
                         % (Persen)
                       </button>
@@ -2723,8 +2713,8 @@ export default function EventsPage() {
                     <label className="text-[11px] font-extrabold text-slate-700">
                       Nilai Potongan {promoDiscountType === 'FIXED' ? '(Rp)' : '(%)'}
                     </label>
-                    <div className="flex items-center">
-                      <span className="px-3 py-2 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-black text-slate-600">
+                    <div className="flex items-center h-[38px]">
+                      <span className="px-3 h-full bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-black text-slate-600 flex items-center justify-center">
                         {promoDiscountType === 'FIXED' ? 'Rp.' : '%'}
                       </span>
                       <input
@@ -2733,28 +2723,13 @@ export default function EventsPage() {
                         placeholder={promoDiscountType === 'FIXED' ? '50.000' : '20'}
                         value={promoDiscountValueDisplay}
                         onChange={handlePromoDiscountValueChange}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-r-xl text-xs font-black text-slate-900 focus:border-indigo-600 focus:outline-none"
+                        className="w-full h-full px-3 bg-white border border-slate-200 rounded-r-xl text-xs font-black text-slate-900 focus:border-indigo-600 focus:outline-none"
                       />
                       <input type="hidden" name="discount_value" value={rawPromoDiscountValue} />
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Min. Pembelian (Rp)</label>
-                    <div className="flex items-center">
-                      <span className="px-3 py-2 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-black text-slate-600">
-                        Rp.
-                      </span>
-                      <input
-                        type="text"
-                        placeholder="100.000"
-                        value={promoMinPurchaseDisplay}
-                        onChange={handlePromoMinPurchaseChange}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-r-xl text-xs font-black text-slate-900 focus:border-indigo-600 focus:outline-none"
-                      />
-                      <input type="hidden" name="min_purchase" value={rawPromoMinPurchase} />
-                    </div>
-                  </div>
+                  <input type="hidden" name="min_purchase" value="0" />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
@@ -2857,8 +2832,8 @@ export default function EventsPage() {
                                 : `${p.discount_value}%`}
                             </td>
                             <td className="py-3 px-4 text-[11px] font-semibold text-slate-700 space-y-0.5">
-                              <div>Min. Transaksi: Rp. {Number(p.min_purchase || 0).toLocaleString('id-ID')}</div>
-                              <div className="text-slate-500">Kuota: {p.quota || 0} (Pakai: {p.used_count || 0})</div>
+                              <div className="text-slate-900 font-extrabold">Kuota: {p.quota || 0} Tiket</div>
+                              <div className="text-slate-500">Terpakai: {p.used_count || 0}</div>
                             </td>
                             <td className="py-3 px-4 text-[10px] text-slate-600 font-medium space-y-0.5">
                               <div>Mulai: {p.start_at ? format(new Date(p.start_at), 'dd MMM yyyy HH:mm') : '-'}</div>
@@ -2957,66 +2932,60 @@ export default function EventsPage() {
                 <button
                   type="button"
                   onClick={() => setCreateModalTab('info')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                    createModalTab === 'info'
-                      ? 'bg-white text-blue-950 shadow-md'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${createModalTab === 'info'
+                    ? 'bg-white text-blue-950 shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
                 >
                   <Tag className="w-3.5 h-3.5" /> 1. Info Acara
                 </button>
                 <button
                   type="button"
                   onClick={() => setCreateModalTab('lineup')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                    createModalTab === 'lineup'
-                      ? 'bg-white text-blue-950 shadow-md'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${createModalTab === 'lineup'
+                    ? 'bg-white text-blue-950 shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
                 >
                   <Users className="w-3.5 h-3.5" /> 2. Line Up
                 </button>
                 <button
                   type="button"
                   onClick={() => setCreateModalTab('facilities')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                    createModalTab === 'facilities'
-                      ? 'bg-white text-blue-950 shadow-md'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${createModalTab === 'facilities'
+                    ? 'bg-white text-blue-950 shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
                 >
                   <Sparkles className="w-3.5 h-3.5" /> 3. Fasilitas
                 </button>
                 <button
                   type="button"
                   onClick={() => setCreateModalTab('social_media')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                    createModalTab === 'social_media'
-                      ? 'bg-white text-blue-950 shadow-md'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${createModalTab === 'social_media'
+                    ? 'bg-white text-blue-950 shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
                 >
                   <Share2 className="w-3.5 h-3.5" /> 4. Media Sosial
                 </button>
                 <button
                   type="button"
                   onClick={() => setCreateModalTab('venue')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                    createModalTab === 'venue'
-                      ? 'bg-white text-blue-950 shadow-md'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${createModalTab === 'venue'
+                    ? 'bg-white text-blue-950 shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
                 >
                   <MapPin className="w-3.5 h-3.5" /> 5. Lokasi & Peta Venue
                 </button>
                 <button
                   type="button"
                   onClick={() => setCreateModalTab('banner')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                    createModalTab === 'banner'
-                      ? 'bg-white text-blue-950 shadow-md'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${createModalTab === 'banner'
+                    ? 'bg-white text-blue-950 shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
                 >
                   <ImageIcon className="w-3.5 h-3.5" /> 6. Media Banner
                 </button>
@@ -3189,7 +3158,7 @@ export default function EventsPage() {
                           <div className="sm:col-span-3 flex flex-col items-center justify-center space-y-2">
                             <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-sm relative group/img">
                               {item.image ? (
-                                <img src={item.image} alt={item.name || 'Lineup'} className="w-full h-full object-cover" />
+                                <img src={getPhotoUrl(item.image) || item.image} alt={item.name || 'Lineup'} className="w-full h-full object-cover" />
                               ) : (
                                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-1 text-center">
                                   <Music className="w-6 h-6 text-slate-400 mb-1" />
@@ -3201,6 +3170,7 @@ export default function EventsPage() {
                               <span>Pilih Foto</span>
                               <input
                                 type="file"
+                                name="image"
                                 accept="image/*"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
@@ -3234,17 +3204,6 @@ export default function EventsPage() {
                                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none resize-y"
                               />
                             </div>
-
-                            <div className="space-y-1">
-                              <label className="text-[11px] font-bold text-slate-500">URL Gambar Gambar (*image* / opsional via URL)</label>
-                              <input
-                                type="text"
-                                value={item.image}
-                                onChange={(e) => handleUpdateCreateLineup(item.id, 'image', e.target.value)}
-                                placeholder="https://example.com/images/coldplay.jpg"
-                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-700 focus:border-blue-600 focus:outline-none"
-                              />
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -3274,11 +3233,10 @@ export default function EventsPage() {
                           key={fac}
                           type="button"
                           onClick={() => toggleFacility(fac, 'create')}
-                          className={`p-2.5 rounded-xl border text-left text-xs font-extrabold transition-all cursor-pointer flex items-center justify-between ${
-                            isSelected
-                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
-                          }`}
+                          className={`p-2.5 rounded-xl border text-left text-xs font-extrabold transition-all cursor-pointer flex items-center justify-between ${isSelected
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
+                            }`}
                         >
                           <span className="truncate pr-1">{fac}</span>
                           {isSelected ? (
@@ -3431,67 +3389,67 @@ export default function EventsPage() {
 
               {/* TAB 5: DETAIL VENUE & PETA */}
               <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'venue' ? 'block' : 'hidden'}`}>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-extrabold text-slate-700">Nama Venue / Tempat</label>
-                      <input
-                        type="text"
-                        name="name"
-                        required
-                        placeholder="e.g. GBK Senayan / JIExpo Kemayoran"
-                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-extrabold text-slate-700">Alamat Lengkap</label>
-                      <input
-                        type="text"
-                        name="address"
-                        placeholder="e.g. Jl. Jendral Sudirman No. 1, Gelora"
-                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700">Nama Venue / Tempat</label>
+                    <input
+                      type="text"
+                      name="name"
+                      required
+                      placeholder="e.g. GBK Senayan / JIExpo Kemayoran"
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-extrabold text-slate-700">Kota / Lokasi Cari</label>
-                      <input
-                        type="text"
-                        name="city"
-                        value={createCityInput}
-                        onChange={(e) => setCreateCityInput(e.target.value)}
-                        placeholder="e.g. Jakarta Pusat, Bandung, Surabaya"
-                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700">Alamat Lengkap</label>
+                    <input
+                      type="text"
+                      name="address"
+                      placeholder="e.g. Jl. Jendral Sudirman No. 1, Gelora"
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-extrabold text-slate-700">Kapasitas Penonton</label>
-                      <input
-                        type="number"
-                        name="capacity"
-                        defaultValue={5000}
-                        placeholder="e.g. 50000"
-                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700">Kota / Lokasi Cari</label>
+                    <input
+                      type="text"
+                      name="city"
+                      value={createCityInput}
+                      onChange={(e) => setCreateCityInput(e.target.value)}
+                      placeholder="e.g. Jakarta Pusat, Bandung, Surabaya"
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
                   </div>
 
-                  {/* Leaflet Interactive Map JS Picker */}
-                  <input type="hidden" name="latitude" value={createLat} />
-                  <input type="hidden" name="longitude" value={createLng} />
-                  <VenueMapPicker
-                    initialLat={createLat}
-                    initialLng={createLng}
-                    cityValue={createCityInput}
-                    onCityChange={(cityName) => setCreateCityInput(cityName)}
-                    onLocationSelect={(lat, lng) => {
-                      setCreateLat(lat);
-                      setCreateLng(lng);
-                    }}
-                  />
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700">Kapasitas Penonton</label>
+                    <input
+                      type="number"
+                      name="capacity"
+                      defaultValue={5000}
+                      placeholder="e.g. 50000"
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Leaflet Interactive Map JS Picker */}
+                <input type="hidden" name="latitude" value={createLat} />
+                <input type="hidden" name="longitude" value={createLng} />
+                <VenueMapPicker
+                  initialLat={createLat}
+                  initialLng={createLng}
+                  cityValue={createCityInput}
+                  onCityChange={(cityName) => setCreateCityInput(cityName)}
+                  onLocationSelect={(lat, lng) => {
+                    setCreateLat(lat);
+                    setCreateLng(lng);
+                  }}
+                />
               </div>
 
               {/* TAB 6: MEDIA BANNER */}

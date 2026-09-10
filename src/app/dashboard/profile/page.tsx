@@ -26,10 +26,6 @@ export default function ProfilePage() {
   useEffect(() => {
     async function loadProfile() {
       setIsLoading(true);
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('metix_user_nik');
-        localStorage.removeItem('metix_user_address');
-      }
       const data = await fetchUserProfile();
 
       if (data) {
@@ -112,8 +108,6 @@ export default function ProfilePage() {
       };
 
       if (typeof window !== 'undefined') {
-        localStorage.setItem('metix_user_nik', finalNik);
-        localStorage.setItem('metix_user_address', finalAddress);
         localStorage.setItem('metix_user', JSON.stringify(merged));
         window.dispatchEvent(new Event('user-profile-updated'));
       }

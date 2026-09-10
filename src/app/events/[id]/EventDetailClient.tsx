@@ -36,7 +36,7 @@ import {
   Video,
   Globe,
 } from 'lucide-react';
-import { fetchPublicEventDetail, fetchTicketTypes, ApiEvent, ApiLineupItem, ApiSocialMedia, getPhotoUrl, getStoredToken } from '@/lib/api';
+import { fetchPublicEventDetail, fetchTicketTypes, parseSocialMediaObject, ApiEvent, ApiLineupItem, ApiSocialMedia, getPhotoUrl, getStoredToken } from '@/lib/api';
 import { TicketCheckoutModal } from '@/components/public/TicketCheckoutModal';
 import { AuthModal } from '@/components/public/AuthModal';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -249,23 +249,12 @@ export default function EventDetailClient() {
 
   const bannerUrl =
     (event ? getPhotoUrl(event.banner, event.id) : null) ||
-    (typeof window !== 'undefined' && event?.id ? localStorage.getItem(`metix_banner_preview_${event.id}`) : null) ||
-    (typeof window !== 'undefined' ? localStorage.getItem('metix_last_uploaded_banner') : null) ||
     (event?.venue_photo ? getPhotoUrl(event.venue_photo) : null);
   const venuePhotoUrl = event?.venue_photo ? getPhotoUrl(event.venue_photo) : null;
 
   const parsedLineups: any[] = (() => {
     if (!event) return [];
     let raw = event.lineups || (event as any).lineup || (event as any).event_lineups;
-    if ((!raw || (Array.isArray(raw) && raw.length === 0)) && typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem(`metix_event_details_${event.id}`);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed.lineups || parsed.lineup) raw = parsed.lineups || parsed.lineup;
-        }
-      } catch {}
-    }
     if (typeof raw === 'string') {
       try {
         raw = JSON.parse(raw);
@@ -284,15 +273,6 @@ export default function EventDetailClient() {
   const parsedFacilities: any[] = (() => {
     if (!event) return [];
     let raw = event.facilities || (event as any).facility;
-    if ((!raw || (Array.isArray(raw) && raw.length === 0)) && typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem(`metix_event_details_${event.id}`);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed.facilities) raw = parsed.facilities;
-        }
-      } catch {}
-    }
     if (typeof raw === 'string') {
       try {
         raw = JSON.parse(raw);
@@ -310,28 +290,7 @@ export default function EventDetailClient() {
 
   const parsedSocialMedia: ApiSocialMedia = (() => {
     if (!event) return {};
-    let raw = event.social_media || (event as any).socials || {};
-    if (typeof raw === 'string') {
-      try {
-        raw = JSON.parse(raw);
-      } catch { }
-    }
-    if (Object.keys(raw).length === 0 && typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem(`metix_event_details_${event.id}`);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed.social_media) raw = parsed.social_media;
-        }
-      } catch { }
-    }
-    return {
-      instagram: raw.instagram || (event as any).instagram || '',
-      tiktok: raw.tiktok || (event as any).tiktok || '',
-      website: raw.website || (event as any).website || '',
-      whatsapp: raw.whatsapp || (event as any).whatsapp || '',
-      youtube: raw.youtube || (event as any).youtube || '',
-    };
+    return parseSocialMediaObject(event.social_media, event);
   })();
 
   if (isLoading) {
@@ -537,9 +496,10 @@ export default function EventDetailClient() {
                       : (typeof item?.name === 'string'
                         ? item.name
                         : (typeof item?.name === 'object' ? String(item.name?.name || item.name?.title || '') : String(item?.name || '')));
-                    const lineupImg = (typeof item === 'object'
+                    const rawImg = (typeof item === 'object'
                       ? (typeof item?.image === 'string' ? item.image : (typeof item?.photo === 'string' ? item.photo : null))
-                      : null) || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=200';
+                      : null);
+                    const lineupImg = rawImg ? getPhotoUrl(rawImg) || rawImg : null;
                     const lineupDesc = (typeof item === 'object' && typeof item?.description === 'string')
                       ? item.description
                       : (typeof item?.description === 'number' ? String(item.description) : null);
@@ -549,12 +509,16 @@ export default function EventDetailClient() {
                         className="bg-white rounded-xl border border-slate-200 p-3 flex items-center justify-between shadow-2xs hover:shadow-sm transition-all group"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-900 shrink-0 border border-slate-200">
-                            <img
-                              src={lineupImg}
-                              alt={lineupName}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            />
+                          <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200">
+                            {lineupImg ? (
+                              <img
+                                src={lineupImg}
+                                alt={lineupName}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                            ) : (
+                              <Music className="w-5 h-5 text-slate-400" />
+                            )}
                           </div>
                           <div className="min-w-0">
                             <h4 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-tight truncate">

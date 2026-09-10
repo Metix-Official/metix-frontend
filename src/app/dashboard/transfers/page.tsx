@@ -104,8 +104,7 @@ export default function TransfersPage() {
         setPemberiNama(userProfile.name || '');
         setPemberiEmail(userProfile.email || '');
         setPemberiPhone((userProfile.phone || '').replace(/\D/g, '').slice(0, 13));
-        const storedNik = typeof window !== 'undefined' ? localStorage.getItem('metix_user_nik') : null;
-        setPemberiNik((userProfile as any).nik || storedNik || '');
+        setPemberiNik((userProfile as any).nik || '');
       }
     } catch (err) {
       console.error('Failed to load transfer data', err);

@@ -9,6 +9,7 @@ import {
   fetchPublicEvents,
   processCheckIn,
   getStoredUser,
+  fetchUserProfile,
   incrementStaffScanCount,
   ApiEvent,
   CheckInResponse,
@@ -124,23 +125,9 @@ export default function CheckInPage() {
 
   useEffect(() => {
     loadEvents();
-    const u = getStoredUser();
-    setCurrentUser(u);
-    if (u && u.email && typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('metix_eo_admins');
-        if (stored) {
-          const list = JSON.parse(stored);
-          const match = list.find((a: any) => a.email.toLowerCase() === u.email.toLowerCase());
-          if (match) {
-            setStaffScanCount(match.scan_count || 0);
-            setStaffScanQuota(match.scan_quota !== undefined ? match.scan_quota : 200);
-          }
-        }
-      } catch {
-        // Ignore
-      }
-    }
+    fetchUserProfile().then((u: any) => {
+      if (u) setCurrentUser(u);
+    });
   }, []);
 
   // WebCam Live Camera Controls

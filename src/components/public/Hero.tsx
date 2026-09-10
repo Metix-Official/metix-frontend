@@ -132,14 +132,6 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
   const bannerUrl = useMemo(() => {
     const photo = currentEvent ? getPhotoUrl(currentEvent.banner, currentEvent.id) : null;
     if (photo) return photo;
-    if (typeof window !== 'undefined' && currentEvent?.id) {
-      const cached = localStorage.getItem(`metix_banner_preview_${currentEvent.id}`);
-      if (cached) return cached;
-    }
-    if (typeof window !== 'undefined') {
-      const lastUploaded = localStorage.getItem('metix_last_uploaded_banner');
-      if (lastUploaded) return lastUploaded;
-    }
     return FALLBACK_BANNERS[0];
   }, [currentEvent]);
 

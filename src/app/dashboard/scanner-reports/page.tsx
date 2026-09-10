@@ -64,38 +64,11 @@ export default function ScannerReportsPage() {
 
         const realLogsMap: Record<string | number, ScanRecordItem[]> = {};
 
-        // Read real check-in scan history saved from localStorage or API audit logs
-        let savedHistory: any[] = [];
-        try {
-          const raw = localStorage.getItem('metix_scan_history');
-          if (raw) savedHistory = JSON.parse(raw);
-        } catch {
-          savedHistory = [];
-        }
-
         const auditRes = await fetchAuditLogs();
         const auditLogs = auditRes?.logs || [];
 
         staffList.forEach((staff) => {
-          const staffEmailLower = (staff.email || '').toLowerCase();
           const matchedLogs: ScanRecordItem[] = [];
-
-          // 1. From real client scan history
-          savedHistory.forEach((item, idx) => {
-            if (!item.staffEmail || item.staffEmail.toLowerCase() === staffEmailLower) {
-              matchedLogs.push({
-                id: item.id || `real-log-${idx}`,
-                eventName: item.eventName || item.event_name || 'Event Metix',
-                buyerName: item.holderName || item.buyerName || 'Pengunjung Gate',
-                buyerEmail: item.buyerEmail || item.email || staff.email,
-                ticketCode: item.code || item.ticketCode || 'MTX-TCK-00000',
-                ticketType: item.typeName || item.ticketType || 'Tiket Masuk',
-                scannedAt: item.timestamp || item.scannedAt || 'Baru saja',
-                gateName: staff.name,
-                status: item.status === 'valid' ? 'valid' : 'invalid',
-              });
-            }
-          });
 
           // 2. From real API audit logs
           auditLogs.forEach((auditItem, idx) => {

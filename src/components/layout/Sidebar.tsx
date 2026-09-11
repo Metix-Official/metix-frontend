@@ -134,6 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { name: 'Event Saya', href: '/dashboard/events', iconName: 'Calendar', badge: 'Aktif' },
         { name: 'Kasir Offline (POS)', href: '/dashboard/pos', iconName: 'CreditCard' },
         { name: 'Kelola Admin Scan', href: '/dashboard/admins', iconName: 'Users' },
+        { name: 'Laporan Scanner', href: '/dashboard/scanner-reports', iconName: 'QrCode', badge: 'Gate' },
         { name: 'Laporan Penjualan', href: '/dashboard/reports', iconName: 'Send' },
         { name: 'Pengaturan', href: '/dashboard/settings', iconName: 'Settings' },
       ];

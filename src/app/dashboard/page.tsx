@@ -50,8 +50,20 @@ export default function DashboardPage() {
         } as any);
 
         const admins = await fetchEoAdmins();
-        if (admins) {
+        if (admins && admins.length > 0) {
           setEoAdmins(admins);
+        } else if ((res as any)?.scanners?.list && (res as any).scanners.list.length > 0) {
+          setEoAdmins((res as any).scanners.list.map((s: any) => ({
+            id: s.id || s.user_id,
+            name: s.name,
+            email: s.email,
+            phone: s.phone,
+            scan_quota: 200,
+            scan_count: s.scanned_count ?? s.scan_count ?? 0,
+            event_id: s.event_id,
+            event_title: s.event_title,
+            created_at: new Date().toISOString(),
+          })));
         }
       } else {
         // Akun Pembeli (BUYER) - hanya ambil data pembeli agar tidak 403
@@ -301,7 +313,7 @@ export default function DashboardPage() {
     ];
   }, [dashboardData, currentRole]);
 
-  // Compute Recent Transactions list from backend API (EO Role Only)
+  // Compute Recent Transactions list from real backend API orders only (EO Role Only)
   const transactionsToDisplay: Transaction[] = React.useMemo(() => {
     if (currentRole !== 'mitra') return [];
 
@@ -316,57 +328,11 @@ export default function DashboardPage() {
         ticketType: ord.ticket_type_name || 'Tiket Metix',
         quantity: ord.quantity || 1,
         amount: `Rp ${Number(ord.total_amount || 0).toLocaleString('id-ID')}`,
-        status: ord.status === 'paid' ? 'Completed' : 'Completed',
+        status: (ord.status || '').toLowerCase() === 'paid' ? 'Completed' : 'Pending',
         date: ord.created_at
-          ? new Date(ord.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
-          : 'Hari ini',
+          ? new Date(ord.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+          : '-',
       }));
-    }
-
-    const tData = dashboardData?.tickets?.data || [];
-    if (tData && tData.length > 0) {
-      return tData.map((item: any, idx: number) => ({
-        id: item.id ? String(item.id) : `tx-${idx}`,
-        invoiceId: item.order?.invoice_number || item.invoice_number || `INV-${item.id || idx + 1}`,
-        customerName: item.order?.buyer_name || item.buyer_name || 'Pembeli Metix',
-        customerEmail: item.order?.buyer_email || 'pembeli@metix.id',
-        eventName: item.event?.title || 'Event Metix',
-        ticketType: item.ticket_type?.name || 'Reguler',
-        quantity: 1,
-        amount: item.ticket_type?.price
-          ? `Rp ${Number(item.ticket_type.price).toLocaleString('id-ID')}`
-          : 'Rp 0',
-        status: item.status === 'used' ? 'Completed' : item.status === 'cancelled' ? 'Failed' : 'Completed',
-        date: item.created_at
-          ? new Date(item.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
-          : 'Hari ini',
-      }));
-    }
-
-    const rawEvents = dashboardData?.eventsList || [];
-    if (rawEvents.length > 0) {
-      const generated: Transaction[] = [];
-      rawEvents.forEach((evt: any, eIdx: number) => {
-        const ticketTypes = evt.ticket_types || [];
-        ticketTypes.forEach((tt: any, tIdx: number) => {
-          const sold = Number(tt.sold_quantity || 0);
-          if (sold > 0) {
-            generated.push({
-              id: `tx-gen-${eIdx}-${tIdx}`,
-              invoiceId: `INV-2026-${eIdx + 1}${tIdx + 1}`,
-              customerName: 'Pengunjung Metix',
-              customerEmail: 'customer@metix.id',
-              eventName: evt.title || 'Event Metix',
-              ticketType: tt.name || 'Pass',
-              quantity: sold,
-              amount: `Rp ${(sold * Number(tt.price || 0)).toLocaleString('id-ID')}`,
-              status: 'Completed',
-              date: 'Terbaru',
-            });
-          }
-        });
-      });
-      if (generated.length > 0) return generated;
     }
 
     return [];

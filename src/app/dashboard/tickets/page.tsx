@@ -275,27 +275,15 @@ export default function TicketsPage() {
         });
       }
 
-      // Cross-reference with localStorage checked-in codes if any
-      let localCheckedInCodes: string[] = [];
-      if (typeof window !== 'undefined') {
-        try {
-          localCheckedInCodes = JSON.parse(localStorage.getItem('metix_checked_in_codes') || '[]');
-        } catch {}
-      }
-
       // Gabungkan relasi venue dari public event jika di ticket.event belum termuat
       const enriched = data.map((t) => {
         const evId = t.event?.id;
         const matched = evId ? eventsMap.get(Number(evId)) : null;
-        const rawCode = (t.ticket_code || t.qr_token || '').toUpperCase();
-        const isLocallyCheckedIn = localCheckedInCodes.some((code) => code.toUpperCase() === rawCode);
-
-        const updatedStatus = isLocallyCheckedIn ? 'used' : (t.status || 'active');
 
         if (matched) {
           return {
             ...t,
-            status: updatedStatus,
+            status: t.status || 'active',
             event: {
               ...matched,
               ...t.event,
@@ -308,7 +296,7 @@ export default function TicketsPage() {
         }
         return {
           ...t,
-          status: updatedStatus,
+          status: t.status || 'active',
         };
       });
 

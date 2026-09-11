@@ -20,18 +20,7 @@ export function getPhotoUrl(photoUrl?: string | null, eventId?: number | string,
     return photoUrl;
   }
 
-  if (typeof window !== 'undefined') {
-    try {
-      if (eventId) {
-        const savedLocal = localStorage.getItem(`metix_banner_preview_${eventId}`);
-        if (savedLocal) return savedLocal;
-      }
-      if (photoUrl && (photoUrl.includes('local_banner_') || photoUrl.startsWith('events/banner_'))) {
-        const latestCreated = localStorage.getItem('metix_latest_created_banner');
-        if (latestCreated) return latestCreated;
-      }
-    } catch {}
-  }
+  
 
   if (!photoUrl || photoUrl === 'organizers/logo_default.png' || photoUrl === 'logo_default.png' || photoUrl.includes('logo_default')) {
     return null;
@@ -583,7 +572,7 @@ export async function registerUser(payload: RegisterPayload): Promise<LoginRespo
 
     if (typeof window !== 'undefined') {
       try {
-        const storedEos = localStorage.getItem('metix_pending_eo_registrations');
+        const storedEos = null;
         const list: ApiOrganizerProfile[] = storedEos ? JSON.parse(storedEos) : [];
         const newOrg: ApiOrganizerProfile = {
           id: user.id || Date.now(),
@@ -597,8 +586,7 @@ export async function registerUser(payload: RegisterPayload): Promise<LoginRespo
           created_at: new Date().toISOString(),
         };
         const updatedList = [newOrg, ...list.filter((o) => o.email !== user.email)];
-        localStorage.setItem('metix_pending_eo_registrations', JSON.stringify(updatedList));
-      } catch {}
+              } catch {}
     }
   }
 
@@ -1226,22 +1214,6 @@ export async function processCheckIn(payload: CheckInPayload): Promise<CheckInRe
     };
   }
 
-  // Check client-side check-in memory to prevent duplicate entry
-  if (typeof window !== 'undefined') {
-    try {
-      const checkedInList = JSON.parse(localStorage.getItem('metix_checked_in_codes') || '[]');
-      if (Array.isArray(checkedInList) && (
-        checkedInList.includes(cleanedCode.toUpperCase()) ||
-        checkedInList.some((c: string) => cleanedCode.toUpperCase().startsWith(c) || c.startsWith(cleanedCode.toUpperCase()))
-      )) {
-        return {
-          success: false,
-          message: `Tiket [${cleanedCode}] sudah pernah digunakan untuk check-in sebelumnya.`,
-        };
-      }
-    } catch {}
-  }
-
   // 1. Smart order & ticket pre-lookup to identify true event_id and ticket metadata
   let matchedOrder: any = null;
   let resolvedTicketCode = cleanedCode;
@@ -1396,14 +1368,7 @@ export async function processCheckIn(payload: CheckInPayload): Promise<CheckInRe
             status: 'used',
           };
 
-          // Record checked-in ticket in client memory
-          if (typeof window !== 'undefined') {
-            try {
-              const current = JSON.parse(localStorage.getItem('metix_checked_in_codes') || '[]');
-              const updated = Array.from(new Set([...current, cleanedCode.toUpperCase(), returnedTicket.code.toUpperCase()]));
-              localStorage.setItem('metix_checked_in_codes', JSON.stringify(updated));
-            } catch {}
-          }
+          
 
           return {
             success: true,
@@ -1448,13 +1413,7 @@ export async function processCheckIn(payload: CheckInPayload): Promise<CheckInRe
       const targetEvent = matchedOrder.event?.title || matchedOrder.event_title || 'Event Metix';
       const targetType = matchedOrder.tickets?.[0]?.ticket_type?.name || matchedOrder.ticket_type_name || 'Tiket Masuk';
 
-      if (typeof window !== 'undefined') {
-        try {
-          const current = JSON.parse(localStorage.getItem('metix_checked_in_codes') || '[]');
-          const updated = Array.from(new Set([...current, cleanedCode.toUpperCase(), resolvedTicketCode.toUpperCase()]));
-          localStorage.setItem('metix_checked_in_codes', JSON.stringify(updated));
-        } catch {}
-      }
+      
 
       return {
         success: true,
@@ -1477,13 +1436,7 @@ export async function processCheckIn(payload: CheckInPayload): Promise<CheckInRe
       ? (myEventsList.find((e: any) => Number(e.id) === Number(payload.event_id))?.title || 'Event Metix')
       : 'Event Metix';
 
-    if (typeof window !== 'undefined') {
-      try {
-        const current = JSON.parse(localStorage.getItem('metix_checked_in_codes') || '[]');
-        const updated = Array.from(new Set([...current, cleanedCode.toUpperCase()]));
-        localStorage.setItem('metix_checked_in_codes', JSON.stringify(updated));
-      } catch {}
-    }
+    
 
     return {
       success: true,
@@ -2106,8 +2059,7 @@ export async function createEvent(formData: FormData): Promise<boolean> {
     if (createdId) {
       if (localPreview && typeof window !== 'undefined') {
         try {
-          localStorage.setItem(`metix_banner_preview_${createdId}`, String(localPreview));
-        } catch {}
+                  } catch {}
       }
 
       // Synchronize sub-resource APIs for Lineup, Facilities, Social Media
@@ -2190,8 +2142,7 @@ export async function updateEvent(eventId: number, formData: FormData): Promise<
   if (eventId) {
     if (localPreview && typeof window !== 'undefined') {
       try {
-        localStorage.setItem(`metix_banner_preview_${eventId}`, String(localPreview));
-      } catch {}
+              } catch {}
     }
 
     // Synchronize sub-resource APIs for Lineup, Facilities, Social Media
@@ -2784,19 +2735,8 @@ export async function fetchAuditLogs(params?: {
 }> {
   const token = getStoredToken();
   let apiLogs: AuditLogItem[] = [];
-  let localLogs: AuditLogItem[] = [];
 
-  // Read local recorded audit logs from localStorage first
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = localStorage.getItem('metix_audit_logs');
-      if (stored) {
-        localLogs = JSON.parse(stored);
-      }
-    } catch {}
-  }
-
-  // Fetch API audit logs if token available
+  // Fetch real API audit logs directly from backend
   if (token) {
     try {
       const url = new URL(`${API_BASE_URL}/owner/audit-logs`);
@@ -2809,19 +2749,15 @@ export async function fetchAuditLogs(params?: {
 
       if (response.ok) {
         const data = await response.json();
-        apiLogs = data?.data || data?.logs || [];
+        const raw = data?.data || data?.logs || [];
+        apiLogs = Array.isArray(raw) ? raw : (raw?.data || []);
       }
-    } catch {
-      // Ignore network error
+    } catch (err) {
+      console.warn('Failed to fetch audit logs from API:', err);
     }
   }
 
-  // Combine local audit logs and backend API logs into a unified list
-  const combinedMap = new Map<number | string, AuditLogItem>();
-  localLogs.forEach((l) => combinedMap.set(l.id, l));
-  apiLogs.forEach((l) => combinedMap.set(l.id, l));
-
-  let rawLogs = Array.from(combinedMap.values());
+  const rawLogs = [...apiLogs];
   rawLogs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   // Extract unique actions list for dropdown filter
@@ -2831,49 +2767,14 @@ export async function fetchAuditLogs(params?: {
   });
   const actionsList = Array.from(actionsSet);
 
-  // Apply search & action filtering
-  let filtered = rawLogs;
-  if (params?.action && params.action !== 'all') {
-    filtered = filtered.filter((l) => l.action.toLowerCase() === params.action?.toLowerCase());
-  }
-  if (params?.search && params.search.trim()) {
-    const q = params.search.toLowerCase().trim();
-    filtered = filtered.filter(
-      (l) =>
-        (l.user_name || '').toLowerCase().includes(q) ||
-        (l.user_email || '').toLowerCase().includes(q) ||
-        (l.description || '').toLowerCase().includes(q) ||
-        (l.action || '').toLowerCase().includes(q) ||
-        (l.ip_address || '').toLowerCase().includes(q)
-    );
-  }
-
   return {
-    logs: filtered,
+    logs: rawLogs,
     actionsList,
   };
 }
 
 export function recordAuditLog(action: string, description: string): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const user = getStoredUser();
-    const stored = localStorage.getItem('metix_audit_logs');
-    const existing: AuditLogItem[] = stored ? JSON.parse(stored) : [];
-    const newLog: AuditLogItem = {
-      id: Date.now(),
-      user_id: user?.id,
-      user_name: user?.name || 'Pengguna Metix',
-      user_email: user?.email || 'user@metix.id',
-      action: action.toUpperCase(),
-      description,
-      ip_address: '127.0.0.1',
-      user_agent: navigator.userAgent,
-      created_at: new Date().toISOString(),
-    };
-    const updated = [newLog, ...existing];
-    localStorage.setItem('metix_audit_logs', JSON.stringify(updated));
-  } catch {}
+  // Audit logs are recorded directly by the backend database
 }
 
 export interface EoAdminUser {
@@ -2901,25 +2802,7 @@ export interface CreateEoAdminPayload {
 }
 
 export function incrementStaffScanCount(email?: string): void {
-  if (typeof window === 'undefined' || !email) return;
-  try {
-    const stored = localStorage.getItem('metix_eo_admins');
-    if (stored) {
-      const list: EoAdminUser[] = JSON.parse(stored);
-      const updated = list.map((a) => {
-        if (a.email.toLowerCase() === email.toLowerCase()) {
-          return {
-            ...a,
-            scan_count: (a.scan_count || 0) + 1,
-          };
-        }
-        return a;
-      });
-      localStorage.setItem('metix_eo_admins', JSON.stringify(updated));
-    }
-  } catch {
-    // Ignore
-  }
+  // Real check-in counts are computed directly from backend check_ins table
 }
 
 export async function fetchEoAdmins(): Promise<EoAdminUser[]> {
@@ -3201,16 +3084,7 @@ export async function deleteEoAdmin(adminId: number): Promise<boolean> {
     }
   }
 
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        const list: EoAdminUser[] = JSON.parse(stored);
-        const filtered = list.filter((a) => a.id !== adminId);
-        localStorage.setItem(storageKey, JSON.stringify(filtered));
-      }
-    } catch {}
-  }
+
 
   return true;
 }
@@ -3266,8 +3140,7 @@ export async function saveOrganizerProfile(payload: {
   if (!token) throw new Error('Silakan login terlebih dahulu (Unauthenticated).');
 
   if (payload._local_logo_preview && typeof window !== 'undefined') {
-    localStorage.setItem('metix_organizer_logo_preview', payload._local_logo_preview);
-  }
+      }
 
   const existingProfile = await fetchOrganizerProfile();
   const isUpdate = !!existingProfile;
@@ -3313,11 +3186,10 @@ export async function saveOrganizerProfile(payload: {
   const resultProfile: ApiOrganizerProfile = data?.data || data;
   if (typeof window !== 'undefined' && resultProfile) {
     try {
-      const storedEos = localStorage.getItem('metix_pending_eo_registrations');
+      const storedEos = null;
       const list: ApiOrganizerProfile[] = storedEos ? JSON.parse(storedEos) : [];
       const updatedList = [resultProfile, ...list.filter((o) => o.id !== resultProfile.id && o.email !== resultProfile.email)];
-      localStorage.setItem('metix_pending_eo_registrations', JSON.stringify(updatedList));
-    } catch {}
+          } catch {}
   }
 
   return resultProfile;

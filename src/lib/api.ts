@@ -277,6 +277,12 @@ export interface ApiTicketDetail {
     name: string;
     price: string | number;
   };
+  holder_name?: string;
+  attendee?: {
+    full_name?: string;
+    email?: string;
+    phone?: string;
+  };
   order?: {
     id?: number | string;
     order_number?: string;
@@ -537,8 +543,8 @@ export async function registerUser(payload: RegisterPayload): Promise<LoginRespo
     body: JSON.stringify({
       name: payload.name,
       email: payload.email,
-      password: payload.password || 'password123',
-      password_confirmation: payload.password_confirmation || payload.password || 'password123',
+      password: payload.password,
+      password_confirmation: payload.password_confirmation || payload.password,
       role: mappedRole,
       phone: payload.phone,
       phone_number: payload.phone,
@@ -566,30 +572,6 @@ export async function registerUser(payload: RegisterPayload): Promise<LoginRespo
     user.phone = user.phone || user.phone_number || payload.phone || null;
   }
 
-  if (mappedRole === 'EO' && user) {
-    user.mitra_status = 'pending';
-    user.organizer_status = 'PENDING_APPROVAL';
-
-    if (typeof window !== 'undefined') {
-      try {
-        const storedEos = null;
-        const list: ApiOrganizerProfile[] = storedEos ? JSON.parse(storedEos) : [];
-        const newOrg: ApiOrganizerProfile = {
-          id: user.id || Date.now(),
-          user_id: user.id,
-          organization_name: user.name ? `Organisasi ${user.name}` : 'Organisasi EO Baru',
-          email: user.email,
-          phone: user.phone || payload.phone || '081234567890',
-          address: 'Belum diisi',
-          description: 'Pendaftaran mitra Event Organizer baru dari platform Metix',
-          status: 'PENDING_APPROVAL',
-          created_at: new Date().toISOString(),
-        };
-        const updatedList = [newOrg, ...list.filter((o) => o.email !== user.email)];
-              } catch {}
-    }
-  }
-
   if (typeof window !== 'undefined' && token) {
     localStorage.setItem('metix_token', token);
     if (user) {
@@ -602,6 +584,125 @@ export async function registerUser(payload: RegisterPayload): Promise<LoginRespo
     message: data.message || 'Registrasi berhasil',
     token: token,
     user: user,
+  };
+}
+
+export async function requestOtpApi(payload: { email: string; purpose?: 'LOGIN' | 'REGISTER' }): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/auth/otp/request`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal meminta kode OTP.';
+    throw new Error(errorMsg);
+  }
+
+  return {
+    success: true,
+    message: data.message || 'Kode OTP berhasil dikirim ke email Anda',
+  };
+}
+
+export async function loginOtpApi(payload: { email: string; otp: string }): Promise<LoginResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/otp/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Kode OTP salah atau telah kadaluarsa.';
+    throw new Error(errorMsg);
+  }
+
+  const user = data.user || data.data?.user;
+  const token = data.token || data.data?.token;
+
+  if (typeof window !== 'undefined' && token) {
+    localStorage.setItem('metix_token', token);
+    if (user) {
+      localStorage.setItem('metix_user', JSON.stringify(user));
+    }
+  }
+
+  return {
+    success: true,
+    message: data.message || 'Login OTP berhasil',
+    token,
+    user,
+  };
+}
+
+export async function registerOtpApi(payload: RegisterPayload & { otp: string }): Promise<LoginResponse> {
+  let mappedRole = payload.role || 'BUYER';
+  if (mappedRole === 'pembeli') mappedRole = 'BUYER';
+  if (mappedRole === 'mitra') mappedRole = 'EO';
+
+  const response = await fetch(`${API_BASE_URL}/auth/otp/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: JSON.stringify({
+      name: payload.name,
+      email: payload.email,
+      otp: payload.otp,
+      password: payload.password,
+      password_confirmation: payload.password_confirmation || payload.password,
+      role: mappedRole,
+      phone: payload.phone,
+      gender: payload.gender,
+      birth_date: payload.birth_date,
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Registrasi OTP gagal. Silakan periksa kembali data Anda.';
+    throw new Error(errorMsg);
+  }
+
+  const user = data.user || data.data?.user;
+  const token = data.token || data.data?.token;
+
+  if (typeof window !== 'undefined' && token) {
+    localStorage.setItem('metix_token', token);
+    if (user) {
+      localStorage.setItem('metix_user', JSON.stringify(user));
+    }
+  }
+
+  return {
+    success: true,
+    message: data.message || 'Registrasi OTP berhasil',
+    token,
+    user,
   };
 }
 
@@ -1048,11 +1149,15 @@ export async function checkoutOrder(payload: {
   return data?.data?.order || data?.data || data?.order || data;
 }
 
-export async function initiateOrderPayment(orderId: number): Promise<{ payment_url?: string; snap_token?: string }> {
+export async function initiateOrderPayment(orderId: number, options: Record<string, any> = {}): Promise<{ payment_url?: string; snap_token?: string; payment_code?: string; va_number?: string; payment?: any }> {
   const token = getStoredToken();
   const response = await fetch(`${API_BASE_URL}/orders/${orderId}/payment`, {
     method: 'POST',
-    headers: getHeaders(token),
+    headers: {
+      'Content-Type': 'application/json',
+      ...getHeaders(token),
+    },
+    body: JSON.stringify(options),
   });
 
   const data = await response.json().catch(() => ({}));
@@ -1061,9 +1166,16 @@ export async function initiateOrderPayment(orderId: number): Promise<{ payment_u
     throw new Error(data?.message || 'Gagal memproses inisialisasi pembayaran DOKU.');
   }
 
+  const paymentObj = data?.data?.payment || data?.payment || data;
+  const paymentUrl = paymentObj?.payment_url || data?.payment_url || data?.data?.payment_url;
+  const paymentCode = paymentObj?.payment_code || paymentObj?.va_number || data?.payment_code || data?.va_number;
+
   return {
-    payment_url: data?.payment_url || data?.data?.payment_url,
-    snap_token: data?.snap_token || data?.data?.snap_token,
+    payment_url: paymentUrl,
+    snap_token: data?.snap_token || paymentObj?.snap_token,
+    payment_code: paymentCode,
+    va_number: paymentCode,
+    payment: paymentObj,
   };
 }
 
@@ -1522,15 +1634,14 @@ export async function fetchScannerCheckIns(eventId: number | string): Promise<an
       const data = await response.json();
       const list = data?.data || data?.check_ins || (Array.isArray(data) ? data : []);
       if (Array.isArray(list)) {
-        const currentUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('metix_user') || '{}') : {};
         return list.map((item: any) => {
           const tkt = item.ticket || {};
           const att = tkt.attendee || {};
           const evt = item.event || tkt.event || {};
           const typeObj = tkt.ticket_type || tkt.ticketType || {};
-          const userObj = item.checked_in_by_user || item.scanner_user || (typeof item.checked_in_by === 'object' ? item.checked_in_by : null) || currentUser;
-          const checkedInUserId = item.checked_in_by_id || (typeof item.checked_in_by === 'object' ? item.checked_in_by?.id : item.checked_in_by) || userObj?.id || null;
-          const checkedInUserEmail = item.checked_in_by_email || item.checked_in_by?.email || userObj?.email || null;
+          const userObj = item.checked_in_by || item.checked_in_by_user || item.scanner_user;
+          const checkedInUserId = item.checked_in_by_id || (typeof userObj === 'object' ? userObj?.id : userObj) || null;
+          const checkedInUserEmail = item.checked_in_by_email || (typeof userObj === 'object' ? userObj?.email : null) || null;
 
           return {
             id: String(item.id || Date.now() + Math.random()),
@@ -2664,7 +2775,7 @@ export interface ReportOrderItem {
   quantity: number;
   total_amount: number;
   payment_method?: string;
-  status: 'paid' | 'completed' | 'pending' | 'cancelled' | 'refunded';
+  status: 'paid' | 'completed' | 'pending' | 'unpaid' | 'waiting_payment' | 'expired' | 'cancelled' | 'canceled' | 'refunded' | string;
   created_at: string;
   tickets?: ReportTicketItem[];
 }

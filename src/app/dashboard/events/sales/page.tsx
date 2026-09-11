@@ -24,6 +24,7 @@ import {
   Search,
   CheckCircle2,
   Clock,
+  XCircle,
   Filter,
   CreditCard,
   Building2,
@@ -730,12 +731,16 @@ export default function EventSalesDetailPage() {
                           {/* 8. Status */}
                           <td className="py-2.5 px-3">
                             {isPaid ? (
-                              <span className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span className="inline-flex items-center gap-1 text-[9px] font-black px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Paid
                               </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                            ) : ord.status === 'pending' || ord.status === 'unpaid' || ord.status === 'waiting_payment' ? (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-black px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
                                 <Clock className="w-2.5 h-2.5 text-amber-600" /> Pending
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-black px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 uppercase">
+                                <XCircle className="w-2.5 h-2.5 text-rose-600" /> {ord.status}
                               </span>
                             )}
                           </td>

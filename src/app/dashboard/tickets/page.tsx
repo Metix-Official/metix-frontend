@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { fetchUserTickets, fetchUserOrders, fetchPublicEvents, ApiTicketDetail, getStoredUser, getTicketPdfUrl, getTicketQrUrl } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
-import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw, Clock, AlertTriangle, CreditCard, Lock, Copy, ChevronDown, ChevronUp, HelpCircle, Check, Building2, Wallet, Store, Zap } from 'lucide-react';
+import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw, Clock, AlertTriangle, CreditCard, Lock, Copy, ChevronDown, ChevronUp, HelpCircle, Check, Building2, Wallet, Store, Zap, User } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 import { getUserRole } from '@/lib/roles';
@@ -54,7 +54,7 @@ export function resolveVenueName(eventObj: any): string {
 
 function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () => void }) {
   const createdAtMs = order.created_at ? new Date(order.created_at).getTime() : Date.now();
-  const expiresAtMs = order.expires_at ? new Date(order.expires_at).getTime() : (createdAtMs + 10 * 60 * 1000);
+  const expiresAtMs = order.expires_at ? new Date(order.expires_at).getTime() : (createdAtMs + 60 * 60 * 1000);
 
   const [timeLeft, setTimeLeft] = useState<number>(() => {
     return Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
@@ -62,6 +62,7 @@ function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () =>
 
   const [isInstructionOpen, setIsInstructionOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
     if (timeLeft <= 0) return;
@@ -79,6 +80,10 @@ function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () =>
   const secs = timeLeft % 60;
   const formattedTimer = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   const isExpired = timeLeft <= 0;
+
+  if (isDismissed) {
+    return null;
+  }
 
   const orderNum = order.order_number || (order.id ? `#MTX-${order.id}` : '#MTX-ORDER');
   const totalPrice = Number(order.total_amount || order.grand_total || order.total_price || 0);
@@ -114,24 +119,36 @@ function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () =>
         : 'bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 text-white border-blue-600/40 shadow-xl shadow-blue-950/10'
     }`}>
       {/* Top Banner Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3 border-white/10">
+      <div className={`flex flex-wrap items-center justify-between gap-3 border-b pb-3 ${isExpired ? 'border-rose-200' : 'border-white/10'}`}>
         <div className="flex items-center gap-2">
           <div className={`w-3 h-3 rounded-full ${isExpired ? 'bg-rose-500' : 'bg-amber-400 animate-pulse'}`} />
           <span className={`text-xs font-black uppercase tracking-wider ${isExpired ? 'text-rose-700 font-extrabold' : 'text-amber-300'}`}>
-            {isExpired ? 'Pesanan Dibatalkan (Expired 10 Menit)' : '⏱️ Menunggu Pembayaran'}
+            {isExpired ? 'Pesanan Dibatalkan (DOKU Expiry 60 Menit)' : '⏱️ Menunggu Pembayaran (DOKU 60 Menit)'}
           </span>
         </div>
 
-        {!isExpired ? (
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-400 text-slate-950 text-xs font-mono font-black tracking-wider shadow-md">
-            <Clock className="w-4 h-4 text-slate-950 animate-pulse" />
-            <span>Hitung Mundur: {formattedTimer} Menit</span>
-          </div>
-        ) : (
-          <span className="text-[10px] font-extrabold px-3 py-1 rounded-full bg-rose-200/80 text-rose-800 border border-rose-300 uppercase">
-            Batas Waktu 10 Menit Habis — Status: Cancelled
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {!isExpired ? (
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-400 text-slate-950 text-xs font-mono font-black tracking-wider shadow-md">
+              <Clock className="w-4 h-4 text-slate-950 animate-pulse" />
+              <span>Hitung Mundur: {formattedTimer} Menit</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-extrabold px-3 py-1 rounded-full bg-rose-200/80 text-rose-800 border border-rose-300 uppercase">
+                Batas Waktu 60 Menit DOKU Habis
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsDismissed(true)}
+                title="Tutup Notifikasi Pesanan Expired"
+                className="p-1 rounded-full bg-rose-200/80 hover:bg-rose-300 text-rose-800 transition-colors cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Main Order & Payment Info */}
@@ -154,8 +171,8 @@ function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () =>
 
           <p className={`text-xs font-medium leading-relaxed ${isExpired ? 'text-slate-600' : 'text-slate-300'}`}>
             {isExpired
-              ? 'Waktu pembayaran 10 menit telah berakhir. Status pesanan otomatis dibatalkan.'
-              : 'Silakan transfer tagihan sebesar Rp ' + totalPrice.toLocaleString('id-ID') + ' ke nomor pembayaran di bawah ini sebelum batas 10 menit berakhir.'}
+              ? 'Waktu batas pembayaran DOKU (60 menit) telah berakhir. Status pesanan otomatis dibatalkan.'
+              : 'Silakan transfer tagihan sebesar Rp ' + totalPrice.toLocaleString('id-ID') + ' ke nomor pembayaran di bawah ini sebelum batas 60 menit berakhir.'}
           </p>
         </div>
 
@@ -416,18 +433,20 @@ export default function TicketsPage() {
       const eventTitle = ticket.event?.title || '-';
       const venue = resolveVenueName(ticket.event);
       const ticketType = ticket.ticket_type?.name || '-';
-      const buyerName = ticket.order?.buyer_name || '-';
+      const buyerName = ticket.holder_name || (ticket.attendee as any)?.full_name || ticket.order?.buyer_name || (ticket as any).user?.name || getStoredUser()?.name || 'Pelanggan Metix';
       const ticketCode = ticket.ticket_code || '-';
 
       let dateStr = '-';
-      if (ticket.event?.event_start_at) {
+      const dateCandidate = ticket.event?.start_at || ticket.event?.event_start_at || (ticket.event as any)?.date;
+      if (dateCandidate) {
         try {
-          dateStr = new Date(ticket.event.event_start_at).toLocaleDateString('id-ID', {
+          const d = new Date(dateCandidate);
+          dateStr = d.toLocaleDateString('id-ID', {
             weekday: 'long',
             day: '2-digit',
             month: 'long',
             year: 'numeric',
-          });
+          }) + `, ${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`;
         } catch { }
       }
 
@@ -716,12 +735,35 @@ export default function TicketsPage() {
           </div>
         </div>
 
-        {/* Pending Orders 10-Minute Countdown Section */}
+        {/* Pending Orders 60-Minute DOKU Countdown Section */}
         {userOrders.filter((ord: any) => {
           const s = (ord.status || ord.payment_status || 'PENDING').toUpperCase();
           return s === 'PENDING' || s === 'UNPAID' || s === 'WAITING_PAYMENT' || s === 'DRAFT';
         }).length > 0 && (
           <div className="space-y-4">
+            <div className="flex items-center justify-between px-2">
+              <span className="text-xs font-black uppercase text-slate-500 tracking-wider">
+                Riwayat Pesanan Menunggu Pembayaran (DOKU)
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setUserOrders((prev) =>
+                    prev.filter((ord: any) => {
+                      const createdAtMs = ord.created_at ? new Date(ord.created_at).getTime() : Date.now();
+                      const expiresAtMs = ord.expires_at ? new Date(ord.expires_at).getTime() : (createdAtMs + 60 * 60 * 1000);
+                      return expiresAtMs > Date.now();
+                    })
+                  );
+                  toast.success('Kartu pesanan expired berhasil dibersihkan!');
+                }}
+                className="text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-xl border border-rose-200 transition-all cursor-pointer flex items-center gap-1"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                <span>Bersihkan Riwayat Expired</span>
+              </button>
+            </div>
+
             {userOrders
               .filter((ord: any) => {
                 const s = (ord.status || ord.payment_status || 'PENDING').toUpperCase();
@@ -881,6 +923,12 @@ export default function TicketsPage() {
                     {/* Middle Card Details */}
                     <div className="p-5 space-y-3 bg-white">
                       <div className="space-y-2 text-xs text-slate-600 font-medium">
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-blue-600 shrink-0" />
+                          <span className="font-extrabold text-slate-900 truncate">
+                            {item.holder_name || item.attendee?.full_name || item.order?.buyer_name || (item as any).user?.name || getStoredUser()?.name || 'Pelanggan Metix'}
+                          </span>
+                        </div>
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
                           <span>{dateStr}</span>

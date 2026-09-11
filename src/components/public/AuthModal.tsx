@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, ArrowLeft, UserCheck, Eye, EyeOff, Loader2, AlertCircle, Ticket, Building2, Sparkles } from 'lucide-react';
+import { X, ArrowLeft, UserCheck, Eye, EyeOff, Loader2, AlertCircle, Ticket, Building2, Sparkles, Mail, Lock } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   Select,
@@ -10,8 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { loginUser, registerUser, UserProfile, getStoredUser } from '@/lib/api';
+import { loginUser, registerUser, requestOtpApi, loginOtpApi, registerOtpApi, UserProfile, getStoredUser } from '@/lib/api';
 import { getDefaultRoleDashboard } from '@/lib/roles';
+import { OtpModal } from './OtpModal';
 import Link from 'next/link';
 
 interface AuthModalProps {
@@ -31,11 +32,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const router = useRouter();
 
   // Login Form API State
+  const [loginMethod, setLoginMethod] = useState<'password' | 'otp'>('password');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+
+  // OTP Modal State
+  const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
+  const [otpTargetEmail, setOtpTargetEmail] = useState('');
+  const [otpPurpose, setOtpPurpose] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
 
   // Registration Form State based on User Schema
   const [name, setName] = useState('');
@@ -58,19 +65,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // Synchronize mode whenever initialMode or isOpen changes
   useEffect(() => {
     if (isOpen) {
-      setMode(initialMode);
+      setMode(initialMode === 'register' ? 'register' : 'login');
       setLoginError(null);
       setRegisterError(null);
       setAgreeTerms(false);
       setAgreeDataProcessing(false);
       setAgreeMarketing(false);
+      setIsOtpModalOpen(false);
     }
   }, [isOpen, initialMode]);
 
-  if (!isOpen) return null;
+  if (!isOpen && !isOtpModalOpen) return null;
 
   const handleAuthCompletion = (userObj?: UserProfile | null) => {
     onClose();
+    setIsOtpModalOpen(false);
     if (typeof window !== 'undefined') {
       const pendingRedirect = sessionStorage.getItem('metix_pending_redirect');
       if (pendingRedirect) {
@@ -85,7 +94,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onSuccess();
     } else if (typeof window !== 'undefined') {
       const pathname = window.location.pathname;
-      // Only redirect to role dashboard if not currently completing checkout on an event page
       if (!pathname.includes('/events')) {
         const user = userObj || getStoredUser();
         const targetDashboard = getDefaultRoleDashboard(user);
@@ -98,6 +106,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     e.preventDefault();
     setLoginError(null);
     setIsSubmittingLogin(true);
+
+    if (loginMethod === 'otp') {
+      try {
+        await requestOtpApi({ email: loginEmail, purpose: 'LOGIN' });
+        setOtpTargetEmail(loginEmail);
+        setOtpPurpose('LOGIN');
+        setIsOtpModalOpen(true);
+      } catch (err: any) {
+        setLoginError(err.message || 'Gagal mengirimkan kode OTP login.');
+      } finally {
+        setIsSubmittingLogin(false);
+      }
+      return;
+    }
 
     try {
       const res = await loginUser({
@@ -112,37 +134,68 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleApiRegisterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setRegisterError(null);
-    setIsSubmittingRegister(true);
-
+  const getFormattedBirthDate = () => {
     const monthNames: Record<string, string> = {
       Januari: '01', Februari: '02', Maret: '03', April: '04', Mei: '05', Juni: '06',
       Juli: '07', Agustus: '08', September: '09', Oktober: '10', November: '11', Desember: '12'
     };
     const monthNum = monthNames[birthMonth] || '01';
     const dayPadded = birthDay.padStart(2, '0');
-    const formattedBirthDate = `${birthYear}-${monthNum}-${dayPadded}`;
+    return `${birthYear}-${monthNum}-${dayPadded}`;
+  };
 
-    const passToUse = password || 'password123';
+  const handleApiRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegisterError(null);
+
+    if (!password || password.length < 8) {
+      setRegisterError('Kata sandi wajib diisi minimal 8 karakter.');
+      return;
+    }
+
+    setIsSubmittingRegister(true);
+
     try {
-      await registerUser({
-        name,
-        email,
-        password: passToUse,
-        password_confirmation: passToUse,
-        role: registerRole,
-        phone,
-        gender: gender === 'male' ? 'Laki-Laki' : 'Perempuan',
-        birth_date: formattedBirthDate,
-      });
-      handleAuthCompletion();
+      // Request OTP for registration
+      await requestOtpApi({ email, purpose: 'REGISTER' });
+      setOtpTargetEmail(email);
+      setOtpPurpose('REGISTER');
+      setIsOtpModalOpen(true);
     } catch (err: any) {
-      setRegisterError(err.message || 'Pendaftaran akun gagal. Silakan periksa data Anda.');
+      setRegisterError(err.message || 'Gagal mengirim kode OTP registrasi.');
     } finally {
       setIsSubmittingRegister(false);
     }
+  };
+
+  const handleVerifyOtpModal = async (otpCode: string) => {
+    if (otpPurpose === 'LOGIN') {
+      const res = await loginOtpApi({
+        email: otpTargetEmail,
+        otp: otpCode,
+      });
+      handleAuthCompletion(res.user);
+    } else {
+      const res = await registerOtpApi({
+        name,
+        email: otpTargetEmail,
+        otp: otpCode,
+        password,
+        password_confirmation: password,
+        role: registerRole,
+        phone,
+        gender: gender === 'male' ? 'Laki-Laki' : 'Perempuan',
+        birth_date: getFormattedBirthDate(),
+      });
+      handleAuthCompletion(res.user);
+    }
+  };
+
+  const handleResendOtpModal = async () => {
+    await requestOtpApi({
+      email: otpTargetEmail,
+      purpose: otpPurpose,
+    });
   };
 
   // Automatic Guest Login with guest@gmail.com / password
@@ -219,8 +272,39 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   Masuk ke Akun Anda
                 </h3>
                 <p className="text-xs text-slate-500 font-medium">
-                  Selamat datang kembali! Silakan masukkan email & password Anda.
+                  Selamat datang kembali! Silakan masuk dengan Password atau OTP Email.
                 </p>
+              </div>
+
+              {/* Login Method Segmented Control */}
+              <div className="relative p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-inner grid grid-cols-2 gap-1 overflow-hidden">
+                <div
+                  className={`absolute top-1 bottom-1 w-[calc(50%-0.375rem)] rounded-xl bg-white shadow-md shadow-slate-900/10 border border-blue-600/30 transition-all duration-300 ease-out ${
+                    loginMethod === 'password' ? 'left-1' : 'left-[calc(50%+0.125rem)]'
+                  }`}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setLoginMethod('password')}
+                  className={`relative z-10 py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                    loginMethod === 'password' ? 'text-blue-700' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Password</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLoginMethod('otp')}
+                  className={`relative z-10 py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                    loginMethod === 'otp' ? 'text-blue-700' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>OTP Email</span>
+                </button>
               </div>
 
               {/* Login Error Notification */}
@@ -247,30 +331,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   />
                 </div>
 
-                <div className="space-y-1.5 text-left">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-800">
-                      Kata Sandi
-                    </label>
+                {loginMethod === 'password' && (
+                  <div className="space-y-1.5 text-left">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800">
+                        Kata Sandi
+                      </label>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showLoginPassword ? 'text' : 'password'}
+                        required
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        placeholder="Masukkan kata sandi"
+                        className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
-                  <div className="relative">
-                    <input
-                      type={showLoginPassword ? 'text' : 'password'}
-                      required
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      placeholder="Masukkan kata sandi"
-                      className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowLoginPassword(!showLoginPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
-                      {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
+                )}
 
                 <div className="pt-2 space-y-2">
                   <button
@@ -280,8 +366,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   >
                     {isSubmittingLogin ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> Memproses Login...
+                        <Loader2 className="w-4 h-4 animate-spin" /> Memproses...
                       </>
+                    ) : loginMethod === 'otp' ? (
+                      'Kirim Kode OTP Login'
                     ) : (
                       'Masuk ke Akun'
                     )}
@@ -422,7 +510,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     Jenis Kelamin
                   </label>
                   <div className="relative p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-inner grid grid-cols-2 gap-1 overflow-hidden">
-                    {/* Animated Sliding Background Indicator */}
                     <div
                       className={`absolute top-1 bottom-1 w-[calc(50%-0.375rem)] rounded-xl bg-white shadow-md shadow-slate-900/10 border border-blue-600/30 transition-all duration-300 ease-out ${
                         gender === 'male' ? 'left-1' : 'left-[calc(50%+0.125rem)]'
@@ -522,17 +609,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   />
                 </div>
 
-                {/* Kata Sandi */}
+                {/* Kata Sandi - User Custom Password Required */}
                 <div className="space-y-1.5 text-left">
                   <label className="text-xs font-bold text-slate-800">
-                    Kata Sandi (Opsional, Default: password123)
+                    Buat Kata Sandi (Wajib)
                   </label>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
+                      required
+                      minLength={8}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Masukkan kata sandi (Minimal 6 karakter)"
+                      placeholder="Buat kata sandi akun Anda (Minimal 8 karakter)"
                       className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
                     />
                     <button
@@ -611,10 +700,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   >
                     {isSubmittingRegister ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> Mendaftarkan Akun...
+                        <Loader2 className="w-4 h-4 animate-spin" /> Mengirimkan OTP...
                       </>
                     ) : (
-                      'Simpan & Daftar Sekarang'
+                      'Kirim Kode OTP Registrasi'
                     )}
                   </button>
                 </div>
@@ -646,6 +735,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
       </div>
+
+      {/* Render OTP Popup Modal */}
+      <OtpModal
+        isOpen={isOtpModalOpen}
+        onClose={() => setIsOtpModalOpen(false)}
+        onBack={() => setIsOtpModalOpen(false)}
+        email={otpTargetEmail}
+        onVerify={handleVerifyOtpModal}
+        onResend={handleResendOtpModal}
+        title="Masukkan Kode Verifikasi"
+        submitButtonText={otpPurpose === 'REGISTER' ? 'Verifikasi & Buat Akun' : 'Verifikasi & Masuk'}
+      />
     </div>
   );
 };

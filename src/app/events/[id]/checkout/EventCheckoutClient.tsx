@@ -27,6 +27,7 @@ import {
   Loader2,
   Check,
   ChevronRight,
+  ChevronDown,
   Download,
   ExternalLink,
   Copy,
@@ -43,6 +44,7 @@ import {
   getStoredUser,
   getStoredToken,
   fetchUserProfile,
+  API_BASE_URL,
   ApiEvent,
   ApiTicketType,
 } from '@/lib/api';
@@ -116,6 +118,7 @@ export default function EventCheckoutClient() {
 
   // Payment Category State
   const [selectedPaymentCategory, setSelectedPaymentCategory] = useState<string>('QRIS');
+  const [activeCategoryTab, setActiveCategoryTab] = useState<string>('QRIS');
 
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -465,15 +468,38 @@ export default function EventCheckoutClient() {
         reservation_id: reservationId,
         promo_code: isUsePromoChecked && appliedPromo ? appliedPromo.code : undefined,
         payment_category: selectedPaymentCategory,
-      });
+        nik: buyerNik,
+        address: buyerAddress,
+      } as any);
+
+      // Save to localStorage immediately
+      if (typeof window !== 'undefined') {
+        const storedUser = getStoredUser();
+        if (storedUser) {
+          const updatedUser = {
+            ...storedUser,
+            nik: buyerNik || storedUser.nik,
+            address: buyerAddress || storedUser.address,
+            phone: buyerPhone || storedUser.phone,
+          };
+          localStorage.setItem('metix_user', JSON.stringify(updatedUser));
+        }
+      }
 
       try {
-        const paymentRes = await initiateOrderPayment(orderData.id);
+        const paymentRes = await initiateOrderPayment(orderData.id, {
+          payment_method: selectedPaymentCategory,
+        });
         if (paymentRes.payment_url) {
           orderData.payment_url = paymentRes.payment_url;
+          if (typeof window !== 'undefined') {
+            window.location.href = paymentRes.payment_url;
+            return;
+          }
         }
-      } catch (e) {
-        console.warn('Payment init info:', e);
+      } catch (e: any) {
+        console.warn('Payment init error:', e);
+        orderData.payment_error = e?.message || 'Gagal membuat URL pembayaran DOKU.';
       }
 
       setCompletedOrder(orderData);
@@ -1142,45 +1168,273 @@ export default function EventCheckoutClient() {
                 );
               })()}
 
-              {/* Other Payment Categories Selector */}
-              <div className="pt-2 space-y-2">
+              {/* Other Payment Categories Selector with Full Bank Sub-Options */}
+              <div className="pt-2 space-y-3">
                 <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block">
-                  Atau Metode Pembayaran Lainnya
+                  Atau Pilih Bank / Metode Pembayaran Lainnya
                 </span>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {[
-                    { id: 'VA', label: 'Virtual Account (BCA, Mandiri, BNI, BRI, Permata, BSI)', feeText: '5% + Rp 4.500', icon: Building2 },
-                    { id: 'EWALLET', label: 'E-Wallet (GoPay, OVO, ShopeePay, DANA, LinkAja)', feeText: '9.0%', icon: Wallet },
-                    { id: 'CREDIT_CARD', label: 'Kartu Kredit / Debit (Visa, Mastercard, JCB)', feeText: '7,8% + Rp 2.000', icon: CreditCard },
-                    { id: 'ALFAMART', label: 'Gerai Retail (Alfamart / Indomaret)', feeText: '5% + Rp 6.500', icon: Store },
-                    { id: 'PAYLATER', label: 'Paylater (Akulaku / Kredivo / Indodana)', feeText: '7.5%', icon: Zap },
-                  ].map((cat) => {
-                    const IconComp = cat.icon;
-                    const isSelected = selectedPaymentCategory === cat.id;
-
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setSelectedPaymentCategory(cat.id)}
-                        className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2.5 ${isSelected
-                          ? 'border-blue-600 bg-blue-50 text-blue-900 font-extrabold shadow-xs ring-1 ring-blue-600/30'
-                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                          }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                            <IconComp className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <span className="font-extrabold text-xs text-slate-900 block">{cat.label}</span>
-                            <span className="text-[10px] text-slate-400 block">{cat.feeText}</span>
-                          </div>
+                <div className="space-y-2.5">
+                  {/* 1. VIRTUAL ACCOUNT / TRANSFER BANK (ALL BANKS) */}
+                  <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveCategoryTab('VA');
+                        if (!selectedPaymentCategory.startsWith('VIRTUAL_ACCOUNT_')) {
+                          setSelectedPaymentCategory('VIRTUAL_ACCOUNT_BCA');
+                        }
+                      }}
+                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                        selectedPaymentCategory.startsWith('VIRTUAL_ACCOUNT_') || activeCategoryTab === 'VA'
+                          ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950'
+                          : 'hover:bg-slate-50 text-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedPaymentCategory.startsWith('VIRTUAL_ACCOUNT_') ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
+                          <Building2 className="w-4.5 h-4.5" />
                         </div>
-                      </button>
-                    );
-                  })}
+                        <div className="min-w-0">
+                          <span className="font-extrabold text-xs text-slate-900 block">Virtual Account / Transfer Bank</span>
+                          <span className="text-[10px] text-slate-500 font-bold block truncate">BCA, Mandiri, BNI, BRI, BTN, Permata, BSI, CIMB, Danamon, Maybank, Neo, Sinarmas</span>
+                        </div>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 transition-transform shrink-0 ${selectedPaymentCategory.startsWith('VIRTUAL_ACCOUNT_') ? 'rotate-180 text-blue-600' : 'text-slate-400'}`} />
+                    </button>
+
+                    {(selectedPaymentCategory.startsWith('VIRTUAL_ACCOUNT_') || activeCategoryTab === 'VA') && (
+                      <div className="p-3 bg-slate-50/90 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-3 gap-2 animate-in fade-in-0">
+                        {[
+                          { id: 'VIRTUAL_ACCOUNT_BCA', name: 'BCA VA' },
+                          { id: 'VIRTUAL_ACCOUNT_MANDIRI', name: 'Mandiri VA' },
+                          { id: 'VIRTUAL_ACCOUNT_BNI', name: 'BNI VA' },
+                          { id: 'VIRTUAL_ACCOUNT_BRI', name: 'BRI VA' },
+                          { id: 'VIRTUAL_ACCOUNT_BTN', name: 'BTN VA' },
+                          { id: 'VIRTUAL_ACCOUNT_PERMATA', name: 'Permata VA' },
+                          { id: 'VIRTUAL_ACCOUNT_BSI', name: 'BSI VA' },
+                          { id: 'VIRTUAL_ACCOUNT_CIMB', name: 'CIMB VA' },
+                          { id: 'VIRTUAL_ACCOUNT_DANAMON', name: 'Danamon VA' },
+                          { id: 'VIRTUAL_ACCOUNT_MAYBANK', name: 'Maybank VA' },
+                          { id: 'VIRTUAL_ACCOUNT_SINARMAS', name: 'Sinarmas VA' },
+                          { id: 'VIRTUAL_ACCOUNT_BNC', name: 'BNC Neo VA' },
+                        ].map((bank) => (
+                          <button
+                            key={bank.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPaymentCategory(bank.id);
+                              setActiveCategoryTab('VA');
+                            }}
+                            className={`p-2.5 rounded-xl border text-xs text-left font-extrabold transition-all cursor-pointer flex items-center justify-between gap-1 ${
+                              selectedPaymentCategory === bank.id
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-600/30'
+                                : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
+                            }`}
+                          >
+                            <span className="truncate">{bank.name}</span>
+                            {selectedPaymentCategory === bank.id && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. E-WALLET */}
+                  <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveCategoryTab('EWALLET');
+                        if (!selectedPaymentCategory.startsWith('EMONEY_')) {
+                          setSelectedPaymentCategory('EMONEY_OVO');
+                        }
+                      }}
+                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                        selectedPaymentCategory.startsWith('EMONEY_') || activeCategoryTab === 'EWALLET'
+                          ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950'
+                          : 'hover:bg-slate-50 text-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedPaymentCategory.startsWith('EMONEY_') ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
+                          <Wallet className="w-4.5 h-4.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-extrabold text-xs text-slate-900 block">E-Wallet & M-Banking Instant</span>
+                          <span className="text-[10px] text-slate-500 font-bold block truncate">GoPay, OVO, ShopeePay, DANA, LinkAja</span>
+                        </div>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 transition-transform shrink-0 ${selectedPaymentCategory.startsWith('EMONEY_') ? 'rotate-180 text-blue-600' : 'text-slate-400'}`} />
+                    </button>
+
+                    {(selectedPaymentCategory.startsWith('EMONEY_') || activeCategoryTab === 'EWALLET') && (
+                      <div className="p-3 bg-slate-50/90 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-3 gap-2 animate-in fade-in-0">
+                        {[
+                          { id: 'EMONEY_OVO', name: 'OVO' },
+                          { id: 'EMONEY_DANA', name: 'DANA' },
+                          { id: 'EMONEY_SHOPEEPAY', name: 'ShopeePay' },
+                          { id: 'EMONEY_GOPAY', name: 'GoPay' },
+                          { id: 'EMONEY_LINKAJA', name: 'LinkAja' },
+                        ].map((wallet) => (
+                          <button
+                            key={wallet.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPaymentCategory(wallet.id);
+                              setActiveCategoryTab('EWALLET');
+                            }}
+                            className={`p-2.5 rounded-xl border text-xs text-left font-extrabold transition-all cursor-pointer flex items-center justify-between gap-1 ${
+                              selectedPaymentCategory === wallet.id
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-600/30'
+                                : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
+                            }`}
+                          >
+                            <span className="truncate">{wallet.name}</span>
+                            {selectedPaymentCategory === wallet.id && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. GERAI RETAIL */}
+                  <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveCategoryTab('RETAIL');
+                        if (selectedPaymentCategory !== 'ALFAMART' && selectedPaymentCategory !== 'INDOMARET') {
+                          setSelectedPaymentCategory('ALFAMART');
+                        }
+                      }}
+                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                        selectedPaymentCategory === 'ALFAMART' || selectedPaymentCategory === 'INDOMARET' || activeCategoryTab === 'RETAIL'
+                          ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950'
+                          : 'hover:bg-slate-50 text-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedPaymentCategory === 'ALFAMART' || selectedPaymentCategory === 'INDOMARET' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
+                          <Store className="w-4.5 h-4.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-extrabold text-xs text-slate-900 block">Gerai Retail Outlets</span>
+                          <span className="text-[10px] text-slate-500 font-bold block truncate">Alfamart, Indomaret</span>
+                        </div>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 transition-transform shrink-0 ${selectedPaymentCategory === 'ALFAMART' || selectedPaymentCategory === 'INDOMARET' ? 'rotate-180 text-blue-600' : 'text-slate-400'}`} />
+                    </button>
+
+                    {(selectedPaymentCategory === 'ALFAMART' || selectedPaymentCategory === 'INDOMARET' || activeCategoryTab === 'RETAIL') && (
+                      <div className="p-3 bg-slate-50/90 border-t border-slate-200 grid grid-cols-2 gap-2 animate-in fade-in-0">
+                        {[
+                          { id: 'ALFAMART', name: 'Alfamart / Alfamidi' },
+                          { id: 'INDOMARET', name: 'Indomaret' },
+                        ].map((store) => (
+                          <button
+                            key={store.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPaymentCategory(store.id);
+                              setActiveCategoryTab('RETAIL');
+                            }}
+                            className={`p-2.5 rounded-xl border text-xs text-left font-extrabold transition-all cursor-pointer flex items-center justify-between gap-1 ${
+                              selectedPaymentCategory === store.id
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-600/30'
+                                : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
+                            }`}
+                          >
+                            <span className="truncate">{store.name}</span>
+                            {selectedPaymentCategory === store.id && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 4. PAYLATER */}
+                  <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveCategoryTab('PAYLATER');
+                        if (selectedPaymentCategory !== 'KREDIVO' && selectedPaymentCategory !== 'AKULAKU' && selectedPaymentCategory !== 'INDODANA') {
+                          setSelectedPaymentCategory('KREDIVO');
+                        }
+                      }}
+                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                        selectedPaymentCategory === 'KREDIVO' || selectedPaymentCategory === 'AKULAKU' || selectedPaymentCategory === 'INDODANA' || activeCategoryTab === 'PAYLATER'
+                          ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950'
+                          : 'hover:bg-slate-50 text-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedPaymentCategory === 'KREDIVO' || selectedPaymentCategory === 'AKULAKU' || selectedPaymentCategory === 'INDODANA' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
+                          <Zap className="w-4.5 h-4.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-extrabold text-xs text-slate-900 block">Paylater Cicilan</span>
+                          <span className="text-[10px] text-slate-500 font-bold block truncate">Kredivo, Akulaku, Indodana</span>
+                        </div>
+                      </div>
+                      <ChevronDown className={`w-4 h-4 transition-transform shrink-0 ${selectedPaymentCategory === 'KREDIVO' || selectedPaymentCategory === 'AKULAKU' || selectedPaymentCategory === 'INDODANA' ? 'rotate-180 text-blue-600' : 'text-slate-400'}`} />
+                    </button>
+
+                    {(selectedPaymentCategory === 'KREDIVO' || selectedPaymentCategory === 'AKULAKU' || selectedPaymentCategory === 'INDODANA' || activeCategoryTab === 'PAYLATER') && (
+                      <div className="p-3 bg-slate-50/90 border-t border-slate-200 grid grid-cols-3 gap-2 animate-in fade-in-0">
+                        {[
+                          { id: 'KREDIVO', name: 'Kredivo' },
+                          { id: 'AKULAKU', name: 'Akulaku' },
+                          { id: 'INDODANA', name: 'Indodana' },
+                        ].map((pl) => (
+                          <button
+                            key={pl.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedPaymentCategory(pl.id);
+                              setActiveCategoryTab('PAYLATER');
+                            }}
+                            className={`p-2.5 rounded-xl border text-xs text-left font-extrabold transition-all cursor-pointer flex items-center justify-between gap-1 ${
+                              selectedPaymentCategory === pl.id
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-600/30'
+                                : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
+                            }`}
+                          >
+                            <span className="truncate">{pl.name}</span>
+                            {selectedPaymentCategory === pl.id && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 5. KARTU KREDIT / DEBIT */}
+                  <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPaymentCategory('CREDIT_CARD');
+                        setActiveCategoryTab('CREDIT_CARD');
+                      }}
+                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                        selectedPaymentCategory === 'CREDIT_CARD'
+                          ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950 shadow-xs ring-1 ring-blue-600/30'
+                          : 'hover:bg-slate-50 text-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedPaymentCategory === 'CREDIT_CARD' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
+                          <CreditCard className="w-4.5 h-4.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-extrabold text-xs text-slate-900 block">Kartu Kredit / Debit Visa & Mastercard</span>
+                          <span className="text-[10px] text-slate-500 font-bold block">Pembayaran Instan Kartu Kredit</span>
+                        </div>
+                      </div>
+                      {selectedPaymentCategory === 'CREDIT_CARD' && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1390,15 +1644,61 @@ export default function EventCheckoutClient() {
                     </span>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-2 text-xs text-amber-900 font-medium">
-                    <div className="flex items-center gap-2 font-bold text-amber-800">
-                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>Tiket Belum Diterbitkan</span>
+                  {/* Virtual Account / Payment Code Display */}
+                  {completedOrder.va_number || completedOrder.payment_code ? (
+                    <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-900 to-indigo-900 text-white space-y-3 shadow-md border border-blue-800">
+                      <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                        <span className="text-[11px] text-blue-200 font-bold uppercase tracking-wider">
+                          VIRTUAL ACCOUNT ({selectedPaymentCategory.replace('_', ' ')})
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-mono font-bold">
+                          Pending
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 text-center py-1">
+                        <span className="text-[10px] text-slate-300 font-medium block">Nomor Virtual Account:</span>
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-xl font-black font-mono tracking-wider text-amber-300">
+                            {completedOrder.va_number || completedOrder.payment_code}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(completedOrder.va_number || completedOrder.payment_code);
+                              alert('Nomor Virtual Account berhasil disalin ke clipboard!');
+                            }}
+                            className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                          >
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            <span>Salin</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-[11px] leading-relaxed">
-                      Sesuai prosedur, E-Tiket dan QR Code baru akan dibuat & dikirim ke email Anda <strong>setelah pembayaran lunas (PAID)</strong>.
-                    </p>
-                  </div>
+                  ) : (
+                    <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-2 text-xs text-amber-900 font-medium">
+                      <div className="flex items-center gap-2 font-bold text-amber-800">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>Tiket Belum Diterbitkan</span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed">
+                        Sesuai prosedur, E-Tiket dan QR Code baru akan dibuat & dikirim ke email Anda <strong>setelah pembayaran lunas (PAID)</strong>.
+                      </p>
+                    </div>
+                  )}
+
+                  {completedOrder.payment_error && (
+                    <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium space-y-1 text-left">
+                      <div className="flex items-center gap-1.5 font-bold text-rose-900">
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>Konfigurasi Payment Gateway</span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed text-rose-800">
+                        {completedOrder.payment_error}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="pt-1 space-y-1 text-center">
                     <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest block">TOTAL TAGIHAN</span>
@@ -1413,28 +1713,19 @@ export default function EventCheckoutClient() {
                   {completedOrder.payment_url ? (
                     <a
                       href={completedOrder.payment_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
                       className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg transition-all flex items-center justify-center gap-2"
                     >
                       <CreditCard className="w-4 h-4 text-slate-950" />
-                      <span>Bayar Tagihan Sekarang</span>
+                      <span>Lanjutkan Pembayaran Via DOKU</span>
                     </a>
-                  ) : (
-                    <Link
-                      href="/dashboard/tickets"
-                      className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg transition-all flex items-center justify-center gap-2"
-                    >
-                      <Ticket className="w-4 h-4 text-slate-950" />
-                      <span>Cek Pesanan Saya</span>
-                    </Link>
-                  )}
+                  ) : null}
 
                   <Link
-                    href="/"
-                    className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-extrabold text-xs transition-all text-center"
+                    href="/dashboard/tickets"
+                    className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-lg transition-all flex items-center justify-center gap-2 text-center"
                   >
-                    Ke Beranda
+                    <Ticket className="w-4 h-4 text-slate-950" />
+                    <span>Tiket Saya</span>
                   </Link>
                 </div>
               </div>

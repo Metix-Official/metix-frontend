@@ -278,12 +278,15 @@ export default function CheckInPage() {
           }
         } else {
           const dynamicEvent: ApiEvent = {
-            id: Number(selectedEvent?.id || 1),
+            id: Number(selectedEvent?.id ? selectedEvent.id + 9999 : 9999),
             title: result.ticket.event_name,
             slug: result.ticket.event_name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
             status: 'PUBLISHED',
           };
-          setEvents((prev) => [dynamicEvent, ...prev]);
+          setEvents((prev) => {
+            if (prev.some((e) => e.title.toLowerCase() === dynamicEvent.title.toLowerCase())) return prev;
+            return [dynamicEvent, ...prev];
+          });
           setSelectedEvent(dynamicEvent);
         }
       }
@@ -429,9 +432,9 @@ export default function CheckInPage() {
                           Tidak ada event dari EO yang tersedia saat ini.
                         </div>
                       ) : (
-                        events.map((ev) => (
+                        events.map((ev, idx) => (
                           <SelectItem
-                            key={`evt_option_${ev.id}`}
+                            key={`evt_option_${ev.id}_${idx}`}
                             value={String(ev.id)}
                             className="py-2.5 pl-8 pr-3 cursor-pointer rounded-lg hover:bg-slate-50 focus:bg-blue-50 focus:text-blue-900 transition-colors my-0.5"
                           >

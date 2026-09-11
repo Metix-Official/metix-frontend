@@ -31,6 +31,7 @@ import {
   Search,
   CheckCircle2,
   Clock,
+  XCircle,
   Filter,
   BarChart3,
   CreditCard,
@@ -815,9 +816,31 @@ export default function ReportsPage() {
                       </td>
 
                       <td className="py-2.5 px-3">
-                        <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Paid
-                        </span>
+                        {(() => {
+                          const status = (ord.status || '').toLowerCase();
+                          const isPaid = status === 'paid' || status === 'completed';
+                          const isPending = status === 'pending' || status === 'unpaid' || status === 'waiting_payment';
+
+                          if (isPaid) {
+                            return (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Paid
+                              </span>
+                            );
+                          }
+                          if (isPending) {
+                            return (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                <Clock className="w-2.5 h-2.5 text-amber-600" /> Pending
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 uppercase">
+                              <XCircle className="w-2.5 h-2.5 text-rose-600" /> {ord.status}
+                            </span>
+                          );
+                        })()}
                       </td>
 
                       <td className="py-2.5 px-3 text-right text-slate-400 font-medium text-[10px] whitespace-nowrap">

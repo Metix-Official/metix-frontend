@@ -1,4 +1,3 @@
-'use me';
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -165,36 +164,257 @@ export default function ReportsPage() {
     [totalGrossRevenue, filteredOrders]
   );
 
-  // Export CSV Function
+  // Helper to escape values for CSV
+  const escapeCsv = (val: any): string => {
+    if (val === null || val === undefined) return '""';
+    const str = String(val).replace(/"/g, '""');
+    return `"${str}"`;
+  };
+
+  // Export CSV Function with Executive Corporate Header
   const handleExportCSV = () => {
     if (filteredOrders.length === 0) {
       toast.error('Tidak ada data laporan untuk di-export');
       return;
     }
 
-    const headers = ['No Order', 'Nama Pembeli', 'Email', 'Event', 'Kategori Tiket', 'Jumlah', 'Total (Rp)', 'Metode Pembayaran', 'Tanggal'];
-    const rows = filteredOrders.map((ord) => [
-      ord.order_number,
-      `"${ord.buyer_name}"`,
-      ord.buyer_email,
-      `"${ord.event_title}"`,
-      `"${ord.ticket_type_name}"`,
-      ord.quantity,
-      ord.total_amount,
-      `"${ord.payment_method}"`,
-      new Date(ord.created_at).toLocaleString('id-ID'),
-    ]);
+    try {
+      const storedUser = user || getStoredUser();
+      const accountName = storedUser?.name || (currentRole === ROLES.OWNER ? 'Super Admin Platform' : 'Event Organizer');
+      const accountEmail = storedUser?.email || '-';
+      const roleLabel = currentRole === ROLES.OWNER ? 'Super Admin Platform (Nasional)' : 'Mitra Event Organizer (EO)';
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Laporan_Penjualan_Metix_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const selectedEventObj = events.find((e) => String(e.id) === selectedEventId);
+      const eventCoverageName =
+        selectedEventId === 'all'
+          ? (currentRole === ROLES.OWNER ? 'Semua Event Platform' : 'Semua Event EO (Akumulasi)')
+          : selectedEventObj?.title || `Event #${selectedEventId}`;
 
-    toast.success('Laporan Penjualan Berhasil Di-export ke Excel/CSV! 📊');
+      const monthsMap: Record<string, string> = {
+        all: 'Semua Bulan (Sepanjang Tahun)',
+        '1': 'Januari',
+        '2': 'Februari',
+        '3': 'Maret',
+        '4': 'April',
+        '5': 'Mei',
+        '6': 'Juni',
+        '7': 'Juli',
+        '8': 'Agustus',
+        '9': 'September',
+        '10': 'Oktober',
+        '11': 'November',
+        '12': 'Desember',
+      };
+      const monthLabel = monthsMap[selectedMonth] || selectedMonth;
+      const periodLabel =
+        selectedMonth === 'all' && selectedYear === 'all'
+          ? 'Seluruh Periode Transaksi'
+          : `${monthLabel} ${selectedYear === 'all' ? '(Semua Tahun)' : selectedYear}`;
+
+      const paymentFilterLabel =
+        selectedPaymentMethod === 'all'
+          ? 'Semua Saluran Pembayaran'
+          : selectedPaymentMethod;
+
+      const now = new Date();
+      const formattedDate = now.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+      const formattedTime = now.toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+      const downloadTimestampStr = `${formattedDate}, ${formattedTime} WIB`;
+
+      const lines: string[] = [];
+
+      // 1. Executive Platform Header Banner
+      lines.push(escapeCsv('METIX ENTERPRISE — OFFICIAL FINANCIAL & SALES ANALYTICS REPORT'));
+      lines.push(escapeCsv('LAPORAN RESMI AUDIT KEUANGAN, OMZET PENJUALAN TIKET & REKAP TRANSAKSI'));
+      lines.push('');
+
+      // 2. Organization & Filter Metadata Block
+      lines.push([escapeCsv('INFORMASI DOKUMEN & ENTITAS'), '', '', ''].join(','));
+      lines.push([
+        escapeCsv('Entitas / Pengguna:'),
+        escapeCsv(accountName),
+        escapeCsv('Waktu Unduh Laporan:'),
+        escapeCsv(downloadTimestampStr),
+      ].join(','));
+      lines.push([
+        escapeCsv('Email Terdaftar:'),
+        escapeCsv(accountEmail),
+        escapeCsv('Zona Waktu Sistem:'),
+        escapeCsv('Asia/Jakarta (WIB)'),
+      ].join(','));
+      lines.push([
+        escapeCsv('Peran Akun:'),
+        escapeCsv(roleLabel),
+        escapeCsv('Periode Laporan:'),
+        escapeCsv(periodLabel),
+      ].join(','));
+      lines.push([
+        escapeCsv('Cakupan Event:'),
+        escapeCsv(eventCoverageName),
+        escapeCsv('Filter Metode Bayar:'),
+        escapeCsv(paymentFilterLabel),
+      ].join(','));
+      lines.push([
+        escapeCsv('Total Data Transaksi:'),
+        escapeCsv(`${filteredOrders.length} Pesanan`),
+        escapeCsv('Kanal Utama:'),
+        escapeCsv(channelStats.primaryChannel),
+      ].join(','));
+      lines.push('');
+
+      // 3. Executive KPI Summary Block
+      lines.push([escapeCsv('RINGKASAN EKSEKUTIF KEUANGAN (EXECUTIVE FINANCIAL SUMMARY)'), '', '', ''].join(','));
+      lines.push([
+        escapeCsv('Total Tiket Terjual:'),
+        escapeCsv(`${totalTicketsSold} Tiket`),
+        escapeCsv('Rata-rata Nilai Order (AOV):'),
+        escapeCsv(`Rp ${averageOrderValue.toLocaleString('id-ID')}`),
+      ].join(','));
+      lines.push([
+        escapeCsv('Total Transaksi:'),
+        escapeCsv(`${filteredOrders.length} Pesanan`),
+        escapeCsv('Total Omzet Bruto:'),
+        escapeCsv(`Rp ${totalGrossRevenue.toLocaleString('id-ID')}`),
+      ].join(','));
+      lines.push('');
+
+      // 4. Tabular Data Header
+      const tableHeaders = [
+        'No.',
+        'No. Order / Invoice',
+        'Nama Pembeli',
+        'Nama Pengunjung (Attendee)',
+        'Email Pembeli',
+        'No. Telepon / WhatsApp',
+        'Nama Event',
+        'Kategori Tiket',
+        'Jumlah Tiket (Qty)',
+        'Subtotal (Rp)',
+        'Metode Pembayaran',
+        'Total Tagihan (Rp)',
+        'Status Transaksi',
+        'Tanggal Transaksi',
+        'Waktu Transaksi (WIB)',
+      ];
+      lines.push(tableHeaders.map(escapeCsv).join(','));
+
+      // 5. Data Rows
+      let rowNumber = 1;
+      filteredOrders.forEach((ord) => {
+        const isPaid =
+          (ord.status || '').toLowerCase() === 'paid' ||
+          (ord.status || '').toLowerCase() === 'completed';
+        const statusText = isPaid ? 'Lunas / Paid' : 'Pending';
+        const dateObj = new Date(ord.created_at);
+        const dateStr = !isNaN(dateObj.getTime())
+          ? dateObj.toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          })
+          : '-';
+        const timeStr = !isNaN(dateObj.getTime())
+          ? dateObj.toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+          : '-';
+
+        lines.push([
+          rowNumber++,
+          escapeCsv(ord.order_number),
+          escapeCsv(ord.buyer_name || '-'),
+          escapeCsv(
+            ord.full_name ||
+            (ord.attendees && ord.attendees.length > 0
+              ? ord.attendees.join(', ')
+              : ord.buyer_name) ||
+            '-'
+          ),
+          escapeCsv(ord.buyer_email || '-'),
+          escapeCsv(ord.buyer_phone || '-'),
+          escapeCsv(ord.event_title || '-'),
+          escapeCsv(ord.ticket_type_name || '-'),
+          ord.quantity || 1,
+          ord.subtotal || ord.total_amount,
+          escapeCsv(ord.payment_method || '-'),
+          ord.total_amount,
+          escapeCsv(statusText),
+          escapeCsv(dateStr),
+          escapeCsv(timeStr),
+        ].join(','));
+      });
+
+      // 6. Grand Total Akumulasi Row
+      lines.push('');
+      lines.push([
+        escapeCsv('TOTAL AKUMULASI'),
+        escapeCsv(''),
+        escapeCsv(''),
+        escapeCsv(''),
+        escapeCsv(''),
+        escapeCsv(''),
+        escapeCsv(''),
+        escapeCsv(''),
+        totalTicketsSold,
+        '',
+        escapeCsv(''),
+        totalGrossRevenue,
+        escapeCsv(`${filteredOrders.length} Pesanan`),
+        escapeCsv(''),
+        escapeCsv(''),
+      ].join(','));
+
+      // 7. Official Legal & Integrity Footnote
+      lines.push('');
+      lines.push(
+        escapeCsv(
+          '*** CATATAN RESMI: Laporan ini diekspor secara otomatis oleh METIX Enterprise Financial Management System dan sah sebagai rekonsiliasi pembukuan dan audit finansial resmi. ***'
+        )
+      );
+      lines.push(
+        escapeCsv(
+          `*** Hak Cipta © ${now.getFullYear()} METIX (PT Metix Indonesia). Seluruh data transaksi dilindungi enkripsi platform. ***`
+        )
+      );
+
+      // 8. Create UTF-8 BOM Blob and Trigger Download
+      const csvString = '\uFEFF' + lines.join('\r\n');
+      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+
+      const eventSlug =
+        selectedEventId === 'all'
+          ? 'Semua_Event'
+          : (selectedEventObj?.title || 'Event')
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '_')
+            .slice(0, 25);
+      const dateFileSlug = now.toISOString().slice(0, 10).replace(/-/g, '');
+      const timeFileSlug = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      const fileName = `METIX_Laporan_Keuangan_${eventSlug}_${dateFileSlug}_${timeFileSlug}.csv`;
+
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Berhasil mengunduh laporan keuangan: ${fileName}`);
+    } catch (err) {
+      console.error('Export CSV error:', err);
+      toast.error('Terjadi kesalahan saat memproses ekspor laporan');
+    }
   };
 
   // Dynamically compute payment channel percentages from real API orders
@@ -262,191 +482,187 @@ export default function ReportsPage() {
       <div className="w-full space-y-6">
 
         {/* Top Banner Header */}
-        <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-800 to-slate-900 text-white p-6 sm:p-8 shadow-xl shadow-blue-700/20 border border-white/20 relative overflow-hidden">
-          <div className="absolute right-0 top-0 w-96 h-96 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="rounded-2xl bg-gradient-to-r from-blue-700 via-indigo-800 to-slate-900 text-white p-4 sm:p-5 shadow-lg shadow-blue-700/15 border border-white/20 relative overflow-hidden">
+          <div className="absolute right-0 top-0 w-80 h-80 bg-white/5 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/15 border border-white/20 text-xs font-black uppercase tracking-wider text-blue-100 backdrop-blur-md">
-                <headerInfo.icon className="w-3.5 h-3.5 text-white" /> {headerInfo.badge}
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-[10px] font-black uppercase tracking-wider text-blue-100 backdrop-blur-md">
+                <headerInfo.icon className="w-3 h-3 text-white" /> {headerInfo.badge}
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight">
+              <h2 className="text-lg sm:text-xl font-black tracking-tight leading-tight">
                 {headerInfo.title}
               </h2>
-              <p className="text-xs text-blue-100 font-medium max-w-2xl">
+              <p className="text-[11px] text-blue-100 font-medium max-w-2xl">
                 {headerInfo.subtitle}
               </p>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-3 shrink-0">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="px-5 py-3 rounded-2xl bg-white/15 hover:bg-white/25 border border-white/20 text-white font-extrabold text-xs flex items-center gap-2 backdrop-blur-sm transition-all cursor-pointer shadow-2xs"
-              >
-                <Printer className="w-4 h-4" /> Cetak Laporan
-              </button>
-
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               <button
                 type="button"
                 onClick={handleExportCSV}
-                className="px-5 py-3 rounded-2xl bg-white hover:bg-blue-50 text-blue-900 font-black text-xs flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-white hover:bg-blue-50 text-blue-900 font-black text-xs flex items-center gap-2 shadow-md shadow-blue-950/20 transition-all active:scale-[0.98] cursor-pointer"
               >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Export Excel / CSV
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Export Excel / CSV</span>
+                <span className="px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-800 text-[10px] font-black">
+                  {filteredOrders.length}
+                </span>
               </button>
             </div>
           </div>
         </div>
 
         {/* 4 Stat Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
 
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
               {currentRole === ROLES.OWNER ? 'Omzet Platform Nasional' : 'Total Omzet Penjualan'}
             </span>
             <div className="flex items-center justify-between">
-              <h4 className="text-2xl font-black text-slate-900">
+              <h4 className="text-xl font-black text-slate-900">
                 Rp {totalGrossRevenue.toLocaleString('id-ID')}
               </h4>
-              <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100">
-                <DollarSign className="w-5 h-5" />
+              <div className="p-2 rounded-xl bg-blue-50 text-blue-700 border border-blue-100">
+                <DollarSign className="w-4 h-4" />
               </div>
             </div>
-            <span className="text-[11px] font-extrabold text-emerald-600 flex items-center gap-1">
-              <TrendingUp className="w-3.5 h-3.5" /> Transaksi Terverifikasi
+            <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1">
+              <TrendingUp className="w-3 h-3" /> Transaksi Terverifikasi
             </span>
           </div>
 
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Tiket Terjual (Pcs)</span>
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Tiket Terjual (Pcs)</span>
             <div className="flex items-center justify-between">
-              <h4 className="text-2xl font-black text-indigo-600">
-                {totalTicketsSold.toLocaleString('id-ID')} <span className="text-xs font-extrabold text-slate-400">Tiket</span>
+              <h4 className="text-xl font-black text-indigo-600">
+                {totalTicketsSold.toLocaleString('id-ID')} <span className="text-[11px] font-extrabold text-slate-400">Tiket</span>
               </h4>
-              <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-100">
-                <Ticket className="w-5 h-5" />
+              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-100">
+                <Ticket className="w-4 h-4" />
               </div>
             </div>
-            <span className="text-[11px] font-extrabold text-indigo-600 flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5" /> Kapasitas Terisi
+            <span className="text-[10px] font-extrabold text-indigo-600 flex items-center gap-1">
+              <Sparkles className="w-3 h-3" /> Kapasitas Terisi
             </span>
           </div>
 
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Rata-Rata Order (AOV)</span>
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Rata-Rata Order (AOV)</span>
             <div className="flex items-center justify-between">
-              <h4 className="text-2xl font-black text-emerald-600">
+              <h4 className="text-xl font-black text-emerald-600">
                 Rp {averageOrderValue.toLocaleString('id-ID')}
               </h4>
-              <div className="p-2.5 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100">
-                <BarChart3 className="w-5 h-5" />
+              <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100">
+                <BarChart3 className="w-4 h-4" />
               </div>
             </div>
-            <span className="text-[11px] font-extrabold text-emerald-600 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Nilai Transaksi Rata-Rata
+            <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> Nilai Rata-Rata
             </span>
           </div>
 
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Metode Pembayaran Utama</span>
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Metode Pembayaran Utama</span>
             <div className="flex items-center justify-between">
-              <h4 className="text-base font-black text-slate-900 truncate">
+              <h4 className="text-sm font-black text-slate-900 truncate">
                 {channelStats.primaryChannel}
               </h4>
-              <div className="p-2.5 rounded-2xl bg-purple-50 text-purple-700 border border-purple-100">
-                <CreditCard className="w-5 h-5" />
+              <div className="p-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-100">
+                <CreditCard className="w-4 h-4" />
               </div>
             </div>
-            <span className="text-[11px] font-extrabold text-purple-600 flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" /> Settlement Instant
+            <span className="text-[10px] font-extrabold text-purple-600 flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" /> Settlement Instant
             </span>
           </div>
 
         </div>
 
         {/* Visual Sales Channel Distribution Progress Bars */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-lg shadow-slate-200/30 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-                <PieChart className="w-5 h-5 text-blue-700" /> Distribusi Saluran Penjualan Tiket
+              <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <PieChart className="w-4 h-4 text-blue-700" /> Distribusi Saluran Penjualan Tiket
               </h3>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-[11px] text-slate-500 font-medium">
                 Komposisi transaksi online Doku Payment Gateway vs Kasir Offline (POS).
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
             {/* Channel 1 */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-extrabold text-slate-700 flex items-center gap-1.5">
-                  <CreditCard className="w-4 h-4 text-blue-600" /> Doku QRIS & VA
+                  <CreditCard className="w-3.5 h-3.5 text-blue-600" /> Doku QRIS & VA
                 </span>
                 <span className="font-black text-blue-700">{channelStats.onlinePct}%</span>
               </div>
-              <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
                 <div className="h-full bg-blue-600 rounded-full transition-all duration-500" style={{ width: `${channelStats.onlinePct}%` }} />
               </div>
-              <span className="text-[11px] text-slate-400 font-medium block">Online Automatic Checkout</span>
+              <span className="text-[10px] text-slate-400 font-medium block">Online Automatic Checkout</span>
             </div>
 
             {/* Channel 2 */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-extrabold text-slate-700 flex items-center gap-1.5">
-                  <DollarSign className="w-4 h-4 text-emerald-600" /> Kasir Offline (POS Tunai)
+                  <DollarSign className="w-3.5 h-3.5 text-emerald-600" /> Kasir Offline (POS Tunai)
                 </span>
                 <span className="font-black text-emerald-700">{channelStats.posPct}%</span>
               </div>
-              <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
                 <div className="h-full bg-emerald-600 rounded-full transition-all duration-500" style={{ width: `${channelStats.posPct}%` }} />
               </div>
-              <span className="text-[11px] text-slate-400 font-medium block">On-the-spot Cash Tendered</span>
+              <span className="text-[10px] text-slate-400 font-medium block">On-the-spot Cash Tendered</span>
             </div>
 
             {/* Channel 3 */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-extrabold text-slate-700 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-purple-600" /> E-Wallet & Lainnya
+                  <Sparkles className="w-3.5 h-3.5 text-purple-600" /> E-Wallet & Lainnya
                 </span>
                 <span className="font-black text-purple-700">{channelStats.otherPct}%</span>
               </div>
-              <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
                 <div className="h-full bg-purple-600 rounded-full transition-all duration-500" style={{ width: `${channelStats.otherPct}%` }} />
               </div>
-              <span className="text-[11px] text-slate-400 font-medium block">Promo & Transfer Bank Direct</span>
+              <span className="text-[10px] text-slate-400 font-medium block">Promo & Transfer Bank Direct</span>
             </div>
           </div>
         </div>
 
         {/* Filter Bar & Search */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-lg shadow-slate-200/30 space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
 
             {/* Search Input */}
             <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cari event EO saya, nama pembeli, email, atau no. order..."
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none transition-all shadow-inner"
+                className="w-full pl-9 pr-3.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none transition-all shadow-inner"
               />
             </div>
 
             {/* Filter Dropdowns */}
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
 
               {/* Event Filter (Published Only) */}
-              <div className="min-w-[200px]">
+              <div className="min-w-[180px]">
                 <Select value={selectedEventId} onValueChange={setSelectedEventId}>
-                  <SelectTrigger className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white">
+                  <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
                     <SelectValue placeholder="Semua Event (Published)" />
                   </SelectTrigger>
                   <SelectContent>
@@ -461,9 +677,9 @@ export default function ReportsPage() {
               </div>
 
               {/* Payment Method / Type Filter */}
-              <div className="min-w-[180px]">
+              <div className="min-w-[160px]">
                 <Select value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
-                  <SelectTrigger className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white">
+                  <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
                     <SelectValue placeholder="Tipe Pembayaran" />
                   </SelectTrigger>
                   <SelectContent>
@@ -487,9 +703,9 @@ export default function ReportsPage() {
               </div>
 
               {/* Month Filter */}
-              <div className="w-32">
+              <div className="w-28">
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white">
+                  <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
                     <SelectValue placeholder="Bulan" />
                   </SelectTrigger>
                   <SelectContent>
@@ -510,9 +726,9 @@ export default function ReportsPage() {
               </div>
 
               {/* Year Filter */}
-              <div className="w-28">
+              <div className="w-24">
                 <Select value={selectedYear} onValueChange={setSelectedYear}>
-                  <SelectTrigger className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white">
+                  <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
                     <SelectValue placeholder="Tahun" />
                   </SelectTrigger>
                   <SelectContent>
@@ -527,41 +743,41 @@ export default function ReportsPage() {
         </div>
 
         {/* Detailed Orders Sales Report Table */}
-        <div className="rounded-3xl bg-white border border-slate-200/90 p-6 shadow-lg shadow-slate-200/30 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-3.5">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
-              <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-700" /> Rincian Transaksi Penjualan ({filteredOrders.length})
+              <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <FileText className="w-4 h-4 text-blue-700" /> Rincian Transaksi Penjualan ({filteredOrders.length})
               </h3>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-[11px] text-slate-500 font-medium">
                 Daftar lengkap transaksi tiket yang terverifikasi pada periode terpilih.
               </p>
             </div>
           </div>
 
           {isLoading ? (
-            <Skeleton className="h-64 w-full rounded-2xl" />
+            <Skeleton className="h-56 w-full rounded-xl" />
           ) : filteredOrders.length > 0 ? (
-            <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+            <div className="overflow-x-auto border border-slate-200 rounded-xl">
               <table className="w-full text-left text-xs text-slate-700 min-w-[700px]">
-                <thead className="bg-slate-50 text-slate-500 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-200">
+                <thead className="bg-slate-50 text-slate-500 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200">
                   <tr>
-                    <th className="py-3.5 px-4">No. Order & Pembeli</th>
-                    <th className="py-3.5 px-4">Event & Kategori</th>
-                    <th className="py-3.5 px-4">Pembayaran</th>
-                    <th className="py-3.5 px-4">Qty</th>
-                    <th className="py-3.5 px-4">Total Nomilal (Rp)</th>
-                    <th className="py-3.5 px-4">Status</th>
-                    <th className="py-3.5 px-4 text-right">Tanggal & Waktu</th>
+                    <th className="py-2.5 px-3">No. Order & Pembeli</th>
+                    <th className="py-2.5 px-3">Event & Kategori</th>
+                    <th className="py-2.5 px-3">Pembayaran</th>
+                    <th className="py-2.5 px-3">Qty</th>
+                    <th className="py-2.5 px-3">Total Nominal (Rp)</th>
+                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3 text-right">Tanggal & Waktu</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredOrders.map((ord) => (
                     <tr key={ord.id} className="hover:bg-slate-50 transition-colors group">
 
-                      <td className="py-3.5 px-4">
+                      <td className="py-2.5 px-3">
                         <div className="flex flex-col">
-                          <span className="font-mono font-black text-slate-900 group-hover:text-blue-700 transition-colors">
+                          <span className="font-mono font-black text-slate-900 group-hover:text-blue-700 transition-colors text-xs">
                             {ord.order_number}
                           </span>
                           <span className="text-[11px] font-bold text-slate-800">
@@ -573,38 +789,38 @@ export default function ReportsPage() {
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4">
+                      <td className="py-2.5 px-3">
                         <div className="flex flex-col">
-                          <span className="font-bold text-slate-900 max-w-[200px] truncate">
+                          <span className="font-bold text-slate-900 max-w-[180px] truncate text-xs">
                             {ord.event_title}
                           </span>
-                          <span className="text-[11px] text-blue-700 font-black">
+                          <span className="text-[10px] text-blue-700 font-black">
                             {ord.ticket_type_name}
                           </span>
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 font-extrabold text-slate-800">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 text-slate-800 border border-slate-200 text-[11px]">
+                      <td className="py-2.5 px-3 font-extrabold text-slate-800">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-[10px]">
                           <CreditCard className="w-3 h-3 text-slate-500" /> {ord.payment_method}
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 font-black text-slate-900">
+                      <td className="py-2.5 px-3 font-black text-slate-900 text-xs">
                         {ord.quantity} Pcs
                       </td>
 
-                      <td className="py-3.5 px-4 font-black text-slate-900 text-sm">
+                      <td className="py-2.5 px-3 font-black text-slate-900 text-xs">
                         Rp {ord.total_amount.toLocaleString('id-ID')}
                       </td>
 
-                      <td className="py-3.5 px-4">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-black px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Lunas / Paid
+                      <td className="py-2.5 px-3">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Paid
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-right text-slate-400 font-medium text-[11px] whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-right text-slate-400 font-medium text-[10px] whitespace-nowrap">
                         {new Date(ord.created_at).toLocaleString('id-ID', {
                           day: '2-digit',
                           month: 'short',

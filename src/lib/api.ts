@@ -2636,10 +2636,26 @@ export async function updateUserRole(userId: number, role: string): Promise<bool
   return true;
 }
 
+export interface ReportTicketItem {
+  id: number;
+  ticket_code: string;
+  ticket_type: string;
+  price?: number;
+  full_name: string;
+  email?: string;
+  phone?: string;
+  identity_type?: string;
+  identity_number?: string;
+  status?: string;
+}
+
 export interface ReportOrderItem {
   id: number;
   order_number: string;
+  subtotal: number;
   buyer_name: string;
+  full_name: string;
+  attendees?: string[];
   buyer_email: string;
   buyer_phone?: string;
   event_id?: number;
@@ -2650,6 +2666,7 @@ export interface ReportOrderItem {
   payment_method?: string;
   status: 'paid' | 'completed' | 'pending' | 'cancelled' | 'refunded';
   created_at: string;
+  tickets?: ReportTicketItem[];
 }
 
 export async function fetchSalesReportData(params?: {
@@ -2683,7 +2700,10 @@ export async function fetchSalesReportData(params?: {
       const formattedOrders: ReportOrderItem[] = rawOrders.map((ord: any) => ({
         id: ord.id,
         order_number: ord.order_number || `ORD-${ord.id}`,
+        subtotal: Number(ord.subtotal ?? ord.total_amount ?? 0),
         buyer_name: ord.buyer_name || 'Pembeli Metix',
+        full_name: ord.full_name || ord.buyer_name || 'Pengunjung Gate',
+        attendees: ord.attendees || [],
         buyer_email: ord.buyer_email || 'buyer@metix.id',
         buyer_phone: ord.buyer_phone,
         event_id: ord.event_id,
@@ -2694,6 +2714,7 @@ export async function fetchSalesReportData(params?: {
         payment_method: ord.payment_method || 'Midtrans QRIS & VA',
         status: ord.status === 'paid' ? 'paid' : 'pending',
         created_at: ord.created_at || new Date().toISOString(),
+        tickets: ord.tickets || [],
       }));
 
       return {

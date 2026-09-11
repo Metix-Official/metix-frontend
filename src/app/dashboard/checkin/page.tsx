@@ -18,7 +18,10 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -103,17 +106,12 @@ export default function CheckInPage() {
       } catch {}
     }
 
-    if (!evts || evts.length === 0) {
-      try {
-        const pubData = await fetchPublicEvents();
-        evts = pubData?.events || [];
-      } catch {}
-    }
-
     setEvents(evts);
     if (evts && evts.length > 0) {
       const activeEvt = evts.find((e: ApiEvent) => e.status?.toLowerCase() === 'published') || evts[0];
       setSelectedEvent(activeEvt);
+    } else {
+      setSelectedEvent(null);
     }
     setIsLoading(false);
   };
@@ -372,45 +370,85 @@ export default function CheckInPage() {
       <div className="w-full space-y-6">
 
         {/* Top Premium Banner Header */}
-        <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-800 to-purple-800 text-white p-6 sm:p-8 shadow-xl shadow-blue-700/20 border border-white/20 relative overflow-hidden">
-          <div className="absolute right-0 top-0 w-96 h-96 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="rounded-2xl bg-gradient-to-r from-blue-700 via-blue-700 to-indigo-800 text-white p-4 sm:p-5 shadow-lg shadow-blue-700/15 border border-white/15 relative overflow-hidden">
+          <div className="absolute right-0 top-0 w-80 h-80 bg-white/5 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/15 border border-white/20 text-xs font-black uppercase tracking-wider text-amber-300 backdrop-blur-md">
-                <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" /> Live Gate Validation Console
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-[10px] font-extrabold uppercase tracking-wider text-white backdrop-blur-md">
+                <Radio className="w-3 h-3 text-emerald-300 animate-pulse" /> Live Gate Validation Console
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
+              <h2 className="text-lg sm:text-xl font-black tracking-tight text-white">
                 Gate Check-In & Scanner E-Tiket
               </h2>
-              <p className="text-xs text-blue-100 font-medium max-w-xl">
+              <p className="text-[11px] text-blue-100 font-medium max-w-xl leading-relaxed">
                 Pemindaian kamera live webcam & barcode laser gun real-time. Terhubung langsung ke API database Metix.
               </p>
             </div>
 
-            {/* Event Selector Dropdown Card */}
-            <div className="bg-slate-900/60 backdrop-blur-xl p-3.5 rounded-2xl border border-white/20 space-y-1.5 shrink-0 min-w-[280px]">
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-200 block">
-                Pilih Event Gate Scanner:
-              </span>
-              <div className="flex items-center gap-2 w-full">
-                <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
+            {/* Event Selector Section (Clean Shadcn UI) */}
+            <div className="flex flex-col sm:items-end gap-1.5 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-blue-200 uppercase tracking-wider">
+                  Event Gate Scanner:
+                </span>
+                {selectedEvent?.organizer?.organization_name && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 border border-white/25 text-[10px] font-bold text-white shadow-xs backdrop-blur-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    EO: {selectedEvent.organizer.organization_name}
+                  </span>
+                )}
+              </div>
+
+              <div className="w-full sm:w-auto">
                 <Select
                   value={selectedEvent?.id ? String(selectedEvent.id) : ''}
                   onValueChange={(val) => {
                     const ev = events.find((x) => String(x.id) === val);
                     if (ev) setSelectedEvent(ev);
                   }}
+                  disabled={events.length === 0}
                 >
-                  <SelectTrigger className="w-full bg-transparent border-0 text-white font-extrabold text-xs focus:ring-0 focus:outline-none shadow-none h-auto p-0 cursor-pointer hover:text-amber-200 transition-colors">
-                    <SelectValue placeholder="Pilih Event Gate Scanner" />
+                  <SelectTrigger className="h-10 min-w-[260px] sm:min-w-[300px] bg-white text-slate-900 hover:bg-slate-50 border border-white/40 shadow-md rounded-xl px-3.5 text-xs font-semibold cursor-pointer transition-all focus:ring-2 focus:ring-white/50">
+                    <div className="flex items-center gap-2 truncate pr-1">
+                      <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+                      <span className="font-bold text-xs text-slate-900 truncate">
+                        {selectedEvent?.title || (events.length > 0 ? "Pilih Event Gate Scanner" : "Belum Ada Event")}
+                      </span>
+                    </div>
                   </SelectTrigger>
-                  <SelectContent>
-                    {events.map((ev, index) => (
-                      <SelectItem key={`evt_option_${ev.id}_${index}`} value={String(ev.id)}>
-                        {ev.title}
-                      </SelectItem>
-                    ))}
+
+                  <SelectContent className="bg-white border border-slate-200 text-slate-900 min-w-[300px] shadow-xl rounded-xl p-1 z-50">
+                    <SelectGroup>
+                      <SelectLabel className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Event Terdaftar EO
+                      </SelectLabel>
+                      <SelectSeparator className="my-1 bg-slate-100" />
+                      {events.length === 0 ? (
+                        <div className="p-3 text-center text-xs text-slate-500 font-medium">
+                          Tidak ada event dari EO yang tersedia saat ini.
+                        </div>
+                      ) : (
+                        events.map((ev) => (
+                          <SelectItem
+                            key={`evt_option_${ev.id}`}
+                            value={String(ev.id)}
+                            className="py-2.5 pl-8 pr-3 cursor-pointer rounded-lg hover:bg-slate-50 focus:bg-blue-50 focus:text-blue-900 transition-colors my-0.5"
+                          >
+                            <div className="flex flex-col gap-0.5 text-left">
+                              <span className="font-bold text-xs text-slate-900 leading-snug">
+                                {ev.title}
+                              </span>
+                              {ev.organizer?.organization_name && (
+                                <span className="text-[11px] text-slate-500 font-medium">
+                                  Penyelenggara: <span className="font-semibold text-blue-600">{ev.organizer.organization_name}</span>
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
@@ -419,28 +457,28 @@ export default function CheckInPage() {
         </div>
 
         {/* 4 Stat Metric Cards (Responsive 2x2 Grid on Mobile, 4 Cols on Desktop) */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 sm:space-y-2 flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-wider">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+          <div className="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs space-y-1 flex flex-col justify-between">
+            <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
               <span className="truncate">Scan Petugas</span>
               {staffScanQuota && (
-                <span className="text-indigo-600 font-extrabold shrink-0">
+                <span className="text-indigo-600 font-extrabold shrink-0 text-[10px]">
                   {Math.min(100, Math.round((staffScanCount / staffScanQuota) * 100))}%
                 </span>
               )}
             </div>
 
             <div className="flex items-center justify-between gap-1">
-              <h4 className="text-base sm:text-2xl font-black text-slate-900 truncate">
-                {staffScanCount} <span className="text-[10px] sm:text-xs font-extrabold text-slate-400">/ {staffScanQuota ? staffScanQuota : '∞'}</span>
+              <h4 className="text-base sm:text-lg font-black text-slate-900 truncate">
+                {staffScanCount} <span className="text-[10px] font-extrabold text-slate-400">/ {staffScanQuota ? staffScanQuota : '∞'}</span>
               </h4>
-              <div className="p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0">
-                <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
+              <div className="p-1.5 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0">
+                <CheckCircle2 className="w-3.5 h-3.5" />
               </div>
             </div>
 
             {staffScanQuota && staffScanQuota > 0 && (
-              <div className="w-full bg-slate-100 h-1.5 sm:h-2 rounded-full overflow-hidden border border-slate-200/60 mt-1">
+              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200/60 mt-1">
                 <div
                   className={`h-full transition-all duration-500 ${staffScanCount >= staffScanQuota ? 'bg-rose-500' : staffScanCount >= staffScanQuota * 0.8 ? 'bg-amber-500' : 'bg-indigo-600'
                     }`}
@@ -450,62 +488,62 @@ export default function CheckInPage() {
             )}
           </div>
 
-          <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 sm:space-y-2 flex flex-col justify-between">
-            <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-wider truncate">Status Gate System</span>
+          <div className="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs space-y-1 flex flex-col justify-between">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider truncate">Status Gate System</span>
             <div className="flex items-center justify-between gap-1">
-              <h4 className="text-xs sm:text-xl font-black text-emerald-600 flex items-center gap-1 sm:gap-1.5 truncate">
-                <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
-                <span className="truncate">Gate 1 — Active</span>
+              <h4 className="text-xs sm:text-sm font-black text-emerald-600 flex items-center gap-1 shrink-0 truncate">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
+                <span className="truncate">Gate Active</span>
               </h4>
-              <div className="p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 shrink-0">
-                <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
+              <div className="p-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 shrink-0">
+                <ShieldCheck className="w-3.5 h-3.5" />
               </div>
             </div>
           </div>
 
-          <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 sm:space-y-2 flex flex-col justify-between">
-            <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-wider truncate">Modus Pemindai</span>
+          <div className="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs space-y-1 flex flex-col justify-between">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider truncate">Modus Pemindai</span>
             <div className="flex items-center justify-between gap-1">
-              <h4 className="text-xs sm:text-xl font-black text-indigo-600 truncate">
+              <h4 className="text-xs sm:text-sm font-black text-indigo-600 truncate">
                 {scannerMode === 'camera' ? 'Live Camera' : 'Laser Gun'}
               </h4>
-              <div className="p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0">
-                <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />
+              <div className="p-1.5 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0">
+                <QrCode className="w-3.5 h-3.5" />
               </div>
             </div>
           </div>
 
-          <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 sm:space-y-2 flex flex-col justify-between">
-            <span className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-wider truncate">Suara Notifikasi</span>
+          <div className="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs space-y-1 flex flex-col justify-between">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider truncate">Suara Notifikasi</span>
             <div className="flex items-center justify-between gap-1">
-              <h4 className="text-xs sm:text-xl font-black text-slate-900 truncate">
+              <h4 className="text-xs sm:text-sm font-black text-slate-900 truncate">
                 {soundEnabled ? 'Sound ON' : 'Mute OFF'}
               </h4>
               <button
                 type="button"
                 onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl transition-all cursor-pointer border shrink-0 ${soundEnabled ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-400 border-slate-200'
+                className={`p-1.5 rounded-xl transition-all cursor-pointer border shrink-0 ${soundEnabled ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-400 border-slate-200'
                   }`}
               >
-                {soundEnabled ? <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" /> : <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" />}
+                {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
               </button>
             </div>
           </div>
         </div>
 
         {/* Main Check-In Interface (Grid 2 Column) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-start">
 
           {/* Left Column: Scanner HUD & Input Console (7 Cols) */}
-          <div className="lg:col-span-7 space-y-6">
+          <div className="lg:col-span-7 space-y-4">
 
-            <div className="rounded-3xl bg-white border border-slate-200/90 p-6 shadow-lg shadow-slate-200/40 space-y-5">
+            <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-4">
 
               {/* Header Scanner & Pill Switcher */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div>
-                  <h5 className="flex items-center gap-1.5 text-sm sm:text-base font-bold tracking-tight text-slate-900">
-                    <QrCode className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-blue-600" />
+                  <h5 className="flex items-center gap-1.5 text-xs sm:text-sm font-bold tracking-tight text-slate-900">
+                    <QrCode className="w-4 h-4 shrink-0 text-blue-600" />
                     <span className="truncate">
                       Mode Pemindai Gate (Scanner)
                     </span>
@@ -513,27 +551,27 @@ export default function CheckInPage() {
                 </div>
 
                 {/* Mode Selector Pill Buttons */}
-                <div className="flex items-center p-1 bg-slate-100 rounded-2xl border border-slate-200 shrink-0">
+                <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 shrink-0">
                   <button
                     type="button"
                     onClick={() => setScannerMode('manual')}
-                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${scannerMode === 'manual'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${scannerMode === 'manual'
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                       : 'text-slate-600 hover:text-slate-900'
                       }`}
                   >
-                    <Keyboard className="w-4 h-4" /> Barcode Gun / Input
+                    <Keyboard className="w-3.5 h-3.5" /> Barcode Gun / Input
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setScannerMode('camera')}
-                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${scannerMode === 'camera'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${scannerMode === 'camera'
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                       : 'text-slate-600 hover:text-slate-900'
                       }`}
                   >
-                    <Camera className="w-4 h-4" /> Kamera Live WebCam
+                    <Camera className="w-3.5 h-3.5" /> Kamera Live WebCam
                   </button>
                 </div>
               </div>

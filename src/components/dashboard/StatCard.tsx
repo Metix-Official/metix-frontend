@@ -2,6 +2,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import {
   CalendarDays,
   Ticket,
@@ -30,21 +31,21 @@ export const StatCard: React.FC<StatCardProps> = ({ stat }) => {
 
   const CardContent = (
     <div
-      className={`p-5 sm:p-6 rounded-3xl bg-white border border-slate-200/90 hover:border-blue-300 shadow-2xs hover:shadow-md transition-all duration-300 group space-y-4 min-w-0 ${
+      className={`p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-300 shadow-2xs hover:shadow-md transition-all duration-300 group space-y-3 min-w-0 ${
         stat.href ? 'cursor-pointer hover:bg-slate-50/70 hover:scale-[1.01]' : ''
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] sm:text-xs font-extrabold text-slate-500 tracking-wider uppercase truncate">
+        <span className="text-[11px] font-extrabold text-slate-500 tracking-wider uppercase truncate">
           {stat.title}
         </span>
-        <div className="p-2.5 sm:p-3 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 group-hover:scale-105 transition-transform shadow-xs shrink-0">
-          <IconComponent className="w-4 h-4 sm:w-5 sm:h-5" />
+        <div className="p-2 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 group-hover:scale-105 transition-transform shadow-xs shrink-0">
+          <IconComponent className="w-4 h-4" />
         </div>
       </div>
 
       <div className="flex items-baseline justify-between gap-2 overflow-hidden">
-        <h3 className="text-base sm:text-lg lg:text-base xl:text-2xl font-extrabold text-slate-900 tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">
+        <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">
           {stat.value}
         </h3>
       </div>
@@ -71,9 +72,9 @@ export const StatCard: React.FC<StatCardProps> = ({ stat }) => {
 
   if (stat.href) {
     return (
-      <a href={stat.href} className="block no-underline">
+      <Link href={stat.href} className="block no-underline">
         {CardContent}
-      </a>
+      </Link>
     );
   }
 

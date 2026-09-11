@@ -302,27 +302,27 @@ export default function OrganizationPage() {
     <DashboardLayout pageTitle="Profil Organisasi (EO Partner)" activeNav="Profil Organisasi">
       <div className="w-full space-y-6">
         {/* Banner Hero Header */}
-        <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 text-white p-6 sm:p-8 shadow-xl shadow-blue-700/15 border border-blue-600/30">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1.5">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-xs font-bold uppercase tracking-wider">
-                <Building2 className="w-3.5 h-3.5 text-white" /> Event Organizer Entity Management
+        <div className="rounded-2xl bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 text-white p-4 sm:p-5 shadow-lg shadow-blue-700/15 border border-blue-600/30">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-[10px] font-bold uppercase tracking-wider">
+                <Building2 className="w-3 h-3 text-white" /> Event Organizer Entity Management
               </div>
-              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+              <h2 className="text-lg sm:text-xl font-extrabold tracking-tight">
                 Profil Organisasi & Partner Event
               </h2>
-              <p className="text-xs text-blue-100 font-medium max-w-2xl">
+              <p className="text-[11px] text-blue-100 font-medium max-w-2xl">
                 Kelola rincian entitas bisnis organisasi Anda, logo instansi, kontak telepon resmi (12 digit), email perusahaan, dan status verifikasi mitra.
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={handleRefresh}
-                className="px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold flex items-center gap-2 transition-all shrink-0 cursor-pointer"
+                className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className="w-3.5 h-3.5" />
                 <span>Refresh</span>
               </button>
 
@@ -330,9 +330,9 @@ export default function OrganizationPage() {
                 <button
                   type="button"
                   onClick={() => setIsEditing(true)}
-                  className="px-5 py-2.5 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                  className="px-4 py-2 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
                 >
-                  <Pencil className="w-4 h-4" />
+                  <Pencil className="w-3.5 h-3.5" />
                   <span>Edit Profil Organisasi</span>
                 </button>
               )}
@@ -345,17 +345,17 @@ export default function OrganizationPage() {
 
         {/* Loading Skeleton */}
         {isLoading ? (
-          <div className="p-8 rounded-3xl bg-white border border-slate-200 space-y-6">
-            <Skeleton className="h-28 w-28 rounded-3xl" />
-            <Skeleton className="h-8 w-64 rounded-2xl" />
-            <Skeleton className="h-20 w-full rounded-2xl" />
+          <div className="p-6 rounded-2xl bg-white border border-slate-200 space-y-4">
+            <Skeleton className="h-20 w-20 rounded-2xl" />
+            <Skeleton className="h-6 w-48 rounded-xl" />
+            <Skeleton className="h-16 w-full rounded-xl" />
           </div>
         ) : !isEditing && profile ? (
           /* ================= VIEW MODE (PROFILE OVERVIEW CARD) ================= */
-          <div className="rounded-3xl bg-white border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-8">
-            <div className="flex flex-col md:flex-row items-start md:items-center gap-6 pb-6 border-b border-slate-100">
+          <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-5">
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-4 pb-4 border-b border-slate-100">
               {/* Logo Display */}
-              <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-3xl overflow-hidden bg-white border-2 border-slate-200 shadow-md shrink-0 flex items-center justify-center p-2 group">
+              <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm shrink-0 flex items-center justify-center p-1.5 group">
                 {logoPreview || profile.logo ? (
                   <img
                     src={logoPreview || getPhotoUrl(profile.logo) || undefined}
@@ -363,31 +363,31 @@ export default function OrganizationPage() {
                     className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                   />
                 ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-700 p-3 text-center bg-slate-50 rounded-2xl border border-slate-100">
-                    <Building2 className="w-10 h-10 mb-1 text-blue-600" />
-                    <span className="text-[10px] font-extrabold uppercase text-slate-500">Belum ada logo</span>
+                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-700 p-2 text-center bg-slate-50 rounded-xl border border-slate-100">
+                    <Building2 className="w-8 h-8 mb-1 text-blue-600" />
+                    <span className="text-[9px] font-extrabold uppercase text-slate-500">Belum ada logo</span>
                   </div>
                 )}
               </div>
 
               {/* Title & Metadata */}
-              <div className="space-y-3 flex-1">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              <div className="space-y-2 flex-1">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">
                     {profile.organization_name}
                   </h3>
                   {getStatusBadge(profile.status)}
                 </div>
 
                 {/* Quick Info Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs font-semibold text-slate-600">
-                  <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
-                    <Phone className="w-4 h-4 text-blue-600 shrink-0" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5 text-xs font-semibold text-slate-600">
+                  <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200/80">
+                    <Phone className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                     <span>Telepon (12 digit): <strong className="text-slate-900">{profile.phone || '-'}</strong></span>
                   </div>
 
-                  <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
-                    <Mail className="w-4 h-4 text-blue-600 shrink-0" />
+                  <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200/80">
+                    <Mail className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                     <span>Email Organisasi: <strong className="text-slate-900">{profile.email || '-'}</strong></span>
                   </div>
                 </div>
@@ -395,21 +395,21 @@ export default function OrganizationPage() {
             </div>
 
             {/* Detailed Info Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-                <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-blue-600" /> Deskripsi Organisasi
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-blue-600" /> Deskripsi Organisasi
                 </span>
-                <p className="text-xs sm:text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-line">
+                <p className="text-xs font-medium text-slate-700 leading-relaxed whitespace-pre-line">
                   {profile.description || 'Belum ada deskripsi organisasi yang ditambahkan.'}
                 </p>
               </div>
 
-              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-                <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-blue-600" /> Alamat Kantor / Headquarter
+              <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-blue-600" /> Alamat Kantor / Headquarter
                 </span>
-                <p className="text-xs sm:text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-line">
+                <p className="text-xs font-medium text-slate-700 leading-relaxed whitespace-pre-line">
                   {profile.address || 'Belum ada alamat kantor yang ditambahkan.'}
                 </p>
               </div>
@@ -417,13 +417,13 @@ export default function OrganizationPage() {
           </div>
         ) : (
           /* ================= EDIT / CREATE FORM MODE ================= */
-          <div className="rounded-3xl bg-white border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="space-y-1">
-                <h3 className="text-lg font-extrabold text-slate-900">
+          <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="space-y-0.5">
+                <h3 className="text-base font-extrabold text-slate-900">
                   {profile ? 'Form Edit Profil Organisasi' : 'Form Buat Profil Organisasi Baru'}
                 </h3>
-                <p className="text-xs text-slate-500 font-medium">
+                <p className="text-[11px] text-slate-500 font-medium">
                   Lengkapi rincian identitas perusahaan, upload logo resmi, serta isi kontak telepon (12 digit) dan email.
                 </p>
               </div>

@@ -14,6 +14,16 @@ import {
 } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Users,
   Plus,
   Search,
@@ -29,6 +39,8 @@ import {
   QrCode,
   ShieldCheck,
   Calendar,
+  Globe,
+  Ticket,
 } from 'lucide-react';
 
 export default function EoAdminsPage() {
@@ -192,64 +204,64 @@ export default function EoAdminsPage() {
   return (
     <DashboardLayout pageTitle="Kelola Admin Scan QR" activeNav="Kelola Admin Scan">
       {/* Top Banner Header */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white p-6 sm:p-8 lg:p-10 shadow-xl border border-indigo-900/30">
-        <div className="absolute right-0 top-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-xs font-bold uppercase tracking-wider backdrop-blur-xs">
-              <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" /> Tim Gatekeeper Event
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 text-white p-4 sm:p-5 shadow-lg shadow-blue-700/15 border border-blue-600/30">
+        <div className="absolute right-0 top-0 -mr-16 -mt-16 w-80 h-80 rounded-full bg-white/5 blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="space-y-1 max-w-2xl">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-white text-[10px] font-bold uppercase tracking-wider backdrop-blur-xs">
+              <ShieldCheck className="w-3 h-3 text-blue-200" /> Tim Gatekeeper Event
             </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-tight">
+            <h2 className="text-lg sm:text-xl font-extrabold tracking-tight leading-tight">
               Manajemen Staff Admin Scanner
             </h2>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
+            <p className="text-[11px] text-blue-100 leading-relaxed font-medium">
               Daftarkan dan kelola akun petugas yang bertugas melakukan scan QR Code pada pintu masuk event Anda. Staff hanya memiliki akses ke modul Check-in Scanner.
             </p>
           </div>
 
           <button
             onClick={openAddModal}
-            className="px-6 py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-black flex items-center gap-2.5 shadow-xl shadow-indigo-950/40 transition-all cursor-pointer shrink-0 hover:scale-105"
+            className="px-4 py-2 rounded-xl bg-white text-blue-900 hover:bg-blue-50 text-xs font-black flex items-center gap-1.5 shadow-md transition-all cursor-pointer shrink-0 hover:scale-[1.02] active:scale-[0.98]"
           >
-            <Plus className="w-5 h-5" /> Tambah Staff Scanner
+            <Plus className="w-4 h-4 text-blue-700" /> Tambah Staff Scanner
           </button>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* Search & Counter Filter */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <input
               type="text"
               placeholder="Cari nama, email, atau telepon..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:outline-none transition-all"
+              className="w-full pl-9 pr-3.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
             />
           </div>
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-600 px-3 py-2 bg-slate-100 rounded-xl">
-            <UserCheck className="w-4 h-4 text-indigo-600" />
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 px-2.5 py-1.5 bg-slate-100 rounded-lg">
+            <UserCheck className="w-3.5 h-3.5 text-blue-600" />
             <span>Total Staff: <strong>{admins.length}</strong> Akun</span>
           </div>
         </div>
 
         {/* Admins List Table */}
-        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           {isLoading ? (
-            <div className="p-6 space-y-4">
+            <div className="p-4 space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full rounded-2xl" />
+                <Skeleton key={i} className="h-12 w-full rounded-xl" />
               ))}
             </div>
           ) : filteredAdmins.length === 0 ? (
-            <div className="p-12 text-center space-y-3">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto shadow-inner">
-                <Users className="w-8 h-8" />
+            <div className="p-10 text-center space-y-2.5">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto shadow-inner">
+                <Users className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-bold text-slate-800">
+              <h3 className="text-sm font-bold text-slate-800">
                 {searchQuery ? 'Staff Scanner Tidak Ditemukan' : 'Belum Ada Staff Admin Scanner'}
               </h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -260,74 +272,74 @@ export default function EoAdminsPage() {
               {!searchQuery && (
                 <button
                   onClick={openAddModal}
-                  className="mt-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold inline-flex items-center gap-2 shadow-md transition-all cursor-pointer"
+                  className="mt-1 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
                 >
-                  <Plus className="w-4 h-4" /> Daftarkan Staff Scanner
+                  <Plus className="w-3.5 h-3.5" /> Daftarkan Staff Scanner
                 </button>
               )}
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm">
+              <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200/80 uppercase text-[10px] font-black text-slate-500 tracking-wider">
                   <tr>
-                    <th className="px-6 py-4">Nama & Email</th>
-                    <th className="px-6 py-4">Kontak / Telepon</th>
-                    <th className="px-6 py-4">Status & Kuota Scan</th>
-                    <th className="px-6 py-4">Penugasan Event</th>
-                    <th className="px-6 py-4">Hak Akses Role</th>
-                    <th className="px-6 py-4">Tanggal Buat</th>
-                    <th className="px-6 py-4 text-right">Aksi</th>
+                    <th className="px-3.5 py-2.5">Nama & Email</th>
+                    <th className="px-3.5 py-2.5">Kontak / Telepon</th>
+                    <th className="px-3.5 py-2.5">Status & Kuota Scan</th>
+                    <th className="px-3.5 py-2.5">Penugasan Event</th>
+                    <th className="px-3.5 py-2.5">Hak Akses Role</th>
+                    <th className="px-3.5 py-2.5">Tanggal Buat</th>
+                    <th className="px-3.5 py-2.5 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {filteredAdmins.map((admin) => (
                     <tr key={admin.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 font-black flex items-center justify-center text-xs shadow-2xs shrink-0">
+                      <td className="px-3.5 py-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 font-black flex items-center justify-center text-xs shadow-2xs shrink-0">
                             {admin.name.substring(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <div className="font-bold text-slate-900 text-sm">{admin.name}</div>
-                            <div className="text-xs text-slate-500 flex items-center gap-1">
+                            <div className="font-bold text-slate-900 text-xs">{admin.name}</div>
+                            <div className="text-[10px] text-slate-500 flex items-center gap-1">
                               <Mail className="w-3 h-3 text-slate-400" /> {admin.email}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-slate-600">
+                      <td className="px-3.5 py-2.5 text-slate-600">
                         {admin.phone ? (
-                          <div className="flex items-center gap-1.5 font-semibold text-slate-700">
-                            <Phone className="w-3.5 h-3.5 text-slate-400" /> {admin.phone}
+                          <div className="flex items-center gap-1 font-semibold text-slate-700 text-xs">
+                            <Phone className="w-3 h-3 text-slate-400" /> {admin.phone}
                           </div>
                         ) : (
-                          <span className="text-slate-400 italic">—</span>
+                          <span className="text-slate-400 italic text-[11px]">—</span>
                         )}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-3.5 py-2.5">
                         {(() => {
                           const count = admin.scan_count || 0;
                           const quota = admin.scan_quota;
                           const hasQuota = quota !== null && quota !== undefined && quota > 0;
                           const pct = hasQuota ? Math.min(100, Math.round((count / quota) * 100)) : 0;
                           return (
-                            <div className="space-y-1 max-w-[140px]">
-                              <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                            <div className="space-y-1 max-w-[130px]">
+                              <div className="flex items-center justify-between text-[11px] font-bold text-slate-800">
                                 <span>{count} {hasQuota ? `/ ${quota}` : ''} Scan</span>
-                                {hasQuota && <span className="text-[10px] text-indigo-600 font-extrabold">{pct}%</span>}
+                                {hasQuota && <span className="text-[9px] text-blue-600 font-extrabold">{pct}%</span>}
                               </div>
                               {hasQuota ? (
-                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200/60">
+                                <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200/60">
                                   <div
                                     className={`h-full transition-all duration-500 ${
-                                      pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-indigo-600'
+                                      pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-blue-600'
                                     }`}
                                     style={{ width: `${pct}%` }}
                                   />
                                 </div>
                               ) : (
-                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                                   Tanpa Batas
                                 </span>
                               )}
@@ -335,18 +347,18 @@ export default function EoAdminsPage() {
                           );
                         })()}
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80 max-w-[180px] truncate" title={admin.event_title || 'Semua Event'}>
-                          <Calendar className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                      <td className="px-3.5 py-2.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200/80 max-w-[160px] truncate" title={admin.event_title || 'Semua Event'}>
+                          <Calendar className="w-3 h-3 text-blue-500 shrink-0" />
                           <span className="truncate">{admin.event_title || 'Semua Event'}</span>
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                          <QrCode className="w-3.5 h-3.5" /> Staff Scanner
+                      <td className="px-3.5 py-2.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          <QrCode className="w-3 h-3" /> Staff Scanner
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-slate-500 text-xs">
+                      <td className="px-3.5 py-2.5 text-slate-500 text-[10px]">
                         {admin.created_at
                           ? new Date(admin.created_at).toLocaleDateString('id-ID', {
                               day: '2-digit',
@@ -355,21 +367,21 @@ export default function EoAdminsPage() {
                             })
                           : 'Baru saja'}
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="px-3.5 py-2.5 text-right">
+                        <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => openEditModal(admin)}
-                            className="p-2 rounded-xl text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                            className="p-1 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                             title="Edit Data Admin"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => setDeletingAdmin(admin)}
-                            className="p-2 rounded-xl text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            className="p-1 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                             title="Hapus Akun Admin"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -474,28 +486,141 @@ export default function EoAdminsPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
-                  <span>Penugasan Event Gate Scanner <span className="text-rose-500">*</span></span>
-                  <span className="text-[10px] text-indigo-600 font-semibold">Event yang Dijaga</span>
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <QrCode className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Penugasan Event Gate Scanner <span className="text-rose-500">*</span></span>
+                  </span>
+                  <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                    Gate Access
+                  </span>
                 </label>
-                <div className="relative">
-                  <select
-                    value={formData.event_id}
-                    onChange={(e) => setFormData({ ...formData, event_id: e.target.value })}
-                    className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:outline-none transition-all font-bold text-slate-800 cursor-pointer"
-                  >
-                    <option value="all">🌐 Semua Event EO (Akses Penuh Seluruh Gate)</option>
-                    {events.map((ev) => (
-                      <option key={ev.id} value={String(ev.id)}>
-                        🎫 {ev.title} {ev.status ? `(${ev.status})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Petugas scanner ini akan memiliki hak akses penuh untuk memvalidasi tiket event yang dipilih.
-                </p>
+
+                <Select
+                  value={formData.event_id || 'all'}
+                  onValueChange={(value) => setFormData({ ...formData, event_id: value })}
+                >
+                  <SelectTrigger className="w-full h-11 px-3.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-100/70 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-semibold text-xs sm:text-sm text-slate-800 cursor-pointer shadow-2xs">
+                    <SelectValue placeholder="Pilih event yang dijaga..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    <SelectGroup>
+                      <SelectItem
+                        value="all"
+                        textValue="🌐 Semua Event EO (Akses Penuh Seluruh Gate)"
+                        className="py-2.5"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                            <Globe className="w-4 h-4" />
+                          </div>
+                          <div className="flex flex-col text-left">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-900 text-xs">Semua Event EO</span>
+                              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                                Akses Penuh
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-slate-500 font-normal">
+                              Dapat scan tiket di seluruh event & gate aktif organisasi
+                            </span>
+                          </div>
+                        </div>
+                      </SelectItem>
+                    </SelectGroup>
+
+                    {events.length > 0 && (
+                      <>
+                        <SelectSeparator className="my-1" />
+                        <SelectGroup>
+                          <SelectLabel className="text-[10px] uppercase font-black tracking-wider text-slate-400 px-3 py-1">
+                            Pilih Event Tertentu ({events.length})
+                          </SelectLabel>
+                          {events.map((ev) => {
+                            const isPublished = ev.status?.toLowerCase() === 'published';
+                            return (
+                              <SelectItem
+                                key={ev.id}
+                                value={String(ev.id)}
+                                textValue={`🎫 ${ev.title} ${ev.status ? `(${ev.status})` : ''}`}
+                                className="py-2"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <div
+                                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                                      isPublished
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : 'bg-slate-100 text-slate-600'
+                                    }`}
+                                  >
+                                    <Ticket className="w-4 h-4" />
+                                  </div>
+                                  <div className="flex flex-col text-left overflow-hidden">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-bold text-slate-900 text-xs truncate max-w-[200px] sm:max-w-[260px]">
+                                        {ev.title}
+                                      </span>
+                                      {ev.status && (
+                                        <span
+                                          className={`text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded shrink-0 ${
+                                            isPublished
+                                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                              : 'bg-slate-100 text-slate-600'
+                                          }`}
+                                        >
+                                          {ev.status}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
+                                      {ev.start_at && (
+                                        <span className="flex items-center gap-1">
+                                          <Calendar className="w-3 h-3 text-slate-400" />
+                                          {new Date(ev.start_at).toLocaleDateString('id-ID', {
+                                            day: 'numeric',
+                                            month: 'short',
+                                            year: 'numeric',
+                                          })}
+                                        </span>
+                                      )}
+                                      {(ev.venue_name || ev.city) && (
+                                        <span className="truncate max-w-[150px]">
+                                          • {ev.venue_name || ev.city}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectGroup>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+
+                {/* Status Penugasan Indicator Card */}
+                {formData.event_id === 'all' || !formData.event_id ? (
+                  <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl flex items-center gap-2.5 text-indigo-900">
+                    <div className="p-1.5 bg-indigo-100 rounded-lg text-indigo-700 shrink-0">
+                      <Globe className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="text-[11px] leading-tight">
+                      <span className="font-bold">Akses Seluruh Event:</span> Staff dapat melakukan validasi barcode pada gate mana pun di semua event aktif Anda.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-2.5 bg-emerald-50/70 border border-emerald-100 rounded-xl flex items-center gap-2.5 text-emerald-950">
+                    <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-700 shrink-0">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="text-[11px] leading-tight">
+                      <span className="font-bold">Akses Terkunci Spesifik:</span> Staff hanya diizinkan memvalidasi tiket untuk acara yang telah ditugaskan.
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>

@@ -49,20 +49,20 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   };
 
   return (
-    <div className="rounded-3xl bg-white border border-slate-200/90 p-6 sm:p-8 shadow-2xs space-y-6">
+    <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-2xs space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">
+          <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
             Recent Transactions
           </h3>
-          <p className="text-xs text-slate-500 font-medium">
+          <p className="text-[11px] text-slate-500 font-medium">
             10 transaksi penjualan tiket terbaru
           </p>
         </div>
         {transactions.length > 0 && (
           <Link
             href="/dashboard/reports"
-            className="px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-xs font-black text-blue-700 hover:text-blue-800 flex items-center gap-1.5 transition-all border border-blue-200/80 shadow-2xs whitespace-nowrap"
+            className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[11px] font-black text-blue-700 hover:text-blue-800 flex items-center gap-1.5 transition-all border border-blue-200/80 shadow-2xs whitespace-nowrap"
           >
             <span>Semua Data</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
@@ -71,16 +71,16 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
       </div>
 
       {displayedTransactions.length > 0 ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-700 min-w-[540px]">
-              <thead className="bg-slate-50 text-slate-500 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-200/80">
+            <table className="w-full text-left text-xs text-slate-700 min-w-[500px]">
+              <thead className="bg-slate-50 text-slate-500 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200/80">
                 <tr>
-                  <th className="py-3 px-4 rounded-l-xl whitespace-nowrap">Customer</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Event & Ticket</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Amount</th>
-                  <th className="py-3 px-4 whitespace-nowrap">Status</th>
-                  <th className="py-3 px-4 text-right rounded-r-xl whitespace-nowrap">Date</th>
+                  <th className="py-2.5 px-3.5 rounded-l-xl whitespace-nowrap">Customer</th>
+                  <th className="py-2.5 px-3.5 whitespace-nowrap">Event & Ticket</th>
+                  <th className="py-2.5 px-3.5 whitespace-nowrap">Amount</th>
+                  <th className="py-2.5 px-3.5 whitespace-nowrap">Status</th>
+                  <th className="py-2.5 px-3.5 text-right rounded-r-xl whitespace-nowrap">Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -89,33 +89,33 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
                     key={tx.id}
                     className="hover:bg-blue-50/40 transition-colors group"
                   >
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    <td className="py-2.5 px-3.5 whitespace-nowrap">
                       <div className="flex flex-col">
-                        <span className="font-bold text-slate-900 group-hover:text-blue-700 transition-colors">
+                        <span className="font-bold text-slate-900 group-hover:text-blue-700 transition-colors text-xs">
                           {tx.customerName}
                         </span>
-                        <span className="text-[11px] text-slate-400 font-medium">
+                        <span className="text-[10px] text-slate-400 font-medium">
                           {tx.customerEmail}
                         </span>
                       </div>
                     </td>
 
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    <td className="py-2.5 px-3.5 whitespace-nowrap">
                       <div className="flex flex-col">
-                        <span className="font-semibold text-slate-800">{tx.eventName}</span>
-                        <span className="text-[11px] text-blue-700 font-bold">
+                        <span className="font-semibold text-slate-800 text-xs">{tx.eventName}</span>
+                        <span className="text-[10px] text-blue-700 font-bold">
                           {tx.quantity}x {tx.ticketType}
                         </span>
                       </div>
                     </td>
 
-                    <td className="py-3.5 px-4 font-extrabold text-slate-900 whitespace-nowrap">
+                    <td className="py-2.5 px-3.5 font-extrabold text-slate-900 whitespace-nowrap text-xs">
                       {tx.amount}
                     </td>
 
-                    <td className="py-3.5 px-4 whitespace-nowrap">{getStatusBadge(tx.status)}</td>
+                    <td className="py-2.5 px-3.5 whitespace-nowrap">{getStatusBadge(tx.status)}</td>
 
-                    <td className="py-3.5 px-4 text-right text-slate-400 font-medium text-[11px] whitespace-nowrap">
+                    <td className="py-2.5 px-3.5 text-right text-slate-400 font-medium text-[10px] whitespace-nowrap">
                       {tx.date}
                     </td>
                   </tr>
@@ -125,12 +125,12 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
-            <span className="text-slate-400 font-medium">
+            <span className="text-slate-400 font-medium text-[11px]">
               Menampilkan <strong>{displayedTransactions.length}</strong> transaksi terbaru
             </span>
             <Link
               href="/dashboard/reports"
-              className="font-extrabold text-blue-600 hover:text-blue-800 flex items-center gap-1 hover:underline"
+              className="font-extrabold text-blue-600 hover:text-blue-800 flex items-center gap-1 hover:underline text-[11px]"
             >
               Lihat Semua Data Transaksi &rarr;
             </Link>

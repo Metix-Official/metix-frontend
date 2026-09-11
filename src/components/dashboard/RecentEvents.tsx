@@ -31,11 +31,11 @@ export const RecentEvents: React.FC<RecentEventsProps> = ({ events: initialEvent
           const mapped: EventItem[] = res.events.map((item: any) => {
             const totalQuota = item.ticket_types && item.ticket_types.length > 0
               ? item.ticket_types.reduce((sum: number, tt: any) => sum + Number(tt.quota || 0), 0)
-              : Number(item.total_tickets || item.totalTickets || item.quota || 500);
+              : Number(item.total_tickets || item.totalTickets || item.tickets_capacity || item.quota || 0);
 
             const soldQty = item.ticket_types && item.ticket_types.length > 0
-              ? item.ticket_types.reduce((sum: number, tt: any) => sum + Number(tt.sold_quantity || 0), 0)
-              : Number(item.tickets_sold || item.ticketsSold || item.sold_quantity || 0);
+              ? item.ticket_types.reduce((sum: number, tt: any) => sum + Number(tt.sold_count ?? tt.sold_quantity ?? 0), 0)
+              : Number(item.tickets_sold || item.ticketsSold || item.sold_count || item.sold_quantity || 0);
 
             const isSoldOut = totalQuota > 0 && soldQty >= totalQuota;
             const categoryName = (typeof item.category === 'object' ? item.category?.name : item.category) || 'MUSIC CONCERT';
@@ -57,7 +57,7 @@ export const RecentEvents: React.FC<RecentEventsProps> = ({ events: initialEvent
               date: item.status === 'published' || item.status === 'active' || item.status === 'Active' ? 'Aktif' : (item.event_start_at ? new Date(item.event_start_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : 'Aktif'),
               location: locationName,
               ticketsSold: soldQty,
-              totalTickets: totalQuota > 0 ? totalQuota : 500,
+              totalTickets: totalQuota,
               revenue: 'Rp 0',
               status: statusText,
               badgeColor: '',
@@ -80,15 +80,15 @@ export const RecentEvents: React.FC<RecentEventsProps> = ({ events: initialEvent
   }, [initialEvents]);
 
   return (
-    <div className="rounded-3xl bg-white border border-slate-200/90 p-6 sm:p-7 shadow-2xs flex flex-col justify-between space-y-6">
+    <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-2xs flex flex-col justify-between space-y-4">
       <div>
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
+            <h3 className="text-lg font-black text-slate-900 tracking-tight">
               Recent Events
             </h3>
             <p className="text-xs text-slate-500 font-medium">
-              Active and upcoming managed events
+              Kelola Acara
             </p>
           </div>
           <Link
@@ -105,18 +105,18 @@ export const RecentEvents: React.FC<RecentEventsProps> = ({ events: initialEvent
             <p className="text-xs text-slate-500 font-medium">Memuat data event API...</p>
           </div>
         ) : eventsList.length > 0 ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {eventsList.map((event) => {
-              const percentage = Math.round(
-                (event.ticketsSold / (event.totalTickets || 1)) * 100
-              );
+              const percentage = event.totalTickets > 0
+                ? Math.min(100, Math.round((event.ticketsSold / event.totalTickets) * 100))
+                : 0;
 
               return (
                 <div
                   key={event.id}
-                  className="p-5 rounded-2xl bg-white border-2 border-blue-200/90 hover:border-blue-400 transition-all space-y-3.5 shadow-2xs"
+                  className="p-3.5 sm:p-4 rounded-xl bg-white border border-slate-200/90 hover:border-blue-300 transition-all space-y-2.5 shadow-2xs"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start justify-between gap-2.5">
                     <div className="space-y-1">
                       <span className="text-xs font-black tracking-wider text-blue-600 uppercase">
                         {event.category || 'MUSIC CONCERT'}
@@ -126,13 +126,12 @@ export const RecentEvents: React.FC<RecentEventsProps> = ({ events: initialEvent
                       </h4>
                     </div>
                     <span
-                      className={`text-[11px] font-extrabold px-3 py-1 rounded-full border text-center leading-tight shrink-0 ${
-                        event.status === 'Sold Out' || percentage >= 100
-                          ? 'bg-purple-50 text-purple-700 border-purple-200/80'
-                          : event.status === 'Active'
+                      className={`text-[11px] font-extrabold px-3 py-1 rounded-full border text-center leading-tight shrink-0 ${event.status === 'Sold Out' || percentage >= 100
+                        ? 'bg-purple-50 text-purple-700 border-purple-200/80'
+                        : event.status === 'Active'
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                           : 'bg-slate-100 text-slate-700 border-slate-200'
-                      }`}
+                        }`}
                     >
                       {event.status === 'Sold Out' || percentage >= 100 ? 'Sold Out' : event.status}
                     </span>
@@ -156,21 +155,29 @@ export const RecentEvents: React.FC<RecentEventsProps> = ({ events: initialEvent
                         <Ticket className="w-4 h-4 text-blue-600" /> Ticket Capacity
                       </span>
                       <span className="font-extrabold text-slate-900">
-                        {event.ticketsSold.toLocaleString()} /{' '}
-                        {event.totalTickets.toLocaleString()} ({percentage}%)
+                        {event.totalTickets > 0 ? (
+                          <>
+                            {event.ticketsSold.toLocaleString('id-ID')} /{' '}
+                            {event.totalTickets.toLocaleString('id-ID')}{' '}
+                            <span className="text-slate-500 font-bold">({percentage}%)</span>
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-500 font-semibold bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                            0 / 0 Tiket (0%)
+                          </span>
+                        )}
                       </span>
                     </div>
                     <div className="w-full h-2.5 rounded-full bg-slate-100 border border-slate-200/50 overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          percentage >= 100
-                            ? 'bg-purple-600'
-                            : percentage > 75
+                        className={`h-full rounded-full transition-all duration-500 ${percentage >= 100
+                          ? 'bg-purple-600'
+                          : percentage > 75
                             ? 'bg-blue-600'
                             : percentage > 0
-                            ? 'bg-emerald-500'
-                            : 'bg-slate-200'
-                        }`}
+                              ? 'bg-emerald-500'
+                              : 'bg-slate-200'
+                          }`}
                         style={{ width: `${percentage}%` }}
                       />
                     </div>

@@ -495,30 +495,30 @@ export default function WithdrawalManagementPage() {
     <DashboardLayout pageTitle="Penarikan Dana & Rekening Bank" activeNav="Penarikan Dana">
       <div className="w-full space-y-6">
         {/* Banner Hero Header */}
-        <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 text-white p-6 sm:p-8 shadow-xl shadow-blue-700/15 border border-blue-600/30">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1.5">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-xs font-bold uppercase tracking-wider">
-                <Landmark className="w-3.5 h-3.5 text-white" /> Financial Payout Console
+        <div className="rounded-2xl bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 text-white p-4 sm:p-5 shadow-lg shadow-blue-700/15 border border-blue-600/30">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-[10px] font-bold uppercase tracking-wider">
+                <Landmark className="w-3 h-3 text-white" /> Financial Payout Console
               </div>
-              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+              <h2 className="text-lg sm:text-xl font-extrabold tracking-tight">
                 {isOwnerRole ? 'Persetujuan & Transfer Penarikan Dana EO' : 'Penarikan Dana & Rekening Bank EO'}
               </h2>
-              <p className="text-xs text-blue-100 font-medium max-w-2xl">
+              <p className="text-[11px] text-blue-100 font-medium max-w-2xl">
                 {isOwnerRole
                   ? 'Verifikasi pengajuan pencairan dana dari Mitra EO, lakukan transfer manual dari DOKU/Bank Owner, dan unggah Bukti Transfer.'
                   : 'Kelola rekening bank penerima pencairan tiket, ajukan penarikan dana baru, dan pantau status riwayat transfer dari Owner.'}
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold flex items-center gap-2 transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
                 <span>{isRefreshing ? 'Memuat...' : 'Refresh'}</span>
               </button>
 
@@ -529,9 +529,9 @@ export default function WithdrawalManagementPage() {
                     setWithdrawalFormError(null);
                     setIsWithdrawModalOpen(true);
                   }}
-                  className="px-5 py-2.5 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-extrabold text-xs flex items-center gap-2 shadow-lg transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                  className="px-4 py-2 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
                 >
-                  <Send className="w-4 h-4 text-blue-700" />
+                  <Send className="w-3.5 h-3.5 text-blue-700" />
                   <span>+ Ajukan Penarikan Dana</span>
                 </button>
               )}
@@ -540,64 +540,64 @@ export default function WithdrawalManagementPage() {
         </div>
 
         {/* 4 Summary Stat Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
               Saldo Siap Dicairkan
             </span>
             <div className="flex items-center justify-between">
               <h4 className="text-xl font-black text-slate-900">
                 Rp {availableBalance.toLocaleString('id-ID')}
               </h4>
-              <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
-                <Wallet className="w-5 h-5" />
+              <div className="p-1.5 rounded-xl bg-blue-50 text-blue-700">
+                <Wallet className="w-4 h-4" />
               </div>
             </div>
           </div>
 
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block">
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
               Total Penarikan Sukses
             </span>
             <div className="flex items-center justify-between">
               <h4 className="text-xl font-black text-emerald-600">
                 Rp {completedTotal.toLocaleString('id-ID')}
               </h4>
-              <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
-                <CheckCircle2 className="w-5 h-5" />
+              <div className="p-1.5 rounded-xl bg-emerald-50 text-emerald-700">
+                <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
           </div>
 
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block">
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
               Pengajuan Dalam Review
             </span>
             <div className="flex items-center justify-between">
               <h4 className="text-xl font-black text-amber-600">
                 {pendingCount} Transaksi
               </h4>
-              <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
-                <Clock className="w-5 h-5" />
+              <div className="p-1.5 rounded-xl bg-amber-50 text-amber-700">
+                <Clock className="w-4 h-4" />
               </div>
             </div>
           </div>
 
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block">
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
               Rekening Utama Pencairan
             </span>
             <div className="flex items-center justify-between">
               <div className="min-w-0">
-                <h4 className="text-sm font-black text-slate-900 truncate">
+                <h4 className="text-xs font-black text-slate-900 truncate">
                   {primaryBankAccount ? primaryBankAccount.bank_name : 'Belum Didaftarkan'}
                 </h4>
-                <p className="text-xs text-slate-500 font-semibold truncate">
+                <p className="text-[11px] text-slate-500 font-semibold truncate">
                   {primaryBankAccount ? primaryBankAccount.account_number : '-'}
                 </p>
               </div>
-              <div className="p-2 rounded-xl bg-purple-50 text-purple-700 shrink-0">
-                <Landmark className="w-5 h-5" />
+              <div className="p-1.5 rounded-xl bg-purple-50 text-purple-700 shrink-0">
+                <Landmark className="w-4 h-4" />
               </div>
             </div>
           </div>
@@ -605,14 +605,14 @@ export default function WithdrawalManagementPage() {
 
         {/* SECTION A: KELOLA REKENING BANK EO (Hanya untuk EO) */}
         {!isOwnerRole && (
-          <div className="rounded-3xl bg-white border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-            <div className="space-y-1">
-              <h3 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-blue-600" />
+          <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="space-y-0.5">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-blue-600" />
                 <span>Daftar Rekening Bank Penampung EO</span>
               </h3>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-[11px] text-slate-500 font-medium">
                 Atur rekening bank resmi organisasi Anda untuk menerima dana pencairan tiket event dari Owner.
               </p>
             </div>
@@ -620,9 +620,9 @@ export default function WithdrawalManagementPage() {
             <button
               type="button"
               onClick={() => handleOpenBankModal()}
-              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               <span>Tambah Rekening Bank Baru</span>
             </button>
           </div>
@@ -727,22 +727,22 @@ export default function WithdrawalManagementPage() {
       )}
 
         {/* SECTION B: DAFTAR RIWAYAT PENARIKAN DANA */}
-        <div className="rounded-3xl bg-white border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-5">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-            <div className="space-y-1">
-              <h3 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-600" />
+        <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="space-y-0.5">
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                <FileText className="w-4 h-4 text-blue-600" />
                 <span>Riwayat & Daftar Penarikan Dana (Payout History)</span>
               </h3>
-              <p className="text-xs text-slate-500 font-medium">
+              <p className="text-[11px] text-slate-500 font-medium">
                 Pantau seluruh daftar pengajuan penarikan dana, bukti transfer, dan status persetujuan dari Owner.
               </p>
             </div>
 
             {/* Status Filter Dropdown via Shadcn UI Select */}
-            <div className="w-full sm:w-52">
+            <div className="w-full sm:w-44">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600">
+                <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600">
                   <SelectValue placeholder="Filter Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -757,17 +757,17 @@ export default function WithdrawalManagementPage() {
           </div>
 
           {isLoading ? (
-            <Skeleton className="h-64 w-full rounded-2xl" />
+            <Skeleton className="h-56 w-full rounded-xl" />
           ) : withdrawals.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-700 min-w-[780px]">
-                <thead className="bg-slate-50 text-slate-500 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-200/80">
+              <table className="w-full text-left text-xs text-slate-700 min-w-[750px]">
+                <thead className="bg-slate-50 text-slate-500 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200/80">
                   <tr>
-                    <th className="py-3.5 px-4 rounded-l-xl">No. Referensi & Waktu</th>
-                    <th className="py-3.5 px-4">Rekening Tujuan</th>
-                    <th className="py-3.5 px-4">Nominal Penarikan (Rp)</th>
-                    <th className="py-3.5 px-4">Status Pengajuan</th>
-                    <th className="py-3.5 px-4 text-right rounded-r-xl">Aksi Detail</th>
+                    <th className="py-2.5 px-3 rounded-l-xl">No. Referensi & Waktu</th>
+                    <th className="py-2.5 px-3">Rekening Tujuan</th>
+                    <th className="py-2.5 px-3">Nominal Penarikan (Rp)</th>
+                    <th className="py-2.5 px-3">Status Pengajuan</th>
+                    <th className="py-2.5 px-3 text-right rounded-r-xl">Aksi Detail</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -790,48 +790,48 @@ export default function WithdrawalManagementPage() {
 
                     return (
                       <tr key={item.id} className="hover:bg-blue-50/30 transition-colors group">
-                        <td className="py-3.5 px-4">
+                        <td className="py-2.5 px-3">
                           <div className="flex flex-col">
-                            <span className="font-black text-slate-900 group-hover:text-blue-700 transition-colors">
+                            <span className="font-black text-slate-900 group-hover:text-blue-700 transition-colors text-xs">
                               {item.reference_number || `#WD-${item.id}`}
                             </span>
-                            <span className="text-[11px] text-slate-400 font-medium">
+                            <span className="text-[10px] text-slate-400 font-medium">
                               {formattedDate}
                             </span>
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-4">
+                        <td className="py-2.5 px-3">
                           <div className="flex flex-col text-[11px] space-y-0.5">
-                            <span className="font-extrabold text-slate-900">
+                            <span className="font-extrabold text-slate-900 text-xs">
                               {item.bank_name} — {item.account_number}
                             </span>
-                            <span className="text-slate-500 font-semibold uppercase">
+                            <span className="text-slate-500 font-semibold uppercase text-[10px]">
                               a.n. {item.account_holder_name}
                             </span>
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-4 font-black text-slate-900 text-sm">
+                        <td className="py-2.5 px-3 font-black text-slate-900 text-xs">
                           Rp {(item.net_amount || item.amount || 0).toLocaleString('id-ID')}
                         </td>
 
-                        <td className="py-3.5 px-4">{getStatusBadge(item.status)}</td>
+                        <td className="py-2.5 px-3">{getStatusBadge(item.status)}</td>
 
-                        <td className="py-3.5 px-4 text-right flex items-center justify-end gap-2">
+                        <td className="py-2.5 px-3 text-right flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleOpenDetailModal(item.id)}
-                            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-[11px] transition-all cursor-pointer inline-flex items-center gap-1"
                           >
-                            <Eye className="w-3.5 h-3.5" /> Detail
+                            <Eye className="w-3 h-3" /> Detail
                           </button>
 
                           {isOwnerRole && (
                             <button
                               type="button"
                               onClick={() => handleOpenOwnerActionModal(item)}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-xs ${
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer inline-flex items-center gap-1 shadow-xs ${
                                 item.status === 'PENDING'
                                   ? 'bg-amber-500 hover:bg-amber-600 text-white'
                                   : item.status === 'PROCESSING'
@@ -839,7 +839,7 @@ export default function WithdrawalManagementPage() {
                                   : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200'
                               }`}
                             >
-                              <ShieldCheck className="w-3.5 h-3.5" />
+                              <ShieldCheck className="w-3 h-3" />
                               <span>{item.status === 'COMPLETED' ? 'Kelola Bukti' : 'Proses Transfer'}</span>
                             </button>
                           )}

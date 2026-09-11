@@ -3,10 +3,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useRouter } from 'next/navigation';
-import { fetchUserTickets, fetchPublicEvents, ApiTicketDetail, getStoredUser, getTicketPdfUrl, getTicketQrUrl } from '@/lib/api';
+import { fetchUserTickets, fetchUserOrders, fetchPublicEvents, ApiTicketDetail, getStoredUser, getTicketPdfUrl, getTicketQrUrl } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
-import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw } from 'lucide-react';
+import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw, Clock, AlertTriangle, CreditCard, Lock, Copy, ChevronDown, ChevronUp, HelpCircle, Check, Building2, Wallet, Store, Zap } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 import { getUserRole } from '@/lib/roles';
@@ -52,20 +52,221 @@ export function resolveVenueName(eventObj: any): string {
   return 'Venue Utama';
 }
 
+function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () => void }) {
+  const createdAtMs = order.created_at ? new Date(order.created_at).getTime() : Date.now();
+  const expiresAtMs = order.expires_at ? new Date(order.expires_at).getTime() : (createdAtMs + 10 * 60 * 1000);
+
+  const [timeLeft, setTimeLeft] = useState<number>(() => {
+    return Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
+  });
+
+  const [isInstructionOpen, setIsInstructionOpen] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [expiresAtMs, timeLeft]);
+
+  const mins = Math.floor(timeLeft / 60);
+  const secs = timeLeft % 60;
+  const formattedTimer = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  const isExpired = timeLeft <= 0;
+
+  const orderNum = order.order_number || (order.id ? `#MTX-${order.id}` : '#MTX-ORDER');
+  const totalPrice = Number(order.total_amount || order.grand_total || order.total_price || 0);
+  const eventTitle = order.event?.title || order.items?.[0]?.ticket_type?.name || 'Event Metix Pass';
+  const paymentUrl = order.payment_url || (order.payment?.payment_url) || null;
+
+  // Resolve Payment Method Name & VA / Code / Account Number
+  const categoryRaw = (order.payment_category || order.payment_method || order.payment?.payment_method || 'QRIS').toUpperCase();
+  let paymentMethodName = 'QRIS Instant (Scan QR)';
+  let paymentCode = order.payment?.payment_code || order.payment?.va_number || order.va_number || '8801' + String(order.id || 1001).padStart(8, '0');
+
+  if (categoryRaw.includes('VA') || categoryRaw.includes('VIRTUAL') || categoryRaw.includes('TRANSFER')) {
+    paymentMethodName = 'Virtual Account Bank (BCA / Mandiri / BNI / BRI)';
+  } else if (categoryRaw.includes('EWALLET') || categoryRaw.includes('E_WALLET') || categoryRaw.includes('GOPAY') || categoryRaw.includes('OVO')) {
+    paymentMethodName = 'E-Wallet (GoPay / ShopeePay / OVO / DANA)';
+  } else if (categoryRaw.includes('ALFAMART') || categoryRaw.includes('RETAIL')) {
+    paymentMethodName = 'Gerai Retail Alfamart / Indomaret';
+  } else if (categoryRaw.includes('CREDIT') || categoryRaw.includes('CARD')) {
+    paymentMethodName = 'Kartu Kredit / Debit Visa & Mastercard';
+  }
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(paymentCode);
+    setCopiedCode(true);
+    toast.success('Nomor VA / Kode Pembayaran Berhasil Disalin!');
+    setTimeout(() => setCopiedCode(false), 3000);
+  };
+
+  return (
+    <div className={`p-5 sm:p-6 rounded-3xl border transition-all space-y-4 shadow-sm animate-in fade-in-0 ${
+      isExpired
+        ? 'bg-rose-50/80 border-rose-200 text-slate-900'
+        : 'bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 text-white border-blue-600/40 shadow-xl shadow-blue-950/10'
+    }`}>
+      {/* Top Banner Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3 border-white/10">
+        <div className="flex items-center gap-2">
+          <div className={`w-3 h-3 rounded-full ${isExpired ? 'bg-rose-500' : 'bg-amber-400 animate-pulse'}`} />
+          <span className={`text-xs font-black uppercase tracking-wider ${isExpired ? 'text-rose-700 font-extrabold' : 'text-amber-300'}`}>
+            {isExpired ? 'Pesanan Dibatalkan (Expired 10 Menit)' : '⏱️ Menunggu Pembayaran'}
+          </span>
+        </div>
+
+        {!isExpired ? (
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-400 text-slate-950 text-xs font-mono font-black tracking-wider shadow-md">
+            <Clock className="w-4 h-4 text-slate-950 animate-pulse" />
+            <span>Hitung Mundur: {formattedTimer} Menit</span>
+          </div>
+        ) : (
+          <span className="text-[10px] font-extrabold px-3 py-1 rounded-full bg-rose-200/80 text-rose-800 border border-rose-300 uppercase">
+            Batas Waktu 10 Menit Habis — Status: Cancelled
+          </span>
+        )}
+      </div>
+
+      {/* Main Order & Payment Info */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-xs font-mono font-extrabold ${isExpired ? 'text-rose-600' : 'text-blue-300'}`}>
+              Nomor Pesanan: {orderNum}
+            </span>
+            <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+              isExpired ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-blue-900/60 text-amber-300 border-amber-400/30'
+            }`}>
+              {paymentMethodName}
+            </span>
+          </div>
+
+          <h4 className={`text-base sm:text-lg font-black ${isExpired ? 'text-slate-900' : 'text-white'}`}>
+            {eventTitle}
+          </h4>
+
+          <p className={`text-xs font-medium leading-relaxed ${isExpired ? 'text-slate-600' : 'text-slate-300'}`}>
+            {isExpired
+              ? 'Waktu pembayaran 10 menit telah berakhir. Status pesanan otomatis dibatalkan.'
+              : 'Silakan transfer tagihan sebesar Rp ' + totalPrice.toLocaleString('id-ID') + ' ke nomor pembayaran di bawah ini sebelum batas 10 menit berakhir.'}
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:items-end shrink-0 space-y-2">
+          <div className="text-right">
+            <span className={`text-[10px] uppercase font-bold block ${isExpired ? 'text-slate-400' : 'text-blue-200'}`}>Total Tagihan Presisi</span>
+            <div className={`text-xl font-black ${isExpired ? 'text-slate-500 line-through' : 'text-amber-300'}`}>
+              Rp {totalPrice.toLocaleString('id-ID')}
+            </div>
+          </div>
+
+          {!isExpired ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (paymentUrl) {
+                  window.open(paymentUrl, '_blank');
+                } else {
+                  setIsInstructionOpen((prev) => !prev);
+                }
+              }}
+              className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 text-xs font-black shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02]"
+            >
+              <CreditCard className="w-4 h-4 text-slate-950" />
+              <span>Bayar Sekarang</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="px-4 py-2 rounded-2xl bg-slate-200 text-slate-500 text-xs font-bold opacity-70 cursor-not-allowed flex items-center gap-1.5"
+            >
+              <XCircle className="w-3.5 h-3.5 text-slate-500" />
+              <span>Dibatalkan (Expired)</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Shopee-Style Payment Details Box (VA Number / Kode Pembayaran + Copy Button) */}
+      {!isExpired && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-white/10 border border-white/15 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-black/20 p-3.5 rounded-xl border border-white/10">
+            <div className="space-y-1">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-200 block">
+                Nomor Virtual Account / Kode Pembayaran:
+              </span>
+              <div className="text-lg sm:text-xl font-mono font-black tracking-widest text-amber-300">
+                {paymentCode}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCopyCode}
+              className="px-4 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 border border-white/20"
+            >
+              {copiedCode ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-amber-300" />}
+              <span>{copiedCode ? 'Tersalin!' : 'Salin Nomor VA'}</span>
+            </button>
+          </div>
+
+          {/* Toggle Collapsible Instruction Guide */}
+          <button
+            type="button"
+            onClick={() => setIsInstructionOpen((prev) => !prev)}
+            className="w-full text-left flex items-center justify-between text-xs font-extrabold text-blue-200 hover:text-white pt-1 transition-colors cursor-pointer"
+          >
+            <span className="flex items-center gap-1.5">
+              <HelpCircle className="w-4 h-4 text-amber-300" />
+              <span>Petunjuk Cara Pembayaran ({paymentMethodName})</span>
+            </span>
+            {isInstructionOpen ? <ChevronUp className="w-4 h-4 text-amber-300" /> : <ChevronDown className="w-4 h-4 text-amber-300" />}
+          </button>
+
+          {isInstructionOpen && (
+            <div className="p-4 rounded-xl bg-slate-900/90 border border-white/10 text-xs space-y-2.5 animate-in fade-in-0">
+              <p className="font-bold text-amber-300">Langkah-Langkah Cara Pembayaran:</p>
+              <ol className="list-decimal list-inside space-y-1.5 text-slate-200 font-medium">
+                <li>Buka aplikasi m-Banking atau E-Wallet pilihan Anda (BCA, Mandiri, GoPay, OVO, ShopeePay, dll).</li>
+                <li>Pilih menu <strong>Transfer ➔ Virtual Account</strong> (atau <strong>Scan QRIS</strong> jika menggunakan QRIS).</li>
+                <li>Masukkan Nomor Virtual Account / Kode Pembayaran: <strong className="font-mono text-amber-300">{paymentCode}</strong>.</li>
+                <li>Periksa detail tagihan sebesar <strong className="text-amber-300">Rp {totalPrice.toLocaleString('id-ID')}</strong> dan nama akun pemesan.</li>
+                <li>Konfirmasi transaksi & masukkan PIN Anda. Tiket akan terbit otomatis!</li>
+              </ol>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TicketsPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [tickets, setTickets] = useState<ApiTicketDetail[]>([]);
+  const [userOrders, setUserOrders] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'used'>('all');
 
   const loadTickets = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [data, pubData] = await Promise.all([
+      const [data, pubData, ordersData] = await Promise.all([
         fetchUserTickets(),
         fetchPublicEvents().catch(() => null),
+        fetchUserOrders().catch(() => []),
       ]);
+
+      setUserOrders(ordersData || []);
 
       const eventsMap = new Map<number, any>();
       if (pubData?.events) {
@@ -526,6 +727,23 @@ export default function TicketsPage() {
             </div>
           </div>
         </div>
+
+        {/* Pending Orders 10-Minute Countdown Section */}
+        {userOrders.filter((ord: any) => {
+          const s = (ord.status || ord.payment_status || 'PENDING').toUpperCase();
+          return s === 'PENDING' || s === 'UNPAID' || s === 'WAITING_PAYMENT' || s === 'DRAFT';
+        }).length > 0 && (
+          <div className="space-y-4">
+            {userOrders
+              .filter((ord: any) => {
+                const s = (ord.status || ord.payment_status || 'PENDING').toUpperCase();
+                return s === 'PENDING' || s === 'UNPAID' || s === 'WAITING_PAYMENT' || s === 'DRAFT';
+              })
+              .map((ord: any) => (
+                <OrderCountdownCard key={ord.id || ord.order_number} order={ord} onRefresh={loadTickets} />
+              ))}
+          </div>
+        )}
 
         {/* Filter Bar & Tabs */}
         <div className="rounded-3xl bg-white border border-slate-200/90 p-6 shadow-xs space-y-4">

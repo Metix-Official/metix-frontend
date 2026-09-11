@@ -971,16 +971,15 @@ export default function EventsPage() {
       }
 
       if (bannerUrlInput && String(bannerUrlInput).trim() !== '') {
-        const cleanUrl = String(bannerUrlInput).trim().slice(0, 255);
+        const cleanUrl = String(bannerUrlInput).trim();
         formData.set('banner', cleanUrl);
       } else if (createBannerPreview && createBannerPreview.startsWith('data:image')) {
-        const shortPlaceholder = `local_banner_${Date.now()}.png`;
-        formData.set('banner', shortPlaceholder);
+        formData.set('banner', createBannerPreview);
       } else if (bannerFile instanceof File && bannerFile.size > 0) {
-        const shortName = `events/banner_${Date.now()}_${bannerFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`.slice(0, 255);
+        const shortName = `events/banner_${Date.now()}_${bannerFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
         formData.set('banner', shortName);
       } else if (createBannerPreview && createBannerPreview.startsWith('http')) {
-        formData.set('banner', createBannerPreview.slice(0, 255));
+        formData.set('banner', createBannerPreview);
       } else {
         formData.set('banner', defaultShortBanner);
       }
@@ -1140,17 +1139,16 @@ export default function EventsPage() {
       }
 
       if (bannerUrlInput && String(bannerUrlInput).trim() !== '') {
-        const cleanUrl = String(bannerUrlInput).trim().slice(0, 255);
+        const cleanUrl = String(bannerUrlInput).trim();
         formData.set('banner', cleanUrl);
       } else if (editBannerPreview && editBannerPreview.startsWith('data:image')) {
-        const shortPlaceholder = `local_banner_${Date.now()}.png`;
-        formData.set('banner', shortPlaceholder);
-      } else if (bannerFile instanceof File && bannerFile.size > 0) {
-        const shortName = `events/banner_${Date.now()}_${bannerFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`.slice(0, 255);
-        formData.set('banner', shortName);
-      } else if (editBannerPreview && editBannerPreview.startsWith('http') && editBannerPreview.length <= 255) {
         formData.set('banner', editBannerPreview);
-      } else if (editingEvent.banner && editingEvent.banner.length <= 255) {
+      } else if (bannerFile instanceof File && bannerFile.size > 0) {
+        const shortName = `events/banner_${Date.now()}_${bannerFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        formData.set('banner', shortName);
+      } else if (editBannerPreview && editBannerPreview.startsWith('http')) {
+        formData.set('banner', editBannerPreview);
+      } else if (editingEvent.banner) {
         formData.set('banner', editingEvent.banner);
       } else {
         formData.set('banner', defaultShortBanner);

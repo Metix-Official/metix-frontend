@@ -1150,6 +1150,34 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
   return apiTickets;
 }
 
+export async function fetchUserOrders(): Promise<any[]> {
+  const token = getStoredToken();
+  if (!token) return [];
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/orders`, {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const list = Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data?.data?.data)
+          ? data.data.data
+          : Array.isArray(data)
+            ? data
+            : [];
+      return list;
+    }
+  } catch (error) {
+    console.warn('Failed to fetch user orders:', error);
+  }
+
+  return [];
+}
+
 export async function fetchTicketDetail(ticketId: number): Promise<ApiTicketDetail | null> {
   const token = getStoredToken();
   try {
@@ -2319,7 +2347,7 @@ export async function createTicketType(
       name: payload.name,
       price: payload.price,
       quota: payload.quota,
-      max_per_order: payload.max_per_order || 5,
+      max_per_order: payload.max_per_order ? Math.min(payload.max_per_order, 4) : 4,
     }),
   });
 

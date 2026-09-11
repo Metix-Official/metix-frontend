@@ -396,6 +396,12 @@ export default function EventCheckoutClient() {
   const handleQuantityChange = (ticketTypeId: number, newQty: number) => {
     setSelectedTickets((prev) => {
       const existingIndex = prev.findIndex((t) => t.ticket_type_id === ticketTypeId);
+      const currentQty = existingIndex > -1 ? prev[existingIndex].quantity : 0;
+      const currentTotal = prev.reduce((acc, t) => acc + t.quantity, 0);
+
+      if (newQty > currentQty && currentTotal >= 4) {
+        return prev;
+      }
       if (newQty <= 0) {
         return prev.filter((t) => t.ticket_type_id !== ticketTypeId);
       }
@@ -750,7 +756,7 @@ export default function EventCheckoutClient() {
                           <button
                             type="button"
                             onClick={() => handleQuantityChange(ticket.id, qty + 1)}
-                            disabled={qty >= (ticket.max_per_order || 5)}
+                            disabled={totalTicketCount >= 4}
                             className="w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-30 text-white font-black text-base flex items-center justify-center cursor-pointer transition-colors shadow-xs"
                           >
                             +

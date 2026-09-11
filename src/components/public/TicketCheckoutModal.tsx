@@ -396,23 +396,22 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
   });
 
   const updateQuantity = (type: ApiTicketType, delta: number) => {
-    const maxPerOrder = type.max_per_order || 5;
     const currentStock = type.available_quota !== undefined ? type.available_quota : Math.max(0, (type.quota || 100) - (type.sold_quantity || 0));
-    const maxAllowed = Math.min(maxPerOrder, currentStock);
+
+    if (delta > 0 && totalTicketCount >= 4) {
+      setCustomAlert({
+        title: 'Batas Akumulasi Tiket Tercapai',
+        message: 'Maksimal pembelian total untuk 1 event adalah 4 tiket (misal: VIP: 1, VVIP: 2, Reguler: 1).',
+        type: 'warning',
+      });
+      return;
+    }
 
     setSelectedTickets((prev) => {
       const existing = prev.find((item) => item.ticketType.id === type.id);
 
       if (existing) {
         const newQty = existing.quantity + delta;
-        if (newQty > maxAllowed) {
-          setCustomAlert({
-            title: 'Batas Maksimum Pemesanan',
-            message: `Maksimal pemesanan tiket "${type.name}" adalah ${maxAllowed} tiket per transaksi.`,
-            type: 'warning',
-          });
-          return prev;
-        }
         if (newQty <= 0) {
           return prev.filter((item) => item.ticketType.id !== type.id);
         }
@@ -431,7 +430,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
         );
       } else {
         if (delta <= 0) return prev;
-        if (maxAllowed < 1) {
+        if (currentStock < 1) {
           setCustomAlert({
             title: 'Stok Tiket Habis',
             message: `Stok tiket "${type.name}" telah habis dipesan.`,
@@ -664,10 +663,10 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                 <CheckCircle2 className="w-10 h-10" />
               </div>
 
-              <div className="space-y-1 text-center">
-                <h4 className="text-xl font-black text-slate-900">Pemesanan Tiket Berhasil!</h4>
-                <p className="text-xs text-slate-500 font-medium">
-                  Nomor Order: <strong className="text-blue-700 font-mono">{completedOrder.order_number}</strong>
+              <div className="space-y-2 text-center">
+                <h4 className="text-xl font-black text-slate-900">Pesanan Berhasil Dibuat!</h4>
+                <p className="text-xs text-slate-600 font-medium leading-relaxed px-2">
+                  Pesanan <strong className="text-blue-700 font-mono">#{completedOrder.order_number}</strong> telah tercatat. Silakan lakukan pembayaran tagihan sebesar <strong className="text-slate-900 font-black">Rp {finalGrandTotal.toLocaleString('id-ID')}</strong> agar E-Tiket Anda resmi diterbitkan.
                 </p>
               </div>
 
@@ -703,7 +702,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                   onClick={onClose}
                   className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/20"
                 >
-                  <Ticket className="w-4 h-4" /> Lihat Tiket Saya
+                  <Ticket className="w-4 h-4" /> Cek Pesanan Saya
                 </Link>
               </div>
             </div>
@@ -791,7 +790,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => updateQuantity(type, 1)}
-                                disabled={qty >= availableStock || qty >= (type.max_per_order || 5)}
+                                disabled={qty >= availableStock || totalTicketCount >= 4}
                                 className="w-7 h-7 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:hover:bg-blue-600 text-white flex items-center justify-center transition-colors"
                               >
                                 <Plus className="w-3.5 h-3.5" />

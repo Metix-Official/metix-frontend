@@ -622,6 +622,120 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Monitor Activity Per Scanner Widget (Scanner 1, Scanner 2, Scanner 3...) */}
+      {(currentRole === 'mitra' || currentRole === 'owner') && (
+        <div className="rounded-3xl bg-white border border-slate-200/90 p-6 sm:p-8 shadow-lg shadow-slate-200/40 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-black uppercase tracking-wider">
+                  Live Gate Monitor
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" /> Real-time Sync
+                </span>
+              </div>
+              <h3 className="text-xl font-black text-slate-900 flex items-center gap-2.5">
+                <UserCheck className="w-6 h-6 text-blue-600" /> Monitoring Activity Per Scanner Gatekeeper
+              </h3>
+              <p className="text-xs text-slate-500 font-medium">
+                Pantau jumlah total tiket yang berhasil di-scan oleh masing-masing petugas gate (Scanner 1, Scanner 2, Scanner 3, dll).
+              </p>
+            </div>
+
+            <a
+              href="/dashboard/scanner-reports"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-black transition-all shadow-2xs border border-blue-200 shrink-0 self-start sm:self-center"
+            >
+              Lihat Detail Laporan Scanner &rarr;
+            </a>
+          </div>
+
+          {eoAdmins.length === 0 ? (
+            <div className="py-10 text-center space-y-3 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+              <UserCheck className="w-10 h-10 text-slate-300 mx-auto" />
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-slate-800">Belum Ada Petugas Scanner Terdaftar</h4>
+                <p className="text-xs text-slate-500">
+                  Daftarkan petugas gatekeeper di menu Management Staff / Scanner.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {eoAdmins.map((staff, idx) => {
+                const totalScans = eoAdmins.reduce((sum, s) => sum + (s.scan_count || 0), 0);
+                const percent = totalScans > 0 ? Math.round(((staff.scan_count || 0) / totalScans) * 100) : 0;
+
+                return (
+                  <div
+                    key={staff.id || idx}
+                    className="p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-blue-50/30 border border-slate-200/90 shadow-2xs hover:shadow-md transition-all space-y-4 relative overflow-hidden"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white font-black flex items-center justify-center text-sm shadow-md shadow-blue-600/20">
+                          #{idx + 1}
+                        </div>
+                        <div className="space-y-0.5">
+                          <h4 className="text-sm font-black text-slate-900 line-clamp-1">
+                            {staff.name || `Scanner ${idx + 1}`}
+                          </h4>
+                          <p className="text-[11px] font-medium text-slate-500 truncate max-w-[150px]">
+                            {staff.email}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-black uppercase">
+                        Active
+                      </span>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-white border border-slate-200/80 space-y-2">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                          Sudah Di-Scan
+                        </span>
+                        <div className="text-right">
+                          <span className="text-2xl font-black text-blue-600">
+                            {(staff.scan_count || 0).toLocaleString('id-ID')}
+                          </span>
+                          <span className="text-xs font-bold text-slate-400"> E-Tiket</span>
+                        </div>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="space-y-1">
+                        <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, percent || 5)}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] font-bold text-slate-400">
+                          <span>Kontribusi Gate: {percent}%</span>
+                          <span>Quota: {staff.scan_quota || '∞'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium pt-1 border-t border-slate-100">
+                      <span className="truncate max-w-[160px]">📍 {staff.event_title || 'Event Active'}</span>
+                      <a
+                        href="/dashboard/scanner-reports"
+                        className="text-blue-600 font-extrabold hover:underline"
+                      >
+                        Detail &rarr;
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </DashboardLayout>
   );
 }

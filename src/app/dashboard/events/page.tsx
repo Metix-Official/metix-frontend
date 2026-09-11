@@ -11,6 +11,7 @@ import {
   fetchEventSocialMediaApi,
   createEvent,
   updateEvent,
+  uploadMedia,
   publishEvent,
   cancelEvent,
   deleteEvent,
@@ -144,6 +145,9 @@ export default function EventsPage() {
   const [createLng, setCreateLng] = useState<number>(106.8456);
   const [createCityInput, setCreateCityInput] = useState<string>('');
   const [createBannerPreview, setCreateBannerPreview] = useState<string>('');
+  const [createBannerFile, setCreateBannerFile] = useState<File | null>(null);
+  const [createBannerPath, setCreateBannerPath] = useState<string>('');
+  const [isUploadingCreateBanner, setIsUploadingCreateBanner] = useState<boolean>(false);
   const [createBannerUrlInput, setCreateBannerUrlInput] = useState<string>('');
   const [createModalTab, setCreateModalTab] = useState<ModalTab>('info');
   const [createTitleInput, setCreateTitleInput] = useState<string>('');
@@ -159,6 +163,9 @@ export default function EventsPage() {
   const [editLng, setEditLng] = useState<number>(106.8456);
   const [editCityInput, setEditCityInput] = useState<string>('');
   const [editBannerPreview, setEditBannerPreview] = useState<string>('');
+  const [editBannerFile, setEditBannerFile] = useState<File | null>(null);
+  const [editBannerPath, setEditBannerPath] = useState<string>('');
+  const [isUploadingEditBanner, setIsUploadingEditBanner] = useState<boolean>(false);
   const [editBannerUrlInput, setEditBannerUrlInput] = useState<string>('');
   const [editModalTab, setEditModalTab] = useState<ModalTab>('info');
 
@@ -221,13 +228,22 @@ export default function EventsPage() {
 
   const handleLineupFileChoose = async (id: string, file: File, mode: 'create' | 'edit') => {
     try {
-      const dataUrl = await fileToDataUrl(file);
+      const previewUrl = URL.createObjectURL(file);
       if (mode === 'create') {
-        handleUpdateCreateLineup(id, 'image', dataUrl);
+        handleUpdateCreateLineup(id, 'image', previewUrl);
       } else {
-        handleUpdateEditLineup(id, 'image', dataUrl);
+        handleUpdateEditLineup(id, 'image', previewUrl);
       }
-    } catch { }
+
+      const uploaded = await uploadMedia(file, 'lineups');
+      if (mode === 'create') {
+        handleUpdateCreateLineup(id, 'image', uploaded.path);
+      } else {
+        handleUpdateEditLineup(id, 'image', uploaded.path);
+      }
+    } catch (err) {
+      console.error('Failed to upload lineup image:', err);
+    }
   };
 
   // Facility Handlers
@@ -439,16 +455,17 @@ export default function EventsPage() {
   const handleCreateFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setCreateBannerFile(file);
+      setCreateBannerPreview(URL.createObjectURL(file));
       try {
-        const dataUrl = await fileToDataUrl(file);
-        setCreateBannerPreview(dataUrl);
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('metix_latest_created_banner', dataUrl);
-          } catch {}
-        }
-      } catch {
-        // Fallback
+        setIsUploadingCreateBanner(true);
+        const uploaded = await uploadMedia(file, 'banners');
+        setCreateBannerPath(uploaded.path);
+        toast.success('Banner berhasil diunggah ke storage!');
+      } catch (err: any) {
+        toast.error(err?.message || 'Gagal mengunggah file banner.');
+      } finally {
+        setIsUploadingCreateBanner(false);
       }
     }
   };
@@ -456,16 +473,17 @@ export default function EventsPage() {
   const handleEditFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setEditBannerFile(file);
+      setEditBannerPreview(URL.createObjectURL(file));
       try {
-        const dataUrl = await fileToDataUrl(file);
-        setEditBannerPreview(dataUrl);
-        if (editingEvent && typeof window !== 'undefined') {
-          try {
-            localStorage.setItem(`metix_banner_preview_${editingEvent.id}`, dataUrl);
-          } catch {}
-        }
-      } catch {
-        // Fallback
+        setIsUploadingEditBanner(true);
+        const uploaded = await uploadMedia(file, 'banners');
+        setEditBannerPath(uploaded.path);
+        toast.success('Banner berhasil diunggah ke storage!');
+      } catch (err: any) {
+        toast.error(err?.message || 'Gagal mengunggah file banner.');
+      } finally {
+        setIsUploadingEditBanner(false);
       }
     }
   };
@@ -970,14 +988,14 @@ export default function EventsPage() {
         formData.set('_local_banner_preview', createBannerPreview);
       }
 
-      if (bannerUrlInput && String(bannerUrlInput).trim() !== '') {
+      if (createBannerPath) {
+        formData.set('banner', createBannerPath);
+      } else if (createBannerFile) {
+        const uploaded = await uploadMedia(createBannerFile, 'banners');
+        formData.set('banner', uploaded.path);
+      } else if (bannerUrlInput && String(bannerUrlInput).trim() !== '') {
         const cleanUrl = String(bannerUrlInput).trim();
         formData.set('banner', cleanUrl);
-      } else if (createBannerPreview && createBannerPreview.startsWith('data:image')) {
-        formData.set('banner', createBannerPreview);
-      } else if (bannerFile instanceof File && bannerFile.size > 0) {
-        const shortName = `events/banner_${Date.now()}_${bannerFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-        formData.set('banner', shortName);
       } else if (createBannerPreview && createBannerPreview.startsWith('http')) {
         formData.set('banner', createBannerPreview);
       } else {
@@ -1138,14 +1156,14 @@ export default function EventsPage() {
         formData.set('_local_banner_preview', editBannerPreview);
       }
 
-      if (bannerUrlInput && String(bannerUrlInput).trim() !== '') {
+      if (editBannerPath) {
+        formData.set('banner', editBannerPath);
+      } else if (editBannerFile) {
+        const uploaded = await uploadMedia(editBannerFile, 'banners');
+        formData.set('banner', uploaded.path);
+      } else if (bannerUrlInput && String(bannerUrlInput).trim() !== '') {
         const cleanUrl = String(bannerUrlInput).trim();
         formData.set('banner', cleanUrl);
-      } else if (editBannerPreview && editBannerPreview.startsWith('data:image')) {
-        formData.set('banner', editBannerPreview);
-      } else if (bannerFile instanceof File && bannerFile.size > 0) {
-        const shortName = `events/banner_${Date.now()}_${bannerFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-        formData.set('banner', shortName);
       } else if (editBannerPreview && editBannerPreview.startsWith('http')) {
         formData.set('banner', editBannerPreview);
       } else if (editingEvent.banner) {

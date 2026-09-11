@@ -3885,6 +3885,35 @@ export async function updateOwnerPlatformFees(
   return true;
 }
 
+// ----------------------------------------------------------------------
+// MEDIA UPLOAD API
+// ----------------------------------------------------------------------
+export async function uploadMedia(
+  file: File,
+  folder: string = 'banners'
+): Promise<{ path: string; url: string }> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu (Unauthenticated).');
 
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('folder', folder);
 
+  const response = await fetch(`${API_BASE_URL}/media/upload`, {
+    method: 'POST',
+    headers: getHeaders(token),
+    body: formData,
+  });
 
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal mengunggah berkas gambar.'
+    );
+  }
+
+  return data.data;
+}

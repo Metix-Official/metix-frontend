@@ -6,6 +6,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import {
   fetchOrganizerProfile,
   saveOrganizerProfile,
+  uploadMedia,
   fetchUserProfile,
   ApiOrganizerProfile,
   getPhotoUrl,
@@ -47,6 +48,7 @@ export default function OrganizationPage() {
   const [email, setEmail] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [uploadedLogoPath, setUploadedLogoPath] = useState<string>('');
 
   // Validation Errors
   const [phoneError, setPhoneError] = useState<string | null>(null);
@@ -111,7 +113,7 @@ export default function OrganizationPage() {
   };
 
   // Image File Preview Selection
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setLogoFile(file);
@@ -120,6 +122,13 @@ export default function OrganizationPage() {
         setLogoPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+
+      try {
+        const uploaded = await uploadMedia(file, 'logos');
+        setUploadedLogoPath(uploaded.path);
+      } catch (err) {
+        console.error('Failed to upload logo:', err);
+      }
     }
   };
 
@@ -168,7 +177,7 @@ export default function OrganizationPage() {
         address: address.trim(),
         phone: phone.trim(),
         email: email.trim(),
-        logo: profile?.logo || undefined,
+        logo: uploadedLogoPath || profile?.logo || undefined,
         _local_logo_preview: localLogoPreview,
       });
 

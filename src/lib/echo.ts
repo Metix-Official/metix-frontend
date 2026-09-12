@@ -17,7 +17,8 @@ export const initEcho = (token?: string): Echo<any> | null => {
   const echoPort = process.env.NEXT_PUBLIC_REVERB_PORT || '8080';
   const echoScheme = process.env.NEXT_PUBLIC_REVERB_SCHEME || 'http';
   const appKey = process.env.NEXT_PUBLIC_REVERB_APP_KEY || 'reverb-app-key';
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api').replace(/\/$/, '');
+  const baseUrl = rawApiUrl.endsWith('/api') ? rawApiUrl.slice(0, -4) : rawApiUrl;
 
   return new Echo({
     broadcaster: 'reverb',
@@ -27,7 +28,7 @@ export const initEcho = (token?: string): Echo<any> | null => {
     wssPort: Number(echoPort),
     forceTLS: echoScheme === 'https',
     enabledTransports: ['ws', 'wss'],
-    authEndpoint: `${apiBaseUrl}/api/broadcasting/auth`,
+    authEndpoint: `${baseUrl}/api/broadcasting/auth`,
     auth: {
       headers: {
         Authorization: token ? `Bearer ${token}` : '',

@@ -4,11 +4,11 @@ import Pusher from 'pusher-js';
 declare global {
   interface Window {
     Pusher: typeof Pusher;
-    Echo: Echo;
+    Echo: Echo<any>;
   }
 }
 
-export const initEcho = (token?: string): Echo | null => {
+export const initEcho = (token?: string): Echo<any> | null => {
   if (typeof window === 'undefined') return null;
 
   window.Pusher = Pusher;

@@ -339,8 +339,9 @@ export default function TicketsPage() {
     // Setup Realtime WebSocket Listener for Ticket Scanned Event via Reverb
     let echoInstance: any = null;
     if (user && user.id) {
+      const token = (user as any).token || (typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '');
       import('@/lib/echo').then(({ initEcho }) => {
-        echoInstance = initEcho(user.token);
+        echoInstance = initEcho(token);
         if (echoInstance) {
           echoInstance
             .private(`user.${user.id}`)

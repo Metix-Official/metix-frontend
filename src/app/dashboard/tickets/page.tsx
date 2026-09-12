@@ -350,8 +350,13 @@ export default function TicketsPage() {
                 duration: 5000,
               });
               setTickets((prev) =>
-                prev.map((t) => (t.id === data.ticket_id ? { ...t, status: 'used' } : t))
+                prev.map((t) => {
+                  const matchId = t.id === data.ticket_id;
+                  const matchCode = data.ticket_code && (t.ticket_code === data.ticket_code || (t as any).qr_token === data.ticket_code);
+                  return (matchId || matchCode) ? { ...t, status: 'used' } : t;
+                })
               );
+              loadTickets();
             })
             .listen('.PaymentConfirmed', (data: { order_number: string }) => {
               toast.success(`Pembayaran untuk pesanan ${data.order_number || ''} BERHASIL LUNAS! Tiket Anda telah diterbitkan 🎉`, {

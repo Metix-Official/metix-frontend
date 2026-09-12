@@ -352,6 +352,12 @@ export default function TicketsPage() {
               setTickets((prev) =>
                 prev.map((t) => (t.id === data.ticket_id ? { ...t, status: 'used' } : t))
               );
+            })
+            .listen('.PaymentConfirmed', (data: { order_number: string }) => {
+              toast.success(`Pembayaran untuk pesanan ${data.order_number || ''} BERHASIL LUNAS! Tiket Anda telah diterbitkan 🎉`, {
+                duration: 6000,
+              });
+              loadTickets();
             });
         }
       });

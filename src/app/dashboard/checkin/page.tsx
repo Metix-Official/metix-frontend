@@ -128,13 +128,40 @@ export default function CheckInPage() {
     });
   }, []);
 
-  // Load real-time check-in history from API when event changes
+  // Load real-time check-in history & listen for WebSocket events when event changes
   useEffect(() => {
     if (selectedEvent?.id) {
       fetchScannerCheckIns(selectedEvent.id).then((history) => {
         setScanHistory(history);
         setTotalCheckInCount(history.length);
       });
+
+      let echoInstance: any = null;
+      const user = getStoredUser();
+      if (user) {
+        const token = (user as any).token || (typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '');
+        import('@/lib/echo').then(({ initEcho }) => {
+          echoInstance = initEcho(token);
+          if (echoInstance) {
+            echoInstance
+              .private(`user.${user.id}`)
+              .listen('.TicketScanned', (data: { ticket_id: number; ticket_code: string }) => {
+                if (selectedEvent?.id) {
+                  fetchScannerCheckIns(selectedEvent.id).then((history) => {
+                    setScanHistory(history);
+                    setTotalCheckInCount(history.length);
+                  });
+                }
+              });
+          }
+        });
+      }
+
+      return () => {
+        if (echoInstance && user?.id) {
+          echoInstance.leave(`user.${user.id}`);
+        }
+      };
     }
   }, [selectedEvent?.id]);
 

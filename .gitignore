@@ -39,3 +39,18 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# AI Agents & Local Tooling
+/.agents/
+/.claude/
+/.ai/
+/.codex/
+/.cursor/
+/.gemini/
+AGENTS.md
+CLAUDE.md
+*.llm.md
+*.ai.md
+*.local.md
+.mcp.json
+boost.json

@@ -98,7 +98,7 @@ export default function CheckInPage() {
       if (scannerEvts && scannerEvts.length > 0) {
         evts = scannerEvts;
       }
-    } catch {}
+    } catch { }
 
     if (!evts || evts.length === 0) {
       try {
@@ -106,7 +106,7 @@ export default function CheckInPage() {
         if (myData?.events && myData.events.length > 0) {
           evts = myData.events;
         }
-      } catch {}
+      } catch { }
     }
 
     setEvents(evts);
@@ -137,6 +137,18 @@ export default function CheckInPage() {
       fetchScannerCheckIns(selectedEvent.id).then((history) => {
         setScanHistory(history);
         setTotalCheckInCount(history.length);
+        if (currentUser) {
+          const myScans = history.filter((item: any) => {
+            return (
+              (item.checked_in_by_id && Number(item.checked_in_by_id) === Number(currentUser.id)) ||
+              (item.checked_in_by_email && item.checked_in_by_email.toLowerCase() === currentUser.email?.toLowerCase()) ||
+              (item.scanner_user && (item.scanner_user.includes(currentUser.name) || item.scanner_user.includes(currentUser.email)))
+            );
+          });
+          setStaffScanCount(myScans.length > 0 ? myScans.length : history.length);
+        } else {
+          setStaffScanCount(history.length);
+        }
       });
 
       let echoInstance: any = null;
@@ -344,6 +356,18 @@ export default function CheckInPage() {
           fetchScannerCheckIns(selectedEvent.id).then((history) => {
             setScanHistory(history);
             setTotalCheckInCount(history.length);
+            if (currentUser) {
+              const myScans = history.filter((item: any) => {
+                return (
+                  (item.checked_in_by_id && Number(item.checked_in_by_id) === Number(currentUser.id)) ||
+                  (item.checked_in_by_email && item.checked_in_by_email.toLowerCase() === currentUser.email?.toLowerCase()) ||
+                  (item.scanner_user && (item.scanner_user.includes(currentUser.name) || item.scanner_user.includes(currentUser.email)))
+                );
+              });
+              setStaffScanCount(myScans.length > 0 ? myScans.length : history.length);
+            } else {
+              setStaffScanCount(history.length);
+            }
           });
         }
       }

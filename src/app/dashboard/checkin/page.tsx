@@ -7,6 +7,7 @@ import {
   fetchScannerEvents,
   fetchPublicEvents,
   processCheckIn,
+  resetTicketScan,
   fetchScannerCheckIns,
   getStoredUser,
   fetchUserProfile,
@@ -14,6 +15,7 @@ import {
   ApiEvent,
   CheckInResponse,
 } from '@/lib/api';
+import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/Skeleton';
 import {
   Select,
@@ -48,6 +50,7 @@ import {
   Radio,
   Activity,
   Check,
+  RotateCw,
 } from 'lucide-react';
 
 interface ScanLogItem {
@@ -764,6 +767,33 @@ export default function CheckInPage() {
                       <span className="font-black text-amber-700 text-sm bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
                         {scanResult.ticket.type_name || 'VIP Pass'}
                       </span>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const codeToReset = scanResult.ticket?.code;
+                          if (!codeToReset) return;
+                          try {
+                            const res = await resetTicketScan({ ticket_code: codeToReset, event_id: selectedEvent?.id });
+                            toast.success(res.message);
+                            setScanResult(null);
+                            if (selectedEvent?.id) {
+                              fetchScannerCheckIns(selectedEvent.id).then((history) => {
+                                setScanHistory(history);
+                                setTotalCheckInCount(history.length);
+                              });
+                            }
+                          } catch (err: any) {
+                            toast.error(err?.message || 'Gagal mereset status tiket.');
+                          }
+                        }}
+                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-sans font-bold text-xs shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <RotateCw className="w-3.5 h-3.5" />
+                        <span>Batalkan Check-In (Reset ke Active)</span>
+                      </button>
                     </div>
                   </div>
                 )}

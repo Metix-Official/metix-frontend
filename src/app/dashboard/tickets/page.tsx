@@ -363,6 +363,19 @@ export default function TicketsPage() {
                 duration: 6000,
               });
               loadTickets();
+            })
+            .listen('.TicketReset', (data: { ticket_id: number; ticket_code: string }) => {
+              toast.info(`Status tiket #${data.ticket_code || data.ticket_id} dikembalikan menjadi Siap Check-In (ACTIVE).`, {
+                duration: 5000,
+              });
+              setTickets((prev) =>
+                prev.map((t) => {
+                  const matchId = t.id === data.ticket_id;
+                  const matchCode = data.ticket_code && (t.ticket_code === data.ticket_code || (t as any).qr_token === data.ticket_code);
+                  return (matchId || matchCode) ? { ...t, status: 'active' } : t;
+                })
+              );
+              loadTickets();
             });
         }
       });

@@ -1573,6 +1573,33 @@ export async function processCheckIn(payload: CheckInPayload): Promise<CheckInRe
   };
 }
 
+export async function resetTicketScan(payload: { ticket_code: string; event_id?: number }): Promise<{ success: boolean; message: string }> {
+  const token = getStoredToken();
+  const eventId = payload.event_id || 1;
+  const response = await fetch(`${API_BASE_URL}/scanner/events/${eventId}/scan-reset`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...getHeaders(token),
+    },
+    body: JSON.stringify({
+      qr_token: payload.ticket_code,
+      ticket_code: payload.ticket_code,
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (response.ok && data?.success !== false) {
+    return {
+      success: true,
+      message: data?.message || 'Status tiket berhasil dikembalikan menjadi Siap Check-In (ACTIVE).',
+    };
+  }
+
+  throw new Error(data?.message || 'Gagal mengembalikan status tiket.');
+}
+
 export async function fetchScannerDashboard(): Promise<any> {
   const token = getStoredToken();
   if (!token) return null;

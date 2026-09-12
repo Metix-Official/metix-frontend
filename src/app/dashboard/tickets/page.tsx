@@ -335,6 +335,32 @@ export default function TicketsPage() {
     }
 
     loadTickets();
+
+    // Setup Realtime WebSocket Listener for Ticket Scanned Event via Reverb
+    let echoInstance: any = null;
+    if (user && user.id) {
+      import('@/lib/echo').then(({ initEcho }) => {
+        echoInstance = initEcho(user.token);
+        if (echoInstance) {
+          echoInstance
+            .private(`user.${user.id}`)
+            .listen('.TicketScanned', (data: { ticket_id: number; ticket_code: string; status: string }) => {
+              toast.success(`Tiket #${data.ticket_code || data.ticket_id} berhasil di-scan di gate venue! 🎉`, {
+                duration: 5000,
+              });
+              setTickets((prev) =>
+                prev.map((t) => (t.id === data.ticket_id ? { ...t, status: 'used' } : t))
+              );
+            });
+        }
+      });
+    }
+
+    return () => {
+      if (echoInstance && user?.id) {
+        echoInstance.leave(`user.${user.id}`);
+      }
+    };
   }, [router, loadTickets]);
 
   const filteredTickets = React.useMemo(() => {

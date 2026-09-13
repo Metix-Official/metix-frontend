@@ -252,7 +252,7 @@ export default function CheckInPage() {
     }
   };
 
-  // Real-time Barcode / QR Detection loop for Camera Mode (Universal Canvas Fallback + BarcodeDetector)
+  // Real-time Barcode / QR Detection loop for Camera Mode (jsQR + BarcodeDetector)
   useEffect(() => {
     let isActive = true;
     let scanTimer: any = null;
@@ -263,25 +263,49 @@ export default function CheckInPage() {
       scanTimer = setInterval(async () => {
         if (!videoRef.current || isScanning || videoRef.current.readyState < 2 || !isActive) return;
 
-        // 1. Try Native BarcodeDetector if available
+        const video = videoRef.current;
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+
+        if (width > 0 && height > 0 && canvasCtx) {
+          canvasEl.width = width;
+          canvasEl.height = height;
+          canvasCtx.drawImage(video, 0, 0, width, height);
+
+          try {
+            const imageData = canvasCtx.getImageData(0, 0, width, height);
+            const jsQR = (await import('jsqr')).default;
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: 'dontInvert',
+            });
+
+            if (code && code.data && isActive) {
+              handleScanSubmit(code.data);
+              return;
+            }
+          } catch {
+            // Frame decode fallback
+          }
+        }
+
+        // Native BarcodeDetector Fallback
         if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
           try {
             const detector = new (window as any).BarcodeDetector({
-              formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8'],
+              formats: ['qr_code', 'code_128', 'code_39'],
             });
-            const barcodes = await detector.detect(videoRef.current);
+            const barcodes = await detector.detect(video);
             if (barcodes && barcodes.length > 0 && isActive) {
               const detectedCode = barcodes[0].rawValue;
               if (detectedCode && !isScanning) {
                 handleScanSubmit(detectedCode);
-                return;
               }
             }
           } catch {
-            // Fallback to JS Reader below
+            // Frame decode skip
           }
         }
-      }, 400);
+      }, 300);
     }
 
     return () => {

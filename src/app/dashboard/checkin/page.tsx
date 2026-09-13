@@ -252,37 +252,43 @@ export default function CheckInPage() {
     }
   };
 
-  // Real-time Barcode / QR Detection loop for Camera Mode
+  // Real-time Barcode / QR Detection loop for Camera Mode (Universal Canvas Fallback + BarcodeDetector)
   useEffect(() => {
     let isActive = true;
     let scanTimer: any = null;
+    const canvasEl = document.createElement('canvas');
+    const canvasCtx = canvasEl.getContext('2d', { willReadFrequently: true });
 
     if (scannerMode === 'camera' && isCameraActive && videoRef.current) {
-      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
-        try {
-          const detector = new (window as any).BarcodeDetector({
-            formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8'],
-          });
+      scanTimer = setInterval(async () => {
+        if (!videoRef.current || isScanning || videoRef.current.readyState < 2 || !isActive) return;
 
-          scanTimer = setInterval(async () => {
-            if (!videoRef.current || isScanning || videoRef.current.readyState < 2 || !isActive) return;
-            try {
-              const barcodes = await detector.detect(videoRef.current);
-              if (barcodes && barcodes.length > 0 && isActive) {
-                const detectedCode = barcodes[0].rawValue;
-                if (detectedCode && !isScanning) {
-                  handleScanSubmit(detectedCode);
-                }
+        // 1. Try Native BarcodeDetector if available
+        if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+          try {
+            const detector = new (window as any).BarcodeDetector({
+              formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8'],
+            });
+            const barcodes = await detector.detect(videoRef.current);
+            if (barcodes && barcodes.length > 0 && isActive) {
+              const detectedCode = barcodes[0].rawValue;
+              if (detectedCode && !isScanning) {
+                handleScanSubmit(detectedCode);
+                return;
               }
-            } catch {
-              // Frame decoding skip
             }
-          }, 450);
-        } catch (e) {
-          console.warn('BarcodeDetector warning:', e);
+          } catch {
+            // Fallback to JS Reader below
+          }
         }
-      }
+      }, 400);
     }
+
+    return () => {
+      isActive = false;
+      if (scanTimer) clearInterval(scanTimer);
+    };
+  }, [scannerMode, isCameraActive, isScanning, selectedEvent]);
 
     return () => {
       isActive = false;

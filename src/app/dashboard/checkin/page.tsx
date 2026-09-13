@@ -314,12 +314,6 @@ export default function CheckInPage() {
     };
   }, [scannerMode, isCameraActive, isScanning, selectedEvent]);
 
-    return () => {
-      isActive = false;
-      if (scanTimer) clearInterval(scanTimer);
-    };
-  }, [scannerMode, isCameraActive, isScanning, selectedEvent]);
-
   const handleScanSubmit = async (codeToScan?: string) => {
     const raw = (codeToScan || ticketInput || '').trim();
     const code = raw.replace(/^CODE:\s*/i, '').replace(/[\r\n\t]+/g, '').trim();

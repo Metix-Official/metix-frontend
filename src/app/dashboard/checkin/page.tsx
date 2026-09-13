@@ -274,14 +274,24 @@ export default function CheckInPage() {
 
           try {
             const imageData = canvasCtx.getImageData(0, 0, width, height);
-            const jsQR = (await import('jsqr')).default;
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-              inversionAttempts: 'dontInvert',
-            });
+            let jsQRFunc: any = (window as any).jsQR;
+            if (!jsQRFunc) {
+              try {
+                // @ts-ignore
+                const mod = await import('jsqr');
+                jsQRFunc = mod?.default || mod;
+              } catch {}
+            }
 
-            if (code && code.data && isActive) {
-              handleScanSubmit(code.data);
-              return;
+            if (jsQRFunc) {
+              const code = jsQRFunc(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: 'dontInvert',
+              });
+
+              if (code && code.data && isActive) {
+                handleScanSubmit(code.data);
+                return;
+              }
             }
           } catch {
             // Frame decode fallback

@@ -185,20 +185,43 @@ function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () =>
           </div>
 
           {!isExpired ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (paymentUrl) {
-                  window.open(paymentUrl, '_blank');
-                } else {
-                  setIsInstructionOpen((prev) => !prev);
-                }
-              }}
-              className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 text-xs font-black shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02]"
-            >
-              <CreditCard className="w-4 h-4 text-slate-950" />
-              <span>Bayar Sekarang</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const statusRes = await fetchPaymentStatus(order.id);
+                    if (statusRes.status === 'PAID') {
+                      toast.success('Pembayaran terkonfirmasi LUNAS! Tiket berhasil diterbitkan.');
+                      onRefresh();
+                    } else {
+                      toast.info('Status pembayaran belum terkonfirmasi oleh DOKU. Silakan tunggu beberapa saat lagi.');
+                    }
+                  } catch {
+                    toast.error('Gagal mengecek status pembayaran.');
+                  }
+                }}
+                className="px-3.5 py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 text-white text-xs font-extrabold border border-white/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <RotateCw className="w-3.5 h-3.5 text-blue-300" />
+                <span>Cek Status</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (paymentUrl) {
+                    window.open(paymentUrl, '_blank');
+                  } else {
+                    setIsInstructionOpen((prev) => !prev);
+                  }
+                }}
+                className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 text-xs font-black shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02]"
+              >
+                <CreditCard className="w-4 h-4 text-slate-950" />
+                <span>Bayar Sekarang</span>
+              </button>
+            </div>
           ) : (
             <button
               type="button"

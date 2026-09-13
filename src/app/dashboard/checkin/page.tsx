@@ -155,8 +155,9 @@ export default function CheckInPage() {
       const user = getStoredUser();
       if (user) {
         const token = (user as any).token || (typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '');
-        import('@/lib/echo').then(({ initEcho }) => {
-          echoInstance = initEcho(token);
+        if (token) {
+          import('@/lib/echo').then(({ initEcho }) => {
+            echoInstance = initEcho(token);
           if (echoInstance) {
             echoInstance
               .private(`user.${user.id}`)

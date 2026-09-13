@@ -363,9 +363,10 @@ export default function TicketsPage() {
     let echoInstance: any = null;
     if (user && user.id) {
       const token = (user as any).token || (typeof window !== 'undefined' ? localStorage.getItem('token') || '' : '');
-      import('@/lib/echo').then(({ initEcho }) => {
-        echoInstance = initEcho(token);
-        if (echoInstance) {
+      if (token) {
+        import('@/lib/echo').then(({ initEcho }) => {
+          echoInstance = initEcho(token);
+          if (echoInstance) {
           echoInstance
             .private(`user.${user.id}`)
             .listen('.TicketScanned', (data: { ticket_id: number; ticket_code: string; status: string }) => {

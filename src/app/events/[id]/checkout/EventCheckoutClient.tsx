@@ -117,8 +117,8 @@ export default function EventCheckoutClient() {
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
 
   // Payment Category State
-  const [selectedPaymentCategory, setSelectedPaymentCategory] = useState<string>('QRIS');
-  const [activeCategoryTab, setActiveCategoryTab] = useState<string>('QRIS');
+  const [selectedPaymentCategory, setSelectedPaymentCategory] = useState<string>('DOKU_CHECKOUT');
+  const [activeCategoryTab, setActiveCategoryTab] = useState<string>('DOKU_CHECKOUT');
 
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -448,14 +448,29 @@ export default function EventCheckoutClient() {
 
   const handleSubmitOrder = async () => {
     if (!event || isSubmitting) return;
+
+    const token = getStoredToken();
+    if (!token) {
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    const firstSelection = selectedTickets[0];
+    const targetTicketTypeId = firstSelection?.ticket_type_id || (firstSelection as any)?.ticketType?.id || event.ticket_types?.[0]?.id;
+
+    if (!targetTicketTypeId) {
+      setErrorMessage('Kategori tiket belum dipilih. Silakan pilih tiket terlebih dahulu.');
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
-      const firstSelection = selectedTickets[0];
       const reservation = await createReservation({
         event_id: event.id,
-        ticket_type_id: firstSelection ? (firstSelection.ticket_type_id || (firstSelection as any).ticketType?.id) : 1,
+        ticket_type_id: targetTicketTypeId,
         quantity: totalTicketCount || 1,
       });
 
@@ -1036,7 +1051,14 @@ export default function EventCheckoutClient() {
                 </label>
               </div>
 
-              {!isStep1Valid && (
+              {errorMessage && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
+              {!isStep1Valid && !errorMessage && (
                 <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                   <span>
@@ -1051,12 +1073,21 @@ export default function EventCheckoutClient() {
 
               <button
                 type="button"
-                onClick={() => setCurrentStep(2)}
-                disabled={!isStep1Valid}
+                onClick={handleSubmitOrder}
+                disabled={!isStep1Valid || isSubmitting}
                 className="w-full py-4 rounded-2xl bg-blue-700 hover:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm shadow-md shadow-blue-700/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>Lanjut ke Pembayaran</span>
-                <ArrowRight className="w-4 h-4" />
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Memproses Pembayaran...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Lanjut ke Pembayaran</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </div>
 
@@ -1100,12 +1131,21 @@ export default function EventCheckoutClient() {
 
                 <button
                   type="button"
-                  onClick={() => setCurrentStep(2)}
-                  disabled={!isStep1Valid}
+                  onClick={handleSubmitOrder}
+                  disabled={!isStep1Valid || isSubmitting}
                   className="py-3 px-5 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2 cursor-pointer"
                 >
-                  <span>Lanjut ke Pembayaran</span>
-                  <ArrowRight className="w-4 h-4" />
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Memproses...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Lanjut ke Pembayaran</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </div>
             </div>

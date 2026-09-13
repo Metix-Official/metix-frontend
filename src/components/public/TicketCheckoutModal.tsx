@@ -110,8 +110,8 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
   const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
 
   // Payment Category State
-  const [selectedPaymentCategory, setSelectedPaymentCategory] = useState<string>('QRIS');
-  const [activeCategoryTab, setActiveCategoryTab] = useState<string>('QRIS');
+  const [selectedPaymentCategory, setSelectedPaymentCategory] = useState<string>('DOKU_CHECKOUT');
+  const [activeCategoryTab, setActiveCategoryTab] = useState<string>('DOKU_CHECKOUT');
 
   // Single Unified Collapse State for Section 3 (Default to expanded false or true)
   const [isSection3Collapsed, setIsSection3Collapsed] = useState(false);

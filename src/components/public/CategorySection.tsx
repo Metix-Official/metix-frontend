@@ -39,7 +39,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
   return (
     <section id="categories" className="py-6 bg-white border-t border-b border-slate-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
-        
+
         {/* Dynamic Category Chips ONLY if API database returns actual categories */}
         {apiCategories && apiCategories.length > 0 ? (
           <div className="flex items-center justify-between gap-3">
@@ -47,11 +47,10 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
               <button
                 type="button"
                 onClick={() => handleCategoryClick(null)}
-                className={`px-5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer shrink-0 ${
-                  selectedCategory === null
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                }`}
+                className={`px-5 py-2 rounded-full text-xs font-extrabold transition-all cursor-pointer shrink-0 ${selectedCategory === null
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
               >
                 Semua Event
               </button>
@@ -63,11 +62,10 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                     key={`cat-${typeof cat === 'string' ? cat : (cat?.id || idx)}-${idx}`}
                     type="button"
                     onClick={() => handleCategoryClick(catName)}
-                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
-                      (selectedCategory || '').toLowerCase() === catName.toLowerCase()
-                        ? 'bg-blue-600 text-white font-extrabold shadow-md shadow-blue-600/20'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                    }`}
+                    className={`px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${(selectedCategory || '').toLowerCase() === catName.toLowerCase()
+                      ? 'bg-blue-600 text-white font-extrabold shadow-md shadow-blue-600/20'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
                   >
                     {catName}
                   </button>
@@ -78,11 +76,10 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
             <button
               type="button"
               onClick={() => setIsFilterModalOpen(true)}
-              className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 border transition-all shrink-0 cursor-pointer shadow-2xs whitespace-nowrap ${
-                isFilterActive
-                  ? 'bg-blue-50 border-blue-300 text-blue-700 font-extrabold'
-                  : 'bg-white hover:bg-slate-50 border-slate-200/90 text-slate-700'
-              }`}
+              className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 border transition-all shrink-0 cursor-pointer shadow-2xs whitespace-nowrap ${isFilterActive
+                ? 'bg-blue-50 border-blue-300 text-blue-700 font-extrabold'
+                : 'bg-white hover:bg-slate-50 border-slate-200/90 text-slate-700'
+                }`}
             >
               <SlidersHorizontal className="w-4 h-4 text-slate-600" />
               <span>Filter</span>
@@ -117,7 +114,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
               </div>
               <div className="space-y-0.5 text-left">
                 <h4 className="text-xs font-extrabold text-slate-900">E-Ticket PDF Cepat</h4>
-                <p className="text-[11px] text-slate-500 font-medium leading-tight">Dikirim otomatis via email</p>
+                <p className="text-[11px] text-slate-500 font-medium leading-tight">Cetak PDF</p>
               </div>
             </div>
 
@@ -170,7 +167,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
       {isFilterModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in-0">
           <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 p-6 space-y-5">
-            
+
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="w-5 h-5 text-blue-600" />
@@ -196,11 +193,10 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                   <button
                     type="button"
                     onClick={() => handleCategoryClick(null)}
-                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                      selectedCategory === null
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${selectedCategory === null
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
                   >
                     Semua Kategori
                   </button>
@@ -211,11 +207,10 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                         key={`cat-grid-${typeof cat === 'string' ? cat : (cat?.id || idx)}-${idx}`}
                         type="button"
                         onClick={() => handleCategoryClick(catName)}
-                        className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                          (selectedCategory || '').toLowerCase() === catName.toLowerCase()
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
+                        className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${(selectedCategory || '').toLowerCase() === catName.toLowerCase()
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
                       >
                         {catName}
                       </button>

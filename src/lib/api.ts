@@ -289,6 +289,12 @@ export interface ApiTicketDetail {
     buyer_name?: string;
     buyer_email?: string;
     buyer_phone?: string;
+    status?: string;
+    payment_status?: string;
+    grand_total?: number | string;
+    total_amount?: number | string;
+    payment_method?: string;
+    created_at?: string;
   };
 }
 
@@ -1231,13 +1237,17 @@ export async function fetchUserTickets(): Promise<ApiTicketDetail[]> {
             const orderNum = t.order?.order_number || t.order_number;
             const finalCode = rawCode || (orderNum ? `TKT-${orderNum}-${idx + 1}` : `TKT-${t.id || idx + 1}`);
 
+            const ordStatus = String(t.order?.status || t.order_status || t.order?.payment_status || '').toLowerCase();
+            const isUnpaidOrder = ['pending', 'unpaid', 'waiting_payment', 'waiting_for_payment', 'draft'].includes(ordStatus);
+            const resolvedStatus = isUnpaidOrder ? 'pending_payment' : (t.status ? String(t.status).toLowerCase() : 'active');
+
             return {
               ...t,
               ticket_type: t.ticket_type || t.ticketType,
               ticket_code: finalCode,
               qr_token: t.qr_token || finalCode,
               order_number: orderNum || t.order_number,
-              status: (t.status || 'active').toLowerCase(),
+              status: resolvedStatus,
             };
           });
         }

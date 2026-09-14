@@ -116,9 +116,9 @@ export default function EventCheckoutClient() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
 
-  // Payment Category State
-  const [selectedPaymentCategory, setSelectedPaymentCategory] = useState<string>('DOKU_CHECKOUT');
-  const [activeCategoryTab, setActiveCategoryTab] = useState<string>('DOKU_CHECKOUT');
+  // Payment Category State (Default: QRIS Instant)
+  const [selectedPaymentCategory, setSelectedPaymentCategory] = useState<string>('QRIS');
+  const [activeCategoryTab, setActiveCategoryTab] = useState<string>('QRIS');
 
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -342,27 +342,43 @@ export default function EventCheckoutClient() {
     return Math.floor(totalPrice * (localTaxPercentage / 100));
   }, [totalPrice, localTaxPercentage]);
 
-  // Dynamic Platform Fee Calculation
+  // Dynamic Platform Fee Calculation (Sync with Backend PaymentFeeCalculator)
   const platformFee = React.useMemo(() => {
     if (totalPrice <= 0) return 0;
-    switch (selectedPaymentCategory) {
-      case 'QRIS': {
-        const rate = totalTicketCount === 1 ? 0.07 : totalTicketCount === 2 ? 0.067 : totalTicketCount === 3 ? 0.063 : 0.059;
-        return Math.floor(totalPrice * rate);
-      }
-      case 'EWALLET':
-        return Math.floor(totalPrice * 0.09);
-      case 'VA':
-        return Math.floor(totalPrice * 0.05) + 4500;
-      case 'CREDIT_CARD':
-        return Math.floor(totalPrice * 0.078) + 2000;
-      case 'ALFAMART':
-        return Math.floor(totalPrice * 0.05) + 6500;
-      case 'PAYLATER':
-        return Math.floor(totalPrice * 0.075);
-      default:
-        return Math.floor(totalPrice * 0.07);
+    const cat = (selectedPaymentCategory || '').toUpperCase();
+
+    // 1. QRIS: 7.0% (1 Tiket), 6.7% (2 Tiket), 6.3% (3 Tiket), 5.9% (4+ Tiket)
+    if (cat === 'QRIS') {
+      const rate = totalTicketCount === 1 ? 0.07 : totalTicketCount === 2 ? 0.067 : totalTicketCount === 3 ? 0.063 : 0.059;
+      return Math.floor(totalPrice * rate);
     }
+
+    // 2. Virtual Account / Transfer Bank: 5.0% + Rp 4.500
+    if (cat.startsWith('VIRTUAL_ACCOUNT') || cat === 'VA' || cat.includes('BANK')) {
+      return Math.floor(totalPrice * 0.05) + 4500;
+    }
+
+    // 3. E-Wallet Instant: 9.0%
+    if (cat.startsWith('EMONEY') || cat.includes('WALLET') || cat === 'GOPAY' || cat === 'OVO' || cat === 'DANA' || cat === 'SHOPEEPAY') {
+      return Math.floor(totalPrice * 0.09);
+    }
+
+    // 4. Gerai Retail Outlets: 5.0% + Rp 6.500
+    if (cat === 'ALFAMART' || cat === 'INDOMARET' || cat === 'RETAIL') {
+      return Math.floor(totalPrice * 0.05) + 6500;
+    }
+
+    // 5. Paylater: 7.5%
+    if (cat === 'KREDIVO' || cat === 'AKULAKU' || cat === 'INDODANA' || cat === 'PAYLATER') {
+      return Math.floor(totalPrice * 0.075);
+    }
+
+    // 6. Kartu Kredit / Debit: 7.8% + Rp 2.000
+    if (cat === 'CREDIT_CARD' || cat === 'CARD') {
+      return Math.floor(totalPrice * 0.078) + 2000;
+    }
+
+    return Math.floor(totalPrice * 0.07);
   }, [selectedPaymentCategory, totalPrice, totalTicketCount]);
 
   const discountValue = isUsePromoChecked && appliedPromo ? appliedPromo.discountAmount : 0;
@@ -479,10 +495,29 @@ export default function EventCheckoutClient() {
         throw new Error('Gagal membuat reservasi. ID reservasi dari server tidak valid.');
       }
 
+      const cat = (selectedPaymentCategory || '').toUpperCase();
+      let backendCategory = 'QRIS';
+      if (cat === 'QRIS') {
+        backendCategory = 'QRIS';
+      } else if (cat.startsWith('VIRTUAL_ACCOUNT') || cat === 'VA' || cat.includes('BANK')) {
+        backendCategory = 'VA';
+      } else if (cat.startsWith('EMONEY') || cat.includes('WALLET') || cat === 'GOPAY' || cat === 'OVO' || cat === 'DANA' || cat === 'SHOPEEPAY') {
+        backendCategory = 'EWALLET';
+      } else if (cat === 'ALFAMART' || cat === 'INDOMARET' || cat === 'RETAIL') {
+        backendCategory = 'ALFAMART';
+      } else if (cat === 'KREDIVO' || cat === 'AKULAKU' || cat === 'INDODANA' || cat === 'PAYLATER') {
+        backendCategory = 'PAYLATER';
+      } else if (cat === 'CREDIT_CARD' || cat === 'CARD') {
+        backendCategory = 'CREDIT_CARD';
+      } else {
+        backendCategory = selectedPaymentCategory || 'QRIS';
+      }
+
       const orderData: any = await checkoutOrder({
         reservation_id: reservationId,
         promo_code: isUsePromoChecked && appliedPromo ? appliedPromo.code : undefined,
-        payment_category: selectedPaymentCategory,
+        payment_category: backendCategory,
+        payment_method: selectedPaymentCategory,
         nik: buyerNik,
         address: buyerAddress,
       } as any);
@@ -1073,21 +1108,19 @@ export default function EventCheckoutClient() {
 
               <button
                 type="button"
-                onClick={handleSubmitOrder}
-                disabled={!isStep1Valid || isSubmitting}
+                onClick={() => {
+                  if (isStep1Valid) {
+                    setCurrentStep(2);
+                    if (typeof window !== 'undefined') {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }
+                }}
+                disabled={!isStep1Valid}
                 className="w-full py-4 rounded-2xl bg-blue-700 hover:bg-blue-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm shadow-md shadow-blue-700/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Memproses Pembayaran...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Lanjut ke Pembayaran</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
+                <span>Pilih Metode Pembayaran</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
 
@@ -1131,21 +1164,19 @@ export default function EventCheckoutClient() {
 
                 <button
                   type="button"
-                  onClick={handleSubmitOrder}
-                  disabled={!isStep1Valid || isSubmitting}
+                  onClick={() => {
+                    if (isStep1Valid) {
+                      setCurrentStep(2);
+                      if (typeof window !== 'undefined') {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                    }
+                  }}
+                  disabled={!isStep1Valid}
                   className="py-3 px-5 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2 cursor-pointer"
                 >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Memproses...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Lanjut ke Pembayaran</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
+                  <span>Pilih Metode</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -1169,6 +1200,8 @@ export default function EventCheckoutClient() {
               {/* QRIS HERO CARD */}
               {(() => {
                 const isQris = selectedPaymentCategory === 'QRIS';
+                const qrisRate = totalTicketCount === 1 ? 0.07 : totalTicketCount === 2 ? 0.067 : totalTicketCount === 3 ? 0.063 : 0.059;
+                const qrisFee = totalPrice > 0 ? Math.floor(totalPrice * qrisRate) : 0;
                 return (
                   <div
                     onClick={() => setSelectedPaymentCategory('QRIS')}
@@ -1200,9 +1233,11 @@ export default function EventCheckoutClient() {
                           </p>
                         </div>
                       </div>
-                      <span className="self-end sm:self-auto text-[11px] sm:text-xs font-black text-amber-300 bg-amber-400/15 border border-amber-400/30 px-2.5 py-1 rounded-xl whitespace-nowrap shrink-0">
-                        +Rp {platformFee.toLocaleString('id-ID')}
-                      </span>
+                      {isQris && (
+                        <div className="self-end sm:self-auto w-7 h-7 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
+                          <Check className="w-4 h-4 text-slate-950 stroke-[3]" />
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

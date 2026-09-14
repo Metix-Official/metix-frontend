@@ -270,32 +270,43 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
     return Math.floor((totalPrice * taxPercent) / 100);
   }, [totalPrice, event?.local_tax_percentage]);
 
-  // Platform Service Fee based on Payment Category & Matrix
+  // Platform Service Fee based on Payment Category & Matrix (Sync with Backend PaymentFeeCalculator)
   const platformFee = useMemo(() => {
     if (totalPrice === 0 || totalTicketCount === 0) return 0;
-    switch (selectedPaymentCategory) {
-      case 'QRIS': {
-        const rate =
-          totalTicketCount === 1 ? 0.07 : totalTicketCount === 2 ? 0.067 : totalTicketCount === 3 ? 0.063 : 0.059;
-        return Math.floor(totalPrice * rate);
-      }
-      case 'EWALLET':
-      case 'E_WALLET':
-        return Math.floor(totalPrice * 0.09);
-      case 'VA':
-      case 'VIRTUAL_ACCOUNT':
-      case 'TRANSFER_BANK':
-        return Math.floor(totalPrice * 0.05) + 4500;
-      case 'CREDIT_CARD':
-      case 'CARD':
-        return Math.floor(totalPrice * 0.078) + 2000;
-      case 'ALFAMART':
-        return Math.floor(totalPrice * 0.05) + 6500;
-      case 'PAYLATER':
-        return Math.floor(totalPrice * 0.075);
-      default:
-        return 0;
+    const cat = (selectedPaymentCategory || '').toUpperCase();
+
+    // 1. QRIS: 7.0% (1 Tiket), 6.7% (2 Tiket), 6.3% (3 Tiket), 5.9% (4+ Tiket)
+    if (cat === 'QRIS') {
+      const rate = totalTicketCount === 1 ? 0.07 : totalTicketCount === 2 ? 0.067 : totalTicketCount === 3 ? 0.063 : 0.059;
+      return Math.floor(totalPrice * rate);
     }
+
+    // 2. Virtual Account / Transfer Bank: 5.0% + Rp 4.500
+    if (cat.startsWith('VIRTUAL_ACCOUNT') || cat === 'VA' || cat.includes('BANK')) {
+      return Math.floor(totalPrice * 0.05) + 4500;
+    }
+
+    // 3. E-Wallet Instant: 9.0%
+    if (cat.startsWith('EMONEY') || cat.includes('WALLET') || cat === 'GOPAY' || cat === 'OVO' || cat === 'DANA' || cat === 'SHOPEEPAY') {
+      return Math.floor(totalPrice * 0.09);
+    }
+
+    // 4. Gerai Retail Outlets: 5.0% + Rp 6.500
+    if (cat === 'ALFAMART' || cat === 'INDOMARET' || cat === 'RETAIL') {
+      return Math.floor(totalPrice * 0.05) + 6500;
+    }
+
+    // 5. Paylater: 7.5%
+    if (cat === 'KREDIVO' || cat === 'AKULAKU' || cat === 'INDODANA' || cat === 'PAYLATER') {
+      return Math.floor(totalPrice * 0.075);
+    }
+
+    // 6. Kartu Kredit / Debit: 7.8% + Rp 2.000
+    if (cat === 'CREDIT_CARD' || cat === 'CARD') {
+      return Math.floor(totalPrice * 0.078) + 2000;
+    }
+
+    return Math.floor(totalPrice * 0.07);
   }, [selectedPaymentCategory, totalPrice, totalTicketCount]);
 
   const discountAmount = appliedPromo ? appliedPromo.discountAmount : 0;
@@ -559,10 +570,29 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
         throw new Error('Gagal membuat reservasi. ID reservasi dari server tidak valid.');
       }
 
+      const cat = (selectedPaymentCategory || '').toUpperCase();
+      let backendCategory = 'QRIS';
+      if (cat === 'QRIS') {
+        backendCategory = 'QRIS';
+      } else if (cat.startsWith('VIRTUAL_ACCOUNT') || cat === 'VA' || cat.includes('BANK')) {
+        backendCategory = 'VA';
+      } else if (cat.startsWith('EMONEY') || cat.includes('WALLET') || cat === 'GOPAY' || cat === 'OVO' || cat === 'DANA' || cat === 'SHOPEEPAY') {
+        backendCategory = 'EWALLET';
+      } else if (cat === 'ALFAMART' || cat === 'INDOMARET' || cat === 'RETAIL') {
+        backendCategory = 'ALFAMART';
+      } else if (cat === 'KREDIVO' || cat === 'AKULAKU' || cat === 'INDODANA' || cat === 'PAYLATER') {
+        backendCategory = 'PAYLATER';
+      } else if (cat === 'CREDIT_CARD' || cat === 'CARD') {
+        backendCategory = 'CREDIT_CARD';
+      } else {
+        backendCategory = selectedPaymentCategory || 'QRIS';
+      }
+
       const orderData: any = await checkoutOrder({
         reservation_id: reservationId,
         promo_code: appliedPromo?.code,
-        payment_category: selectedPaymentCategory,
+        payment_category: backendCategory,
+        payment_method: selectedPaymentCategory,
         nik: buyerNik,
         address: buyerAddress,
       } as any);
@@ -1288,12 +1318,9 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                             </div>
                           </div>
 
-                          {qrisFee > 0 && (
-                            <div className="text-right shrink-0">
-                              <span className="text-[11px] font-black text-amber-300 bg-amber-400/15 border border-amber-400/30 px-2.5 py-1 rounded-xl block">
-                                +Rp {qrisFee.toLocaleString('id-ID')}
-                              </span>
-                              <span className="text-[9px] text-blue-200 font-bold block mt-1">Tarif Hemat</span>
+                          {isQrisSelected && (
+                            <div className="w-6 h-6 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
+                              <Check className="w-3.5 h-3.5 text-slate-950 stroke-[3]" />
                             </div>
                           )}
                         </div>

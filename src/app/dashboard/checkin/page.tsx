@@ -158,19 +158,20 @@ export default function CheckInPage() {
         if (token) {
           import('@/lib/echo').then(({ initEcho }) => {
             echoInstance = initEcho(token);
-          if (echoInstance) {
-            echoInstance
-              .private(`user.${user.id}`)
-              .listen('.TicketScanned', (data: { ticket_id: number; ticket_code: string }) => {
-                if (selectedEvent?.id) {
-                  fetchScannerCheckIns(selectedEvent.id).then((history) => {
-                    setScanHistory(history);
-                    setTotalCheckInCount(history.length);
-                  });
-                }
-              });
-          }
-        });
+            if (echoInstance) {
+              echoInstance
+                .private(`user.${user.id}`)
+                .listen('.TicketScanned', (data: { ticket_id: number; ticket_code: string }) => {
+                  if (selectedEvent?.id) {
+                    fetchScannerCheckIns(selectedEvent.id).then((history) => {
+                      setScanHistory(history);
+                      setTotalCheckInCount(history.length);
+                    });
+                  }
+                });
+            }
+          });
+        }
       }
 
       return () => {

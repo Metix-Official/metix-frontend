@@ -3,10 +3,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useRouter } from 'next/navigation';
-import { fetchUserTickets, fetchUserOrders, fetchPublicEvents, fetchPaymentStatus, ApiTicketDetail, getStoredUser, getTicketPdfUrl, getTicketQrUrl } from '@/lib/api';
+import { fetchUserTickets, fetchUserOrders, fetchPublicEvents, fetchPaymentStatus, initiateOrderPayment, ApiTicketDetail, getStoredUser, getTicketPdfUrl, getTicketQrUrl } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
-import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw, Clock, AlertTriangle, CreditCard, Lock, Copy, ChevronDown, ChevronUp, HelpCircle, Check, Building2, Wallet, Store, Zap, User } from 'lucide-react';
+import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw, Clock, AlertTriangle, CreditCard, Lock, Copy, ChevronDown, ChevronUp, HelpCircle, Check, Building2, Wallet, Store, Zap, User, ExternalLink, ShieldCheck, Sparkles } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 import { getUserRole } from '@/lib/roles';
@@ -62,7 +62,9 @@ function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () =>
 
   const [isInstructionOpen, setIsInstructionOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedOrderNum, setCopiedOrderNum] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   useEffect(() => {
     if (timeLeft <= 0) return;
@@ -90,10 +92,23 @@ function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () =>
   const eventTitle = order.event?.title || order.items?.[0]?.ticket_type?.name || 'Event Metix Pass';
   const paymentUrl = order.payment_url || (order.payment?.payment_url) || null;
 
-  // Resolve Payment Method Name & VA / Code / Account Number
-  const categoryRaw = (order.payment_category || order.payment_method || order.payment?.payment_method || 'QRIS').toUpperCase();
-  let paymentMethodName = 'QRIS Instant (Scan QR)';
-  let paymentCode = order.payment?.payment_code || order.payment?.va_number || order.va_number || '8801' + String(order.id || 1001).padStart(8, '0');
+  // Real VA / Payment code detection vs Hosted Checkout Portal
+  const realPaymentCode = (typeof order.payment?.payment_code === 'string' && order.payment.payment_code)
+    || (typeof order.payment?.va_number === 'string' && order.payment.va_number)
+    || (typeof order.va_number === 'string' && order.va_number)
+    || null;
+  const hasRealCode = Boolean(realPaymentCode);
+  const paymentCode = realPaymentCode || '';
+
+  // Resolve Displayed Payment Method Name safely
+  const rawCat = (typeof order.payment_category === 'string' && order.payment_category)
+    || (typeof order.payment_method === 'string' && order.payment_method)
+    || (typeof order.payment_method === 'object' && order.payment_method?.name)
+    || (typeof order.payment?.payment_method === 'string' && order.payment.payment_method)
+    || (typeof order.payment?.payment_method === 'object' && order.payment?.payment_method?.name)
+    || (hasRealCode ? 'QRIS' : 'DOKU_CHECKOUT');
+  const categoryRaw = String(rawCat || '').toUpperCase();
+  let paymentMethodName = hasRealCode ? 'QRIS Instant (Scan QR)' : 'DOKU Payment Portal';
 
   if (categoryRaw.includes('VA') || categoryRaw.includes('VIRTUAL') || categoryRaw.includes('TRANSFER')) {
     paymentMethodName = 'Virtual Account Bank (BCA / Mandiri / BNI / BRI)';
@@ -103,40 +118,129 @@ function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () =>
     paymentMethodName = 'Gerai Retail Alfamart / Indomaret';
   } else if (categoryRaw.includes('CREDIT') || categoryRaw.includes('CARD')) {
     paymentMethodName = 'Kartu Kredit / Debit Visa & Mastercard';
+  } else if (!hasRealCode) {
+    paymentMethodName = 'DOKU Hosted Gateway (Multi-Channel)';
   }
 
   const handleCopyCode = () => {
+    if (!paymentCode) return;
     navigator.clipboard.writeText(paymentCode);
     setCopiedCode(true);
     toast.success('Nomor VA / Kode Pembayaran Berhasil Disalin!');
     setTimeout(() => setCopiedCode(false), 3000);
   };
 
+  const handleCopyOrderNum = () => {
+    navigator.clipboard.writeText(orderNum.replace(/^#/, ''));
+    setCopiedOrderNum(true);
+    toast.success('Nomor Pesanan Berhasil Disalin!');
+    setTimeout(() => setCopiedOrderNum(false), 3000);
+  };
+
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  // Helper untuk mendapatkan URL pembayaran resmi DOKU jika belum ada di objek order
+  const getOrInitiatePaymentUrl = async (): Promise<string | null> => {
+    if (paymentUrl) return paymentUrl;
+    try {
+      const res = await initiateOrderPayment(order.id);
+      if (res.payment_url) {
+        return res.payment_url;
+      }
+    } catch (e) {
+      console.warn('Gagal memuat URL DOKU:', e);
+    }
+    return null;
+  };
+
+  const handlePayNow = async () => {
+    setIsRedirecting(true);
+    toast.loading('Menyiapkan portal pembayaran DOKU...', { id: 'doku-pay' });
+    try {
+      const url = await getOrInitiatePaymentUrl();
+      if (url) {
+        toast.success('Membuka portal pembayaran DOKU...', { id: 'doku-pay' });
+        window.location.href = url;
+      } else {
+        toast.error('Gagal memuat link pembayaran DOKU. Silakan periksa koneksi atau coba lagi.', { id: 'doku-pay' });
+      }
+    } catch {
+      toast.error('Terjadi kendala saat membuka DOKU.', { id: 'doku-pay' });
+    } finally {
+      setIsRedirecting(false);
+    }
+  };
+
+  const handleCheckStatus = async () => {
+    setIsCheckingStatus(true);
+    try {
+      const statusRes = await fetchPaymentStatus(order.id);
+      if (statusRes.status === 'PAID') {
+        toast.success('Pembayaran terkonfirmasi LUNAS! Tiket Anda telah diterbitkan 🎉');
+        onRefresh();
+        return;
+      }
+
+      toast.info('Status belum lunas. Mengarahkan ke portal resmi DOKU...');
+      const url = await getOrInitiatePaymentUrl();
+      if (url) {
+        window.location.href = url;
+      } else {
+        toast.info('Status pembayaran belum terkonfirmasi oleh DOKU. Silakan selesaikan transaksi di portal DOKU.');
+      }
+    } catch {
+      toast.error('Gagal mengecek status pembayaran.');
+      const fallbackUrl = await getOrInitiatePaymentUrl();
+      if (fallbackUrl) {
+        window.location.href = fallbackUrl;
+      }
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
   return (
-    <div className={`p-5 sm:p-6 rounded-3xl border transition-all space-y-4 shadow-sm animate-in fade-in-0 ${
-      isExpired
-        ? 'bg-rose-50/80 border-rose-200 text-slate-900'
-        : 'bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 text-white border-blue-600/40 shadow-xl shadow-blue-950/10'
-    }`}>
+    <div
+      className={`relative overflow-hidden p-5 sm:p-7 rounded-3xl border transition-all space-y-5 shadow-2xl animate-in fade-in-0 duration-300 ${
+        isExpired
+          ? 'bg-rose-50/90 border-rose-200 text-slate-900 shadow-rose-500/5'
+          : 'bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 text-white border-blue-500/30 shadow-blue-950/40 backdrop-blur-xl'
+      }`}
+    >
+      {/* Subtle Background Glow Elements */}
+      {!isExpired && (
+        <>
+          <div className="absolute -top-24 -right-24 w-60 h-60 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-24 w-60 h-60 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+        </>
+      )}
+
       {/* Top Banner Header */}
-      <div className={`flex flex-wrap items-center justify-between gap-3 border-b pb-3 ${isExpired ? 'border-rose-200' : 'border-white/10'}`}>
-        <div className="flex items-center gap-2">
-          <div className={`w-3 h-3 rounded-full ${isExpired ? 'bg-rose-500' : 'bg-amber-400 animate-pulse'}`} />
-          <span className={`text-xs font-black uppercase tracking-wider ${isExpired ? 'text-rose-700 font-extrabold' : 'text-amber-300'}`}>
-            {isExpired ? 'Pesanan Dibatalkan (DOKU Expiry 60 Menit)' : '⏱️ Menunggu Pembayaran (DOKU 60 Menit)'}
-          </span>
+      <div className={`relative z-10 flex flex-wrap items-center justify-between gap-3 border-b pb-4 ${isExpired ? 'border-rose-200' : 'border-white/10'}`}>
+        <div className="flex items-center gap-2.5">
+          <div className={`w-3 h-3 rounded-full ${isExpired ? 'bg-rose-500' : 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.9)] animate-pulse'}`} />
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-xs font-black uppercase tracking-wider ${isExpired ? 'text-rose-700 font-extrabold' : 'text-amber-300'}`}>
+              {isExpired ? 'Pesanan Kedaluwarsa (Batas 60 Menit Berakhir)' : '⏱️ Menunggu Pembayaran (Batas 60 Menit)'}
+            </span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+              isExpired ? 'bg-rose-100 text-rose-700 border-rose-300' : 'bg-blue-900/60 text-blue-200 border-blue-400/30'
+            }`}>
+              DOKU Payment Gateway
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
           {!isExpired ? (
-            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-400 text-slate-950 text-xs font-mono font-black tracking-wider shadow-md">
-              <Clock className="w-4 h-4 text-slate-950 animate-pulse" />
+            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 text-xs font-mono font-black tracking-wider shadow-md shadow-amber-500/20">
+              <Clock className="w-4 h-4 text-slate-950 animate-spin-slow" />
               <span>Hitung Mundur: {formattedTimer} Menit</span>
             </div>
           ) : (
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-extrabold px-3 py-1 rounded-full bg-rose-200/80 text-rose-800 border border-rose-300 uppercase">
-                Batas Waktu 60 Menit DOKU Habis
+                Batas Waktu DOKU Habis
               </span>
               <button
                 type="button"
@@ -151,138 +255,207 @@ function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () =>
         </div>
       </div>
 
-      {/* Main Order & Payment Info */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1.5">
+      {/* Main Order & Tagihan Summary */}
+      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs font-mono font-extrabold ${isExpired ? 'text-rose-600' : 'text-blue-300'}`}>
-              Nomor Pesanan: {orderNum}
-            </span>
+            <button
+              type="button"
+              onClick={handleCopyOrderNum}
+              className={`inline-flex items-center gap-1.5 text-xs font-mono font-extrabold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                isExpired
+                  ? 'bg-rose-100 text-rose-700 border-rose-300 hover:bg-rose-200'
+                  : 'bg-white/5 text-blue-300 border-white/10 hover:bg-white/10 hover:border-blue-400/40'
+              }`}
+              title="Klik untuk menyalin nomor pesanan"
+            >
+              <span>Nomor Pesanan: {orderNum}</span>
+              {copiedOrderNum ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3 h-3 text-slate-400" />}
+            </button>
+
             <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
-              isExpired ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-blue-900/60 text-amber-300 border-amber-400/30'
+              isExpired ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-blue-900/40 text-amber-300 border-amber-400/30'
             }`}>
               {paymentMethodName}
             </span>
           </div>
 
-          <h4 className={`text-base sm:text-lg font-black ${isExpired ? 'text-slate-900' : 'text-white'}`}>
+          <h4 className={`text-lg sm:text-xl font-black tracking-tight ${isExpired ? 'text-slate-900' : 'text-white'}`}>
             {eventTitle}
           </h4>
 
-          <p className={`text-xs font-medium leading-relaxed ${isExpired ? 'text-slate-600' : 'text-slate-300'}`}>
+          <p className={`text-xs font-medium leading-relaxed max-w-xl ${isExpired ? 'text-slate-600' : 'text-slate-300'}`}>
             {isExpired
-              ? 'Waktu batas pembayaran DOKU (60 menit) telah berakhir. Status pesanan otomatis dibatalkan.'
-              : 'Silakan transfer tagihan sebesar Rp ' + totalPrice.toLocaleString('id-ID') + ' ke nomor pembayaran di bawah ini sebelum batas 60 menit berakhir.'}
+              ? 'Batas waktu pembayaran 60 menit telah berakhir. Pesanan ini otomatis dibatalkan oleh gateway.'
+              : hasRealCode
+              ? 'Silakan transfer tagihan Anda ke nomor Virtual Account / Kode Pembayaran resmi di bawah ini sebelum batas waktu berakhir.'
+              : 'Pesanan Anda telah diamankan. Selesaikan pembayaran melalui portal resmi DOKU dengan mengklik tombol di bawah ini.'}
           </p>
         </div>
 
-        <div className="flex flex-col sm:items-end shrink-0 space-y-2">
-          <div className="text-right">
-            <span className={`text-[10px] uppercase font-bold block ${isExpired ? 'text-slate-400' : 'text-blue-200'}`}>Total Tagihan Presisi</span>
-            <div className={`text-xl font-black ${isExpired ? 'text-slate-500 line-through' : 'text-amber-300'}`}>
-              Rp {totalPrice.toLocaleString('id-ID')}
-            </div>
+        {/* Price & Tagihan Box */}
+        <div className="flex flex-col sm:items-end shrink-0 space-y-1 sm:text-right bg-white/[0.04] sm:bg-transparent p-3 sm:p-0 rounded-2xl border sm:border-0 border-white/10">
+          <span className={`text-[10px] uppercase font-bold tracking-wider block ${isExpired ? 'text-slate-400' : 'text-blue-300'}`}>
+            Total Tagihan Presisi
+          </span>
+          <div className={`text-2xl font-black font-mono tracking-wide ${isExpired ? 'text-slate-400 line-through' : 'text-amber-300 drop-shadow-sm'}`}>
+            Rp {totalPrice.toLocaleString('id-ID')}
           </div>
-
-          {!isExpired ? (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    const statusRes = await fetchPaymentStatus(order.id);
-                    if (statusRes.status === 'PAID') {
-                      toast.success('Pembayaran terkonfirmasi LUNAS! Tiket berhasil diterbitkan.');
-                      onRefresh();
-                    } else {
-                      toast.info('Status pembayaran belum terkonfirmasi oleh DOKU. Silakan tunggu beberapa saat lagi.');
-                    }
-                  } catch {
-                    toast.error('Gagal mengecek status pembayaran.');
-                  }
-                }}
-                className="px-3.5 py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 text-white text-xs font-extrabold border border-white/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <RotateCw className="w-3.5 h-3.5 text-blue-300" />
-                <span>Cek Status</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (paymentUrl) {
-                    window.open(paymentUrl, '_blank');
-                  } else {
-                    setIsInstructionOpen((prev) => !prev);
-                  }
-                }}
-                className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 text-xs font-black shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02]"
-              >
-                <CreditCard className="w-4 h-4 text-slate-950" />
-                <span>Bayar Sekarang</span>
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              disabled
-              className="px-4 py-2 rounded-2xl bg-slate-200 text-slate-500 text-xs font-bold opacity-70 cursor-not-allowed flex items-center gap-1.5"
-            >
-              <XCircle className="w-3.5 h-3.5 text-slate-500" />
-              <span>Dibatalkan (Expired)</span>
-            </button>
-          )}
+          <span className="text-[10px] text-slate-400">Termasuk pajak & biaya admin gateway</span>
         </div>
       </div>
 
-      {/* Shopee-Style Payment Details Box (VA Number / Kode Pembayaran + Copy Button) */}
+      {/* Core Payment Section: Hosted DOKU Portal vs Direct Code Display */}
       {!isExpired && (
-        <div className="p-4 sm:p-5 rounded-2xl bg-white/10 border border-white/15 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-black/20 p-3.5 rounded-xl border border-white/10">
-            <div className="space-y-1">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-200 block">
-                Nomor Virtual Account / Kode Pembayaran:
-              </span>
-              <div className="text-lg sm:text-xl font-mono font-black tracking-widest text-amber-300">
-                {paymentCode}
+        <div className="relative z-10 space-y-3">
+          {hasRealCode ? (
+            /* Scenario A: Real VA / Kode Pembayaran Available */
+            <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.07] border border-white/15 space-y-3 backdrop-blur-md">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-black/30 p-4 rounded-xl border border-white/10">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-200 block">
+                    Nomor Virtual Account / Kode Pembayaran Resmi:
+                  </span>
+                  <div className="text-xl sm:text-2xl font-mono font-black tracking-widest text-amber-300">
+                    {paymentCode}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyCode}
+                    className="px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 border border-white/20 hover:scale-105 active:scale-95 shadow-sm"
+                  >
+                    {copiedCode ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-amber-300" />}
+                    <span>{copiedCode ? 'Tersalin!' : 'Salin Nomor'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCheckStatus}
+                    disabled={isCheckingStatus}
+                    className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-extrabold border border-white/15 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    title="Cek Status Pembayaran"
+                  >
+                    <RotateCw className={`w-3.5 h-3.5 text-blue-300 ${isCheckingStatus ? 'animate-spin' : ''}`} />
+                    <span>{isCheckingStatus ? 'Mengecek...' : 'Cek Status'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Collapsible Guide */}
+              <button
+                type="button"
+                onClick={() => setIsInstructionOpen((prev) => !prev)}
+                className="w-full text-left flex items-center justify-between text-xs font-extrabold text-blue-200 hover:text-white pt-1 transition-colors cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5">
+                  <HelpCircle className="w-4 h-4 text-amber-300" />
+                  <span>Petunjuk Cara Pembayaran ({paymentMethodName})</span>
+                </span>
+                {isInstructionOpen ? <ChevronUp className="w-4 h-4 text-amber-300" /> : <ChevronDown className="w-4 h-4 text-amber-300" />}
+              </button>
+
+              {isInstructionOpen && (
+                <div className="p-4 rounded-xl bg-slate-900/90 border border-white/10 text-xs space-y-2.5 animate-in fade-in-0">
+                  <p className="font-bold text-amber-300">Langkah-Langkah Pembayaran:</p>
+                  <ol className="list-decimal list-inside space-y-1.5 text-slate-200 font-medium">
+                    <li>Buka aplikasi m-Banking atau E-Wallet pilihan Anda (BCA, Mandiri, BRI, GoPay, OVO, dll).</li>
+                    <li>Pilih menu <strong>Transfer ➔ Virtual Account</strong> (atau <strong>Bayar Tagihan</strong>).</li>
+                    <li>Masukkan nomor Virtual Account: <strong className="font-mono text-amber-300">{paymentCode}</strong>.</li>
+                    <li>Pastikan nominal tagihan tepat <strong className="text-amber-300">Rp {totalPrice.toLocaleString('id-ID')}</strong>.</li>
+                    <li>Konfirmasi dan masukkan PIN Anda. Tiket akan terbit otomatis seketika!</li>
+                  </ol>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Scenario B: DOKU Hosted Checkout Portal (Waiting for payment on DOKU) */
+            <div className="p-5 rounded-2xl bg-white/[0.06] border border-white/15 backdrop-blur-md space-y-4 shadow-inner">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-300">
+                      Portal Pembayaran Resmi DOKU Checkout
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                      Terenkripsi & Resmi
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
+                    Pesanan Anda telah diamankan. Untuk menyelesaikan pembayaran, silakan masuk ke portal DOKU dan pilih channel pembayaran favorit Anda (QRIS, Virtual Account Bank, e-Wallet, atau Kartu Kredit).
+                  </p>
+                </div>
+
+                {/* Supported Channels Chips */}
+                <div className="flex flex-wrap items-center gap-1.5 sm:justify-end shrink-0">
+                  <span className="text-[10px] font-mono font-bold px-2 py-1 rounded-lg bg-white/10 text-slate-200 border border-white/10">
+                    QRIS
+                  </span>
+                  <span className="text-[10px] font-mono font-bold px-2 py-1 rounded-lg bg-white/10 text-slate-200 border border-white/10">
+                    BCA / Mandiri / BRI VA
+                  </span>
+                  <span className="text-[10px] font-mono font-bold px-2 py-1 rounded-lg bg-white/10 text-slate-200 border border-white/10">
+                    e-Wallet
+                  </span>
+                  <span className="text-[10px] font-mono font-bold px-2 py-1 rounded-lg bg-white/10 text-slate-200 border border-white/10">
+                    Kartu Kredit
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons Row */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={handleCheckStatus}
+                  disabled={isCheckingStatus}
+                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/15 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <RotateCw className={`w-3.5 h-3.5 text-blue-300 ${isCheckingStatus ? 'animate-spin' : ''}`} />
+                  <span>{isCheckingStatus ? 'Mengecek Status...' : 'Cek Status Pembayaran'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePayNow}
+                  disabled={isRedirecting}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:brightness-110 text-slate-950 text-xs font-black shadow-lg shadow-amber-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60"
+                >
+                  <CreditCard className="w-4 h-4 text-slate-950" />
+                  <span>{isRedirecting ? 'Menghubungkan ke DOKU...' : 'Lanjutkan Pembayaran di DOKU'}</span>
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-950" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Expired Order Notification Box */}
+      {isExpired && (
+        <div className="relative z-10 p-4 sm:p-5 rounded-2xl bg-rose-100/90 border border-rose-300 text-slate-900 space-y-3 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-rose-200 text-rose-700 flex items-center justify-center shrink-0">
+                <XCircle className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <h5 className="font-extrabold text-rose-950 text-xs sm:text-sm">Batas Waktu Pembayaran 60 Menit Telah Habis</h5>
+                <p className="text-xs text-rose-800 font-medium">Pesanan ini telah kedaluwarsa secara otomatis oleh sistem DOKU. Silakan buat pesanan baru jika ingin membeli tiket ini.</p>
               </div>
             </div>
 
             <button
               type="button"
-              onClick={handleCopyCode}
-              className="px-4 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 border border-white/20"
+              onClick={() => setIsDismissed(true)}
+              className="px-4 py-2 rounded-xl bg-rose-200 hover:bg-rose-300 text-rose-900 text-xs font-bold transition-all shrink-0 cursor-pointer self-start sm:self-auto border border-rose-300"
             >
-              {copiedCode ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-amber-300" />}
-              <span>{copiedCode ? 'Tersalin!' : 'Salin Nomor VA'}</span>
+              Hapus dari Riwayat
             </button>
           </div>
-
-          {/* Toggle Collapsible Instruction Guide */}
-          <button
-            type="button"
-            onClick={() => setIsInstructionOpen((prev) => !prev)}
-            className="w-full text-left flex items-center justify-between text-xs font-extrabold text-blue-200 hover:text-white pt-1 transition-colors cursor-pointer"
-          >
-            <span className="flex items-center gap-1.5">
-              <HelpCircle className="w-4 h-4 text-amber-300" />
-              <span>Petunjuk Cara Pembayaran ({paymentMethodName})</span>
-            </span>
-            {isInstructionOpen ? <ChevronUp className="w-4 h-4 text-amber-300" /> : <ChevronDown className="w-4 h-4 text-amber-300" />}
-          </button>
-
-          {isInstructionOpen && (
-            <div className="p-4 rounded-xl bg-slate-900/90 border border-white/10 text-xs space-y-2.5 animate-in fade-in-0">
-              <p className="font-bold text-amber-300">Langkah-Langkah Cara Pembayaran:</p>
-              <ol className="list-decimal list-inside space-y-1.5 text-slate-200 font-medium">
-                <li>Buka aplikasi m-Banking atau E-Wallet pilihan Anda (BCA, Mandiri, GoPay, OVO, ShopeePay, dll).</li>
-                <li>Pilih menu <strong>Transfer ➔ Virtual Account</strong> (atau <strong>Scan QRIS</strong> jika menggunakan QRIS).</li>
-                <li>Masukkan Nomor Virtual Account / Kode Pembayaran: <strong className="font-mono text-amber-300">{paymentCode}</strong>.</li>
-                <li>Periksa detail tagihan sebesar <strong className="text-amber-300">Rp {totalPrice.toLocaleString('id-ID')}</strong> dan nama akun pemesan.</li>
-                <li>Konfirmasi transaksi & masukkan PIN Anda. Tiket akan terbit otomatis!</li>
-              </ol>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -367,42 +540,43 @@ export default function TicketsPage() {
         import('@/lib/echo').then(({ initEcho }) => {
           echoInstance = initEcho(token);
           if (echoInstance) {
-          echoInstance
-            .private(`user.${user.id}`)
-            .listen('.TicketScanned', (data: { ticket_id: number; ticket_code: string; status: string }) => {
-              toast.success(`Tiket #${data.ticket_code || data.ticket_id} berhasil di-scan di gate venue! 🎉`, {
-                duration: 5000,
+            echoInstance
+              .private(`user.${user.id}`)
+              .listen('.TicketScanned', (data: { ticket_id: number; ticket_code: string; status: string }) => {
+                toast.success(`Tiket #${data.ticket_code || data.ticket_id} berhasil di-scan di gate venue! 🎉`, {
+                  duration: 5000,
+                });
+                setTickets((prev) =>
+                  prev.map((t) => {
+                    const matchId = t.id === data.ticket_id;
+                    const matchCode = data.ticket_code && (t.ticket_code === data.ticket_code || (t as any).qr_token === data.ticket_code);
+                    return (matchId || matchCode) ? { ...t, status: 'used' } : t;
+                  })
+                );
+                loadTickets();
+              })
+              .listen('.PaymentConfirmed', (data: { order_number: string }) => {
+                toast.success(`Pembayaran untuk pesanan ${data.order_number || ''} BERHASIL LUNAS! Tiket Anda telah diterbitkan 🎉`, {
+                  duration: 6000,
+                });
+                loadTickets();
+              })
+              .listen('.TicketReset', (data: { ticket_id: number; ticket_code: string }) => {
+                toast.info(`Status tiket #${data.ticket_code || data.ticket_id} dikembalikan menjadi Siap Check-In (ACTIVE).`, {
+                  duration: 5000,
+                });
+                setTickets((prev) =>
+                  prev.map((t) => {
+                    const matchId = t.id === data.ticket_id;
+                    const matchCode = data.ticket_code && (t.ticket_code === data.ticket_code || (t as any).qr_token === data.ticket_code);
+                    return (matchId || matchCode) ? { ...t, status: 'active' } : t;
+                  })
+                );
+                loadTickets();
               });
-              setTickets((prev) =>
-                prev.map((t) => {
-                  const matchId = t.id === data.ticket_id;
-                  const matchCode = data.ticket_code && (t.ticket_code === data.ticket_code || (t as any).qr_token === data.ticket_code);
-                  return (matchId || matchCode) ? { ...t, status: 'used' } : t;
-                })
-              );
-              loadTickets();
-            })
-            .listen('.PaymentConfirmed', (data: { order_number: string }) => {
-              toast.success(`Pembayaran untuk pesanan ${data.order_number || ''} BERHASIL LUNAS! Tiket Anda telah diterbitkan 🎉`, {
-                duration: 6000,
-              });
-              loadTickets();
-            })
-            .listen('.TicketReset', (data: { ticket_id: number; ticket_code: string }) => {
-              toast.info(`Status tiket #${data.ticket_code || data.ticket_id} dikembalikan menjadi Siap Check-In (ACTIVE).`, {
-                duration: 5000,
-              });
-              setTickets((prev) =>
-                prev.map((t) => {
-                  const matchId = t.id === data.ticket_id;
-                  const matchCode = data.ticket_code && (t.ticket_code === data.ticket_code || (t as any).qr_token === data.ticket_code);
-                  return (matchId || matchCode) ? { ...t, status: 'active' } : t;
-                })
-              );
-              loadTickets();
-            });
-        }
-      });
+          }
+        });
+      }
     }
 
     return () => {
@@ -422,9 +596,15 @@ export default function TicketsPage() {
       const matchSearch = !q || title.includes(q) || code.includes(q) || typeName.includes(q);
       if (!matchSearch) return false;
 
+      const ordStatus = String((item.order as any)?.status || (item as any).order_status || (item.order as any)?.payment_status || '').toLowerCase();
+      const isOrderUnpaid = ['pending', 'unpaid', 'waiting_payment', 'waiting_for_payment', 'draft'].includes(ordStatus);
+      if (isOrderUnpaid) return false;
+
       const rawStatus = (item.status || 'active').toLowerCase();
+      if (rawStatus === 'pending' || rawStatus === 'pending_payment' || rawStatus === 'unpaid') return false;
+
       const isUsed = rawStatus === 'used' || rawStatus === 'checked_in' || rawStatus === 'checked-in';
-      const isCancelled = rawStatus === 'cancelled' || rawStatus === 'canceled' || rawStatus === 'pending' || rawStatus === 'expired';
+      const isCancelled = rawStatus === 'cancelled' || rawStatus === 'canceled' || rawStatus === 'expired';
       const isActive = rawStatus === 'active' || rawStatus === 'valid';
 
       if (activeTab === 'active') {
@@ -812,8 +992,8 @@ export default function TicketsPage() {
 
         {/* Pending Orders 60-Minute DOKU Countdown Section */}
         {userOrders.filter((ord: any) => {
-          const s = (ord.status || ord.payment_status || 'PENDING').toUpperCase();
-          return s === 'PENDING' || s === 'UNPAID' || s === 'WAITING_PAYMENT' || s === 'DRAFT';
+          const s = String(ord?.status || ord?.payment_status || 'PENDING').toUpperCase();
+          return !['PAID', 'SUCCESS', 'COMPLETED', 'SETTLED'].includes(s);
         }).length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between px-2">
@@ -841,8 +1021,8 @@ export default function TicketsPage() {
 
             {userOrders
               .filter((ord: any) => {
-                const s = (ord.status || ord.payment_status || 'PENDING').toUpperCase();
-                return s === 'PENDING' || s === 'UNPAID' || s === 'WAITING_PAYMENT' || s === 'DRAFT';
+                const s = String(ord?.status || ord?.payment_status || 'PENDING').toUpperCase();
+                return !['PAID', 'SUCCESS', 'COMPLETED', 'SETTLED'].includes(s);
               })
               .map((ord: any) => (
                 <OrderCountdownCard key={ord.id || ord.order_number} order={ord} onRefresh={loadTickets} />
@@ -862,7 +1042,12 @@ export default function TicketsPage() {
                   : 'text-slate-600 hover:text-slate-900'
                   }`}
               >
-                Semua Tiket ({tickets.length})
+                Semua Tiket ({tickets.filter((t) => {
+                  const ordStatus = String((t.order as any)?.status || (t as any).order_status || (t.order as any)?.payment_status || '').toLowerCase();
+                  const isOrderUnpaid = ['pending', 'unpaid', 'waiting_payment', 'waiting_for_payment', 'draft'].includes(ordStatus);
+                  const s = (t.status || 'active').toLowerCase();
+                  return !isOrderUnpaid && s !== 'pending' && s !== 'pending_payment';
+                }).length})
               </button>
               <button
                 onClick={() => setActiveTab('active')}
@@ -872,8 +1057,10 @@ export default function TicketsPage() {
                   }`}
               >
                 Siap Check-In ({tickets.filter((t) => {
+                  const ordStatus = String((t.order as any)?.status || (t as any).order_status || (t.order as any)?.payment_status || '').toLowerCase();
+                  const isOrderUnpaid = ['pending', 'unpaid', 'waiting_payment', 'waiting_for_payment', 'draft'].includes(ordStatus);
                   const s = (t.status || 'active').toLowerCase();
-                  return s !== 'used' && s !== 'checked_in' && s !== 'checked-in' && s !== 'cancelled' && s !== 'canceled';
+                  return !isOrderUnpaid && s !== 'used' && s !== 'checked_in' && s !== 'checked-in' && s !== 'cancelled' && s !== 'canceled' && s !== 'pending' && s !== 'pending_payment';
                 }).length})
               </button>
               <button

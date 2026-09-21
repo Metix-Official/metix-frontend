@@ -131,68 +131,94 @@ export default function ProfilePage() {
       <div className="w-full space-y-6">
         {/* Profile Header Card */}
         {isLoading ? (
-          <Skeleton className="h-48 w-full rounded-3xl" />
+          <Skeleton className="h-44 sm:h-52 w-full rounded-2xl sm:rounded-3xl" />
         ) : (
-          <div className="relative overflow-hidden rounded-3xl bg-white border border-slate-200/90 p-6 sm:p-8 shadow-xs flex flex-col sm:flex-row items-center sm:items-start gap-6">
-            {/* Interactive Photo Upload Circle */}
-            <div className="relative group shrink-0">
-              {photoPreview ? (
-                <img
-                  src={photoPreview}
-                  alt={displayName}
-                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-cover border-2 border-blue-600 shadow-md shadow-blue-600/20"
-                />
-              ) : (
-                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-tr from-blue-700 to-indigo-600 text-white flex items-center justify-center text-3xl font-extrabold shadow-lg shadow-blue-600/20">
-                  {initials}
-                </div>
-              )}
+          <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-xs">
+            {/* Top Cover Banner */}
+            <div className="h-20 sm:h-28 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 relative overflow-hidden">
+              <div className="absolute inset-0 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px] opacity-15" />
+              <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-white/10 blur-xl pointer-events-none" />
 
-              {/* Upload Overlay Button */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute inset-0 bg-slate-900/60 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs font-bold gap-1 cursor-pointer"
-              >
-                <Camera className="w-6 h-6 text-white" />
-                <span>Ubah Foto</span>
-              </button>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-            </div>
-
-            <div className="space-y-2 text-center sm:text-left flex-1">
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                  {displayName}
-                </h2>
-                <span className="inline-flex items-center gap-1 text-[11px] font-extrabold px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                  <BadgeCheck className="w-3.5 h-3.5 text-blue-600" /> {roleLabel}
+              {/* Verified Pill Badge on Banner */}
+              <div className="absolute right-3.5 top-3 sm:right-5 sm:top-4">
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-900/30 backdrop-blur-md text-white border border-white/20 shadow-xs">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Akun Terverifikasi</span>
                 </span>
               </div>
+            </div>
 
-              <p className="text-xs text-slate-500 font-medium flex items-center justify-center sm:justify-start gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-slate-400" /> {displayEmail}
-              </p>
+            {/* Profile Content Body */}
+            <div className="px-4 sm:px-6 pb-4 sm:pb-6 pt-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                {/* Avatar + Info Row */}
+                <div className="flex items-start sm:items-center gap-3.5 sm:gap-5">
+                  {/* Avatar Container: ONLY avatar has negative margin */}
+                  <div className="relative shrink-0 group -mt-10 sm:-mt-14 z-10">
+                    {photoPreview ? (
+                      <img
+                        src={photoPreview}
+                        alt={displayName}
+                        className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl sm:rounded-3xl object-cover border-4 border-white shadow-xl shadow-slate-900/10 bg-white"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl sm:rounded-3xl bg-gradient-to-tr from-blue-700 to-indigo-600 text-white flex items-center justify-center text-2xl sm:text-3xl font-black border-4 border-white shadow-xl shadow-slate-900/10">
+                        {initials}
+                      </div>
+                    )}
 
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer"
-                >
-                  <Camera className="w-3.5 h-3.5" /> Upload Foto Baru API
-                </button>
+                    {/* Camera Floating Button on Avatar */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Ganti Foto Profil"
+                      className="absolute -bottom-1 -right-1 p-1.5 sm:p-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/30 border-2 border-white transition-transform active:scale-90 cursor-pointer flex items-center justify-center"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                    </button>
 
-                <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Verified Profile
-                </span>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </div>
+
+                  {/* Name & Details (Cleanly below banner with comfortable spacing) */}
+                  <div className="min-w-0 flex-1 pt-3 sm:pt-3.5 space-y-1.5">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <h2 className="text-base sm:text-2xl font-black text-slate-900 tracking-tight leading-snug truncate">
+                        {displayName}
+                      </h2>
+                      <BadgeCheck className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0" />
+                    </div>
+
+                    <p className="text-xs sm:text-sm text-slate-500 font-medium truncate flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">{displayEmail}</span>
+                    </p>
+
+                    <div className="pt-0.5">
+                      <span className="inline-flex items-center text-[10px] sm:text-xs font-extrabold px-2.5 py-0.5 sm:py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200/80">
+                        {roleLabel}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Action Button */}
+                <div className="flex items-center pt-2 sm:pt-0 sm:self-center border-t border-slate-100 sm:border-0">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-2xs"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Ganti Foto</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -202,19 +228,19 @@ export default function ProfilePage() {
         {isLoading ? (
           <Skeleton className="h-96 w-full rounded-3xl" />
         ) : (
-          <form onSubmit={handleSave} className="rounded-3xl bg-white border border-slate-200/90 p-6 sm:p-8 shadow-xs space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <form onSubmit={handleSave} className="rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 p-4 sm:p-6 md:p-8 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-2">
               <div>
                 <h3 className="text-lg font-extrabold text-slate-900 tracking-tight">
-                  Personal Information
+                  Informasi Pribadi
                 </h3>
                 <p className="text-xs text-slate-500 font-medium">
-                  Update your identity details, phone number, and address
+                  Perbarui identitas, nomor telepon, dan alamat domisili Anda
                 </p>
               </div>
 
               {isSaved && (
-                <span className="inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 animate-in fade-in-0">
+                <span className="inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 animate-in fade-in-0 self-start sm:self-auto">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Profil berhasil disimpan!
                 </span>
               )}
@@ -317,15 +343,15 @@ export default function ProfilePage() {
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-600/20 hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto px-6 py-3 sm:py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-600/25 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.98]"
               >
                 {isSaving ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Saving...
+                    <Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...
                   </>
                 ) : (
                   <>
-                    <Save className="w-4 h-4" /> Save Profile & Photo via API
+                    <Save className="w-4 h-4" /> Simpan Perubahan
                   </>
                 )}
               </button>

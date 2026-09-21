@@ -20,6 +20,10 @@ import {
   Receipt,
   ArrowRight,
   FileSpreadsheet,
+  CalendarDays,
+  TrendingUp,
+  Users,
+  DollarSign,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -41,7 +45,19 @@ export default function DashboardPage() {
 
     async function loadData() {
       setIsLoading(true);
-      const isOrganizer = role === 'EO' || role === 'OWNER' || (u?.role || '').toUpperCase() === 'EO' || !!u?.organizer_profile;
+
+      // 1. Akun OWNER (Super Admin Platform):
+      // Hanya panggil endpoint owner dashboard (/api/v1/owner/dashboard).
+      // Jangan panggil endpoint /organizer/* atau /scanner/* karena akan menghasilkan 403 / 404.
+      if (role === 'OWNER') {
+        const res = await fetchDashboardData();
+        setDashboardData(res as any);
+        setIsLoading(false);
+        return;
+      }
+
+      // 2. Akun Event Organizer (EO) / Mitra
+      const isOrganizer = role === 'EO' || (u?.role || '').toUpperCase() === 'EO' || !!u?.organizer_profile;
 
       if (isOrganizer) {
         const [res, myEventsRes, userTickets, salesReportRes] = await Promise.all([
@@ -62,7 +78,7 @@ export default function DashboardPage() {
 
         const admins = await fetchEoAdmins();
         let globalApiCheckInCount = 0;
-        const candidateEventIds = new Set<number | string>([1, 2, 3, 4, 5]);
+        const candidateEventIds = new Set<number | string>();
         finalEvents.forEach((e: any) => { if (e.id) candidateEventIds.add(e.id); });
 
         for (const evId of Array.from(candidateEventIds)) {
@@ -71,7 +87,7 @@ export default function DashboardPage() {
             if (checkIns && checkIns.length > 0) {
               globalApiCheckInCount += checkIns.length;
             }
-          } catch {}
+          } catch { }
         }
 
         if (admins && admins.length > 0) {
@@ -95,7 +111,7 @@ export default function DashboardPage() {
           })));
         }
       } else {
-        // Akun Pembeli (BUYER) - hanya ambil data pembeli agar tidak 403
+        // 3. Akun Pembeli (BUYER) - hanya ambil data pembeli agar tidak 403
         const [res, userTickets] = await Promise.all([
           fetchDashboardData(),
           fetchUserTickets(),
@@ -189,43 +205,51 @@ export default function DashboardPage() {
     const staffText = totalStaff > 0 ? `${totalStaff} Staff Scanner` : 'Gate Scanner';
 
     if (currentRole === 'owner') {
+      const pendingMitra = (s as any)?.pendingMitraApprovals ?? (s as any)?.pending_organizers ?? 0;
+      const totalEvents = (s as any)?.totalEvents ?? (s as any)?.total_events ?? 0;
+      const totalRevenue = (s as any)?.totalRevenue ?? (s as any)?.total_revenue ?? 0;
+      const commissionEarned = (s as any)?.commissionEarned ?? (s as any)?.commission_earned ?? (s as any)?.platform_commission ?? 0;
+
       return [
         {
           id: 's1',
           title: 'Revenue Platform',
-          value: `Rp ${(s?.totalRevenue || 0).toLocaleString('id-ID')}`,
-          change: '+15.4%',
+          value: `Rp ${Number(totalRevenue || 0).toLocaleString('id-ID')}`,
+          change: 'Gross Volume',
           isPositive: true,
           period: 'total transaksi platform',
           iconName: 'DollarSign',
+          href: '/dashboard/reports',
         },
         {
           id: 's2',
           title: 'Komisi Platform',
-          value: `Rp ${(s?.commissionEarned || 0).toLocaleString('id-ID')}`,
-          change: '+5.0%',
+          value: `Rp ${Number(commissionEarned || 0).toLocaleString('id-ID')}`,
+          change: 'Net Platform Fee',
           isPositive: true,
-          period: 'pendapatan bersihan',
+          period: 'pendapatan bersihan komisi',
           iconName: 'TrendingUp',
+          href: '/dashboard/reports',
         },
         {
           id: 's3',
           title: 'Total Event Platform',
-          value: (s?.totalEvents || 0).toString(),
-          change: '+4',
+          value: Number(totalEvents || 0).toLocaleString('id-ID'),
+          change: 'Semua Mitra',
           isPositive: true,
-          period: 'event terdaftar',
+          period: 'event terdaftar di platform',
           iconName: 'CalendarDays',
+          href: '/dashboard/events',
         },
         {
           id: 's4',
-          title: 'Hasil Scan Staff Gate',
-          value: `${totalScanned.toLocaleString('id-ID')} Scan`,
-          change: `${totalStaff} Staff`,
-          isPositive: true,
-          period: `${staffText} (${totalScanned} QR ter-scan)`,
-          iconName: 'UserCheck',
-          href: '/dashboard/scanner-reports',
+          title: 'Verifikasi Mitra EO',
+          value: `${pendingMitra} Mitra`,
+          change: pendingMitra > 0 ? `${pendingMitra} Perlu Review` : 'Terkonfirmasi',
+          isPositive: pendingMitra === 0,
+          period: 'pengajuan Event Organizer',
+          iconName: 'ShieldCheck',
+          href: '/dashboard/users',
         },
       ];
     }
@@ -315,6 +339,7 @@ export default function DashboardPage() {
         isPositive: true,
         period: 'total dibeli',
         iconName: 'Ticket',
+        href: '/dashboard/tickets',
       },
       {
         id: 's2',
@@ -324,6 +349,7 @@ export default function DashboardPage() {
         isPositive: true,
         period: 'siap check-in',
         iconName: 'CalendarDays',
+        href: '/dashboard/tickets',
       },
       {
         id: 's3',
@@ -333,15 +359,7 @@ export default function DashboardPage() {
         isPositive: true,
         period: 'riwayat transfer',
         iconName: 'TrendingUp',
-      },
-      {
-        id: 's4',
-        title: 'Total Pembelian',
-        value: `Rp ${(s?.totalRevenue || 0).toLocaleString('id-ID')}`,
-        change: '+0.0%',
-        isPositive: true,
-        period: 'via Metix',
-        iconName: 'DollarSign',
+        href: '/dashboard/tickets',
       },
     ];
   }, [dashboardData, currentRole]);
@@ -610,38 +628,278 @@ export default function DashboardPage() {
       </div>
 
       {/* Metric Stat Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-4">
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 w-full rounded-2xl shadow-xs" />
-          ))
-          : statsToDisplay.map((stat) => (
-            <StatCard key={stat.id} stat={stat} />
-          ))}
-      </div>
-
-      {/* Main Grid: Recent Transactions (2 cols) & Recent Events (1 col) - ONLY shown for Event Organizer (EO/mitra) role */}
-      {currentRole === 'mitra' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5">
-          <div className="lg:col-span-2">
+      {currentRole === 'pembeli' ? (
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
             {isLoading ? (
-              <Skeleton className="h-80 w-full rounded-2xl shadow-xs" />
+              Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-56 w-full rounded-3xl shadow-xs" />
+              ))
             ) : (
-              <RecentTransactions transactions={transactionsToDisplay} />
+              statsToDisplay.map((stat, idx) => {
+                const colorConfig = [
+                  {
+                    bgGradient: 'from-blue-500/10 via-blue-500/5 to-transparent',
+                    borderColor: 'hover:border-blue-300',
+                    iconBg: 'bg-blue-600 text-white shadow-blue-500/20',
+                    chipBg: 'bg-blue-50 text-blue-700 border-blue-200',
+                    unit: 'Tiket',
+                    actionText: 'Lihat Semua E-Tiket',
+                    desc: 'Total seluruh tiket yang telah Anda pesan dan miliki di akun Metix.',
+                  },
+                  {
+                    bgGradient: 'from-emerald-500/10 via-emerald-500/5 to-transparent',
+                    borderColor: 'hover:border-emerald-300',
+                    iconBg: 'bg-emerald-600 text-white shadow-emerald-500/20',
+                    chipBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                    unit: 'Tiket Siap',
+                    actionText: 'Buka Barcode Tiket',
+                    desc: 'E-tiket aktif yang siap Anda gunakan untuk pemindaian saat check-in gate.',
+                  },
+                  {
+                    bgGradient: 'from-indigo-500/10 via-indigo-500/5 to-transparent',
+                    borderColor: 'hover:border-indigo-300',
+                    iconBg: 'bg-indigo-600 text-white shadow-indigo-500/20',
+                    chipBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+                    unit: 'Aktivitas',
+                    actionText: 'Kelola Transfer Tiket',
+                    desc: 'Riwayat tiket yang berhasil ditransfer ke teman atau diterima dari akun lain.',
+                  },
+                ][idx] || {
+                  bgGradient: 'from-blue-500/10 via-blue-500/5 to-transparent',
+                  borderColor: 'hover:border-blue-300',
+                  iconBg: 'bg-blue-600 text-white shadow-blue-500/20',
+                  chipBg: 'bg-blue-50 text-blue-700 border-blue-200',
+                  unit: 'Tiket',
+                  actionText: 'Lihat Detail',
+                  desc: stat.period,
+                };
+
+                const Icon = stat.iconName === 'Ticket' ? Ticket : stat.iconName === 'CalendarDays' ? CalendarDays : TrendingUp;
+
+                return (
+                  <Link
+                    key={stat.id}
+                    href={stat.href || '/dashboard/tickets'}
+                    className={`group relative overflow-hidden rounded-3xl bg-white border border-slate-200/90 ${colorConfig.borderColor} p-6 sm:p-7 shadow-xs hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 flex flex-col justify-between min-h-[220px] sm:min-h-[240px] cursor-pointer hover:-translate-y-1 block no-underline`}
+                  >
+                    {/* Subtle top-right gradient glow */}
+                    <div className={`absolute top-0 right-0 w-44 h-44 bg-gradient-to-bl ${colorConfig.bgGradient} rounded-full blur-2xl -mr-12 -mt-12 pointer-events-none transition-opacity group-hover:opacity-100 opacity-60`} />
+
+                    {/* Top Row: Icon + Chip */}
+                    <div className="relative z-10 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-12 h-12 rounded-2xl ${colorConfig.iconBg} flex items-center justify-center shadow-md group-hover:scale-110 transition-transform`}>
+                          <Icon className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                            Status Metrik
+                          </span>
+                          <h3 className="text-base font-black text-slate-800 tracking-tight group-hover:text-blue-600 transition-colors">
+                            {stat.title}
+                          </h3>
+                        </div>
+                      </div>
+
+                      <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider border ${colorConfig.chipBg}`}>
+                        {stat.change}
+                      </span>
+                    </div>
+
+                    {/* Middle: Big Value */}
+                    <div className="relative z-10 py-4 space-y-1.5">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">
+                          {stat.value}
+                        </span>
+                        <span className="text-xs sm:text-sm font-bold text-slate-400">
+                          {colorConfig.unit}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                        {colorConfig.desc}
+                      </p>
+                    </div>
+
+                    {/* Bottom: Action bar */}
+                    <div className="relative z-10 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-black text-blue-600 group-hover:text-blue-700">
+                      <span>{colorConfig.actionText}</span>
+                      <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </Link>
+                );
+              })
             )}
           </div>
-          <div className="lg:col-span-1">
-            {isLoading ? (
-              <Skeleton className="h-80 w-full rounded-2xl shadow-xs" />
-            ) : (
-              <RecentEvents events={eventsToDisplay} />
-            )}
+
+          {/* Quick Access & Feature Cards for Pembeli */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+            <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-850 to-blue-950 text-white shadow-md flex flex-col justify-between space-y-4">
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-[10px] font-black uppercase tracking-wider">
+                  <Sparkles className="w-3 h-3 text-blue-400" />
+                  <span>Jelajahi Pengalaman Baru</span>
+                </div>
+                <h4 className="text-base sm:text-lg font-black tracking-tight">
+                  Temukan Konser & Event Seru Berikutnya
+                </h4>
+                <p className="text-xs text-slate-300 font-medium leading-relaxed">
+                  Cari berbagai acara favorit mulai dari festival musik, konser, seminar, hingga pameran seni dengan jaminan tiket 100% resmi.
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <Link
+                  href="/events"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <span>Jelajahi Semua Event</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </div>
+
+            <div className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200/90 shadow-xs flex flex-col justify-between space-y-4">
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black uppercase tracking-wider">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                  <span>Sistem Tiket Terenkripsi</span>
+                </div>
+                <h4 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                  Validasi Check-In Cepat & Aman
+                </h4>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                  Tunjukkan barcode e-tiket langsung dari smartphone Anda di gate masuk. Tiket Anda terlindungi sistem enkripsi anti-pemalsuan Metix.
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <Link
+                  href="/dashboard/tickets"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs transition-all cursor-pointer"
+                >
+                  <Ticket className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Buka Halaman E-Tiket</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-4">
+          {isLoading
+            ? Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-28 w-full rounded-2xl shadow-xs" />
+            ))
+            : statsToDisplay.map((stat) => (
+              <StatCard key={stat.id} stat={stat} />
+            ))}
+        </div>
+      )}
+
+      {/* Platform Owner Control Center */}
+      {currentRole === 'owner' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-blue-600" />
+                Pusat Kontrol & Operasional Platform
+              </h3>
+              <p className="text-xs text-slate-500 font-medium">
+                Akses cepat modul verifikasi mitra, penarikan dana, serta audit keuangan platform.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Card 1: Verifikasi Mitra EO */}
+            <Link
+              href="/dashboard/users"
+              className="group p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-300 hover:shadow-lg hover:shadow-blue-600/5 transition-all duration-300 space-y-3 cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold border border-blue-100 group-hover:scale-105 transition-transform">
+                  <Users className="w-5 h-5" />
+                </div>
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                  Verifikasi EO
+                </span>
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition-colors">
+                  Persetujuan Mitra EO
+                </h4>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                  Tinjau dokumen legalitas, KTP, dan pengajuan akun penyelenggara event baru.
+                </p>
+              </div>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-blue-600">
+                <span>Buka Daftar Pengajuan</span>
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Link>
+
+            {/* Card 2: Penarikan Dana (Withdrawals) */}
+            <Link
+              href="/dashboard/withdrawals"
+              className="group p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-emerald-300 hover:shadow-lg hover:shadow-emerald-600/5 transition-all duration-300 space-y-3 cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold border border-emerald-100 group-hover:scale-105 transition-transform">
+                  <DollarSign className="w-5 h-5" />
+                </div>
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Keuangan
+                </span>
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-black text-slate-900 group-hover:text-emerald-600 transition-colors">
+                  Pencairan Dana (Withdrawal)
+                </h4>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                  Verifikasi dan setujui permintaan transfer saldo pendapatan tiket ke rekening Mitra EO.
+                </p>
+              </div>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-emerald-600">
+                <span>Kelola Pencairan</span>
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Link>
+
+            {/* Card 3: Laporan & Audit Logs */}
+            <Link
+              href="/dashboard/reports"
+              className="group p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-600/5 transition-all duration-300 space-y-3 cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold border border-indigo-100 group-hover:scale-105 transition-transform">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  Laporan
+                </span>
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-black text-slate-900 group-hover:text-indigo-600 transition-colors">
+                  Laporan & Audit Platform
+                </h4>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                  Pantau rekap transaksi, komisi platform, dan riwayat aktivitas audit trail.
+                </p>
+              </div>
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-indigo-600">
+                <span>Lihat Laporan Lengkap</span>
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Link>
           </div>
         </div>
       )}
 
-      {/* Monitor Activity Per Scanner Widget (Scanner 1, Scanner 2, Scanner 3...) */}
-      {(currentRole === 'mitra' || currentRole === 'owner') && (
+      {/* Monitor Activity Per Scanner Widget (Scanner 1, Scanner 2, Scanner 3...) - ONLY for EO (mitra) */}
+      {currentRole === 'mitra' && (
         <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
             <div className="space-y-1">

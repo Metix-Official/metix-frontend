@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { fetchUserTickets, fetchUserOrders, fetchPublicEvents, fetchPaymentStatus, initiateOrderPayment, ApiTicketDetail, getStoredUser, getTicketPdfUrl, getTicketQrUrl } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
-import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw, Clock, AlertTriangle, CreditCard, Lock, Copy, ChevronDown, ChevronUp, HelpCircle, Check, Building2, Wallet, Store, Zap, User, ExternalLink, ShieldCheck, Sparkles } from 'lucide-react';
+import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw, Clock, AlertTriangle, CreditCard, Lock, Copy, ChevronDown, ChevronUp, HelpCircle, Check, Building2, Wallet, Store, Zap, User, ExternalLink, ShieldCheck, Sparkles, Bell, BellRing } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 import { getUserRole } from '@/lib/roles';
@@ -52,9 +52,24 @@ export function resolveVenueName(eventObj: any): string {
   return 'Venue Utama';
 }
 
-function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () => void }) {
+function OrderCountdownCard({
+  order,
+  onRefresh,
+  onDismiss,
+}: {
+  order: any;
+  onRefresh: () => void;
+  onDismiss?: (orderId: string | number) => void;
+}) {
   const createdAtMs = order.created_at ? new Date(order.created_at).getTime() : Date.now();
   const expiresAtMs = order.expires_at ? new Date(order.expires_at).getTime() : (createdAtMs + 60 * 60 * 1000);
+
+  const handleDismiss = () => {
+    setIsDismissed(true);
+    if (onDismiss) {
+      onDismiss(order.id || order.order_number);
+    }
+  };
 
   const [timeLeft, setTimeLeft] = useState<number>(() => {
     return Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
@@ -65,6 +80,7 @@ function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () =>
   const [copiedOrderNum, setCopiedOrderNum] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
     if (timeLeft <= 0) return;
@@ -82,10 +98,6 @@ function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () =>
   const secs = timeLeft % 60;
   const formattedTimer = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   const isExpired = timeLeft <= 0;
-
-  if (isDismissed) {
-    return null;
-  }
 
   const orderNum = order.order_number || (order.id ? `#MTX-${order.id}` : '#MTX-ORDER');
   const totalPrice = Number(order.total_amount || order.grand_total || order.total_price || 0);
@@ -136,8 +148,6 @@ function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () =>
     toast.success('Nomor Pesanan Berhasil Disalin!');
     setTimeout(() => setCopiedOrderNum(false), 3000);
   };
-
-  const [isRedirecting, setIsRedirecting] = useState(false);
 
   // Helper untuk mendapatkan URL pembayaran resmi DOKU jika belum ada di objek order
   const getOrInitiatePaymentUrl = async (): Promise<string | null> => {
@@ -199,263 +209,147 @@ function OrderCountdownCard({ order, onRefresh }: { order: any; onRefresh: () =>
     }
   };
 
-  return (
-    <div
-      className={`relative overflow-hidden p-5 sm:p-7 rounded-3xl border transition-all space-y-5 shadow-2xl animate-in fade-in-0 duration-300 ${
-        isExpired
-          ? 'bg-rose-50/90 border-rose-200 text-slate-900 shadow-rose-500/5'
-          : 'bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 text-white border-blue-500/30 shadow-blue-950/40 backdrop-blur-xl'
-      }`}
-    >
-      {/* Subtle Background Glow Elements */}
-      {!isExpired && (
-        <>
-          <div className="absolute -top-24 -right-24 w-60 h-60 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -left-24 w-60 h-60 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-        </>
-      )}
+  if (isDismissed) {
+    return null;
+  }
 
-      {/* Top Banner Header */}
-      <div className={`relative z-10 flex flex-wrap items-center justify-between gap-3 border-b pb-4 ${isExpired ? 'border-rose-200' : 'border-white/10'}`}>
-        <div className="flex items-center gap-2.5">
-          <div className={`w-3 h-3 rounded-full ${isExpired ? 'bg-rose-500' : 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.9)] animate-pulse'}`} />
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs font-black uppercase tracking-wider ${isExpired ? 'text-rose-700 font-extrabold' : 'text-amber-300'}`}>
-              {isExpired ? 'Pesanan Kedaluwarsa (Batas 60 Menit Berakhir)' : '⏱️ Menunggu Pembayaran (Batas 60 Menit)'}
-            </span>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-              isExpired ? 'bg-rose-100 text-rose-700 border-rose-300' : 'bg-blue-900/60 text-blue-200 border-blue-400/30'
-            }`}>
-              DOKU Payment Gateway
-            </span>
+  if (isExpired) {
+    return (
+      <div className="p-3 sm:p-3.5 rounded-2xl bg-rose-50 border border-rose-200/90 text-rose-950 flex items-center justify-between gap-3 shadow-2xs animate-in fade-in-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200">
+            <XCircle className="w-4 h-4" />
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {!isExpired ? (
-            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 text-xs font-mono font-black tracking-wider shadow-md shadow-amber-500/20">
-              <Clock className="w-4 h-4 text-slate-950 animate-spin-slow" />
-              <span>Hitung Mundur: {formattedTimer} Menit</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-extrabold px-3 py-1 rounded-full bg-rose-200/80 text-rose-800 border border-rose-300 uppercase">
-                Batas Waktu DOKU Habis
+          <div className="min-w-0 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-extrabold text-rose-950 truncate max-w-xs sm:max-w-md">
+                Pesanan Kedaluwarsa: {eventTitle}
               </span>
-              <button
-                type="button"
-                onClick={() => setIsDismissed(true)}
-                title="Tutup Notifikasi Pesanan Expired"
-                className="p-1 rounded-full bg-rose-200/80 hover:bg-rose-300 text-rose-800 transition-colors cursor-pointer shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-200/80 text-rose-800">
+                Waktu 60 Menit Habis
+              </span>
             </div>
-          )}
+            <p className="text-[11px] text-rose-700 truncate">
+              Order #{orderNum.replace(/^#/, '')} • Tagihan Rp {totalPrice.toLocaleString('id-ID')} otomatis dibatalkan.
+            </p>
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={handleDismiss}
+          className="p-1 rounded-lg hover:bg-rose-200 text-rose-600 transition-colors shrink-0 cursor-pointer"
+          title="Tutup Notifikasi"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
+    );
+  }
 
-      {/* Main Order & Tagihan Summary */}
-      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={handleCopyOrderNum}
-              className={`inline-flex items-center gap-1.5 text-xs font-mono font-extrabold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
-                isExpired
-                  ? 'bg-rose-100 text-rose-700 border-rose-300 hover:bg-rose-200'
-                  : 'bg-white/5 text-blue-300 border-white/10 hover:bg-white/10 hover:border-blue-400/40'
-              }`}
-              title="Klik untuk menyalin nomor pesanan"
-            >
-              <span>Nomor Pesanan: {orderNum}</span>
-              {copiedOrderNum ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3 h-3 text-slate-400" />}
-            </button>
-
-            <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
-              isExpired ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-blue-900/40 text-amber-300 border-amber-400/30'
-            }`}>
-              {paymentMethodName}
-            </span>
+  return (
+    <div className="rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50/50 to-amber-50/80 border border-amber-200/90 p-3 sm:p-3.5 text-slate-900 shadow-2xs animate-in fade-in-0 space-y-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        {/* Left: Icon, Countdown Badge, Title, Price, Order details */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-400/30 text-amber-700 flex items-center justify-center shrink-0">
+            <Clock className="w-4 h-4 text-amber-600 animate-spin-slow" />
           </div>
 
-          <h4 className={`text-lg sm:text-xl font-black tracking-tight ${isExpired ? 'text-slate-900' : 'text-white'}`}>
-            {eventTitle}
-          </h4>
+          <div className="min-w-0 space-y-0.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1 text-[10px] font-mono font-black uppercase px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                <span>⏱️ {formattedTimer}</span>
+              </span>
+              <h4 className="text-xs sm:text-sm font-black text-slate-900 truncate max-w-[180px] sm:max-w-xs md:max-w-md">
+                {eventTitle}
+              </h4>
+              <span className="text-xs font-mono font-black text-amber-900 bg-amber-100/90 px-2 py-0.5 rounded-md border border-amber-200">
+                Rp {totalPrice.toLocaleString('id-ID')}
+              </span>
+            </div>
 
-          <p className={`text-xs font-medium leading-relaxed max-w-xl ${isExpired ? 'text-slate-600' : 'text-slate-300'}`}>
-            {isExpired
-              ? 'Batas waktu pembayaran 60 menit telah berakhir. Pesanan ini otomatis dibatalkan oleh gateway.'
-              : hasRealCode
-              ? 'Silakan transfer tagihan Anda ke nomor Virtual Account / Kode Pembayaran resmi di bawah ini sebelum batas waktu berakhir.'
-              : 'Pesanan Anda telah diamankan. Selesaikan pembayaran melalui portal resmi DOKU dengan mengklik tombol di bawah ini.'}
-          </p>
-        </div>
-
-        {/* Price & Tagihan Box */}
-        <div className="flex flex-col sm:items-end shrink-0 space-y-1 sm:text-right bg-white/[0.04] sm:bg-transparent p-3 sm:p-0 rounded-2xl border sm:border-0 border-white/10">
-          <span className={`text-[10px] uppercase font-bold tracking-wider block ${isExpired ? 'text-slate-400' : 'text-blue-300'}`}>
-            Total Tagihan Presisi
-          </span>
-          <div className={`text-2xl font-black font-mono tracking-wide ${isExpired ? 'text-slate-400 line-through' : 'text-amber-300 drop-shadow-sm'}`}>
-            Rp {totalPrice.toLocaleString('id-ID')}
-          </div>
-          <span className="text-[10px] text-slate-400">Termasuk pajak & biaya admin gateway</span>
-        </div>
-      </div>
-
-      {/* Core Payment Section: Hosted DOKU Portal vs Direct Code Display */}
-      {!isExpired && (
-        <div className="relative z-10 space-y-3">
-          {hasRealCode ? (
-            /* Scenario A: Real VA / Kode Pembayaran Available */
-            <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.07] border border-white/15 space-y-3 backdrop-blur-md">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-black/30 p-4 rounded-xl border border-white/10">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-200 block">
-                    Nomor Virtual Account / Kode Pembayaran Resmi:
-                  </span>
-                  <div className="text-xl sm:text-2xl font-mono font-black tracking-widest text-amber-300">
-                    {paymentCode}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-slate-600 font-medium">
+              <span>Order #{orderNum.replace(/^#/, '')}</span>
+              <span>•</span>
+              <span className="text-slate-700 font-bold">{paymentMethodName}</span>
+              {hasRealCode && (
+                <>
+                  <span>•</span>
                   <button
                     type="button"
                     onClick={handleCopyCode}
-                    className="px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0 border border-white/20 hover:scale-105 active:scale-95 shadow-sm"
+                    className="inline-flex items-center gap-1 font-mono font-black text-slate-900 bg-white px-1.5 py-0.5 rounded border border-amber-300 hover:bg-amber-100 transition-colors cursor-pointer text-[10px]"
+                    title="Klik untuk salin kode pembayaran"
                   >
-                    {copiedCode ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-amber-300" />}
-                    <span>{copiedCode ? 'Tersalin!' : 'Salin Nomor'}</span>
+                    <span>Kode: {paymentCode}</span>
+                    {copiedCode ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-slate-400" />}
                   </button>
-
-                  <button
-                    type="button"
-                    onClick={handleCheckStatus}
-                    disabled={isCheckingStatus}
-                    className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-extrabold border border-white/15 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                    title="Cek Status Pembayaran"
-                  >
-                    <RotateCw className={`w-3.5 h-3.5 text-blue-300 ${isCheckingStatus ? 'animate-spin' : ''}`} />
-                    <span>{isCheckingStatus ? 'Mengecek...' : 'Cek Status'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Collapsible Guide */}
-              <button
-                type="button"
-                onClick={() => setIsInstructionOpen((prev) => !prev)}
-                className="w-full text-left flex items-center justify-between text-xs font-extrabold text-blue-200 hover:text-white pt-1 transition-colors cursor-pointer"
-              >
-                <span className="flex items-center gap-1.5">
-                  <HelpCircle className="w-4 h-4 text-amber-300" />
-                  <span>Petunjuk Cara Pembayaran ({paymentMethodName})</span>
-                </span>
-                {isInstructionOpen ? <ChevronUp className="w-4 h-4 text-amber-300" /> : <ChevronDown className="w-4 h-4 text-amber-300" />}
-              </button>
-
-              {isInstructionOpen && (
-                <div className="p-4 rounded-xl bg-slate-900/90 border border-white/10 text-xs space-y-2.5 animate-in fade-in-0">
-                  <p className="font-bold text-amber-300">Langkah-Langkah Pembayaran:</p>
-                  <ol className="list-decimal list-inside space-y-1.5 text-slate-200 font-medium">
-                    <li>Buka aplikasi m-Banking atau E-Wallet pilihan Anda (BCA, Mandiri, BRI, GoPay, OVO, dll).</li>
-                    <li>Pilih menu <strong>Transfer ➔ Virtual Account</strong> (atau <strong>Bayar Tagihan</strong>).</li>
-                    <li>Masukkan nomor Virtual Account: <strong className="font-mono text-amber-300">{paymentCode}</strong>.</li>
-                    <li>Pastikan nominal tagihan tepat <strong className="text-amber-300">Rp {totalPrice.toLocaleString('id-ID')}</strong>.</li>
-                    <li>Konfirmasi dan masukkan PIN Anda. Tiket akan terbit otomatis seketika!</li>
-                  </ol>
-                </div>
+                </>
               )}
             </div>
-          ) : (
-            /* Scenario B: DOKU Hosted Checkout Portal (Waiting for payment on DOKU) */
-            <div className="p-5 rounded-2xl bg-white/[0.06] border border-white/15 backdrop-blur-md space-y-4 shadow-inner">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="text-xs font-black uppercase tracking-wider text-emerald-300">
-                      Portal Pembayaran Resmi DOKU Checkout
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
-                      Terenkripsi & Resmi
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
-                    Pesanan Anda telah diamankan. Untuk menyelesaikan pembayaran, silakan masuk ke portal DOKU dan pilih channel pembayaran favorit Anda (QRIS, Virtual Account Bank, e-Wallet, atau Kartu Kredit).
-                  </p>
-                </div>
-
-                {/* Supported Channels Chips */}
-                <div className="flex flex-wrap items-center gap-1.5 sm:justify-end shrink-0">
-                  <span className="text-[10px] font-mono font-bold px-2 py-1 rounded-lg bg-white/10 text-slate-200 border border-white/10">
-                    QRIS
-                  </span>
-                  <span className="text-[10px] font-mono font-bold px-2 py-1 rounded-lg bg-white/10 text-slate-200 border border-white/10">
-                    BCA / Mandiri / BRI VA
-                  </span>
-                  <span className="text-[10px] font-mono font-bold px-2 py-1 rounded-lg bg-white/10 text-slate-200 border border-white/10">
-                    e-Wallet
-                  </span>
-                  <span className="text-[10px] font-mono font-bold px-2 py-1 rounded-lg bg-white/10 text-slate-200 border border-white/10">
-                    Kartu Kredit
-                  </span>
-                </div>
-              </div>
-
-              {/* Action Buttons Row */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={handleCheckStatus}
-                  disabled={isCheckingStatus}
-                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/15 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  <RotateCw className={`w-3.5 h-3.5 text-blue-300 ${isCheckingStatus ? 'animate-spin' : ''}`} />
-                  <span>{isCheckingStatus ? 'Mengecek Status...' : 'Cek Status Pembayaran'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handlePayNow}
-                  disabled={isRedirecting}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:brightness-110 text-slate-950 text-xs font-black shadow-lg shadow-amber-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60"
-                >
-                  <CreditCard className="w-4 h-4 text-slate-950" />
-                  <span>{isRedirecting ? 'Menghubungkan ke DOKU...' : 'Lanjutkan Pembayaran di DOKU'}</span>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-950" />
-                </button>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
-      )}
 
-      {/* Expired Order Notification Box */}
-      {isExpired && (
-        <div className="relative z-10 p-4 sm:p-5 rounded-2xl bg-rose-100/90 border border-rose-300 text-slate-900 space-y-3 shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-rose-200 text-rose-700 flex items-center justify-center shrink-0">
-                <XCircle className="w-5 h-5" />
-              </div>
-              <div className="space-y-0.5">
-                <h5 className="font-extrabold text-rose-950 text-xs sm:text-sm">Batas Waktu Pembayaran 60 Menit Telah Habis</h5>
-                <p className="text-xs text-rose-800 font-medium">Pesanan ini telah kedaluwarsa secara otomatis oleh sistem DOKU. Silakan buat pesanan baru jika ingin membeli tiket ini.</p>
-              </div>
-            </div>
-
+        {/* Right: Actions */}
+        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+          {hasRealCode && (
             <button
               type="button"
-              onClick={() => setIsDismissed(true)}
-              className="px-4 py-2 rounded-xl bg-rose-200 hover:bg-rose-300 text-rose-900 text-xs font-bold transition-all shrink-0 cursor-pointer self-start sm:self-auto border border-rose-300"
+              onClick={() => setIsInstructionOpen((prev) => !prev)}
+              className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-amber-100/50 text-slate-700 font-bold text-xs border border-amber-200 flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
             >
-              Hapus dari Riwayat
+              <HelpCircle className="w-3.5 h-3.5 text-amber-600" />
+              <span className="hidden md:inline">Petunjuk</span>
+              {isInstructionOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
-          </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleCheckStatus}
+            disabled={isCheckingStatus}
+            className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 flex items-center gap-1 shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+            title="Cek Status Pembayaran"
+          >
+            <RotateCw className={`w-3 h-3 text-blue-600 ${isCheckingStatus ? 'animate-spin' : ''}`} />
+            <span>{isCheckingStatus ? 'Cek...' : 'Cek Status'}</span>
+          </button>
+
+          {!hasRealCode && (
+            <button
+              type="button"
+              onClick={handlePayNow}
+              disabled={isRedirecting}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>{isRedirecting ? 'Menghubungkan...' : 'Bayar Sekarang'}</span>
+              <ExternalLink className="w-3 h-3" />
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleDismiss}
+            className="p-1 rounded-lg hover:bg-amber-200/60 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+            title="Sembunyikan notifikasi ini"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Collapsible Quick Payment Instruction */}
+      {isInstructionOpen && hasRealCode && (
+        <div className="p-3 rounded-xl bg-white border border-amber-200/80 text-xs space-y-1 animate-in fade-in-0 mt-1">
+          <p className="font-extrabold text-amber-900 text-[11px]">Cara Pembayaran {paymentMethodName}:</p>
+          <ol className="list-decimal list-inside space-y-0.5 text-slate-600 font-medium text-[11px]">
+            <li>Buka m-Banking atau E-Wallet Anda (BCA, Mandiri, BRI, GoPay, dll).</li>
+            <li>Pilih menu <strong>Transfer ➔ Virtual Account</strong> (atau Bayar Tagihan).</li>
+            <li>Masukkan kode/nomor VA: <strong className="font-mono text-slate-900 font-black">{paymentCode}</strong>.</li>
+            <li>Pastikan nominal tagihan tepat <strong className="text-slate-900 font-black">Rp {totalPrice.toLocaleString('id-ID')}</strong>.</li>
+          </ol>
         </div>
       )}
     </div>
@@ -469,6 +363,86 @@ export default function TicketsPage() {
   const [userOrders, setUserOrders] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'used'>('all');
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+
+  const [readOrderIds, setReadOrderIds] = useState<string[]>([]);
+  const [dismissedOrderIds, setDismissedOrderIds] = useState<string[]>([]);
+
+  // Load persistent read & dismissed states from localStorage on mount
+  useEffect(() => {
+    try {
+      const storedRead = localStorage.getItem('metix_read_order_ids');
+      if (storedRead) setReadOrderIds(JSON.parse(storedRead));
+      const storedDismissed = localStorage.getItem('metix_dismissed_order_ids');
+      if (storedDismissed) setDismissedOrderIds(JSON.parse(storedDismissed));
+    } catch { }
+  }, []);
+
+  // Filter out orders that user has permanently dismissed (via X or cleaned)
+  const unpaidOrders = React.useMemo(() => {
+    return userOrders.filter((ord: any) => {
+      const s = String(ord?.status || ord?.payment_status || 'PENDING').toUpperCase();
+      const isUnpaid = !['PAID', 'SUCCESS', 'COMPLETED', 'SETTLED'].includes(s);
+      const ordKey = String(ord.id || ord.order_number || '');
+      const isDismissed = dismissedOrderIds.includes(ordKey);
+      return isUnpaid && !isDismissed;
+    });
+  }, [userOrders, dismissedOrderIds]);
+
+  const hasUnpaidOrders = unpaidOrders.length > 0;
+
+  // Lonceng HANYA kelap-kelip jika ada tagihan yang BELUM pernah dibaca/dilihat oleh user (seperti pesan unread WhatsApp)
+  const hasUnreadOrders = React.useMemo(() => {
+    return unpaidOrders.some((ord: any) => {
+      const ordKey = String(ord.id || ord.order_number || '');
+      return !readOrderIds.includes(ordKey);
+    });
+  }, [unpaidOrders, readOrderIds]);
+
+  // Saat lonceng diklik, tandai semua tagihan aktif saat ini sebagai sudah dibaca (Mark as Read)
+  const handleToggleNotification = () => {
+    const willOpen = !isNotificationOpen;
+    setIsNotificationOpen(willOpen);
+
+    if (willOpen && unpaidOrders.length > 0) {
+      const newRead = Array.from(
+        new Set([...readOrderIds, ...unpaidOrders.map((o: any) => String(o.id || o.order_number || ''))])
+      );
+      setReadOrderIds(newRead);
+      try {
+        localStorage.setItem('metix_read_order_ids', JSON.stringify(newRead));
+      } catch { }
+    }
+  };
+
+  // Saat satu kartu ditutup permanen dengan tombol X
+  const handleDismissOrder = (orderId: string | number) => {
+    const key = String(orderId);
+    const newDismissed = Array.from(new Set([...dismissedOrderIds, key]));
+    setDismissedOrderIds(newDismissed);
+    try {
+      localStorage.setItem('metix_dismissed_order_ids', JSON.stringify(newDismissed));
+    } catch { }
+  };
+
+  // Bersihkan semua kartu expired secara permanen
+  const handleCleanExpired = () => {
+    const expiredKeys: string[] = [];
+    userOrders.forEach((ord: any) => {
+      const createdAtMs = ord.created_at ? new Date(ord.created_at).getTime() : Date.now();
+      const expiresAtMs = ord.expires_at ? new Date(ord.expires_at).getTime() : (createdAtMs + 60 * 60 * 1000);
+      if (expiresAtMs <= Date.now()) {
+        expiredKeys.push(String(ord.id || ord.order_number || ''));
+      }
+    });
+
+    const newDismissed = Array.from(new Set([...dismissedOrderIds, ...expiredKeys]));
+    setDismissedOrderIds(newDismissed);
+    try {
+      localStorage.setItem('metix_dismissed_order_ids', JSON.stringify(newDismissed));
+    } catch { }
+    toast.success('Notifikasi expired berhasil dibersihkan permanen!');
+  };
 
   const loadTickets = useCallback(async () => {
     setIsLoading(true);
@@ -585,6 +559,30 @@ export default function TicketsPage() {
       }
     };
   }, [router, loadTickets]);
+
+  const ticketCounts = React.useMemo(() => {
+    let allCount = 0;
+    let activeCount = 0;
+    let usedCount = 0;
+
+    tickets.forEach((t) => {
+      const ordStatus = String((t.order as any)?.status || (t as any).order_status || (t.order as any)?.payment_status || '').toLowerCase();
+      const isOrderUnpaid = ['pending', 'unpaid', 'waiting_payment', 'waiting_for_payment', 'draft'].includes(ordStatus);
+      if (isOrderUnpaid) return;
+
+      const s = (t.status || 'active').toLowerCase();
+      if (s === 'pending' || s === 'pending_payment') return;
+
+      allCount++;
+      if (s === 'used' || s === 'checked_in' || s === 'checked-in') {
+        usedCount++;
+      } else if (s !== 'cancelled' && s !== 'canceled') {
+        activeCount++;
+      }
+    });
+
+    return { all: allCount, active: activeCount, used: usedCount };
+  }, [tickets]);
 
   const filteredTickets = React.useMemo(() => {
     return tickets.filter((item) => {
@@ -987,98 +985,184 @@ export default function TicketsPage() {
                 Akses QR Code check-in venue real-time, cetak e-ticket pass, dan unduh tanda bukti transaksi.
               </p>
             </div>
+
+            {/* Right: Icon Lonceng Notifikasi Tagihan (Khusus Halaman Tiket) */}
+            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+              <button
+                type="button"
+                onClick={handleToggleNotification}
+                className={`relative px-4 py-2.5 rounded-2xl border font-black text-xs flex items-center gap-2.5 transition-all cursor-pointer shadow-lg active:scale-95 ${hasUnreadOrders
+                  ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 border-amber-300 shadow-amber-500/25 ring-2 ring-amber-300/60 ring-offset-2 ring-offset-blue-800'
+                  : hasUnpaidOrders
+                    ? 'bg-white/20 hover:bg-white/30 text-white border-white/30 shadow-md'
+                    : 'bg-white/10 hover:bg-white/20 text-white/80 border-white/15'
+                  }`}
+                title={
+                  hasUnreadOrders
+                    ? `Ada tagihan baru belum dibaca!`
+                    : hasUnpaidOrders
+                      ? `${unpaidOrders.length} Tagihan Menunggu Pembayaran (Sudah dibaca)`
+                      : 'Tidak ada tagihan aktif'
+                }
+              >
+                <div className="relative flex items-center justify-center">
+                  {hasUnreadOrders ? (
+                    <BellRing className="w-4 h-4 text-slate-950 animate-bounce" />
+                  ) : (
+                    <Bell className={`w-4 h-4 ${hasUnpaidOrders ? 'text-amber-300' : 'text-white'}`} />
+                  )}
+
+                  {/* Kelap-kelip Glowing Light Indicator HANYA JIKA BELUM DIBACA (Unread) */}
+                  {hasUnreadOrders && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-90"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-600 border border-white"></span>
+                    </span>
+                  )}
+                </div>
+
+                <span>
+                  {hasUnpaidOrders ? `Tagihan Pesanan (${unpaidOrders.length})` : 'Notifikasi'}
+                </span>
+
+                {hasUnreadOrders ? (
+                  <span className="px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-mono font-black animate-pulse">
+                    Baru
+                  </span>
+                ) : hasUnpaidOrders ? (
+                  <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-blue-100 text-[9px] font-mono font-bold">
+                    {isNotificationOpen ? 'Tutup' : 'Lihat'}
+                  </span>
+                ) : null}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Pending Orders 60-Minute DOKU Countdown Section */}
-        {userOrders.filter((ord: any) => {
-          const s = String(ord?.status || ord?.payment_status || 'PENDING').toUpperCase();
-          return !['PAID', 'SUCCESS', 'COMPLETED', 'SETTLED'].includes(s);
-        }).length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-2">
-              <span className="text-xs font-black uppercase text-slate-500 tracking-wider">
-                Riwayat Pesanan Menunggu Pembayaran (DOKU)
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setUserOrders((prev) =>
-                    prev.filter((ord: any) => {
-                      const createdAtMs = ord.created_at ? new Date(ord.created_at).getTime() : Date.now();
-                      const expiresAtMs = ord.expires_at ? new Date(ord.expires_at).getTime() : (createdAtMs + 60 * 60 * 1000);
-                      return expiresAtMs > Date.now();
-                    })
-                  );
-                  toast.success('Kartu pesanan expired berhasil dibersihkan!');
-                }}
-                className="text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-xl border border-rose-200 transition-all cursor-pointer flex items-center gap-1"
-              >
-                <XCircle className="w-3.5 h-3.5" />
-                <span>Bersihkan Riwayat Expired</span>
-              </button>
+        {/* Pending Orders Section (HANYA MUNCUL KETIKA ICON LONCENG DIKLIK) */}
+        {isNotificationOpen && hasUnpaidOrders && (
+          <div className="rounded-3xl bg-slate-50 border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-3 animate-in fade-in slide-in-from-top-3 duration-200">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
+                  <BellRing className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-900">
+                    Daftar Tagihan Menunggu Pembayaran ({unpaidOrders.length})
+                  </h4>
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    Selesaikan pembayaran sebelum batas waktu berakhir untuk mengamankan tiket Anda.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleCleanExpired}
+                  className="text-[10px] font-bold text-slate-500 hover:text-rose-600 bg-white hover:bg-rose-50 px-2.5 py-1 rounded-lg border border-slate-200 hover:border-rose-200 transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                >
+                  <XCircle className="w-3 h-3" />
+                  <span>Bersihkan Expired</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsNotificationOpen(false)}
+                  className="p-1.5 rounded-lg bg-white hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors border border-slate-200 cursor-pointer shadow-2xs"
+                  title="Tutup Panel Notifikasi"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
-            {userOrders
-              .filter((ord: any) => {
-                const s = String(ord?.status || ord?.payment_status || 'PENDING').toUpperCase();
-                return !['PAID', 'SUCCESS', 'COMPLETED', 'SETTLED'].includes(s);
-              })
-              .map((ord: any) => (
-                <OrderCountdownCard key={ord.id || ord.order_number} order={ord} onRefresh={loadTickets} />
+            <div className="space-y-2 pt-1">
+              {unpaidOrders.map((ord: any) => (
+                <OrderCountdownCard
+                  key={ord.id || ord.order_number}
+                  order={ord}
+                  onRefresh={loadTickets}
+                  onDismiss={handleDismissOrder}
+                />
               ))}
+            </div>
           </div>
         )}
 
         {/* Filter Bar & Tabs */}
-        <div className="rounded-3xl bg-white border border-slate-200/90 p-6 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <div className="rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 p-3.5 sm:p-5 md:p-6 shadow-xs space-y-4">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 sm:gap-4">
             {/* Status Filter Tabs */}
-            <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80 shrink-0">
+            <div className="grid grid-cols-3 sm:flex items-center gap-1 sm:gap-1.5 bg-slate-100/90 p-1 sm:p-1.5 rounded-2xl border border-slate-200/80 shrink-0 w-full sm:w-auto">
               <button
+                type="button"
                 onClick={() => setActiveTab('all')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${activeTab === 'all'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                  : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-xl text-xs font-black transition-all cursor-pointer select-none active:scale-[0.98] ${
+                  activeTab === 'all'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
               >
-                Semua Tiket ({tickets.filter((t) => {
-                  const ordStatus = String((t.order as any)?.status || (t as any).order_status || (t.order as any)?.payment_status || '').toLowerCase();
-                  const isOrderUnpaid = ['pending', 'unpaid', 'waiting_payment', 'waiting_for_payment', 'draft'].includes(ordStatus);
-                  const s = (t.status || 'active').toLowerCase();
-                  return !isOrderUnpaid && s !== 'pending' && s !== 'pending_payment';
-                }).length})
+                <span>Semua</span>
+                <span
+                  className={`text-[10px] font-black px-1.5 py-0.5 rounded-full transition-colors ${
+                    activeTab === 'all'
+                      ? 'bg-white/25 text-white'
+                      : 'bg-slate-200/90 text-slate-600'
+                  }`}
+                >
+                  {ticketCounts.all}
+                </span>
               </button>
+
               <button
+                type="button"
                 onClick={() => setActiveTab('active')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${activeTab === 'active'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                  : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-xl text-xs font-black transition-all cursor-pointer select-none active:scale-[0.98] ${
+                  activeTab === 'active'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
               >
-                Siap Check-In ({tickets.filter((t) => {
-                  const ordStatus = String((t.order as any)?.status || (t as any).order_status || (t.order as any)?.payment_status || '').toLowerCase();
-                  const isOrderUnpaid = ['pending', 'unpaid', 'waiting_payment', 'waiting_for_payment', 'draft'].includes(ordStatus);
-                  const s = (t.status || 'active').toLowerCase();
-                  return !isOrderUnpaid && s !== 'used' && s !== 'checked_in' && s !== 'checked-in' && s !== 'cancelled' && s !== 'canceled' && s !== 'pending' && s !== 'pending_payment';
-                }).length})
+                <span>Check-In</span>
+                <span
+                  className={`text-[10px] font-black px-1.5 py-0.5 rounded-full transition-colors ${
+                    activeTab === 'active'
+                      ? 'bg-white/25 text-white'
+                      : 'bg-slate-200/90 text-slate-600'
+                  }`}
+                >
+                  {ticketCounts.active}
+                </span>
               </button>
+
               <button
+                type="button"
                 onClick={() => setActiveTab('used')}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${activeTab === 'used'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                  : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-xl text-xs font-black transition-all cursor-pointer select-none active:scale-[0.98] ${
+                  activeTab === 'used'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
               >
-                Sudah Digunakan ({tickets.filter((t) => {
-                  const s = (t.status || '').toLowerCase();
-                  return s === 'used' || s === 'checked_in' || s === 'checked-in';
-                }).length})
+                <span className="hidden sm:inline">Sudah Digunakan</span>
+                <span className="sm:hidden inline">Digunakan</span>
+                <span
+                  className={`text-[10px] font-black px-1.5 py-0.5 rounded-full transition-colors ${
+                    activeTab === 'used'
+                      ? 'bg-white/25 text-white'
+                      : 'bg-slate-200/90 text-slate-600'
+                  }`}
+                >
+                  {ticketCounts.used}
+                </span>
               </button>
             </div>
 
             {/* Search Input & Sync Button */}
-            <div className="flex items-center gap-2 flex-1 max-w-md">
+            <div className="flex items-center gap-2 w-full lg:max-w-md">
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input

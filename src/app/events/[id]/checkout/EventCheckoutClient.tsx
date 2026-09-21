@@ -1531,10 +1531,6 @@ export default function EventCheckoutClient() {
                   <span className="font-extrabold text-slate-800">+Rp {localTaxAmount.toLocaleString('id-ID')}</span>
                 </div>
 
-                <div className="flex justify-between items-center">
-                  <span>Biaya Layanan Platform</span>
-                  <span className="font-extrabold text-slate-800">+Rp {platformFee.toLocaleString('id-ID')}</span>
-                </div>
 
                 {appliedPromo && (
                   <div className="flex justify-between items-center text-emerald-600 font-bold">

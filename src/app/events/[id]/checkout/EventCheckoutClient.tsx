@@ -472,11 +472,13 @@ export default function EventCheckoutClient() {
       return;
     }
 
-    const firstSelection = selectedTickets[0];
-    const targetTicketTypeId = firstSelection?.ticket_type_id || (firstSelection as any)?.ticketType?.id || event.ticket_types?.[0]?.id;
-
-    if (!targetTicketTypeId) {
+    if (selectedTickets.length === 0 || totalTicketCount <= 0) {
       setErrorMessage('Kategori tiket belum dipilih. Silakan pilih tiket terlebih dahulu.');
+      return;
+    }
+
+    if (totalTicketCount > 4) {
+      setErrorMessage('Maksimal total pembelian tiket adalah 4 tiket per transaksi.');
       return;
     }
 
@@ -484,13 +486,21 @@ export default function EventCheckoutClient() {
     setErrorMessage(null);
 
     try {
+      const itemsPayload = selectedTickets.map((t) => ({
+        ticket_type_id: t.ticket_type_id,
+        quantity: t.quantity,
+      }));
+
       const reservation = await createReservation({
         event_id: event.id,
-        ticket_type_id: targetTicketTypeId,
+        ticket_type_id: selectedTickets[0]?.ticket_type_id,
         quantity: totalTicketCount || 1,
+        items: itemsPayload,
       });
 
       const reservationId = Number(reservation?.id || (reservation as any)?.reservation_id);
+      const reservationIds = reservation?.reservation_ids || [reservationId];
+
       if (!reservationId || isNaN(reservationId)) {
         throw new Error('Gagal membuat reservasi. ID reservasi dari server tidak valid.');
       }
@@ -515,6 +525,7 @@ export default function EventCheckoutClient() {
 
       const orderData: any = await checkoutOrder({
         reservation_id: reservationId,
+        reservation_ids: reservationIds,
         promo_code: isUsePromoChecked && appliedPromo ? appliedPromo.code : undefined,
         payment_category: backendCategory,
         payment_method: selectedPaymentCategory,

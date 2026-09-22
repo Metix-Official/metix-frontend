@@ -987,9 +987,10 @@ export async function fetchEventSocialMediaApi(eventId: number | string): Promis
 
 export async function createReservation(payload: {
   event_id: number;
-  ticket_type_id: number;
-  quantity: number;
-}): Promise<ApiReservation> {
+  ticket_type_id?: number;
+  quantity?: number;
+  items?: { ticket_type_id: number; quantity: number }[];
+}): Promise<ApiReservation & { reservation_ids?: number[] }> {
   const token = getStoredToken();
   const response = await fetch(`${API_BASE_URL}/reservations`, {
     method: 'POST',
@@ -1012,10 +1013,12 @@ export async function createReservation(payload: {
 
   const rawRes = data?.data?.reservation || data?.reservation || data?.data || data;
   const resId = rawRes?.id || rawRes?.reservation_id || data?.id || data?.reservation_id || data?.data?.id || data?.data?.reservation_id;
+  const reservationIds = data?.data?.reservation_ids || data?.reservation_ids || [Number(resId)];
   
   return {
     ...rawRes,
     id: Number(resId),
+    reservation_ids: reservationIds,
   };
 }
 
@@ -1103,6 +1106,7 @@ export async function applyReferralCode(payload: {
 
 export async function previewCheckout(payload: {
   reservation_id: number;
+  reservation_ids?: number[];
   promo_code?: string;
   referral_code?: string;
   payment_category?: string;
@@ -1128,9 +1132,13 @@ export async function previewCheckout(payload: {
 
 export async function checkoutOrder(payload: {
   reservation_id: number;
+  reservation_ids?: number[];
   promo_code?: string;
   referral_code?: string;
   payment_category?: string;
+  payment_method?: string;
+  nik?: string;
+  address?: string;
 }): Promise<ApiOrder> {
   const token = getStoredToken();
   const response = await fetch(`${API_BASE_URL}/checkout`, {

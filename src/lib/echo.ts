@@ -20,9 +20,11 @@ export const initEcho = (token?: string): Echo<any> | null => {
   const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api').replace(/\/$/, '');
   const baseUrl = rawApiUrl.endsWith('/api') ? rawApiUrl.slice(0, -4) : rawApiUrl;
 
-  const authEndpoint = rawApiUrl.includes('/v1') 
+  const authEndpoint = rawApiUrl.endsWith('/v1')
     ? `${rawApiUrl}/broadcasting/auth`
-    : `${baseUrl}/api/v1/broadcasting/auth`;
+    : rawApiUrl.includes('/v1')
+      ? `${rawApiUrl.split('/v1')[0]}/v1/broadcasting/auth`
+      : `${rawApiUrl}/v1/broadcasting/auth`;
 
   return new Echo({
     broadcaster: 'reverb',

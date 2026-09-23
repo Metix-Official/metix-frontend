@@ -558,7 +558,7 @@ export default function DashboardPage() {
                   <span>Buka E-Tiket Saya</span>
                 </Link>
                 <Link
-                  href="/events"
+                  href="/"
                   className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer"
                 >
                   <Compass className="w-4 h-4 text-blue-300" />
@@ -743,7 +743,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
                 <Link
-                  href="/events"
+                  href="/"
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold transition-all shadow-md shadow-blue-600/20"
                 >
                   <Compass className="w-3.5 h-3.5" />

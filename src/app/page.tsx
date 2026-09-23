@@ -71,7 +71,7 @@ export default function PublicHomepage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 text-slate-900 font-sans antialiased selection:bg-blue-500 selection:text-white flex flex-col justify-between overflow-x-hidden">
+    <div className="min-h-screen bg-slate-50/50 text-slate-900 font-sans antialiased selection:bg-blue-500 selection:text-white flex flex-col justify-between">
       <div>
         {/* Navigation Bar */}
         <Navbar

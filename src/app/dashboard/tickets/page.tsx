@@ -368,7 +368,8 @@ export default function TicketsPage() {
   const [readOrderIds, setReadOrderIds] = useState<string[]>([]);
   const [dismissedOrderIds, setDismissedOrderIds] = useState<string[]>([]);
 
-  // Load persistent read & dismissed states from localStorage on mount
+  // Load persistent
+  //  read & dismissed states from localStorage on mount
   useEffect(() => {
     try {
       const storedRead = localStorage.getItem('metix_read_order_ids');
@@ -514,40 +515,40 @@ export default function TicketsPage() {
         import('@/lib/echo').then(({ initEcho }) => {
           echoInstance = initEcho(token);
           if (echoInstance) {
-            echoInstance
-              .private(`user.${user.id}`)
-              .listen('.TicketScanned', (data: { ticket_id: number; ticket_code: string; status: string }) => {
-                toast.success(`Tiket #${data.ticket_code || data.ticket_id} berhasil di-scan di gate venue! 🎉`, {
-                  duration: 5000,
-                });
-                setTickets((prev) =>
-                  prev.map((t) => {
-                    const matchId = t.id === data.ticket_id;
-                    const matchCode = data.ticket_code && (t.ticket_code === data.ticket_code || (t as any).qr_token === data.ticket_code);
-                    return (matchId || matchCode) ? { ...t, status: 'used' } : t;
-                  })
-                );
-                loadTickets();
-              })
-              .listen('.PaymentConfirmed', (data: { order_number: string }) => {
-                toast.success(`Pembayaran untuk pesanan ${data.order_number || ''} BERHASIL LUNAS! Tiket Anda telah diterbitkan 🎉`, {
-                  duration: 6000,
-                });
-                loadTickets();
-              })
-              .listen('.TicketReset', (data: { ticket_id: number; ticket_code: string }) => {
-                toast.info(`Status tiket #${data.ticket_code || data.ticket_id} dikembalikan menjadi Siap Check-In (ACTIVE).`, {
-                  duration: 5000,
-                });
-                setTickets((prev) =>
-                  prev.map((t) => {
-                    const matchId = t.id === data.ticket_id;
-                    const matchCode = data.ticket_code && (t.ticket_code === data.ticket_code || (t as any).qr_token === data.ticket_code);
-                    return (matchId || matchCode) ? { ...t, status: 'active' } : t;
-                  })
-                );
-                loadTickets();
+          echoInstance
+            .private(`user.${user.id}`)
+            .listen('.TicketScanned', (data: { ticket_id: number; ticket_code: string; status: string }) => {
+              toast.success(`Tiket #${data.ticket_code || data.ticket_id} berhasil di-scan di gate venue! 🎉`, {
+                duration: 5000,
               });
+              setTickets((prev) =>
+                prev.map((t) => {
+                  const matchId = t.id === data.ticket_id;
+                  const matchCode = data.ticket_code && (t.ticket_code === data.ticket_code || (t as any).qr_token === data.ticket_code);
+                  return (matchId || matchCode) ? { ...t, status: 'used' } : t;
+                })
+              );
+              loadTickets();
+            })
+            .listen('.PaymentConfirmed', (data: { order_number: string }) => {
+              toast.success(`Pembayaran untuk pesanan ${data.order_number || ''} BERHASIL LUNAS! Tiket Anda telah diterbitkan 🎉`, {
+                duration: 6000,
+              });
+              loadTickets();
+            })
+            .listen('.TicketReset', (data: { ticket_id: number; ticket_code: string }) => {
+              toast.info(`Status tiket #${data.ticket_code || data.ticket_id} dikembalikan menjadi Siap Check-In (ACTIVE).`, {
+                duration: 5000,
+              });
+              setTickets((prev) =>
+                prev.map((t) => {
+                  const matchId = t.id === data.ticket_id;
+                  const matchCode = data.ticket_code && (t.ticket_code === data.ticket_code || (t as any).qr_token === data.ticket_code);
+                  return (matchId || matchCode) ? { ...t, status: 'active' } : t;
+                })
+              );
+              loadTickets();
+            });
           }
         });
       }

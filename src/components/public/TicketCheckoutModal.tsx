@@ -622,9 +622,13 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
             return;
           }
         }
+        if (paymentRes.payment_code || paymentRes.va_number) {
+          orderData.payment_code = paymentRes.payment_code || paymentRes.va_number;
+          orderData.va_number = paymentRes.payment_code || paymentRes.va_number;
+        }
       } catch (e: any) {
         console.warn('Payment init error:', e);
-        orderData.payment_error = e?.message || 'Gagal membuat URL pembayaran DOKU.';
+        orderData.payment_error = e?.message || 'Gagal membuat request pembayaran DOKU.';
       }
 
       setCompletedOrder(orderData);

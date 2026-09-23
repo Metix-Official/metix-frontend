@@ -1177,10 +1177,14 @@ export async function initiateOrderPayment(orderId: number, options: Record<stri
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data?.message || 'Gagal memproses inisialisasi pembayaran DOKU.');
+    const errorMsg =
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      data?.message ||
+      'Gagal memproses inisialisasi pembayaran DOKU.';
+    throw new Error(errorMsg);
   }
 
-  const paymentObj = data?.data?.payment || data?.payment || data;
+  const paymentObj = data?.data?.payment || data?.payment || data?.data || data;
   const paymentUrl = paymentObj?.payment_url || data?.payment_url || data?.data?.payment_url;
   const paymentCode = paymentObj?.payment_code || paymentObj?.va_number || data?.payment_code || data?.va_number;
 

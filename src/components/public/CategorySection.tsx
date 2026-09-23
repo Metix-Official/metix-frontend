@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { SlidersHorizontal, Search, X, ShieldCheck, Zap, Ticket, QrCode } from 'lucide-react';
+import { SlidersHorizontal, Search, X } from 'lucide-react';
 
 interface CategorySectionProps {
   selectedCategory?: string | null;
@@ -36,12 +36,19 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
     }
   };
 
+  const hasCategories = apiCategories && apiCategories.length > 0;
+
+  // Jika tidak ada data kategori dari API dan tidak ada filter aktif, sembunyikan section sepenuhnya
+  if (!hasCategories && !isFilterActive) {
+    return null;
+  }
+
   return (
     <section id="categories" className="py-6 bg-white border-t border-b border-slate-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
 
         {/* Dynamic Category Chips ONLY if API database returns actual categories */}
-        {apiCategories && apiCategories.length > 0 ? (
+        {hasCategories && (
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar py-1 flex-1 pr-2">
               <button
@@ -84,49 +91,6 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
               <SlidersHorizontal className="w-4 h-4 text-slate-600" />
               <span>Filter</span>
             </button>
-          </div>
-        ) : (
-          /* Premium Trust & Key Features Showcase Grid (Replaces static dummy category strip) */
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/80 border border-slate-200/70 flex items-center gap-3 hover:bg-slate-100/80 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-blue-100/80 text-blue-600 flex items-center justify-center shrink-0 shadow-2xs">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <div className="space-y-0.5 text-left">
-                <h4 className="text-xs font-extrabold text-slate-900">Tiket 100% Resmi</h4>
-                <p className="text-[11px] text-slate-500 font-medium leading-tight">Terhubung langsung ke mitra EO</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/80 border border-slate-200/70 flex items-center gap-3 hover:bg-slate-100/80 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100/80 text-emerald-600 flex items-center justify-center shrink-0 shadow-2xs">
-                <Zap className="w-5 h-5" />
-              </div>
-              <div className="space-y-0.5 text-left">
-                <h4 className="text-xs font-extrabold text-slate-900">Pembayaran Instan</h4>
-                <p className="text-[11px] text-slate-500 font-medium leading-tight">QRIS, E-Wallet & Bank VA</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/80 border border-slate-200/70 flex items-center gap-3 hover:bg-slate-100/80 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-indigo-100/80 text-indigo-600 flex items-center justify-center shrink-0 shadow-2xs">
-                <Ticket className="w-5 h-5" />
-              </div>
-              <div className="space-y-0.5 text-left">
-                <h4 className="text-xs font-extrabold text-slate-900">E-Ticket PDF Cepat</h4>
-                <p className="text-[11px] text-slate-500 font-medium leading-tight">Cetak PDF</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50/80 border border-slate-200/70 flex items-center gap-3 hover:bg-slate-100/80 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-amber-100/80 text-amber-600 flex items-center justify-center shrink-0 shadow-2xs">
-                <QrCode className="w-5 h-5" />
-              </div>
-              <div className="space-y-0.5 text-left">
-                <h4 className="text-xs font-extrabold text-slate-900">Scan QR Presisi</h4>
-                <p className="text-[11px] text-slate-500 font-medium leading-tight">Check-in event cepat & aman</p>
-              </div>
-            </div>
           </div>
         )}
 
@@ -251,3 +215,4 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
     </section>
   );
 };
+

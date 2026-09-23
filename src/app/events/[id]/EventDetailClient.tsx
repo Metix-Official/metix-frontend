@@ -345,7 +345,7 @@ export default function EventDetailClient() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       {/* Top Navbar / Back header with METIX Logo Branding */}
-      <header className="bg-white/95 border-b border-slate-200/80 sticky top-0 z-30 backdrop-blur-md">
+      <header className="bg-white/95 border-b border-slate-200/80 sticky top-0 z-40 backdrop-blur-md pt-[env(safe-area-inset-top)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between">
           <Link
             href="/"

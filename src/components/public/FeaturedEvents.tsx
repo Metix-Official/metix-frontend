@@ -111,12 +111,8 @@ export const FeaturedEvents: React.FC<FeaturedEventsProps> = ({
         {/* Section Header */}
         <div className="mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-in-up opacity-0">
           <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100/70 border border-blue-200/80 text-blue-800 text-[11px] font-black uppercase tracking-wider">
-              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-              <span>{lang === 'en' ? 'Trending Events' : 'Rekomendasi Terbaik'}</span>
-            </div>
             <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              {lang === 'en' ? 'Popular Events' : 'Event Populer'}
+              {lang === 'en' ? 'Popular Events' : 'Event'}
               <ArrowRight className="w-6 h-6 text-blue-600 hidden sm:inline-block" />
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 font-medium max-w-xl">
@@ -159,15 +155,14 @@ export const FeaturedEvents: React.FC<FeaturedEventsProps> = ({
           <>
             {/* Dynamic Centered Responsive Event Grid */}
             <div
-              className={`grid grid-cols-1 gap-6 ${
-                eventsToDisplay.length === 1
-                  ? 'max-w-md mx-auto'
-                  : eventsToDisplay.length === 2
+              className={`grid grid-cols-1 gap-6 ${eventsToDisplay.length === 1
+                ? 'max-w-md mx-auto'
+                : eventsToDisplay.length === 2
                   ? 'max-w-3xl mx-auto md:grid-cols-2'
                   : eventsToDisplay.length === 3
-                  ? 'max-w-5xl mx-auto md:grid-cols-2 lg:grid-cols-3'
-                  : 'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-              }`}
+                    ? 'max-w-5xl mx-auto md:grid-cols-2 lg:grid-cols-3'
+                    : 'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                }`}
             >
               {eventsToDisplay.map((event, index) => {
                 const rawApi = apiEvents.find((x) => String(x.id) === event.id) || (event as any).rawApiEvent;
@@ -177,16 +172,6 @@ export const FeaturedEvents: React.FC<FeaturedEventsProps> = ({
               })}
             </div>
 
-            {/* Bottom Centered View All CTA Button (Visible on mobile & all screens) */}
-            <div className="mt-12 text-center animate-fade-in-up opacity-0" style={{ animationDelay: '400ms' }}>
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-extrabold text-xs shadow-lg shadow-blue-600/25 hover:shadow-xl hover:scale-105 transition-all"
-              >
-                <span>{lang === 'en' ? 'Explore All Available Events' : 'Jelajahi Semua Event Lainnya'}</span>
-                <ArrowRight className="w-4 h-4 text-amber-300" />
-              </Link>
-            </div>
           </>
         ) : (
           /* ================= PREMIUM NO EVENT EMPTY STATE ================= */

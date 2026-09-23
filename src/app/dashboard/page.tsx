@@ -3,8 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
-import { RecentTransactions } from '@/components/dashboard/RecentTransactions';
-import { RecentEvents } from '@/components/dashboard/RecentEvents';
 import { StatMetric, Transaction, EventItem } from '@/data/mockData';
 import { fetchDashboardData, fetchEoAdmins, fetchMyEvents, fetchUserTickets, fetchSalesReportData, fetchScannerCheckIns, DashboardResponse, EoAdminUser, getStoredUser } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -24,6 +22,17 @@ import {
   TrendingUp,
   Users,
   DollarSign,
+  Compass,
+  HelpCircle,
+  MapPin,
+  QrCode,
+  Globe,
+  Store,
+  BarChart3,
+  Percent,
+  CheckCircle2,
+  Layers,
+  ShoppingBag,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -128,6 +137,19 @@ export default function DashboardPage() {
     }
     loadData();
   }, [router]);
+
+  const buyerTickets = React.useMemo(() => {
+    const list = dashboardData?.tickets?.data;
+    if (Array.isArray(list)) return list;
+    return [];
+  }, [dashboardData]);
+
+  const activeTickets = React.useMemo(() => {
+    return buyerTickets.filter((t: any) => {
+      const s = String(t?.status || '').toLowerCase();
+      return s === 'active' || s === 'paid' || s === 'valid';
+    });
+  }, [buyerTickets]);
 
   const [storedUser, setStoredUser] = useState<any>(() => getStoredUser());
 
@@ -389,56 +411,6 @@ export default function DashboardPage() {
     return [];
   }, [dashboardData, currentRole]);
 
-  // Compute Recent Events list from backend API (EO Role Only)
-  const eventsToDisplay: EventItem[] = React.useMemo(() => {
-    if (currentRole !== 'mitra') return [];
-    const rawList = dashboardData?.eventsList || [];
-    if (rawList && rawList.length > 0) {
-      return rawList.map((item: any) => {
-        const totalQuota = item.ticket_types && item.ticket_types.length > 0
-          ? item.ticket_types.reduce((sum: number, tt: any) => sum + Number(tt.quota || 0), 0)
-          : Number(item.total_tickets || item.totalTickets || item.tickets_capacity || item.quota || 0);
-
-        const soldQty = item.ticket_types && item.ticket_types.length > 0
-          ? item.ticket_types.reduce((sum: number, tt: any) => sum + Number(tt.sold_count ?? tt.sold_quantity ?? 0), 0)
-          : Number(item.tickets_sold || item.ticketsSold || item.sold_count || item.sold_quantity || 0);
-
-        const rev = item.revenue
-          ? Number(item.revenue)
-          : item.ticket_types
-            ? item.ticket_types.reduce((sum: number, tt: any) => sum + (Number(tt.sold_count ?? tt.sold_quantity ?? 0) * Number(tt.price || 0)), 0)
-            : 0;
-
-        const isSoldOut = totalQuota > 0 && soldQty >= totalQuota;
-        const categoryName = (typeof item.category === 'object' ? item.category?.name : item.category) || 'MUSIC CONCERT';
-        const locationName = (typeof item.venue === 'object' ? item.venue?.name : item.venue) || item.venue_name || item.location || item.creator_name || 'Venue';
-
-        let statusText: 'Active' | 'Draft' | 'Completed' | 'Sold Out' = 'Active';
-        if (item.status === 'Sold Out' || isSoldOut) {
-          statusText = 'Sold Out';
-        } else if (item.status === 'published' || item.status === 'Active' || item.status === 'active') {
-          statusText = 'Active';
-        } else if (item.status === 'draft' || item.status === 'Draft') {
-          statusText = 'Draft';
-        }
-
-        return {
-          id: String(item.id),
-          title: item.title || 'Untitled Event',
-          category: String(categoryName).toUpperCase(),
-          date: item.status === 'published' || item.status === 'active' || item.status === 'Active' ? 'Aktif' : (item.event_start_at ? new Date(item.event_start_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : 'Aktif'),
-          location: locationName,
-          ticketsSold: soldQty,
-          totalTickets: totalQuota,
-          revenue: `Rp ${rev.toLocaleString('id-ID')}`,
-          status: statusText,
-          badgeColor: '',
-        };
-      });
-    }
-    return [];
-  }, [dashboardData, currentRole]);
-
   // Dynamic Banner Content based on Role
   const bannerContent = React.useMemo(() => {
     if (currentRole === 'admin') {
@@ -554,248 +526,327 @@ export default function DashboardPage() {
         );
       })()}
 
-      {/* Banner / Welcome Quick Action */}
-      <div className="rounded-2xl bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 text-white p-4 sm:p-5 shadow-lg shadow-blue-700/10 border border-blue-600/30">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-[11px] font-bold uppercase tracking-wider">
-              <BannerIcon className="w-3 h-3 text-white" />
-              <span>{bannerContent.badge}</span>
-            </div>
-            <h2 className="text-lg sm:text-xl font-extrabold tracking-tight">
-              {bannerContent.title}
-            </h2>
-            <p className="text-[11px] text-blue-100 font-medium max-w-2xl">
-              {bannerContent.desc}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {currentRole === 'admin' ? (
-              <Link
-                href="/dashboard/checkin"
-                className="px-4 py-2 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <UserCheck className="w-3.5 h-3.5 text-blue-700" />
-                <span>Buka Scanner QR Code</span>
-              </Link>
-            ) : currentRole === 'mitra' ? (
-              <>
-                <Link
-                  href="/dashboard/events"
-                  className="px-4 py-2 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <Plus className="w-3.5 h-3.5 text-blue-700" />
-                  <span>Create Event</span>
-                </Link>
-              </>
-            ) : currentRole === 'owner' ? (
-              <>
-                <Link
-                  href="/dashboard/reports"
-                  className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
-                  <span>Laporan Keuangan</span>
-                </Link>
-                <Link
-                  href="/dashboard/events"
-                  className="px-4 py-2 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-700" />
-                  <span>Kelola Semua Event</span>
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/events"
-                  className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
-                >
-                  <span>Jelajahi Event</span>
-                </Link>
-                <Link
-                  href="/dashboard/tickets"
-                  className="px-4 py-2 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <Ticket className="w-3.5 h-3.5 text-blue-700" />
-                  <span>Lihat E-Tiket Saya</span>
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Metric Stat Cards Grid */}
       {currentRole === 'pembeli' ? (
-        <div className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
+        /* ========================================================================= */
+        /* PREMIUM MINIMALIST BUYER DASHBOARD                                         */
+        /* ========================================================================= */
+        <div className="space-y-6">
+          {/* 1. Sleek Hero Welcome Banner */}
+          <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white p-6 sm:p-7 shadow-xl shadow-blue-950/15 border border-slate-800 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1.5 max-w-xl">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-[11px] font-bold text-blue-200 uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Akun Pembeli Resmi</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                  Halo, {storedUser?.name || 'Pengguna Metix'} 👋
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 font-medium leading-relaxed">
+                  Semua e-tiket konser dan akses acara Anda tersimpan aman di sini. Siap digunakan kapan pun Anda membutuhkannya.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <Link
+                  href="/dashboard/tickets"
+                  className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-extrabold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Ticket className="w-4 h-4 text-blue-600" />
+                  <span>Buka E-Tiket Saya</span>
+                </Link>
+                <Link
+                  href="/events"
+                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer"
+                >
+                  <Compass className="w-4 h-4 text-blue-300" />
+                  <span>Eksplor Event</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Compact 3-Metric Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
+            {/* Card 1: Tiket Siap Pakai */}
+            <Link
+              href="/dashboard/tickets"
+              className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-emerald-300 hover:shadow-md transition-all group flex items-center justify-between no-underline"
+            >
+              <div className="space-y-0.5">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Tiket Aktif
+                </span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                    {isLoading ? '-' : activeTickets.length}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500">Tiket Siap Pakai</span>
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-105 transition-transform shrink-0">
+                <Ticket className="w-5 h-5" />
+              </div>
+            </Link>
+
+            {/* Card 2: Total Dimiliki */}
+            <Link
+              href="/dashboard/tickets"
+              className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-blue-300 hover:shadow-md transition-all group flex items-center justify-between no-underline"
+            >
+              <div className="space-y-0.5">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Total Dimiliki
+                </span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                    {isLoading ? '-' : buyerTickets.length}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500">Semua E-Tiket</span>
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-105 transition-transform shrink-0">
+                <CalendarDays className="w-5 h-5" />
+              </div>
+            </Link>
+
+            {/* Card 3: Status Akun */}
+            <Link
+              href="/dashboard/profile"
+              className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-indigo-300 hover:shadow-md transition-all group flex items-center justify-between no-underline"
+            >
+              <div className="space-y-0.5">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Status Akun
+                </span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                    Terverifikasi
+                  </span>
+                  <span className="text-xs font-semibold text-emerald-600 font-bold">● Aman</span>
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 group-hover:scale-105 transition-transform shrink-0">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+            </Link>
+          </div>
+
+          {/* 3. Spotlight E-Tiket Siap Digunakan */}
+          <div className="rounded-3xl bg-white border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                  <Ticket className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+                    E-Tiket Siap Digunakan
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Tunjukkan barcode tiket berikut ke petugas scanner saat memasuki venue
+                  </p>
+                </div>
+              </div>
+
+              <Link
+                href="/dashboard/tickets"
+                className="text-xs font-extrabold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
+              >
+                <span>Lihat Semua ({buyerTickets.length})</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
             {isLoading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-56 w-full rounded-3xl shadow-xs" />
-              ))
+              <div className="space-y-3">
+                <Skeleton className="h-28 w-full rounded-2xl" />
+              </div>
+            ) : activeTickets.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {activeTickets.slice(0, 2).map((t: any) => {
+                  const eventTitle = t.event?.title || t.event_title || 'Konser / Event Metix';
+                  const venueName = t.event?.venue || t.event?.location || t.venue_name || 'Venue Resmi';
+                  const cityName = t.event?.city || '';
+                  const typeName = t.ticket_type?.name || t.ticket_type_name || 'General Pass';
+                  const dateStr = t.event?.event_start_at || t.start_at || t.event_date;
+                  const formattedDate = dateStr
+                    ? new Date(dateStr).toLocaleDateString('id-ID', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })
+                    : 'Jadwal terkonfirmasi';
+
+                  return (
+                    <div
+                      key={t.id || t.ticket_code}
+                      className="p-4 sm:p-4.5 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between gap-3 group relative overflow-hidden"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-700 font-black text-[10px] uppercase tracking-wider">
+                              {typeName}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Siap Scan
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-extrabold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1">
+                            {eventTitle}
+                          </h4>
+                          <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500 font-medium">
+                            <span className="flex items-center gap-1">
+                              <CalendarDays className="w-3 h-3 text-slate-400" />
+                              <span>{formattedDate}</span>
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1 truncate max-w-[160px]">
+                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span className="truncate">{venueName}{cityName ? `, ${cityName}` : ''}</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2.5 border-t border-slate-200/80">
+                        <span className="text-[10px] font-mono font-bold text-slate-400">
+                          {t.ticket_code || `#MTX-${t.id}`}
+                        </span>
+                        <Link
+                          href="/dashboard/tickets"
+                          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[11px] flex items-center gap-1.5 transition-all shadow-xs"
+                        >
+                          <QrCode className="w-3 h-3" />
+                          <span>Buka Tiket</span>
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
-              statsToDisplay.map((stat, idx) => {
-                const colorConfig = [
-                  {
-                    bgGradient: 'from-blue-500/10 via-blue-500/5 to-transparent',
-                    borderColor: 'hover:border-blue-300',
-                    iconBg: 'bg-blue-600 text-white shadow-blue-500/20',
-                    chipBg: 'bg-blue-50 text-blue-700 border-blue-200',
-                    unit: 'Tiket',
-                    actionText: 'Lihat Semua E-Tiket',
-                    desc: 'Total seluruh tiket yang telah Anda pesan dan miliki di akun Metix.',
-                  },
-                  {
-                    bgGradient: 'from-emerald-500/10 via-emerald-500/5 to-transparent',
-                    borderColor: 'hover:border-emerald-300',
-                    iconBg: 'bg-emerald-600 text-white shadow-emerald-500/20',
-                    chipBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                    unit: 'Tiket Siap',
-                    actionText: 'Buka Barcode Tiket',
-                    desc: 'E-tiket aktif yang siap Anda gunakan untuk pemindaian saat check-in gate.',
-                  },
-                  {
-                    bgGradient: 'from-indigo-500/10 via-indigo-500/5 to-transparent',
-                    borderColor: 'hover:border-indigo-300',
-                    iconBg: 'bg-indigo-600 text-white shadow-indigo-500/20',
-                    chipBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-                    unit: 'Aktivitas',
-                    actionText: 'Kelola Transfer Tiket',
-                    desc: 'Riwayat tiket yang berhasil ditransfer ke teman atau diterima dari akun lain.',
-                  },
-                ][idx] || {
-                  bgGradient: 'from-blue-500/10 via-blue-500/5 to-transparent',
-                  borderColor: 'hover:border-blue-300',
-                  iconBg: 'bg-blue-600 text-white shadow-blue-500/20',
-                  chipBg: 'bg-blue-50 text-blue-700 border-blue-200',
-                  unit: 'Tiket',
-                  actionText: 'Lihat Detail',
-                  desc: stat.period,
-                };
-
-                const Icon = stat.iconName === 'Ticket' ? Ticket : stat.iconName === 'CalendarDays' ? CalendarDays : TrendingUp;
-
-                return (
-                  <Link
-                    key={stat.id}
-                    href={stat.href || '/dashboard/tickets'}
-                    className={`group relative overflow-hidden rounded-3xl bg-white border border-slate-200/90 ${colorConfig.borderColor} p-6 sm:p-7 shadow-xs hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300 flex flex-col justify-between min-h-[220px] sm:min-h-[240px] cursor-pointer hover:-translate-y-1 block no-underline`}
-                  >
-                    {/* Subtle top-right gradient glow */}
-                    <div className={`absolute top-0 right-0 w-44 h-44 bg-gradient-to-bl ${colorConfig.bgGradient} rounded-full blur-2xl -mr-12 -mt-12 pointer-events-none transition-opacity group-hover:opacity-100 opacity-60`} />
-
-                    {/* Top Row: Icon + Chip */}
-                    <div className="relative z-10 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-12 h-12 rounded-2xl ${colorConfig.iconBg} flex items-center justify-center shadow-md group-hover:scale-110 transition-transform`}>
-                          <Icon className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
-                            Status Metrik
-                          </span>
-                          <h3 className="text-base font-black text-slate-800 tracking-tight group-hover:text-blue-600 transition-colors">
-                            {stat.title}
-                          </h3>
-                        </div>
-                      </div>
-
-                      <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider border ${colorConfig.chipBg}`}>
-                        {stat.change}
-                      </span>
-                    </div>
-
-                    {/* Middle: Big Value */}
-                    <div className="relative z-10 py-4 space-y-1.5">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">
-                          {stat.value}
-                        </span>
-                        <span className="text-xs sm:text-sm font-bold text-slate-400">
-                          {colorConfig.unit}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                        {colorConfig.desc}
-                      </p>
-                    </div>
-
-                    {/* Bottom: Action bar */}
-                    <div className="relative z-10 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-black text-blue-600 group-hover:text-blue-700">
-                      <span>{colorConfig.actionText}</span>
-                      <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
-                    </div>
-                  </Link>
-                );
-              })
+              <div className="py-9 px-4 text-center rounded-2xl bg-slate-50/60 border border-dashed border-slate-200 space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto border border-blue-100 shadow-xs">
+                  <Ticket className="w-6 h-6" />
+                </div>
+                <div className="space-y-1 max-w-sm mx-auto">
+                  <h4 className="text-sm font-extrabold text-slate-900">
+                    Belum Ada E-Tiket Aktif
+                  </h4>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Tiket konser atau event yang Anda beli akan langsung muncul di sini lengkap dengan barcode check-in gate.
+                  </p>
+                </div>
+                <Link
+                  href="/events"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold transition-all shadow-md shadow-blue-600/20"
+                >
+                  <Compass className="w-3.5 h-3.5" />
+                  <span>Jelajahi Konser & Event</span>
+                </Link>
+              </div>
             )}
           </div>
 
-          {/* Quick Access & Feature Cards for Pembeli */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-            <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-850 to-blue-950 text-white shadow-md flex flex-col justify-between space-y-4">
-              <div className="space-y-2">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-[10px] font-black uppercase tracking-wider">
-                  <Sparkles className="w-3 h-3 text-blue-400" />
-                  <span>Jelajahi Pengalaman Baru</span>
-                </div>
-                <h4 className="text-base sm:text-lg font-black tracking-tight">
-                  Temukan Konser & Event Seru Berikutnya
-                </h4>
-                <p className="text-xs text-slate-300 font-medium leading-relaxed">
-                  Cari berbagai acara favorit mulai dari festival musik, konser, seminar, hingga pameran seni dengan jaminan tiket 100% resmi.
+          {/* 4. Support & Profile Notice Pill */}
+          <div className="p-4 sm:p-4.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
+                <HelpCircle className="w-4 h-4" />
+              </div>
+              <div className="space-y-0.5">
+                <h5 className="text-xs font-extrabold text-slate-800">
+                  Butuh Bantuan Terkait E-Tiket?
+                </h5>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Tim customer support Metix siap membantu Anda jika terjadi kendala pada barcode atau pemesanan tiket.
                 </p>
               </div>
-
-              <div className="pt-2">
-                <Link
-                  href="/events"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <span>Jelajahi Semua Event</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
             </div>
-
-            <div className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200/90 shadow-xs flex flex-col justify-between space-y-4">
-              <div className="space-y-2">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black uppercase tracking-wider">
-                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                  <span>Sistem Tiket Terenkripsi</span>
-                </div>
-                <h4 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
-                  Validasi Check-In Cepat & Aman
-                </h4>
-                <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                  Tunjukkan barcode e-tiket langsung dari smartphone Anda di gate masuk. Tiket Anda terlindungi sistem enkripsi anti-pemalsuan Metix.
-                </p>
-              </div>
-
-              <div className="pt-2">
-                <Link
-                  href="/dashboard/tickets"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs transition-all cursor-pointer"
-                >
-                  <Ticket className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Buka Halaman E-Tiket</span>
-                </Link>
-              </div>
-            </div>
+            <Link
+              href="/dashboard/profile"
+              className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-extrabold text-xs transition-all shrink-0 self-start sm:self-center no-underline"
+            >
+              Lengkapi Data Profil
+            </Link>
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-4">
-          {isLoading
-            ? Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-28 w-full rounded-2xl shadow-xs" />
-            ))
-            : statsToDisplay.map((stat) => (
-              <StatCard key={stat.id} stat={stat} />
-            ))}
-        </div>
+        /* ========================================================================= */
+        /* ADMIN, OWNER, MITRA (EO) DASHBOARD VIEW                                   */
+        /* ========================================================================= */
+        <>
+          {/* Banner / Welcome Quick Action for Non-Buyer */}
+          <div className="rounded-2xl bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 text-white p-4 sm:p-5 shadow-lg shadow-blue-700/10 border border-blue-600/30">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-[11px] font-bold uppercase tracking-wider">
+                  <BannerIcon className="w-3 h-3 text-white" />
+                  <span>{bannerContent.badge}</span>
+                </div>
+                <h2 className="text-lg sm:text-xl font-extrabold tracking-tight">
+                  {bannerContent.title}
+                </h2>
+                <p className="text-[11px] text-blue-100 font-medium max-w-2xl">
+                  {bannerContent.desc}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {currentRole === 'admin' ? (
+                  <Link
+                    href="/dashboard/checkin"
+                    className="px-4 py-2 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <UserCheck className="w-3.5 h-3.5 text-blue-700" />
+                    <span>Buka Scanner QR Code</span>
+                  </Link>
+                ) : currentRole === 'mitra' ? (
+                  <Link
+                    href="/dashboard/events"
+                    className="px-4 py-2 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-blue-700" />
+                    <span>Create Event</span>
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      href="/dashboard/reports"
+                      className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
+                      <span>Laporan Keuangan</span>
+                    </Link>
+                    <Link
+                      href="/dashboard/events"
+                      className="px-4 py-2 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-extrabold text-xs flex items-center gap-1.5 shadow-md transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-blue-700" />
+                      <span>Kelola Semua Event</span>
+                    </Link>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Metric Stat Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-4">
+            {isLoading
+              ? Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-28 w-full rounded-2xl shadow-xs" />
+              ))
+              : statsToDisplay.map((stat) => (
+                <StatCard key={stat.id} stat={stat} />
+              ))}
+          </div>
+        </>
       )}
 
       {/* Platform Owner Control Center */}
@@ -899,8 +950,716 @@ export default function DashboardPage() {
       )}
 
       {/* Monitor Activity Per Scanner Widget (Scanner 1, Scanner 2, Scanner 3...) - ONLY for EO (mitra) */}
-      {currentRole === 'mitra' && (
-        <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-4">
+      {currentRole === 'mitra' && (() => {
+        const eoRevenueData = dashboardData?.revenue;
+        const eoChannels = dashboardData?.sales_channels;
+        const eoDemographics = dashboardData?.demographics;
+        const eoTicketTypesByEvent = dashboardData?.ticket_types_by_event || [];
+
+        const rawEvents = dashboardData?.eventsList || [];
+        const reportOrders = (dashboardData as any)?.salesReport?.orders || [];
+        const reportRevenue = (dashboardData as any)?.salesReport?.totalRevenue || reportOrders.reduce((sum: number, item: any) => sum + (item.total_amount || 0), 0);
+        const reportTicketsSold = (dashboardData as any)?.salesReport?.totalTicketsSold || reportOrders.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+
+        const calcOrders = rawEvents.reduce((acc: number, e: any) => {
+          const sold = e.ticket_types
+            ? e.ticket_types.reduce((sum: number, tt: any) => sum + Number(tt.sold_count ?? tt.sold_quantity ?? 0), 0)
+            : (e.tickets_sold || e.ticketsSold || e.sold_count || 0);
+          return acc + sold;
+        }, 0);
+
+        const calcRevenue = rawEvents.reduce((acc: number, e: any) => {
+          const rev = e.revenue
+            ? Number(e.revenue)
+            : e.ticket_types
+              ? e.ticket_types.reduce((sum: number, tt: any) => sum + (Number(tt.sold_count ?? tt.sold_quantity ?? 0) * Number(tt.price || 0)), 0)
+              : 0;
+          return acc + rev;
+        }, 0);
+
+        const totalRevenue = typeof eoRevenueData?.total_gross === 'number' && eoRevenueData.total_gross >= 0
+          ? eoRevenueData.total_gross
+          : (reportRevenue > 0 ? reportRevenue : calcRevenue);
+
+        const onlineRevenue = typeof eoChannels?.online?.revenue === 'number'
+          ? eoChannels.online.revenue
+          : (typeof eoRevenueData?.online === 'number' ? eoRevenueData.online : totalRevenue);
+
+        const offlineRevenue = typeof eoChannels?.offline?.revenue === 'number'
+          ? eoChannels.offline.revenue
+          : (typeof eoRevenueData?.offline === 'number' ? eoRevenueData.offline : 0);
+
+        const onlineTickets = typeof eoChannels?.online?.tickets_sold === 'number'
+          ? eoChannels.online.tickets_sold
+          : (reportTicketsSold > 0 ? reportTicketsSold : calcOrders);
+
+        const offlineTickets = typeof eoChannels?.offline?.tickets_sold === 'number'
+          ? eoChannels.offline.tickets_sold
+          : 0;
+
+        const totalTickets = onlineTickets + offlineTickets;
+        const onlineOrdersCount = eoChannels?.online?.orders_count ?? (dashboardData?.orders?.paid || reportOrders.length);
+        const offlineOrdersCount = eoChannels?.offline?.orders_count ?? 0;
+
+        const onlineRevenuePct = totalRevenue > 0 ? Math.round((onlineRevenue / totalRevenue) * 100) : 100;
+        const offlineRevenuePct = totalRevenue > 0 ? Math.round((offlineRevenue / totalRevenue) * 100) : 0;
+
+        const onlineTicketsPct = totalTickets > 0 ? Math.round((onlineTickets / totalTickets) * 100) : 100;
+        const offlineTicketsPct = totalTickets > 0 ? Math.round((offlineTickets / totalTickets) * 100) : 0;
+
+        const genderStats = eoDemographics?.gender || {
+          female: 0,
+          male: 0,
+          other: 0,
+          total: 0,
+          female_percentage: 0,
+          male_percentage: 0,
+        };
+
+        const ageGroupStats = (eoDemographics?.age_groups && eoDemographics.age_groups.length > 0)
+          ? eoDemographics.age_groups
+          : [
+            { bracket: '<18', label: '< 18 Thn', count: 0, percentage: 0 },
+            { bracket: '18-24', label: '18 - 24 Thn', count: 0, percentage: 0 },
+            { bracket: '25-34', label: '25 - 34 Thn', count: 0, percentage: 0 },
+            { bracket: '35-44', label: '35 - 44 Thn', count: 0, percentage: 0 },
+            { bracket: '45-54', label: '45 - 54 Thn', count: 0, percentage: 0 },
+            { bracket: '55-64', label: '55 - 64 Thn', count: 0, percentage: 0 },
+            { bracket: '65+', label: '65+ Thn', count: 0, percentage: 0 },
+          ];
+
+        const ticketTypesByEventList = (eoTicketTypesByEvent.length > 0)
+          ? eoTicketTypesByEvent
+          : rawEvents.map((e: any) => {
+            const types = (e.ticket_types || []).map((tt: any) => {
+              const sold = Number(tt.sold_count ?? tt.sold_quantity ?? 0);
+              const quota = Number(tt.quota ?? 0);
+              const price = Number(tt.price ?? 0);
+              return {
+                id: tt.id,
+                name: tt.name,
+                price,
+                quota,
+                sold_count: sold,
+                remaining: Math.max(0, quota - sold),
+                percentage: quota > 0 ? Math.round((sold / quota) * 100) : 0,
+                revenue: sold * price,
+                status: tt.status ?? 'ACTIVE',
+              };
+            });
+            return {
+              event_id: e.id,
+              event_title: e.title,
+              event_status: e.status,
+              start_at: e.start_at,
+              total_quota: types.reduce((s: number, t: any) => s + t.quota, 0),
+              total_sold: types.reduce((s: number, t: any) => s + t.sold_count, 0),
+              total_revenue: types.reduce((s: number, t: any) => s + t.revenue, 0),
+              ticket_types: types,
+            };
+          });
+
+        return (
+          <div className="space-y-6">
+            {/* ========================================================================= */}
+            {/* 1. TOTAL PENDAPATAN & PENJUALAN ONLINE VS OFFLINE + GRAFIK BAR SAMBINGNYA */}
+            {/* ========================================================================= */}
+            <div className="rounded-3xl bg-white border border-slate-200/90 p-5 sm:p-7 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black uppercase tracking-wider">
+                      Laporan Pendapatan & Saluran
+                    </span>
+                    <span className="text-xs font-bold text-slate-400">
+                      Update Real-time
+                    </span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-emerald-600" />
+                    Kinerja Pendapatan (Online vs Offline)
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Pantau rincian omzet penjualan tiket melalui web/aplikasi (Online) dan kasir loket tiket fisik (Offline POS).
+                  </p>
+                </div>
+
+                {/* Big Total Pendapatan Display */}
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white shadow-md border border-slate-800 text-right shrink-0">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-300 block">
+                    Total Pendapatan EO
+                  </span>
+                  <span className="text-xl sm:text-2xl font-black tracking-tight text-white block">
+                    Rp {totalRevenue.toLocaleString('id-ID')}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
+                    Gabungan {totalTickets.toLocaleString('id-ID')} tiket terkonfirmasi
+                  </span>
+                </div>
+              </div>
+
+              {/* Grid: Kiri = Penjualan Online & Offline Cards, Kanan = Grafik Bar Sampingnya */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+                {/* Sisi Kiri (5 Kolom): Kartu Metrik Penjualan Online & Offline */}
+                <div className="lg:col-span-5 flex flex-col justify-between gap-4">
+                  {/* Card Penjualan Online */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-50/70 via-white to-indigo-50/40 border border-blue-100 hover:border-blue-300 hover:shadow-md transition-all space-y-3 relative overflow-hidden group">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-600/20 group-hover:scale-105 transition-transform">
+                          <Globe className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition-colors">
+                            Penjualan Online
+                          </h4>
+                          <span className="text-[11px] font-semibold text-slate-500">
+                            Website & Metix Mobile App
+                          </span>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-black">
+                        {onlineRevenuePct}% Share
+                      </span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <span className="text-2xl font-black text-slate-900 tracking-tight block">
+                        Rp {onlineRevenue.toLocaleString('id-ID')}
+                      </span>
+                      <div className="flex items-center gap-3 text-xs font-bold text-slate-600">
+                        <span className="flex items-center gap-1">
+                          <Ticket className="w-3.5 h-3.5 text-blue-600" />
+                          {onlineTickets.toLocaleString('id-ID')} Tiket Terjual
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span>{onlineOrdersCount} Transaksi</span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar Share */}
+                    <div className="space-y-1 pt-1">
+                      <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full bg-blue-600 rounded-full transition-all duration-700"
+                          style={{ width: `${Math.max(onlineRevenuePct, 5)}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[10px] font-bold text-slate-400">
+                        <span>Porsi Kanal Online</span>
+                        <span>{onlineRevenuePct}% dari Total Omzet</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Penjualan Offline */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/40 border border-emerald-100 hover:border-emerald-300 hover:shadow-md transition-all space-y-3 relative overflow-hidden group">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/20 group-hover:scale-105 transition-transform">
+                          <Store className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-slate-900 group-hover:text-emerald-600 transition-colors">
+                            Penjualan Offline
+                          </h4>
+                          <span className="text-[11px] font-semibold text-slate-500">
+                            Loket Tiket Fisik & POS On-the-spot
+                          </span>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-black">
+                        {offlineRevenuePct}% Share
+                      </span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <span className="text-2xl font-black text-slate-900 tracking-tight block">
+                        Rp {offlineRevenue.toLocaleString('id-ID')}
+                      </span>
+                      <div className="flex items-center gap-3 text-xs font-bold text-slate-600">
+                        <span className="flex items-center gap-1">
+                          <Ticket className="w-3.5 h-3.5 text-emerald-600" />
+                          {offlineTickets.toLocaleString('id-ID')} Tiket Terjual
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span>{offlineOrdersCount} Transaksi Loket</span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar Share */}
+                    <div className="space-y-1 pt-1">
+                      <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-600 rounded-full transition-all duration-700"
+                          style={{ width: `${Math.max(offlineRevenuePct, 5)}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[10px] font-bold text-slate-400">
+                        <span>Porsi Kanal Offline (POS)</span>
+                        <span>{offlineRevenuePct}% dari Total Omzet</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sisi Kanan (7 Kolom): Grafik Bar Komparasi (Sampingnya) */}
+                <div className="lg:col-span-7 rounded-2xl bg-slate-50/80 border border-slate-200/90 p-5 sm:p-6 flex flex-col justify-between space-y-5">
+                  <div className="flex items-center justify-between border-b border-slate-200/70 pb-3">
+                    <div className="space-y-0.5">
+                      <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4 text-blue-600" />
+                        Grafik Bar Komparasi Penjualan
+                      </h4>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Perbandingan visual rasio pendapatan dan volume tiket online vs offline
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs font-bold">
+                      <span className="inline-flex items-center gap-1 text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-md text-[10px]">
+                        <span className="w-2 h-2 rounded-full bg-blue-600" /> Online ({onlineRevenuePct}%)
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md text-[10px]">
+                        <span className="w-2 h-2 rounded-full bg-emerald-600" /> Offline ({offlineRevenuePct}%)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Dual Vertical Bar Chart */}
+                  <div className="h-44 flex items-end justify-around gap-6 px-4 pt-4 border-b border-dashed border-slate-200 relative">
+                    {/* Background Grid Lines */}
+                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-40 py-2">
+                      <div className="border-b border-slate-200 w-full" />
+                      <div className="border-b border-slate-200 w-full" />
+                      <div className="border-b border-slate-200 w-full" />
+                    </div>
+
+                    {/* Bar 1: Online Sales */}
+                    <div className="flex flex-col items-center gap-2 z-10 w-28 group cursor-pointer">
+                      <span className="text-[11px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 shadow-2xs group-hover:scale-105 transition-transform whitespace-nowrap">
+                        Rp {onlineRevenue.toLocaleString('id-ID')}
+                      </span>
+                      <div
+                        className="w-16 rounded-t-xl bg-gradient-to-t from-blue-700 via-blue-600 to-indigo-500 shadow-md shadow-blue-600/20 group-hover:brightness-110 transition-all flex items-end justify-center pb-2"
+                        style={{ height: `${Math.max(onlineRevenuePct * 1.3, 30)}px`, maxHeight: '130px' }}
+                      >
+                        <span className="text-white text-[11px] font-black">
+                          {onlineRevenuePct}%
+                        </span>
+                      </div>
+                      <span className="text-xs font-black text-slate-800">
+                        Online
+                      </span>
+                    </div>
+
+                    {/* Bar 2: Offline Sales */}
+                    <div className="flex flex-col items-center gap-2 z-10 w-28 group cursor-pointer">
+                      <span className="text-[11px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shadow-2xs group-hover:scale-105 transition-transform whitespace-nowrap">
+                        Rp {offlineRevenue.toLocaleString('id-ID')}
+                      </span>
+                      <div
+                        className="w-16 rounded-t-xl bg-gradient-to-t from-emerald-700 via-emerald-600 to-teal-500 shadow-md shadow-emerald-600/20 group-hover:brightness-110 transition-all flex items-end justify-center pb-2"
+                        style={{ height: `${Math.max(offlineRevenuePct * 1.3, 30)}px`, maxHeight: '130px' }}
+                      >
+                        <span className="text-white text-[11px] font-black">
+                          {offlineRevenuePct}%
+                        </span>
+                      </div>
+                      <span className="text-xs font-black text-slate-800">
+                        Offline POS
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Volume Tiket Horizontal Stacked Bar */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between text-xs font-extrabold text-slate-700">
+                      <span>Rasio Jumlah Tiket Fisik vs Digital</span>
+                      <span>Total {totalTickets.toLocaleString('id-ID')} Tiket</span>
+                    </div>
+                    <div className="h-4 rounded-xl bg-slate-200/80 overflow-hidden flex shadow-inner">
+                      <div
+                        className="h-full bg-blue-600 flex items-center justify-center text-[10px] text-white font-black transition-all duration-700"
+                        style={{ width: `${Math.max(onlineTicketsPct, 10)}%` }}
+                      >
+                        {onlineTicketsPct > 15 ? `Online (${onlineTickets})` : `${onlineTickets}`}
+                      </div>
+                      <div
+                        className="h-full bg-emerald-600 flex items-center justify-center text-[10px] text-white font-black transition-all duration-700"
+                        style={{ width: `${Math.max(offlineTicketsPct, 5)}%` }}
+                      >
+                        {offlineTicketsPct > 15 ? `Offline (${offlineTickets})` : (offlineTickets > 0 ? `${offlineTickets}` : '')}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400">
+                      <span className="text-blue-600 font-bold">{onlineTickets} Tiket via Online Checkout</span>
+                      <span className="text-emerald-600 font-bold">{offlineTickets} Tiket via Kasir POS</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ========================================================================= */}
+            {/* 2. DEMOGRAFI PENGUNJUNG (JENIS KELAMIN & KELOMPOK UMUR DARI BUYER_PROFILES) */}
+            {/* ========================================================================= */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* Card Demografi Jenis Kelamin */}
+              <div className="rounded-3xl bg-white border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5 text-purple-600 text-xs font-bold uppercase tracking-wider">
+                      <Users className="w-3.5 h-3.5" />
+                      <span>Demografi Pengunjung</span>
+                    </div>
+                    <h4 className="text-base font-black text-slate-900 tracking-tight">
+                      Pengunjung Berdasarkan Jenis Kelamin
+                    </h4>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Diambil dari data resmi <code>buyer_profiles</code> (Female & Male)
+                    </p>
+                  </div>
+
+                  <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-extrabold border border-slate-200">
+                    {genderStats.total || (genderStats.female + genderStats.male)} Profil
+                  </span>
+                </div>
+
+                {/* 2 Big Cards: Female & Male */}
+                <div className="grid grid-cols-2 gap-3.5">
+                  {/* Female Card */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-rose-50/80 via-white to-pink-50/50 border border-rose-100 space-y-2 hover:border-rose-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-black uppercase">
+                        Perempuan
+                      </span>
+                      <span className="text-xs font-black text-rose-600">
+                        {genderStats.female_percentage}%
+                      </span>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-2xl font-black text-slate-900 block">
+                        {genderStats.female.toLocaleString('id-ID')}
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-500 block">
+                        Pengunjung Terdaftar
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-rose-100 overflow-hidden">
+                      <div
+                        className="h-full bg-rose-500 rounded-full transition-all duration-700"
+                        style={{ width: `${Math.max(genderStats.female_percentage, 5)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Male Card */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/80 via-white to-indigo-50/50 border border-blue-100 space-y-2 hover:border-blue-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-black uppercase">
+                        Laki-Laki
+                      </span>
+                      <span className="text-xs font-black text-blue-600">
+                        {genderStats.male_percentage}%
+                      </span>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-2xl font-black text-slate-900 block">
+                        {genderStats.male.toLocaleString('id-ID')}
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-500 block">
+                        Pengunjung Terdaftar
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-blue-100 overflow-hidden">
+                      <div
+                        className="h-full bg-blue-600 rounded-full transition-all duration-700"
+                        style={{ width: `${Math.max(genderStats.male_percentage, 5)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Combined Progress Bar */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex justify-between text-xs font-bold text-slate-700">
+                    <span className="text-rose-600 font-black">♀ Female ({genderStats.female_percentage}%)</span>
+                    <span className="text-blue-600 font-black">♂ Male ({genderStats.male_percentage}%)</span>
+                  </div>
+                  <div className="h-3 rounded-full bg-slate-100 overflow-hidden flex shadow-inner">
+                    <div
+                      className="h-full bg-gradient-to-r from-rose-400 to-pink-500 transition-all duration-700"
+                      style={{ width: `${Math.max(genderStats.female_percentage, genderStats.female > 0 ? 10 : 0)}%` }}
+                    />
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 transition-all duration-700"
+                      style={{ width: `${Math.max(genderStats.male_percentage, genderStats.male > 0 ? 10 : 0)}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-medium text-center">
+                    Data diambil dari identitas profil pembeli saat registrasi dan pemesanan e-tiket.
+                  </p>
+                </div>
+              </div>
+
+              {/* Card Demografi Kelompok Umur */}
+              <div className="rounded-3xl bg-white border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5 text-blue-600 text-xs font-bold uppercase tracking-wider">
+                      <CalendarDays className="w-3.5 h-3.5" />
+                      <span>Segmentasi Usia</span>
+                    </div>
+                    <h4 className="text-base font-black text-slate-900 tracking-tight">
+                      Pengunjung Berdasarkan Kelompok Umur
+                    </h4>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Dihitung otomatis dari <code>date_of_birth</code> akun pembeli
+                    </p>
+                  </div>
+
+                  <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] font-extrabold border border-blue-200">
+                    7 Kelompok Usia
+                  </span>
+                </div>
+
+                {/* Horizontal Bar Chart for Age Brackets: <18, 18-24, 25-34, 35-44, 45-54, 55-64, 65+ */}
+                <div className="space-y-2.5">
+                  {ageGroupStats.map((item, idx) => {
+                    const barColors = [
+                      'from-sky-400 to-blue-500',
+                      'from-blue-500 to-indigo-600',
+                      'from-indigo-600 to-violet-600',
+                      'from-violet-600 to-purple-600',
+                      'from-purple-600 to-fuchsia-600',
+                      'from-fuchsia-600 to-pink-600',
+                      'from-pink-600 to-rose-600',
+                    ];
+                    const grad = barColors[idx % barColors.length];
+
+                    return (
+                      <div key={item.bracket} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="w-12 px-1.5 py-0.5 text-center font-mono font-black text-[10px] rounded-md bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                              {item.bracket}
+                            </span>
+                            <span className="font-bold text-slate-700 text-xs">
+                              {item.label}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-black text-slate-900 text-xs">
+                              {item.count.toLocaleString('id-ID')}
+                            </span>
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              ({item.percentage}%)
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Bar Track */}
+                        <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full bg-gradient-to-r ${grad} transition-all duration-700`}
+                            style={{ width: `${Math.max(item.percentage, item.count > 0 ? 8 : 2)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* ========================================================================= */}
+            {/* 3. TIKET TERJUAL PER TICKET TYPE BERDASARKAN EVENT                       */}
+            {/* ========================================================================= */}
+            <div className="rounded-3xl bg-white border border-slate-200/90 p-5 sm:p-7 shadow-xs space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-black uppercase tracking-wider">
+                      Inventori Tiket
+                    </span>
+                    <span className="text-xs font-bold text-slate-400">
+                      Rincian Kategori Tiket
+                    </span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                    <Ticket className="w-5 h-5 text-indigo-600" />
+                    Penjualan per Tipe Tiket (Berdasarkan Event)
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Pantau berapa jumlah tiket terjual, sisa kuota, dan total omzet untuk setiap kategori tiket di tiap event.
+                  </p>
+                </div>
+
+                <Link
+                  href="/dashboard/events/sales"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold text-xs transition-all border border-indigo-200 self-start sm:self-center shadow-2xs"
+                >
+                  <span>Laporan Penjualan Lengkap</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              {/* Event Cards & Ticket Types Breakdown */}
+              {ticketTypesByEventList.length === 0 ? (
+                <div className="py-12 px-4 text-center rounded-2xl bg-slate-50 border border-dashed border-slate-200 space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto border border-indigo-100">
+                    <Ticket className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1 max-w-sm mx-auto">
+                    <h4 className="text-sm font-black text-slate-800">Belum Ada Tipe Tiket Aktif</h4>
+                    <p className="text-xs text-slate-500 font-medium">
+                      Buat event baru dan tambahkan jenis tiket (VIP, Presale, Regular) untuk mulai memantau penjualan.
+                    </p>
+                  </div>
+                  <Link
+                    href="/dashboard/events"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white font-extrabold text-xs hover:bg-blue-700 transition-colors shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Buat Event Baru
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {ticketTypesByEventList.map((eventItem: any) => {
+                    const types = eventItem.ticket_types || [];
+                    const eventSold = eventItem.total_sold || 0;
+                    const eventQuota = eventItem.total_quota || 0;
+                    const eventRev = eventItem.total_revenue || 0;
+                    const fillPercent = eventQuota > 0 ? Math.round((eventSold / eventQuota) * 100) : 0;
+
+                    return (
+                      <div
+                        key={eventItem.event_id}
+                        className="rounded-2xl border border-slate-200 overflow-hidden bg-slate-50/40 hover:border-slate-300 transition-colors"
+                      >
+                        {/* Event Header Banner */}
+                        <div className="p-4 sm:p-5 bg-white border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-black uppercase">
+                                Event #{eventItem.event_id}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase">
+                                {eventItem.event_status || 'PUBLISHED'}
+                              </span>
+                            </div>
+                            <h4 className="text-base font-black text-slate-900 tracking-tight">
+                              {eventItem.event_title}
+                            </h4>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-600">
+                            <div className="text-left sm:text-right">
+                              <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
+                                Tiket Terjual
+                              </span>
+                              <span className="text-sm font-black text-slate-900">
+                                {eventSold.toLocaleString('id-ID')} / {eventQuota.toLocaleString('id-ID')} ({fillPercent}%)
+                              </span>
+                            </div>
+
+                            <div className="text-left sm:text-right border-l border-slate-200 pl-4">
+                              <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
+                                Total Omzet Event
+                              </span>
+                              <span className="text-sm font-black text-emerald-600">
+                                Rp {eventRev.toLocaleString('id-ID')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Ticket Types Table / Cards */}
+                        <div className="p-4 sm:p-5">
+                          {types.length === 0 ? (
+                            <p className="text-xs text-slate-400 italic py-2">
+                              Belum ada kategori tiket yang dibuat untuk event ini.
+                            </p>
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+                              {types.map((tt: any) => {
+                                const soldCount = tt.sold_count || 0;
+                                const quota = tt.quota || 0;
+                                const price = tt.price || 0;
+                                const remaining = tt.remaining ?? Math.max(0, quota - soldCount);
+                                const pct = tt.percentage ?? (quota > 0 ? Math.round((soldCount / quota) * 100) : 0);
+                                const subtotalRev = tt.revenue ?? (soldCount * price);
+                                const isSoldOut = quota > 0 && remaining === 0;
+
+                                return (
+                                  <div
+                                    key={tt.id || tt.name}
+                                    className="p-4 rounded-xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:shadow-xs transition-all space-y-3"
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <h5 className="text-xs font-black text-slate-900 line-clamp-1">
+                                          {tt.name}
+                                        </h5>
+                                        <span className="text-[11px] font-extrabold text-indigo-600">
+                                          Rp {price.toLocaleString('id-ID')}
+                                        </span>
+                                      </div>
+
+                                      {isSoldOut ? (
+                                        <span className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-black uppercase">
+                                          Sold Out
+                                        </span>
+                                      ) : (
+                                        <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black uppercase">
+                                          Sisa {remaining}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Stats: Terjual vs Kuota */}
+                                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+                                      <span className="text-slate-500 font-semibold text-[11px]">
+                                        Terjual:
+                                      </span>
+                                      <span className="font-black text-slate-900">
+                                        {soldCount} / {quota} <span className="text-slate-400 font-normal">({pct}%)</span>
+                                      </span>
+                                    </div>
+
+                                    {/* Progress Bar */}
+                                    <div className="space-y-1">
+                                      <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                        <div
+                                          className="h-full bg-indigo-600 rounded-full transition-all duration-500"
+                                          style={{ width: `${Math.min(100, pct)}%` }}
+                                        />
+                                      </div>
+                                      <div className="flex justify-between text-[10px] font-bold text-slate-400">
+                                        <span>Omzet Tipe Ini:</span>
+                                        <span className="text-slate-800 font-black">
+                                          Rp {subtotalRev.toLocaleString('id-ID')}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ========================================================================= */}
+            {/* 4. MONITOR ACTIVITY PER SCANNER GATEKEEPER                               */}
+            {/* ========================================================================= */}
+            <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -1029,7 +1788,9 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
-      )}
+          </div>
+        );
+      })()}
     </DashboardLayout>
   );
 }

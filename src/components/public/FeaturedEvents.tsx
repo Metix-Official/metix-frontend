@@ -51,11 +51,12 @@ export const FeaturedEvents: React.FC<FeaturedEventsProps> = ({
         }
       }
 
-      let priceStr = 'Rp 150.000';
+      let priceStr = 'Coming Soon';
       if (item.ticket_types && item.ticket_types.length > 0) {
-        const prices = item.ticket_types.map((t) => Number(t.price)).filter((p) => !isNaN(p) && p > 0);
+        const prices = item.ticket_types.map((t) => Number(t.price)).filter((p) => !isNaN(p) && p >= 0);
         if (prices.length > 0) {
-          priceStr = `Rp ${Math.min(...prices).toLocaleString('id-ID')}`;
+          const min = Math.min(...prices);
+          priceStr = min === 0 ? 'Gratis' : `Rp ${min.toLocaleString('id-ID')}`;
         }
       }
 

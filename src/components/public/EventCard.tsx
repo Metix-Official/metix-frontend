@@ -110,6 +110,11 @@ export const EventCard: React.FC<EventCardProps> = ({
             <span className="px-2 py-0.5 rounded-md bg-rose-500/80 text-white text-[10px] font-extrabold uppercase tracking-wider">
               Sold Out
             </span>
+          ) : event.price === 'Coming Soon' ? (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/90 backdrop-blur-md text-white text-[10px] font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-white" />
+              Segera Hadir
+            </span>
           ) : (
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/80 backdrop-blur-md text-white text-[10px] font-bold">
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
@@ -157,14 +162,22 @@ export const EventCard: React.FC<EventCardProps> = ({
       {/* Ticket Footer Stub (Price & CTA Button) */}
       <div className="p-4 sm:p-5 pt-3.5 bg-slate-50/70 group-hover:bg-blue-50/30 transition-colors flex items-center justify-between gap-3">
         <div className="flex flex-col">
-          <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Mulai Dari</span>
-          <span className="text-base sm:text-lg font-black text-slate-900 group-hover:text-blue-700 tracking-tight transition-colors">
+          <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">
+            {event.price === 'Coming Soon' ? 'Harga Tiket' : 'Mulai Dari'}
+          </span>
+          <span className={`text-base sm:text-lg font-black tracking-tight transition-colors ${
+            event.price === 'Coming Soon' ? 'text-amber-600' : 'text-slate-900 group-hover:text-blue-700'
+          }`}>
             {event.price}
           </span>
         </div>
 
-        <div className="px-3.5 py-2 rounded-xl bg-blue-600 group-hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-600/20 group-hover:shadow-blue-600/40 transition-all flex items-center gap-1.5 shrink-0 group-hover:scale-105">
-          <span>Beli Tiket</span>
+        <div className={`px-3.5 py-2 rounded-xl text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5 shrink-0 group-hover:scale-105 ${
+          event.price === 'Coming Soon'
+            ? 'bg-amber-600 group-hover:bg-amber-700 shadow-amber-600/20 group-hover:shadow-amber-600/40'
+            : 'bg-blue-600 group-hover:bg-blue-700 shadow-blue-600/20 group-hover:shadow-blue-600/40'
+        }`}>
+          <span>{event.price === 'Coming Soon' ? 'Coming Soon' : 'Beli Tiket'}</span>
           <ArrowRight className="w-3.5 h-3.5 text-white transition-transform group-hover:translate-x-0.5" />
         </div>
       </div>

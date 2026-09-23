@@ -32,6 +32,14 @@ import {
   ExternalLink,
   Copy,
   Info,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  Quote,
+  Link2,
+  ListOrdered,
+  List,
 } from 'lucide-react';
 import {
   fetchPublicEventDetail,
@@ -96,6 +104,67 @@ export default function EventCheckoutClient() {
   const [buyerAddress, setBuyerAddress] = useState('');
   const [buyerNik, setBuyerNik] = useState('');
   const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
+
+  // Address Rich Text Format Helper
+  const addressTextareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const handleApplyAddressFormat = (type: 'bold' | 'italic' | 'underline' | 'strike' | 'quote' | 'link' | 'ordered-list' | 'bullet-list') => {
+    const el = addressTextareaRef.current;
+    if (!el) return;
+
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const text = buyerAddress;
+    const selected = text.substring(start, end);
+
+    let before = text.substring(0, start);
+    let after = text.substring(end);
+    let replacement = selected;
+    let newCursorPos = start;
+
+    switch (type) {
+      case 'bold':
+        replacement = `**${selected || 'teks tebal'}**`;
+        newCursorPos = selected ? end + 4 : start + 2;
+        break;
+      case 'italic':
+        replacement = `*${selected || 'teks miring'}*`;
+        newCursorPos = selected ? end + 2 : start + 1;
+        break;
+      case 'underline':
+        replacement = `<u>${selected || 'garis bawah'}</u>`;
+        newCursorPos = selected ? end + 7 : start + 3;
+        break;
+      case 'strike':
+        replacement = `~~${selected || 'coret'}~~`;
+        newCursorPos = selected ? end + 4 : start + 2;
+        break;
+      case 'quote':
+        replacement = selected ? `> ${selected}` : '> kutipan';
+        newCursorPos = selected ? end + 2 : start + 2;
+        break;
+      case 'link':
+        replacement = selected ? `[${selected}](https://)` : '[tautan](https://)';
+        newCursorPos = selected ? end + 11 : start + 1;
+        break;
+      case 'ordered-list':
+        replacement = selected ? `\n1. ${selected}` : '\n1. baris pertama\n2. baris kedua';
+        newCursorPos = selected ? end + 4 : start + 4;
+        break;
+      case 'bullet-list':
+        replacement = selected ? `\n• ${selected}` : '\n• poin pertama\n• poin kedua';
+        newCursorPos = selected ? end + 3 : start + 3;
+        break;
+    }
+
+    const nextVal = before + replacement + after;
+    setBuyerAddress(nextVal);
+
+    setTimeout(() => {
+      el.focus();
+      el.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
+  };
 
   // Pemegang Tiket Details (Per-ticket holders)
   const [sameAsBuyerFlags, setSameAsBuyerFlags] = useState<boolean[]>([true]);
@@ -387,12 +456,18 @@ export default function EventCheckoutClient() {
   // Form Validations
   const isBuyerNameValid = buyerName.trim().length > 0;
   const isBuyerEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail.trim());
-  const isBuyerPhoneValid = buyerPhone.trim().length >= 8;
+  const isBuyerPhoneValid =
+    /^(08|628|\+628|8)\d{8,11}$/.test(buyerPhone.trim().replace(/\D/g, '')) ||
+    (buyerPhone.trim().replace(/\D/g, '').length >= 10 && buyerPhone.trim().replace(/\D/g, '').length <= 13);
   const isBuyerAddressValid = buyerAddress.trim().length > 0;
-  const isBuyerNikValid = buyerNik.trim().length >= 10;
+  const isBuyerNikValid = /^\d{16}$/.test(buyerNik.trim().replace(/\D/g, ''));
 
   const isHoldersValid = ticketHolders.every(
-    (h) => h.name.trim().length > 0 && h.phone.trim().length >= 8 && h.nik.trim().length >= 10
+    (h) =>
+      h.name.trim().length > 0 &&
+      h.phone.trim().replace(/\D/g, '').length >= 10 &&
+      h.phone.trim().replace(/\D/g, '').length <= 13 &&
+      /^\d{16}$/.test(h.nik.trim().replace(/\D/g, ''))
   );
 
   const isStep1Valid =
@@ -897,39 +972,202 @@ export default function EventCheckoutClient() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-extrabold text-slate-800">Nomor WhatsApp *</label>
+                  <div className="flex items-center justify-between">
+                    <label className="font-extrabold text-slate-800">Nomor WhatsApp *</label>
+                    <span
+                      className={`text-[11px] font-bold transition-colors ${
+                        isBuyerPhoneValid
+                          ? 'text-emerald-600'
+                          : buyerPhone.length > 0
+                          ? 'text-amber-600'
+                          : 'text-slate-400'
+                      }`}
+                    >
+                      {isBuyerPhoneValid ? '✓ Nomor Valid' : `${buyerPhone.length}/12 digit`}
+                    </span>
+                  </div>
                   <input
                     type="tel"
+                    inputMode="numeric"
+                    maxLength={13}
                     required
                     value={buyerPhone}
-                    onChange={(e) => setBuyerPhone(e.target.value)}
-                    placeholder="081234567890"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 13);
+                      setBuyerPhone(val);
+                    }}
+                    placeholder="Contoh: 081234567890"
+                    className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none transition-all ${
+                      isBuyerPhoneValid
+                        ? 'border-emerald-500 focus:border-emerald-600 bg-emerald-50/20'
+                        : buyerPhone.length > 0
+                        ? 'border-amber-400 focus:border-amber-500 bg-amber-50/20'
+                        : 'border-slate-300 focus:border-blue-600'
+                    }`}
                   />
+                  {buyerPhone.length > 0 && !isBuyerPhoneValid ? (
+                    <p className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {buyerPhone.length < 10
+                        ? `Nomor WhatsApp minimal 10 digit (kurang ${10 - buyerPhone.length} digit)`
+                        : !buyerPhone.startsWith('08') && !buyerPhone.startsWith('628') && !buyerPhone.startsWith('8')
+                        ? 'Nomor WA umumnya diawali 08 (contoh: 081234567890)'
+                        : 'Nomor WhatsApp harus 10 - 13 digit angka'}
+                    </p>
+                  ) : isBuyerPhoneValid ? (
+                    <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Nomor WhatsApp aktif terverifikasi
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      Nomor WA 10 - 12 digit untuk pengiriman e-tiket
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-extrabold text-slate-800">Nomor NIK KTP *</label>
+                  <div className="flex items-center justify-between">
+                    <label className="font-extrabold text-slate-800">Nomor NIK KTP *</label>
+                    <span
+                      className={`text-[11px] font-bold transition-colors ${
+                        isBuyerNikValid
+                          ? 'text-emerald-600'
+                          : buyerNik.length > 0
+                          ? 'text-amber-600'
+                          : 'text-slate-400'
+                      }`}
+                    >
+                      {isBuyerNikValid ? '✓ 16 Digit Lengkap' : `${buyerNik.length}/16 digit`}
+                    </span>
+                  </div>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    maxLength={16}
                     required
                     value={buyerNik}
-                    onChange={(e) => setBuyerNik(e.target.value)}
-                    placeholder="16 Digit NIK KTP"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none font-mono"
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 16);
+                      setBuyerNik(val);
+                    }}
+                    placeholder="16 Digit Angka NIK KTP (cth: 3171012345670001)"
+                    className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none font-mono transition-all ${
+                      isBuyerNikValid
+                        ? 'border-emerald-500 focus:border-emerald-600 bg-emerald-50/20'
+                        : buyerNik.length > 0
+                        ? 'border-amber-400 focus:border-amber-500 bg-amber-50/20'
+                        : 'border-slate-300 focus:border-blue-600'
+                    }`}
                   />
+                  {buyerNik.length > 0 && !isBuyerNikValid ? (
+                    <p className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> NIK KTP harus tepat 16 angka (saat ini {buyerNik.length} digit, kurang {16 - buyerNik.length} digit)
+                    </p>
+                  ) : isBuyerNikValid ? (
+                    <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> NIK KTP 16 digit terverifikasi
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      Wajib 16 digit angka sesuai kartu identitas KTP
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5 sm:col-span-2">
-                  <label className="font-extrabold text-slate-800">Alamat Lengkap Pemesan *</label>
-                  <textarea
-                    rows={2}
-                    required
-                    value={buyerAddress}
-                    onChange={(e) => setBuyerAddress(e.target.value)}
-                    placeholder="Alamat domisili lengkap"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none"
-                  />
+                  <div className="flex items-center justify-between">
+                    <label className="font-extrabold text-slate-800">Alamat Lengkap Pemesan *</label>
+                    <span className="text-[10px] text-slate-400 font-medium">Format domisili / catatan pengiriman</span>
+                  </div>
+
+                  {/* Rich Text Editor Box matching uploaded design */}
+                  <div className="border border-slate-300 rounded-2xl bg-white shadow-2xs overflow-hidden focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/10 transition-all">
+                    {/* Toolbar Top Bar */}
+                    <div className="px-3.5 py-2 bg-white border-b border-slate-200 flex items-center gap-1 sm:gap-2 flex-wrap select-none">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyAddressFormat('bold')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Bold (Tebal)"
+                      >
+                        <Bold className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyAddressFormat('italic')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Italic (Miring)"
+                      >
+                        <Italic className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyAddressFormat('underline')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Underline (Garis Bawah)"
+                      >
+                        <Underline className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyAddressFormat('strike')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Strikethrough (Coret)"
+                      >
+                        <Strikethrough className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyAddressFormat('quote')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Quote (Kutipan)"
+                      >
+                        <Quote className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyAddressFormat('link')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Link (Tautan)"
+                      >
+                        <Link2 className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyAddressFormat('ordered-list')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Numbered List (Daftar Angka)"
+                      >
+                        <ListOrdered className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyAddressFormat('bullet-list')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Bullet List (Daftar Poin)"
+                      >
+                        <List className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+                    </div>
+
+                    {/* Textarea Input */}
+                    <textarea
+                      ref={addressTextareaRef}
+                      rows={3}
+                      required
+                      value={buyerAddress}
+                      onChange={(e) => setBuyerAddress(e.target.value)}
+                      placeholder="Masukkan alamat domisili lengkap (nama jalan, nomor rumah, RT/RW, kelurahan, kecamatan, kota, kode pos)..."
+                      className="w-full p-4 bg-white border-0 text-xs text-slate-900 placeholder-slate-400 focus:outline-none resize-y min-h-[100px] leading-relaxed"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -965,59 +1203,96 @@ export default function EventCheckoutClient() {
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                        <input
-                          type="text"
-                          required
-                          value={holder.name}
-                          disabled={isHolderSame}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setTicketHolders((prev) => {
-                              const next = [...prev];
-                              next[idx].name = val;
-                              return next;
-                            });
-                          }}
-                          placeholder="Nama Pemegang Tiket"
-                          className={`px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none ${isHolderSame ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500' : 'bg-white border-slate-300 focus:border-blue-600'
+                        <div>
+                          <input
+                            type="text"
+                            required
+                            value={holder.name}
+                            disabled={isHolderSame}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setTicketHolders((prev) => {
+                                const next = [...prev];
+                                next[idx].name = val;
+                                return next;
+                              });
+                            }}
+                            placeholder="Nama Pemegang Tiket"
+                            className={`w-full px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none transition-all ${
+                              isHolderSame
+                                ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500'
+                                : 'bg-white border-slate-300 focus:border-blue-600'
                             }`}
-                        />
+                          />
+                        </div>
 
-                        <input
-                          type="tel"
-                          required
-                          value={holder.phone}
-                          disabled={isHolderSame}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setTicketHolders((prev) => {
-                              const next = [...prev];
-                              next[idx].phone = val;
-                              return next;
-                            });
-                          }}
-                          placeholder="WhatsApp Pemegang Tiket"
-                          className={`px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none ${isHolderSame ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500' : 'bg-white border-slate-300 focus:border-blue-600'
+                        <div>
+                          <input
+                            type="tel"
+                            inputMode="numeric"
+                            maxLength={13}
+                            required
+                            value={holder.phone}
+                            disabled={isHolderSame}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '').slice(0, 13);
+                              setTicketHolders((prev) => {
+                                const next = [...prev];
+                                next[idx].phone = val;
+                                return next;
+                              });
+                            }}
+                            placeholder="WhatsApp (10-12 digit)"
+                            className={`w-full px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none transition-all ${
+                              isHolderSame
+                                ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500'
+                                : holder.phone.replace(/\D/g, '').length >= 10 && holder.phone.replace(/\D/g, '').length <= 13
+                                ? 'bg-white border-emerald-500 focus:border-emerald-600'
+                                : holder.phone.length > 0
+                                ? 'bg-white border-amber-400 focus:border-amber-500'
+                                : 'bg-white border-slate-300 focus:border-blue-600'
                             }`}
-                        />
+                          />
+                          {!isHolderSame && holder.phone.length > 0 && (holder.phone.replace(/\D/g, '').length < 10 || holder.phone.replace(/\D/g, '').length > 13) && (
+                            <span className="text-[10px] text-amber-600 font-bold block mt-1">
+                              WA: {holder.phone.length}/12 digit (min. 10)
+                            </span>
+                          )}
+                        </div>
 
-                        <input
-                          type="text"
-                          required
-                          value={holder.nik}
-                          disabled={isHolderSame}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setTicketHolders((prev) => {
-                              const next = [...prev];
-                              next[idx].nik = val;
-                              return next;
-                            });
-                          }}
-                          placeholder="NIK KTP Pemegang Tiket"
-                          className={`px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none font-mono ${isHolderSame ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500' : 'bg-white border-slate-300 focus:border-blue-600'
+                        <div>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={16}
+                            required
+                            value={holder.nik}
+                            disabled={isHolderSame}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '').slice(0, 16);
+                              setTicketHolders((prev) => {
+                                const next = [...prev];
+                                next[idx].nik = val;
+                                return next;
+                              });
+                            }}
+                            placeholder="NIK KTP (16 Digit)"
+                            className={`w-full px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none font-mono transition-all ${
+                              isHolderSame
+                                ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500'
+                                : holder.nik.replace(/\D/g, '').length === 16
+                                ? 'bg-white border-emerald-500 focus:border-emerald-600'
+                                : holder.nik.length > 0
+                                ? 'bg-white border-amber-400 focus:border-amber-500'
+                                : 'bg-white border-slate-300 focus:border-blue-600'
                             }`}
-                        />
+                          />
+                          {!isHolderSame && holder.nik.length > 0 && holder.nik.replace(/\D/g, '').length !== 16 && (
+                            <span className="text-[10px] text-amber-600 font-bold block mt-1">
+                              NIK: {holder.nik.length}/16 digit (kurang {16 - holder.nik.length})
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1151,14 +1426,20 @@ export default function EventCheckoutClient() {
               </div>
 
               {!isStep1Valid && (
-                <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold flex items-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                   <span className="truncate">
                     {totalTicketCount === 0
                       ? 'Pilih minimal 1 tiket terlebih dahulu.'
                       : !isAgreedTerms
                         ? 'Centang persetujuan Ketentuan Layanan di atas.'
-                        : 'Lengkapi seluruh field identitas.'}
+                        : !isBuyerNikValid
+                          ? 'Nomor NIK KTP pemesan harus tepat 16 digit angka.'
+                          : !isBuyerPhoneValid
+                            ? 'Nomor WhatsApp pemesan harus valid (10-13 digit angka).'
+                            : !isHoldersValid
+                              ? 'Lengkapi data pemegang tiket (NIK 16 digit & WA valid).'
+                              : 'Lengkapi seluruh field identitas pemesan.'}
                   </span>
                 </div>
               )}

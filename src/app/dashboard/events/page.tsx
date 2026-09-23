@@ -86,6 +86,16 @@ import {
   Phone,
   Video,
   Camera,
+  ChevronLeft,
+  ChevronRight,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  Quote,
+  Link2,
+  ListOrdered,
+  List,
 } from 'lucide-react';
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -204,6 +214,71 @@ export default function EventsPage() {
     whatsapp: string;
     youtube: string;
   }>({ instagram: '', tiktok: '', website: '', whatsapp: '', youtube: '' });
+
+  // Description Rich Text Editor Refs & Formatter
+  const editDescTextareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const createDescTextareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const handleApplyEditorFormat = (
+    ref: React.RefObject<HTMLTextAreaElement | null>,
+    type: 'bold' | 'italic' | 'underline' | 'strike' | 'quote' | 'link' | 'ordered-list' | 'bullet-list'
+  ) => {
+    const el = ref.current;
+    if (!el) return;
+
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const text = el.value;
+    const selected = text.substring(start, end);
+
+    let before = text.substring(0, start);
+    let after = text.substring(end);
+    let replacement = selected;
+    let newCursorPos = start;
+
+    switch (type) {
+      case 'bold':
+        replacement = `**${selected || 'teks tebal'}**`;
+        newCursorPos = selected ? end + 4 : start + 2;
+        break;
+      case 'italic':
+        replacement = `*${selected || 'teks miring'}*`;
+        newCursorPos = selected ? end + 2 : start + 1;
+        break;
+      case 'underline':
+        replacement = `<u>${selected || 'garis bawah'}</u>`;
+        newCursorPos = selected ? end + 7 : start + 3;
+        break;
+      case 'strike':
+        replacement = `~~${selected || 'coret'}~~`;
+        newCursorPos = selected ? end + 4 : start + 2;
+        break;
+      case 'quote':
+        replacement = selected ? `> ${selected}` : '> kutipan';
+        newCursorPos = selected ? end + 2 : start + 2;
+        break;
+      case 'link':
+        replacement = selected ? `[${selected}](https://)` : '[tautan](https://)';
+        newCursorPos = selected ? end + 11 : start + 1;
+        break;
+      case 'ordered-list':
+        replacement = selected ? `\n1. ${selected}` : '\n1. baris pertama\n2. baris kedua';
+        newCursorPos = selected ? end + 4 : start + 4;
+        break;
+      case 'bullet-list':
+        replacement = selected ? `\n• ${selected}` : '\n• poin pertama\n• poin kedua';
+        newCursorPos = selected ? end + 3 : start + 3;
+        break;
+    }
+
+    el.value = before + replacement + after;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+
+    setTimeout(() => {
+      el.focus();
+      el.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
+  };
 
   // Lineup Handlers
   const handleAddCreateLineup = () => {
@@ -1848,8 +1923,8 @@ export default function EventsPage() {
 
       {/* ================= MODAL EDIT EVENT ================= */}
       {editingEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
-          <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 lg:p-8 bg-slate-900/75 backdrop-blur-sm animate-in fade-in-0 overflow-y-auto">
+          <div className="relative w-full max-w-5xl xl:max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
             {/* Header Modal */}
             <div className="bg-gradient-to-r from-indigo-800 via-blue-800 to-indigo-900 p-6 text-white relative">
               <button
@@ -1936,7 +2011,7 @@ export default function EventsPage() {
             )}
 
             {/* Form Modal Content */}
-            <form onSubmit={handleEditSubmit} noValidate className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+            <form onSubmit={handleEditSubmit} noValidate className="p-6 sm:p-8 space-y-5 max-h-[78vh] overflow-y-auto">
               {/* TAB 1: INFO EVENT & TANGGAL */}
               <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'info' ? 'block' : 'hidden'}`}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1969,14 +2044,98 @@ export default function EventsPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-extrabold text-slate-700">Deskripsi Event / Detail Acara</label>
-                  <textarea
-                    name="description"
-                    rows={4}
-                    defaultValue={editingEvent.description || editingEvent.desc || ''}
-                    placeholder="Tuliskan deskripsi lengkap mengenai event, guest star, rundown, dan informasi acara..."
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none resize-y"
-                  />
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-extrabold text-slate-700">Deskripsi Event / Detail Acara</label>
+                    <span className="text-[10px] text-slate-400 font-medium">Format teks tebal, miring, list, dll.</span>
+                  </div>
+
+                  {/* Rich Text Editor Box matching uploaded design */}
+                  <div className="border border-slate-300 rounded-2xl bg-white shadow-2xs overflow-hidden focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/10 transition-all">
+                    {/* Toolbar Top Bar */}
+                    <div className="px-3.5 py-2 bg-white border-b border-slate-200 flex items-center gap-1 sm:gap-2 flex-wrap select-none">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'bold')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Bold (Tebal)"
+                      >
+                        <Bold className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'italic')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Italic (Miring)"
+                      >
+                        <Italic className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'underline')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Underline (Garis Bawah)"
+                      >
+                        <Underline className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'strike')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Strikethrough (Coret)"
+                      >
+                        <Strikethrough className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'quote')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Quote (Kutipan)"
+                      >
+                        <Quote className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'link')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Link (Tautan)"
+                      >
+                        <Link2 className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'ordered-list')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Numbered List (Daftar Nomor)"
+                      >
+                        <ListOrdered className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'bullet-list')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Bullet List (Daftar Poin)"
+                      >
+                        <List className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+                    </div>
+
+                    {/* Textarea Input */}
+                    <textarea
+                      ref={editDescTextareaRef}
+                      name="description"
+                      rows={5}
+                      defaultValue={editingEvent.description || editingEvent.desc || ''}
+                      placeholder="Tuliskan deskripsi lengkap mengenai event, guest star, rundown, dan informasi acara..."
+                      className="w-full p-4 bg-white border-0 text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none resize-y min-h-[120px] leading-relaxed"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -2311,71 +2470,159 @@ export default function EventsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
-                      <Camera className="w-3.5 h-3.5 text-pink-600" /> Instagram Event / EO
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Camera className="w-3.5 h-3.5 text-pink-600" /> Instagram Event / EO
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">Cukup isi username</span>
                     </label>
-                    <input
-                      type="text"
-                      value={editSocials.instagram}
-                      onChange={(e) => setEditSocials({ ...editSocials, instagram: e.target.value })}
-                      placeholder="e.g. @soundwavefest_id / https://instagram.com/..."
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
+                    <div className="flex items-center">
+                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0 truncate max-w-[170px] sm:max-w-none">
+                        https://www.instagram.com/
+                      </span>
+                      <input
+                        type="text"
+                        value={editSocials.instagram.replace(/^(https?:\/\/)?(www\.)?instagram\.com\/?/i, '').replace(/^@+/, '').replace(/\/+$/, '')}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          const username = val
+                            .replace(/^(https?:\/\/)?(www\.)?instagram\.com\/?/i, '')
+                            .replace(/^@+/, '')
+                            .replace(/\/+$/, '');
+                          setEditSocials({ ...editSocials, instagram: username ? `https://www.instagram.com/${username}` : '' });
+                        }}
+                        placeholder="username_instagram"
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
-                      <Video className="w-3.5 h-3.5 text-slate-900" /> TikTok Event / Organizer
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Video className="w-3.5 h-3.5 text-slate-900" /> TikTok Event / Organizer
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">Cukup isi username</span>
                     </label>
-                    <input
-                      type="text"
-                      value={editSocials.tiktok}
-                      onChange={(e) => setEditSocials({ ...editSocials, tiktok: e.target.value })}
-                      placeholder="e.g. @soundwave_official"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
+                    <div className="flex items-center">
+                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0 truncate max-w-[170px] sm:max-w-none">
+                        tiktok.com/@
+                      </span>
+                      <input
+                        type="text"
+                        value={editSocials.tiktok.replace(/^(https?:\/\/)?(www\.)?tiktok\.com\/@?/i, '').replace(/^@+/, '').replace(/\/+$/, '')}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          const username = val
+                            .replace(/^(https?:\/\/)?(www\.)?tiktok\.com\/@?/i, '')
+                            .replace(/^@+/, '')
+                            .replace(/\/+$/, '');
+                          setEditSocials({ ...editSocials, tiktok: username ? `https://www.tiktok.com/@${username}` : '' });
+                        }}
+                        placeholder="username_tiktok"
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
-                      <Globe className="w-3.5 h-3.5 text-blue-600" /> Official Website
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Globe className="w-3.5 h-3.5 text-blue-600" /> Official Website
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">Domain / URL</span>
                     </label>
-                    <input
-                      type="text"
-                      value={editSocials.website}
-                      onChange={(e) => setEditSocials({ ...editSocials, website: e.target.value })}
-                      placeholder="e.g. https://soundwavefest.com"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
+                    <div className="flex items-center">
+                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0">
+                        https://
+                      </span>
+                      <input
+                        type="text"
+                        value={editSocials.website.replace(/^https?:\/\//i, '').replace(/\/+$/, '')}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          const domain = val.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+                          setEditSocials({ ...editSocials, website: domain ? `https://${domain}` : '' });
+                        }}
+                        placeholder="soundwavefest.com"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp CS / Helpdesk
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp CS / Helpdesk
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">Maks. 12 digit (cth: 81234567890)</span>
                     </label>
-                    <input
-                      type="text"
-                      value={editSocials.whatsapp}
-                      onChange={(e) => setEditSocials({ ...editSocials, whatsapp: e.target.value })}
-                      placeholder="e.g. 081234567890 atau https://wa.me/..."
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
+                    <div className="flex items-center">
+                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-600 select-none shrink-0 flex items-center gap-1.5 truncate max-w-[170px] sm:max-w-none">
+                        <span className="text-xs leading-none">🇮🇩</span>
+                        <span>https://wa.me/62</span>
+                      </span>
+                      <input
+                        type="tel"
+                        maxLength={12}
+                        value={(() => {
+                          const val = editSocials.whatsapp || '';
+                          let clean = val
+                            .replace(/^(https?:\/\/)?(www\.)?wa\.me\/?/i, '')
+                            .replace(/^(https?:\/\/)?api\.whatsapp\.com\/send\?phone=/i, '')
+                            .replace(/[^0-9]/g, '');
+                          if (clean.startsWith('62')) clean = clean.slice(2);
+                          else if (clean.startsWith('0')) clean = clean.slice(1);
+                          return clean.slice(0, 12);
+                        })()}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          let clean = raw
+                            .replace(/^(https?:\/\/)?(www\.)?wa\.me\/?/i, '')
+                            .replace(/^(https?:\/\/)?api\.whatsapp\.com\/send\?phone=/i, '')
+                            .replace(/[^0-9]/g, '');
+                          if (clean.startsWith('62')) clean = clean.slice(2);
+                          else if (clean.startsWith('0')) clean = clean.slice(1);
+                          clean = clean.slice(0, 12);
+                          setEditSocials({
+                            ...editSocials,
+                            whatsapp: clean ? `https://wa.me/62${clean}` : '',
+                          });
+                        }}
+                        placeholder="81234567890"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
-                    <Video className="w-3.5 h-3.5 text-rose-600" /> Youtube Teaser / Trailer Link
+                  <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Video className="w-3.5 h-3.5 text-rose-600" /> Youtube Teaser / Trailer Link
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">Link video atau channel</span>
                   </label>
-                  <input
-                    type="text"
-                    value={editSocials.youtube}
-                    onChange={(e) => setEditSocials({ ...editSocials, youtube: e.target.value })}
-                    placeholder="e.g. https://youtube.com/watch?v=..."
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                  />
+                  <div className="flex items-center">
+                    <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0 truncate max-w-[170px] sm:max-w-none">
+                      https://www.youtube.com/
+                    </span>
+                    <input
+                      type="text"
+                      value={editSocials.youtube.replace(/^(https?:\/\/)?(www\.)?youtube\.com\/?/i, '').replace(/^(https?:\/\/)?youtu\.be\/?/i, '')}
+                      onChange={(e) => {
+                        const val = e.target.value.trim();
+                        const cleaned = val
+                          .replace(/^(https?:\/\/)?(www\.)?youtube\.com\/?/i, '')
+                          .replace(/^(https?:\/\/)?youtu\.be\/?/i, '');
+                        setEditSocials({ ...editSocials, youtube: cleaned ? `https://www.youtube.com/${cleaned}` : '' });
+                      }}
+                      placeholder="watch?v=... atau @nama_channel"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -2450,7 +2697,7 @@ export default function EventsPage() {
               <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'banner' ? 'block' : 'hidden'}`}>
                 <div className="space-y-3">
                   <label className="text-xs font-extrabold text-slate-700 block">Foto Banner Event (Upload dari Komputer)</label>
-                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-sm h-48 w-full bg-slate-900 group">
+                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-sm h-56 sm:h-72 w-full bg-slate-900 group">
                     {editBannerPreview ? (
                       <img
                         src={editBannerPreview}
@@ -2490,40 +2737,73 @@ export default function EventsPage() {
               </div>
 
               {/* Footer Actions */}
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingEvent(null)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all cursor-pointer"
-                >
-                  Batal
-                </button>
+              <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+                {/* Mobile Top Row: Batal on left, Navigation on right */}
+                <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setEditingEvent(null)}
+                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap text-center"
+                  >
+                    Batal
+                  </button>
 
-                <div className="flex items-center gap-2">
-                  {editModalTab !== 'info' && (
-                    <button
-                      type="button"
-                      onClick={() => setEditModalTab(getPrevTab(editModalTab))}
-                      className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold transition-all cursor-pointer"
-                    >
-                      &larr; Kembali
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1.5 sm:hidden">
+                    {editModalTab !== 'info' && (
+                      <button
+                        type="button"
+                        onClick={() => setEditModalTab(getPrevTab(editModalTab))}
+                        className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
+                        <span>Kembali</span>
+                      </button>
+                    )}
 
-                  {editModalTab !== 'banner' ? (
-                    <button
-                      type="button"
-                      onClick={() => setEditModalTab(getNextTab(editModalTab))}
-                      className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold transition-all cursor-pointer"
-                    >
-                      Lanjut &rarr;
-                    </button>
-                  ) : null}
+                    {editModalTab !== 'banner' && (
+                      <button
+                        type="button"
+                        onClick={() => setEditModalTab(getNextTab(editModalTab))}
+                        className="px-3.5 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                      >
+                        <span>Lanjut</span>
+                        <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right side container: desktop nav buttons + Simpan button */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {/* Desktop Only Prev / Next Buttons */}
+                  <div className="hidden sm:flex items-center gap-2">
+                    {editModalTab !== 'info' && (
+                      <button
+                        type="button"
+                        onClick={() => setEditModalTab(getPrevTab(editModalTab))}
+                        className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
+                        <span>Kembali</span>
+                      </button>
+                    )}
+
+                    {editModalTab !== 'banner' && (
+                      <button
+                        type="button"
+                        onClick={() => setEditModalTab(getNextTab(editModalTab))}
+                        className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                      >
+                        <span>Lanjut</span>
+                        <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+                      </button>
+                    )}
+                  </div>
 
                   <button
                     type="submit"
                     disabled={isUpdating}
-                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 whitespace-nowrap"
                   >
                     {isUpdating ? (
                       <>
@@ -2624,7 +2904,7 @@ export default function EventsPage() {
                     className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-sm transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                   >
                     {isAddingTicketType ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    <span>Simpan Tipe Tiket via API</span>
+                    <span>Simpan</span>
                   </button>
                 </div>
               </form>
@@ -3091,8 +3371,8 @@ export default function EventsPage() {
 
       {/* ================= MODAL BUAT EVENT BARU ================= */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
-          <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 lg:p-8 bg-slate-900/75 backdrop-blur-sm animate-in fade-in-0 overflow-y-auto">
+          <div className="relative w-full max-w-5xl xl:max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
             {/* Header Modal */}
             <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-900 p-6 text-white relative">
               <button
@@ -3179,7 +3459,7 @@ export default function EventsPage() {
             )}
 
             {/* Form Modal Content */}
-            <form onSubmit={handleCreateSubmit} noValidate className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+            <form onSubmit={handleCreateSubmit} noValidate className="p-6 sm:p-8 space-y-5 max-h-[78vh] overflow-y-auto">
               {/* TAB 1: INFO EVENT & TANGGAL */}
               <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'info' ? 'block' : 'hidden'}`}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -3229,13 +3509,97 @@ export default function EventsPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-extrabold text-slate-700">Deskripsi Event / Detail Acara</label>
-                  <textarea
-                    name="description"
-                    rows={4}
-                    placeholder="Tuliskan deskripsi lengkap mengenai event, guest star, rundown, dan informasi acara..."
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none resize-y"
-                  />
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-extrabold text-slate-700">Deskripsi Event / Detail Acara</label>
+                    <span className="text-[10px] text-slate-400 font-medium">Mendukung format teks tebal, miring, list, dll.</span>
+                  </div>
+
+                  {/* Rich Text Editor Box matching uploaded design */}
+                  <div className="border border-slate-300 rounded-2xl bg-white shadow-2xs overflow-hidden focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/10 transition-all">
+                    {/* Toolbar Top Bar */}
+                    <div className="px-3.5 py-2 bg-white border-b border-slate-200 flex items-center gap-1 sm:gap-2 flex-wrap select-none">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'bold')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Bold (Tebal)"
+                      >
+                        <Bold className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'italic')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Italic (Miring)"
+                      >
+                        <Italic className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'underline')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Underline (Garis Bawah)"
+                      >
+                        <Underline className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'strike')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Strikethrough (Coret)"
+                      >
+                        <Strikethrough className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'quote')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Quote (Kutipan)"
+                      >
+                        <Quote className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'link')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Link (Tautan)"
+                      >
+                        <Link2 className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'ordered-list')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Numbered List (Daftar Nomor)"
+                      >
+                        <ListOrdered className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'bullet-list')}
+                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Bullet List (Daftar Poin)"
+                      >
+                        <List className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+                    </div>
+
+                    {/* Textarea Input */}
+                    <textarea
+                      ref={createDescTextareaRef}
+                      name="description"
+                      rows={5}
+                      placeholder="Tuliskan deskripsi lengkap mengenai event, guest star, rundown, dan informasi acara..."
+                      className="w-full p-4 bg-white border-0 text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none resize-y min-h-[120px] leading-relaxed"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -3571,71 +3935,159 @@ export default function EventsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
-                      <Camera className="w-3.5 h-3.5 text-pink-600" /> Instagram Event / EO
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Camera className="w-3.5 h-3.5 text-pink-600" /> Instagram Event / EO
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">Cukup isi username</span>
                     </label>
-                    <input
-                      type="text"
-                      value={createSocials.instagram}
-                      onChange={(e) => setCreateSocials({ ...createSocials, instagram: e.target.value })}
-                      placeholder="e.g. @soundwavefest_id / https://instagram.com/..."
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
+                    <div className="flex items-center">
+                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0 truncate max-w-[170px] sm:max-w-none">
+                        https://www.instagram.com/
+                      </span>
+                      <input
+                        type="text"
+                        value={createSocials.instagram.replace(/^(https?:\/\/)?(www\.)?instagram\.com\/?/i, '').replace(/^@+/, '').replace(/\/+$/, '')}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          const username = val
+                            .replace(/^(https?:\/\/)?(www\.)?instagram\.com\/?/i, '')
+                            .replace(/^@+/, '')
+                            .replace(/\/+$/, '');
+                          setCreateSocials({ ...createSocials, instagram: username ? `https://www.instagram.com/${username}` : '' });
+                        }}
+                        placeholder="username_instagram"
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
-                      <Video className="w-3.5 h-3.5 text-slate-900" /> TikTok Event / Organizer
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Video className="w-3.5 h-3.5 text-slate-900" /> TikTok Event / Organizer
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">Cukup isi username</span>
                     </label>
-                    <input
-                      type="text"
-                      value={createSocials.tiktok}
-                      onChange={(e) => setCreateSocials({ ...createSocials, tiktok: e.target.value })}
-                      placeholder="e.g. @soundwave_official"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
+                    <div className="flex items-center">
+                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0 truncate max-w-[170px] sm:max-w-none">
+                        tiktok.com/@
+                      </span>
+                      <input
+                        type="text"
+                        value={createSocials.tiktok.replace(/^(https?:\/\/)?(www\.)?tiktok\.com\/@?/i, '').replace(/^@+/, '').replace(/\/+$/, '')}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          const username = val
+                            .replace(/^(https?:\/\/)?(www\.)?tiktok\.com\/@?/i, '')
+                            .replace(/^@+/, '')
+                            .replace(/\/+$/, '');
+                          setCreateSocials({ ...createSocials, tiktok: username ? `https://www.tiktok.com/@${username}` : '' });
+                        }}
+                        placeholder="username_tiktok"
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
-                      <Globe className="w-3.5 h-3.5 text-blue-600" /> Official Website
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Globe className="w-3.5 h-3.5 text-blue-600" /> Official Website
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">Domain / URL</span>
                     </label>
-                    <input
-                      type="text"
-                      value={createSocials.website}
-                      onChange={(e) => setCreateSocials({ ...createSocials, website: e.target.value })}
-                      placeholder="e.g. https://soundwavefest.com"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
+                    <div className="flex items-center">
+                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0">
+                        https://
+                      </span>
+                      <input
+                        type="text"
+                        value={createSocials.website.replace(/^https?:\/\//i, '').replace(/\/+$/, '')}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          const domain = val.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+                          setCreateSocials({ ...createSocials, website: domain ? `https://${domain}` : '' });
+                        }}
+                        placeholder="soundwavefest.com"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp CS / Helpdesk
+                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp CS / Helpdesk
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">Maks. 12 digit (cth: 81234567890)</span>
                     </label>
-                    <input
-                      type="text"
-                      value={createSocials.whatsapp}
-                      onChange={(e) => setCreateSocials({ ...createSocials, whatsapp: e.target.value })}
-                      placeholder="e.g. 081234567890 atau https://wa.me/..."
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
+                    <div className="flex items-center">
+                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-600 select-none shrink-0 flex items-center gap-1.5 truncate max-w-[170px] sm:max-w-none">
+                        <span className="text-xs leading-none">🇮🇩</span>
+                        <span>https://wa.me/62</span>
+                      </span>
+                      <input
+                        type="tel"
+                        maxLength={12}
+                        value={(() => {
+                          const val = createSocials.whatsapp || '';
+                          let clean = val
+                            .replace(/^(https?:\/\/)?(www\.)?wa\.me\/?/i, '')
+                            .replace(/^(https?:\/\/)?api\.whatsapp\.com\/send\?phone=/i, '')
+                            .replace(/[^0-9]/g, '');
+                          if (clean.startsWith('62')) clean = clean.slice(2);
+                          else if (clean.startsWith('0')) clean = clean.slice(1);
+                          return clean.slice(0, 12);
+                        })()}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          let clean = raw
+                            .replace(/^(https?:\/\/)?(www\.)?wa\.me\/?/i, '')
+                            .replace(/^(https?:\/\/)?api\.whatsapp\.com\/send\?phone=/i, '')
+                            .replace(/[^0-9]/g, '');
+                          if (clean.startsWith('62')) clean = clean.slice(2);
+                          else if (clean.startsWith('0')) clean = clean.slice(1);
+                          clean = clean.slice(0, 12);
+                          setCreateSocials({
+                            ...createSocials,
+                            whatsapp: clean ? `https://wa.me/62${clean}` : '',
+                          });
+                        }}
+                        placeholder="81234567890"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
-                    <Video className="w-3.5 h-3.5 text-rose-600" /> Youtube Teaser / Trailer Link
+                  <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Video className="w-3.5 h-3.5 text-rose-600" /> Youtube Teaser / Trailer Link
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">Link video atau channel</span>
                   </label>
-                  <input
-                    type="text"
-                    value={createSocials.youtube}
-                    onChange={(e) => setCreateSocials({ ...createSocials, youtube: e.target.value })}
-                    placeholder="e.g. https://youtube.com/watch?v=..."
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                  />
+                  <div className="flex items-center">
+                    <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0 truncate max-w-[170px] sm:max-w-none">
+                      https://www.youtube.com/
+                    </span>
+                    <input
+                      type="text"
+                      value={createSocials.youtube.replace(/^(https?:\/\/)?(www\.)?youtube\.com\/?/i, '').replace(/^(https?:\/\/)?youtu\.be\/?/i, '')}
+                      onChange={(e) => {
+                        const val = e.target.value.trim();
+                        const cleaned = val
+                          .replace(/^(https?:\/\/)?(www\.)?youtube\.com\/?/i, '')
+                          .replace(/^(https?:\/\/)?youtu\.be\/?/i, '');
+                        setCreateSocials({ ...createSocials, youtube: cleaned ? `https://www.youtube.com/${cleaned}` : '' });
+                      }}
+                      placeholder="watch?v=... atau @nama_channel"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -3708,7 +4160,7 @@ export default function EventsPage() {
               <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'banner' ? 'block' : 'hidden'}`}>
                 <div className="space-y-3">
                   <label className="text-xs font-extrabold text-slate-700 block">Foto Banner Event (Upload dari Komputer)</label>
-                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-sm h-48 w-full bg-slate-900 group">
+                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-sm h-56 sm:h-72 w-full bg-slate-900 group">
                     {createBannerPreview ? (
                       <img
                         src={createBannerPreview}
@@ -3748,47 +4200,80 @@ export default function EventsPage() {
               </div>
 
               {/* Footer Actions */}
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all cursor-pointer"
-                >
-                  Batal
-                </button>
+              <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+                {/* Mobile Top Row: Batal on left, Navigation on right */}
+                <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap text-center"
+                  >
+                    Batal
+                  </button>
 
-                <div className="flex items-center gap-2">
-                  {createModalTab !== 'info' && (
-                    <button
-                      type="button"
-                      onClick={() => setCreateModalTab(getPrevTab(createModalTab))}
-                      className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold transition-all cursor-pointer"
-                    >
-                      &larr; Kembali
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1.5 sm:hidden">
+                    {createModalTab !== 'info' && (
+                      <button
+                        type="button"
+                        onClick={() => setCreateModalTab(getPrevTab(createModalTab))}
+                        className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
+                        <span>Kembali</span>
+                      </button>
+                    )}
 
-                  {createModalTab !== 'banner' ? (
-                    <button
-                      type="button"
-                      onClick={() => setCreateModalTab(getNextTab(createModalTab))}
-                      className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold transition-all cursor-pointer"
-                    >
-                      Lanjut &rarr;
-                    </button>
-                  ) : null}
+                    {createModalTab !== 'banner' && (
+                      <button
+                        type="button"
+                        onClick={() => setCreateModalTab(getNextTab(createModalTab))}
+                        className="px-3.5 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                      >
+                        <span>Lanjut</span>
+                        <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right side container: desktop nav buttons + Simpan button */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {/* Desktop Only Prev / Next Buttons */}
+                  <div className="hidden sm:flex items-center gap-2">
+                    {createModalTab !== 'info' && (
+                      <button
+                        type="button"
+                        onClick={() => setCreateModalTab(getPrevTab(createModalTab))}
+                        className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
+                        <span>Kembali</span>
+                      </button>
+                    )}
+
+                    {createModalTab !== 'banner' && (
+                      <button
+                        type="button"
+                        onClick={() => setCreateModalTab(getNextTab(createModalTab))}
+                        className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                      >
+                        <span>Lanjut</span>
+                        <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+                      </button>
+                    )}
+                  </div>
 
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 whitespace-nowrap"
                   >
                     {isSubmitting ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" /> Menyimpan ke API...
                       </>
                     ) : (
-                      'Simpan Event via API'
+                      'Simpan'
                     )}
                   </button>
                 </div>

@@ -78,6 +78,17 @@ export interface UserProfile {
   mitra_status?: 'pending' | 'approved' | 'rejected' | null;
   organizer_status?: 'PENDING_APPROVAL' | 'ACTIVE' | 'REJECTED' | string | null;
   rejection_reason?: string | null;
+  buyer_profile?: {
+    id?: number;
+    user_id?: number;
+    date_of_birth?: string | null;
+    gender?: string | null;
+    address?: string | null;
+    city?: string | null;
+    province?: string | null;
+    postal_code?: string | null;
+    country?: string | null;
+  } | null;
   organizer_profile?: {
     id?: number;
     organization_name?: string;
@@ -381,6 +392,12 @@ export interface DashboardResponse {
   incomingTransfers?: any[];
   notifications?: any[];
   eventsList?: any[];
+  orders?: {
+    total?: number;
+    paid?: number;
+    pending?: number;
+    cancelled?: number;
+  };
   stats?: {
     totalEvents?: number;
     totalOrders?: number;
@@ -396,6 +413,67 @@ export interface DashboardResponse {
     transfersCount?: number;
     checkinsCount?: number;
   };
+  revenue?: {
+    total_gross?: number;
+    online?: number;
+    offline?: number;
+  };
+  sales_channels?: {
+    online?: {
+      revenue: number;
+      tickets_sold: number;
+      orders_count: number;
+    };
+    offline?: {
+      revenue: number;
+      tickets_sold: number;
+      orders_count: number;
+    };
+    comparison?: Array<{
+      channel: string;
+      revenue: number;
+      tickets: number;
+    }>;
+  };
+  demographics?: {
+    gender?: {
+      female: number;
+      male: number;
+      other: number;
+      total: number;
+      female_percentage: number;
+      male_percentage: number;
+    };
+    age_groups?: Array<{
+      bracket: string;
+      label: string;
+      count: number;
+      percentage: number;
+    }>;
+    total_profiles?: number;
+  };
+  ticket_types_by_event?: Array<{
+    event_id: number;
+    event_title: string;
+    event_slug?: string;
+    event_status?: string;
+    start_at?: string;
+    end_at?: string;
+    total_quota: number;
+    total_sold: number;
+    total_revenue: number;
+    ticket_types: Array<{
+      id: number;
+      name: string;
+      price: number;
+      quota: number;
+      sold_count: number;
+      remaining: number;
+      percentage: number;
+      revenue: number;
+      status?: string;
+    }>;
+  }>;
 }
 
 export interface OfflineOrderItem {
@@ -2669,23 +2747,26 @@ export async function updateUserProfile(formData: FormData): Promise<UserProfile
   const address = (formData.get('address') as string) || currentUser?.address || null;
 
   if (token) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/profile`, {
-        method: 'POST',
-        headers: getHeaders(token),
-        body: formData,
-      });
+    const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+      method: 'POST',
+      headers: getHeaders(token),
+      body: formData,
+    });
 
-      if (response.ok) {
-        const data = await response.json();
-        const updated = data?.user || data?.data || data;
-        if (typeof window !== 'undefined' && updated) {
-          localStorage.setItem('metix_user', JSON.stringify(updated));
-        }
-        return updated;
+    if (response.ok) {
+      const data = await response.json();
+      const updated = data?.user || data?.data || data;
+      if (typeof window !== 'undefined' && updated) {
+        localStorage.setItem('metix_user', JSON.stringify(updated));
       }
-    } catch {
-      // Fallback
+      return updated;
+    } else {
+      const errData = await response.json().catch(() => null);
+      const error: any = new Error(errData?.message || 'Gagal menyimpan profil.');
+      if (errData?.errors) {
+        error.errors = errData.errors;
+      }
+      throw error;
     }
   }
 
@@ -3969,4 +4050,93 @@ export async function uploadMedia(
   }
 
   return data.data;
+}
+
+
+// ----------------------------------------------------------------------
+// SECURITY & SESSION APIs
+// ----------------------------------------------------------------------
+
+export interface ActiveSession {
+  id: number;
+  name: string;
+  is_current: boolean;
+  ip_address: string | null;
+  user_agent: string | null;
+  last_used_at: string | null;
+  created_at: string | null;
+}
+
+export interface SessionsResponse {
+  current_session: {
+    ip_address: string;
+    user_agent: string;
+    token_id?: number | null;
+  };
+  sessions: ActiveSession[];
+}
+
+export async function fetchActiveSessions(): Promise<SessionsResponse | null> {
+  const token = getStoredToken();
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/sessions`, {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+
+    if (!response.ok) return null;
+    const json = await response.json();
+    return json?.data || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function revokeOtherSessions(): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) return false;
+
+  const response = await fetch(`${API_BASE_URL}/auth/sessions/revoke-others`, {
+    method: 'POST',
+    headers: getHeaders(token),
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => ({}));
+    throw new Error(json?.message || 'Gagal menonaktifkan sesi lain.');
+  }
+
+  return true;
+}
+
+export async function updateAccountPassword(data: {
+  current_password: string;
+  password: string;
+  password_confirmation: string;
+}): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Sesi autentikasi telah habis.');
+
+  const response = await fetch(`${API_BASE_URL}/auth/password`, {
+    method: 'PUT',
+    headers: {
+      ...getHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  const json = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const err: any = new Error(json?.message || 'Gagal memperbarui password.');
+    if (json?.errors) {
+      err.errors = json.errors;
+    }
+    throw err;
+  }
+
+  return true;
 }

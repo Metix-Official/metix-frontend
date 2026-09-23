@@ -184,7 +184,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         password_confirmation: password,
         role: registerRole,
         phone,
-        gender: gender === 'male' ? 'Laki-Laki' : 'Perempuan',
+        gender: gender === 'male' ? 'MALE' : 'FEMALE',
         birth_date: getFormattedBirthDate(),
       });
       handleAuthCompletion(res.user);

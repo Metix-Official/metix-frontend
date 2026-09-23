@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Sparkles, MapPin, Calendar, Tag, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles, MapPin, Calendar, Tag, ShieldCheck, Zap, TrendingUp, CheckCircle2, ArrowRight, Coins } from 'lucide-react';
 import { ApiEvent, getPhotoUrl } from '@/lib/api';
 import Link from 'next/link';
 
@@ -104,7 +104,7 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
         >
           {/* Main Hero Card Container (YesPlis Style Boxed Landscape Banner) */}
           <div className="relative rounded-3xl overflow-hidden shadow-2xl bg-slate-900 border border-slate-200/50 min-h-[360px] sm:min-h-[420px] lg:min-h-[460px] flex flex-col justify-end">
-            
+
             {/* Background Image Carousel Slider */}
             {currentIndex === 0 ? (
               <div className="absolute inset-0 z-0">
@@ -118,30 +118,136 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
                 />
               </div>
             ) : currentIndex === 1 ? (
-              <div className="absolute inset-0 z-0">
+              <div className="absolute inset-0 z-0 overflow-hidden bg-slate-950">
+                {/* Background Festival Image with cinematic dark lighting */}
                 <img
                   src={FALLBACK_BANNERS[1]}
                   alt="Metix Festival Showcase"
-                  className="w-full h-full object-cover object-center scale-105 transition-transform duration-700 brightness-[0.85]"
+                  className="w-full h-full object-cover object-center scale-105 transition-transform duration-700 brightness-[0.35] contrast-125 saturate-150"
                 />
+
+                {/* Animated Glowing Mesh Aurora Blobs */}
+                <div className="absolute -top-24 -left-20 w-96 h-96 bg-emerald-500/30 rounded-full blur-3xl animate-pulse" />
+                <div className="absolute top-1/3 right-1/4 w-[450px] h-[450px] bg-indigo-600/35 rounded-full blur-3xl animate-pulse [animation-duration:5s]" />
+                <div className="absolute -bottom-24 left-1/3 w-80 h-80 bg-amber-400/25 rounded-full blur-3xl animate-pulse [animation-duration:7s]" />
+
+                {/* Cyber Stage Perspective Grid Overlay */}
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff0c_1px,transparent_1px),linear-gradient(to_bottom,#ffffff0c_1px,transparent_1px)] bg-[size:32px_32px] opacity-70 [mask-image:radial-gradient(ellipse_70%_70%_at_50%_50%,#000_60%,transparent_100%)]" />
+
+                {/* Diagonal Light Beam Effect */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/10 via-transparent to-indigo-500/20 pointer-events-none" />
+
+                {/* Floating Interactive Visual Showcase on Desktop/Tablet (Right Side) */}
+                <div className="hidden lg:flex flex-col items-end justify-center absolute right-8 top-1/2 -translate-y-1/2 z-10 space-y-3 pointer-events-none select-none">
+                  {/* Floating Pill: 0% Platform Fee */}
+                  <div className="animate-bounce [animation-duration:3.5s] flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-slate-900/85 backdrop-blur-xl border border-emerald-400/40 shadow-[0_0_25px_rgba(16,185,129,0.3)] text-white">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-slate-950 font-black text-xs shadow-md">
+                      0%
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider">Bebas Potongan</p>
+                      <p className="text-xs font-black text-white">Platform Fee Rp 0</p>
+                    </div>
+                  </div>
+
+                  {/* Floating Card: Live Revenue Simulator */}
+                  <div className="w-68 p-4 rounded-2xl bg-slate-900/90 backdrop-blur-2xl border border-indigo-400/30 shadow-[0_15px_35px_rgba(0,0,0,0.6)] space-y-2.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-bold text-slate-200 flex items-center gap-1.5">
+                        <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                        Hasil Penjualan Tiket
+                      </span>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        100% Bersih
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-base font-black text-white tracking-tight">100% Milik Promotor</span>
+                      <span className="text-[11px] text-emerald-400 font-extrabold">Biaya Admin: Rp 0</span>
+                    </div>
+                    <div className="w-full bg-slate-800/80 rounded-full h-1.5 overflow-hidden p-0.5">
+                      <div className="bg-gradient-to-r from-emerald-400 via-teal-300 to-indigo-400 h-1 rounded-full w-full animate-pulse" />
+                    </div>
+                  </div>
+
+                  {/* Floating Pill: Scanner & Analytics */}
+                  <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/80 backdrop-blur-xl border border-white/20 text-slate-200 text-xs shadow-lg">
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="text-[11px] font-bold">QR Scanner Mobile & Real-Time Data</span>
+                  </div>
+                </div>
               </div>
             ) : (
-              <div className="absolute inset-0 z-0 bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-950">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.3),transparent_60%)]" />
+              <div className="absolute inset-0 z-0 overflow-hidden bg-slate-950">
+                {/* Background Stage Image with deep dark purple overlay */}
+                <img
+                  src="/hero/metix_mascot_concert.jpg"
+                  alt="Metix Concert Mascot"
+                  className="w-full h-full object-cover object-right sm:object-center opacity-30 blur-[2px] scale-110"
+                />
+
+                {/* Animated Glowing Mesh Aurora in Instagram Colors */}
+                <div className="absolute -top-20 -right-20 w-96 h-96 bg-purple-600/35 rounded-full blur-3xl animate-pulse" />
+                <div className="absolute -bottom-24 left-1/4 w-80 h-80 bg-pink-500/25 rounded-full blur-3xl animate-pulse [animation-duration:5s]" />
+                <div className="absolute top-1/2 left-10 w-72 h-72 bg-amber-500/15 rounded-full blur-3xl animate-pulse [animation-duration:7s]" />
+
+                {/* Soft Cyber Grid */}
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff0a_1px,transparent_1px),linear-gradient(to_bottom,#ffffff0a_1px,transparent_1px)] bg-[size:32px_32px] opacity-50" />
+
+                {/* Prominent 3D Cartoon Mascot Card on the Right (Tablet & Desktop) */}
+                <div className="hidden md:flex items-center justify-center absolute right-6 lg:right-12 top-1/2 -translate-y-1/2 z-10 pointer-events-none select-none">
+                  <div className="relative group">
+                    {/* Glowing Aura Behind Character */}
+                    <div className="absolute -inset-3 bg-gradient-to-r from-pink-500 via-purple-600 to-amber-400 rounded-3xl blur-xl opacity-60 animate-pulse [animation-duration:4s]" />
+
+                    {/* Character Card Frame */}
+                    <div className="relative w-48 h-48 sm:w-56 sm:h-56 lg:w-64 lg:h-64 rounded-3xl overflow-hidden border-2 border-white/25 shadow-2xl bg-slate-900/60 backdrop-blur-xl animate-bounce [animation-duration:6s]">
+                      <img
+                        src="/hero/metix_mascot_concert.jpg"
+                        alt="Metix 3D Mascot Festival"
+                        className="w-full h-full object-cover object-center transform hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+
+                      {/* Floating Mini Badge on Character */}
+                      <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between px-2.5 py-1 rounded-xl bg-slate-950/80 backdrop-blur-md border border-white/10 text-[10px] font-bold text-white">
+                        <span className="flex items-center gap-1 text-pink-300">
+                          <InstagramIcon className="w-3 h-3 text-pink-400" />
+                          @metix.id
+                        </span>
+                        <span className="text-[9px] text-amber-300 bg-amber-400/20 px-1.5 py-0.5 rounded-md font-extrabold">
+                          VIP VIBE
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
             {/* Gradient Overlays (Ensures high contrast legibility like YesPlis) */}
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent z-10" />
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/30 to-transparent z-10" />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/50 to-transparent z-10" />
 
             {/* Top Bar Badges */}
             <div className="absolute top-4 sm:top-6 left-4 sm:left-6 right-4 sm:right-6 z-20 flex items-center justify-end pointer-events-none">
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-slate-950 font-black text-xs shadow-md">
-                  <Sparkles className="w-3.5 h-3.5 fill-slate-950 text-slate-950" />
-                  <span>Featured Event</span>
-                </span>
+                {currentIndex === 1 ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-400 text-slate-950 font-black text-xs shadow-md animate-pulse">
+                    <Zap className="w-3.5 h-3.5 fill-slate-950 text-slate-950" />
+                    <span>0% Komisi • Organizer Special</span>
+                  </span>
+                ) : currentIndex === 2 ? (
+                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-purple-500 via-pink-500 to-amber-400 text-white font-black text-xs shadow-md">
+                    <InstagramIcon className="w-3.5 h-3.5 text-white" />
+                    <span>Official Instagram Community</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-slate-950 font-black text-xs shadow-md">
+                    <Sparkles className="w-3.5 h-3.5 fill-slate-950 text-slate-950" />
+                    <span>Featured Event</span>
+                  </span>
+                )}
               </div>
             </div>
 
@@ -193,61 +299,86 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
                 </>
               ) : currentIndex === 1 ? (
                 <>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-500/30 backdrop-blur-md border border-indigo-400/30 text-indigo-200 text-xs font-semibold">
-                    <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Layanan Promotor & Organizer</span>
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-gradient-to-r from-emerald-500/25 to-teal-500/25 backdrop-blur-md border border-emerald-400/40 text-emerald-300 text-xs font-bold shadow-lg">
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Layanan Promotor & Event Organizer</span>
                   </div>
 
                   <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight">
-                    Buat Event Bebas Komisi Penjualan Tiket
+                    Buat Event & Jual Tiket{' '}
+                    <span className="bg-gradient-to-r from-amber-300 via-emerald-300 to-teal-200 bg-clip-text text-transparent">
+                      Bebas Biaya Komisi
+                    </span>
                   </h2>
 
                   <p className="text-xs sm:text-sm text-slate-200 max-w-2xl font-normal leading-relaxed">
-                    100% omzet tiket milik promotor. Nikmati dashboard analisis penjualan real-time dan sistem QR check-in pintu gratis.
+                    100% omzet tiket milik promotor tanpa potongan biaya komisi platform. Nikmati dashboard analisis penjualan real-time dan sistem QR check-in pintu gratis.
                   </p>
+
+                  {/* Benefit Quick Tags */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-semibold text-slate-200">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/10 backdrop-blur-sm border border-white/15">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> 100% Omzet Milik Organizer
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/10 backdrop-blur-sm border border-white/15">
+                      <TrendingUp className="w-3.5 h-3.5 text-blue-400" /> Dashboard Analitik Real-Time
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/10 backdrop-blur-sm border border-white/15">
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-400" /> Scanner Tiket QR Gratis
+                    </span>
+                  </div>
 
                   <div className="pt-2 flex items-center">
                     <div className="inline-flex items-center bg-white/20 backdrop-blur-md p-1.5 rounded-full border border-white/30 shadow-xl max-w-full">
                       <Link
                         href="/dashboard/events"
-                        className="px-6 py-2.5 rounded-full bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-md hover:bg-amber-300 transition-all cursor-pointer shrink-0"
+                        className="px-6 py-2.5 rounded-full bg-gradient-to-r from-amber-400 to-emerald-400 text-slate-950 font-black text-xs sm:text-sm shadow-md hover:brightness-110 transition-all cursor-pointer shrink-0 flex items-center gap-2 group"
                       >
-                        Buat Event Sekarang
+                        <span>Buat Event Sekarang</span>
+                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                       </Link>
-                      <span className="px-4 py-2 text-xs sm:text-sm font-bold text-white tracking-wide truncate">
-                        backstage.metix.id
-                      </span>
                     </div>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-pink-500/20 backdrop-blur-md border border-pink-400/30 text-pink-300 text-xs font-semibold">
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-amber-500/20 backdrop-blur-md border border-pink-400/30 text-pink-300 text-xs font-bold shadow-lg">
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
+                    </span>
                     <InstagramIcon className="w-3.5 h-3.5 text-pink-400" />
-                    <span>Komunitas & Info Konser</span>
+                    <span>Komunitas Konser & Festival Musik</span>
                   </div>
 
                   <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight">
-                    Ikuti Instagram Resmi @metixofficial
+                    Join the Vibe on{' '}
+                    <span className="bg-gradient-to-r from-amber-300 via-pink-400 to-purple-400 bg-clip-text text-transparent">
+                      Instagram @metix.id
+                    </span>
                   </h2>
 
-                  <p className="text-xs sm:text-sm text-slate-200 max-w-2xl font-normal leading-relaxed">
-                    Dapatkan update lineup konser terbaru, kode promo diskon spesial, dan giveaway tiket konser setiap minggunya.
+                  <p className="text-xs sm:text-sm text-slate-200 max-w-xl font-normal leading-relaxed">
+                    Dapatkan update jadwal konser tercepat, bocoran lineup musisi eksklusif, dan giveaway tiket gratis setiap minggunya.
                   </p>
 
                   <div className="pt-2 flex items-center">
-                    <div className="inline-flex items-center bg-white/20 backdrop-blur-md p-1.5 rounded-full border border-white/30 shadow-xl max-w-full">
+                    <div className="inline-flex items-center bg-white/10 backdrop-blur-xl p-1.5 rounded-full border border-white/20 shadow-2xl max-w-full">
                       <a
-                        href="https://www.instagram.com/metix.id?stkn=MWZ1bjhjYmx2M3RxeA%3D%3D&utm_source=qr"
+                        href="https://www.instagram.com/metix.id/"
                         target="_blank"
                         rel="noreferrer"
-                        className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-black text-xs sm:text-sm shadow-md hover:brightness-110 transition-all cursor-pointer shrink-0 flex items-center gap-1.5"
+                        className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white font-black text-xs sm:text-sm shadow-[0_0_20px_rgba(236,72,153,0.4)] hover:shadow-[0_0_30px_rgba(236,72,153,0.6)] hover:scale-105 transition-all cursor-pointer shrink-0 flex items-center gap-2 group"
                       >
-                        <InstagramIcon className="w-4 h-4" />
-                        <span>Follow Instagram</span>
+                        <InstagramIcon className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" />
+                        <span>Follow @metix.id</span>
                       </a>
-                      <span className="px-4 py-2 text-xs sm:text-sm font-bold text-white tracking-wide truncate">
-                        @metixofficial
+                      <span className="px-4 py-2 text-xs sm:text-sm font-bold text-white/90 tracking-wide truncate hidden sm:inline">
+                        Info Resmi Konser
                       </span>
                     </div>
                   </div>
@@ -281,9 +412,8 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
                 <button
                   key={idx}
                   onClick={() => setCurrentIndex(idx)}
-                  className={`h-2 rounded-full transition-all cursor-pointer ${
-                    idx === currentIndex ? 'w-8 bg-blue-600' : 'w-2 bg-slate-300 hover:bg-slate-400'
-                  }`}
+                  className={`h-2 rounded-full transition-all cursor-pointer ${idx === currentIndex ? 'w-8 bg-blue-600' : 'w-2 bg-slate-300 hover:bg-slate-400'
+                    }`}
                   aria-label={`Go to slide ${idx + 1}`}
                 />
               ))}

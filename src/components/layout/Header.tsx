@@ -499,7 +499,7 @@ export const Header: React.FC<HeaderProps> = ({
                 className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 rounded-xl hover:bg-blue-50 hover:text-blue-700 transition-colors"
               >
                 <ShieldCheck className="w-4 h-4 text-slate-400" />
-                <span>Security & API</span>
+                <span>Ubah Password</span>
               </Link>
 
               <div className="border-t border-slate-100 pt-1 mt-1">

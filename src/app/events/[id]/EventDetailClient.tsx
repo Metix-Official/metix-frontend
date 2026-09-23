@@ -82,59 +82,9 @@ export default function EventDetailClient() {
         if (data) {
           try {
             const types = await fetchTicketTypes(data.id);
-            if (types && types.length > 0) {
-              data.ticket_types = types;
-            } else {
-              data.ticket_types = [
-                {
-                  id: 1,
-                  event_id: data.id,
-                  name: 'Reguler Pass',
-                  price: 150000,
-                  quota: 500,
-                  sold_quantity: 0,
-                  max_per_order: 5,
-                  available_quota: 500,
-                  status: 'ACTIVE',
-                },
-                {
-                  id: 2,
-                  event_id: data.id,
-                  name: 'VIP Pass (Front Row)',
-                  price: 350000,
-                  quota: 100,
-                  sold_quantity: 0,
-                  max_per_order: 3,
-                  available_quota: 100,
-                  status: 'ACTIVE',
-                },
-              ];
-            }
+            data.ticket_types = types && types.length > 0 ? types : [];
           } catch {
-            data.ticket_types = [
-              {
-                id: 1,
-                event_id: data.id,
-                name: 'Reguler Pass',
-                price: 150000,
-                quota: 500,
-                sold_quantity: 0,
-                max_per_order: 5,
-                available_quota: 500,
-                status: 'ACTIVE',
-              },
-              {
-                id: 2,
-                event_id: data.id,
-                name: 'VIP Pass (Front Row)',
-                price: 350000,
-                quota: 100,
-                sold_quantity: 0,
-                max_per_order: 3,
-                available_quota: 100,
-                status: 'ACTIVE',
-              },
-            ];
+            data.ticket_types = data.ticket_types || [];
           }
         }
         setEvent(data);
@@ -143,18 +93,26 @@ export default function EventDetailClient() {
     }
   }, [params]);
 
-  // Compute lowest ticket price
+  // Check if event has any tickets created
+  const hasTickets = React.useMemo(() => {
+    if (!event || !event.ticket_types) return false;
+    return event.ticket_types.length > 0;
+  }, [event]);
+
+  // Compute lowest ticket price or show Coming Soon if not yet created
   const lowestPrice = React.useMemo(() => {
-    if (!event) return 'Rp 150.000';
-    if (event.ticket_types && event.ticket_types.length > 0) {
-      const validPrices = event.ticket_types
-        .map((t) => Number(t.price))
-        .filter((p) => !isNaN(p) && p > 0);
-      if (validPrices.length > 0) {
-        return `Rp ${Math.min(...validPrices).toLocaleString('id-ID')}`;
-      }
+    if (!event || !event.ticket_types || event.ticket_types.length === 0) {
+      return 'Coming Soon';
     }
-    return 'Rp 150.000';
+    const validPrices = event.ticket_types
+      .map((t) => Number(t.price))
+      .filter((p) => !isNaN(p) && p >= 0);
+    if (validPrices.length > 0) {
+      const min = Math.min(...validPrices);
+      if (min === 0) return 'Gratis';
+      return `Rp ${min.toLocaleString('id-ID')}`;
+    }
+    return 'Coming Soon';
   }, [event]);
 
   // Format Date & Time from start_at / event_start_at
@@ -292,6 +250,32 @@ export default function EventDetailClient() {
     if (!event) return {};
     return parseSocialMediaObject(event.social_media, event);
   })();
+
+  const validWhatsAppUrl = React.useMemo(() => {
+    const wa = parsedSocialMedia.whatsapp;
+    if (!wa || typeof wa !== 'string') return null;
+
+    // Bersihkan semua karakter selain angka
+    let digits = wa.replace(/[^0-9]/g, '');
+    if (!digits) return null;
+
+    // Hilangkan awalan kode negara 62 atau awalan lokal 0
+    if (digits.startsWith('62')) {
+      digits = digits.slice(2);
+    } else if (digits.startsWith('0')) {
+      digits = digits.slice(1);
+    }
+
+    // Validasi nomor WhatsApp (umumnya 10 - 13 digit bila diawali 08, atau 9 - 12 digit setelah 62/0)
+    // Nomor HP seluler Indonesia diawali angka 8
+    if (!digits.startsWith('8') || digits.length < 9 || digits.length > 12) {
+      return null;
+    }
+
+    // Batasi tepat maksimal 12 digit angka sesuai standar no WA
+    const cleanNumber = digits.slice(0, 12);
+    return `https://wa.me/62${cleanNumber}`;
+  }, [parsedSocialMedia.whatsapp]);
 
   if (isLoading) {
     return (
@@ -637,13 +621,9 @@ export default function EventDetailClient() {
                       </a>
                     )}
 
-                    {parsedSocialMedia.whatsapp && (
+                    {validWhatsAppUrl && (
                       <a
-                        href={
-                          parsedSocialMedia.whatsapp.startsWith('http')
-                            ? parsedSocialMedia.whatsapp
-                            : `https://wa.me/${parsedSocialMedia.whatsapp.replace(/[^0-9]/g, '')}`
-                        }
+                        href={validWhatsAppUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-emerald-400 hover:bg-emerald-50/30 transition-all shadow-2xs cursor-pointer"
@@ -772,8 +752,16 @@ export default function EventDetailClient() {
             {/* Card 2: Price & "Beli Sekarang" CTA Button (Desktop Only, hidden on Mobile) */}
             <div className="hidden lg:block bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-600">Mulai Dari</span>
-                <span className="text-xl sm:text-2xl font-black text-slate-900">{lowestPrice}</span>
+                <span className="text-xs font-bold text-slate-600">
+                  {lowestPrice === 'Coming Soon' ? 'Harga Tiket' : 'Mulai Dari'}
+                </span>
+                <span
+                  className={`text-xl sm:text-2xl font-black ${
+                    lowestPrice === 'Coming Soon' ? 'text-amber-600' : 'text-slate-900'
+                  }`}
+                >
+                  {lowestPrice}
+                </span>
               </div>
 
               {event.status === 'closed' ? (
@@ -782,6 +770,14 @@ export default function EventDetailClient() {
                   className="w-full py-3.5 rounded-lg bg-slate-100 text-slate-400 font-extrabold text-sm cursor-not-allowed text-center"
                 >
                   Tiket Habis (Sold Out)
+                </button>
+              ) : !hasTickets || lowestPrice === 'Coming Soon' ? (
+                <button
+                  disabled
+                  className="w-full py-3.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 font-extrabold text-xs sm:text-sm cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Clock className="w-4 h-4 text-amber-500" />
+                  <span>Coming Soon</span>
                 </button>
               ) : (
                 <button
@@ -853,13 +849,9 @@ export default function EventDetailClient() {
                       </a>
                     )}
 
-                    {parsedSocialMedia.whatsapp && (
+                    {validWhatsAppUrl && (
                       <a
-                        href={
-                          parsedSocialMedia.whatsapp.startsWith('http')
-                            ? parsedSocialMedia.whatsapp
-                            : `https://wa.me/${parsedSocialMedia.whatsapp.replace(/[^0-9]/g, '')}`
-                        }
+                        href={validWhatsAppUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="bg-white rounded-xl border border-slate-200 px-4 py-2.5 flex items-center gap-2 text-xs font-black text-slate-800 hover:border-emerald-400 hover:bg-emerald-50/30 transition-all shadow-2xs cursor-pointer"
@@ -897,8 +889,16 @@ export default function EventDetailClient() {
       {/* Mobile Fixed Bottom CTA Dock (Visible on Mobile Only: lg:hidden) */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 p-3.5 px-4 shadow-2xl flex items-center justify-between gap-3 animate-in slide-in-from-bottom-5">
         <div className="flex flex-col">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Mulai Dari</span>
-          <span className="text-base font-black text-slate-900 tracking-tight">{lowestPrice}</span>
+          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+            {lowestPrice === 'Coming Soon' ? 'Harga Tiket' : 'Mulai Dari'}
+          </span>
+          <span
+            className={`text-base font-black tracking-tight ${
+              lowestPrice === 'Coming Soon' ? 'text-amber-600' : 'text-slate-900'
+            }`}
+          >
+            {lowestPrice}
+          </span>
         </div>
 
         {event.status === 'closed' ? (
@@ -907,6 +907,14 @@ export default function EventDetailClient() {
             className="py-3 px-5 rounded-xl bg-slate-100 text-slate-400 font-extrabold text-xs cursor-not-allowed"
           >
             Tiket Habis
+          </button>
+        ) : !hasTickets || lowestPrice === 'Coming Soon' ? (
+          <button
+            disabled
+            className="py-3 px-5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 font-extrabold text-xs cursor-not-allowed flex items-center gap-1.5"
+          >
+            <Clock className="w-4 h-4 text-amber-500" />
+            <span>Coming Soon</span>
           </button>
         ) : (
           <button

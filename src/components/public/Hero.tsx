@@ -183,6 +183,9 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
                 <img
                   src="/hero/metix_mascot_concert.jpg"
                   alt="Metix Concert Mascot"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = FALLBACK_BANNERS[0];
+                  }}
                   className="w-full h-full object-cover object-right sm:object-center opacity-30 blur-[2px] scale-110"
                 />
 
@@ -205,6 +208,9 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
                       <img
                         src="/hero/metix_mascot_concert.jpg"
                         alt="Metix 3D Mascot Festival"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = FALLBACK_BANNERS[0];
+                        }}
                         className="w-full h-full object-cover object-center transform hover:scale-105 transition-transform duration-500"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />

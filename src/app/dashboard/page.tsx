@@ -281,7 +281,11 @@ export default function DashboardPage() {
       const calcEvents = rawEvents.length;
       const totalEvts = (s?.totalEvents && Number(s.totalEvents) > 0) ? Number(s.totalEvents) : calcEvents;
 
-      const reportOrders = (dashboardData as any)?.salesReport?.orders || [];
+      const allReportOrders = (dashboardData as any)?.salesReport?.orders || [];
+      const reportOrders = allReportOrders.filter((item: any) => {
+        const status = (item.status || item.payment_status || '').toLowerCase();
+        return status === 'paid' || status === 'success' || status === 'completed';
+      });
       const reportRevenue = (dashboardData as any)?.salesReport?.totalRevenue || reportOrders.reduce((sum: number, item: any) => sum + (item.total_amount || 0), 0);
       const reportTicketsSold = (dashboardData as any)?.salesReport?.totalTicketsSold || reportOrders.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
 
@@ -957,7 +961,11 @@ export default function DashboardPage() {
         const eoTicketTypesByEvent = dashboardData?.ticket_types_by_event || [];
 
         const rawEvents = dashboardData?.eventsList || [];
-        const reportOrders = (dashboardData as any)?.salesReport?.orders || [];
+        const allReportOrders = (dashboardData as any)?.salesReport?.orders || [];
+        const reportOrders = allReportOrders.filter((item: any) => {
+          const status = (item.status || item.payment_status || '').toLowerCase();
+          return status === 'paid' || status === 'success' || status === 'completed';
+        });
         const reportRevenue = (dashboardData as any)?.salesReport?.totalRevenue || reportOrders.reduce((sum: number, item: any) => sum + (item.total_amount || 0), 0);
         const reportTicketsSold = (dashboardData as any)?.salesReport?.totalTicketsSold || reportOrders.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
 

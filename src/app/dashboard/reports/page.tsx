@@ -51,8 +51,8 @@ export default function ReportsPage() {
 
   // Filter States
   const [selectedEventId, setSelectedEventId] = useState<string>('all');
-  const [selectedMonth, setSelectedMonth] = useState<string>(String(new Date().getMonth() + 1));
-  const [selectedYear, setSelectedYear] = useState<string>('2026');
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -149,20 +149,28 @@ export default function ReportsPage() {
     );
   }, [orders, publishedEvents, currentRole, selectedPaymentMethod, searchQuery]);
 
-  // Computed Report Aggregations
+  // Strictly Paid Orders for Financial Metrics & Aggregations
+  const paidOrders = useMemo(() => {
+    return filteredOrders.filter((ord) => {
+      const st = (ord.status || '').toLowerCase();
+      return st === 'paid' || st === 'completed';
+    });
+  }, [filteredOrders]);
+
+  // Computed Report Aggregations (Paid Orders Only)
   const totalGrossRevenue = useMemo(
-    () => filteredOrders.reduce((sum, item) => sum + item.total_amount, 0),
-    [filteredOrders]
+    () => paidOrders.reduce((sum, item) => sum + item.total_amount, 0),
+    [paidOrders]
   );
 
   const totalTicketsSold = useMemo(
-    () => filteredOrders.reduce((sum, item) => sum + item.quantity, 0),
-    [filteredOrders]
+    () => paidOrders.reduce((sum, item) => sum + item.quantity, 0),
+    [paidOrders]
   );
 
   const averageOrderValue = useMemo(
-    () => (filteredOrders.length > 0 ? Math.round(totalGrossRevenue / filteredOrders.length) : 0),
-    [totalGrossRevenue, filteredOrders]
+    () => (paidOrders.length > 0 ? Math.round(totalGrossRevenue / paidOrders.length) : 0),
+    [totalGrossRevenue, paidOrders]
   );
 
   // Helper to escape values for CSV
@@ -418,9 +426,9 @@ export default function ReportsPage() {
     }
   };
 
-  // Dynamically compute payment channel percentages from real API orders
+  // Dynamically compute payment channel percentages from real API paid orders
   const channelStats = useMemo(() => {
-    if (filteredOrders.length === 0) {
+    if (paidOrders.length === 0) {
       return { onlinePct: 0, posPct: 0, otherPct: 0, primaryChannel: '-' };
     }
 
@@ -428,7 +436,7 @@ export default function ReportsPage() {
     let posCount = 0;
     let otherCount = 0;
 
-    filteredOrders.forEach((ord) => {
+    paidOrders.forEach((ord) => {
       const pm = (ord.payment_method || '').toLowerCase();
       if (pm.includes('pos') || pm.includes('cash') || pm.includes('kasir') || pm.includes('tunai')) {
         posCount++;
@@ -439,7 +447,7 @@ export default function ReportsPage() {
       }
     });
 
-    const total = filteredOrders.length;
+    const total = paidOrders.length;
     const onlinePct = Math.round((onlineCount / total) * 100);
     const posPct = Math.round((posCount / total) * 100);
     const otherPct = Math.max(0, 100 - onlinePct - posPct);
@@ -450,7 +458,7 @@ export default function ReportsPage() {
     else if (onlineCount > 0 && posCount > 0) primaryChannel = 'Doku & POS';
 
     return { onlinePct, posPct, otherPct, primaryChannel };
-  }, [filteredOrders]);
+  }, [paidOrders]);
 
   // Header Banner Content per Role
   const headerInfo = useMemo(() => {
@@ -704,12 +712,13 @@ export default function ReportsPage() {
               </div>
 
               {/* Month Filter */}
-              <div className="w-28">
+              <div className="w-32">
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                   <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
                     <SelectValue placeholder="Bulan" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">Semua Bulan</SelectItem>
                     <SelectItem value="1">Januari</SelectItem>
                     <SelectItem value="2">Februari</SelectItem>
                     <SelectItem value="3">Maret</SelectItem>
@@ -727,12 +736,13 @@ export default function ReportsPage() {
               </div>
 
               {/* Year Filter */}
-              <div className="w-24">
+              <div className="w-28">
                 <Select value={selectedYear} onValueChange={setSelectedYear}>
                   <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
                     <SelectValue placeholder="Tahun" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">Semua Tahun</SelectItem>
                     <SelectItem value="2025">2025</SelectItem>
                     <SelectItem value="2026">2026</SelectItem>
                   </SelectContent>

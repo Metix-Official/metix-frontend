@@ -2953,7 +2953,7 @@ export async function fetchSalesReportData(params?: {
         quantity: ord.quantity || 1,
         total_amount: Number(ord.total_amount || 0),
         payment_method: ord.payment_method || 'Midtrans QRIS & VA',
-        status: ord.status === 'paid' ? 'paid' : 'pending',
+        status: String(ord.status || 'pending').toLowerCase(),
         created_at: ord.created_at || new Date().toISOString(),
         tickets: ord.tickets || [],
       }));

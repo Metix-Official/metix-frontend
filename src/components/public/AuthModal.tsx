@@ -597,16 +597,45 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
                 {/* Nomor Telepon */}
                 <div className="space-y-1.5 text-left">
-                  <label className="text-xs font-bold text-slate-800">
-                    Nomor Telepon
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800">
+                      Nomor Telepon
+                    </label>
+                    {phone.length > 0 && (
+                      <span className={`text-[11px] font-bold ${
+                        /^(08|628|\+628|8)\d{8,11}$/.test(phone.trim().replace(/\D/g, '')) ||
+                        (phone.trim().replace(/\D/g, '').length >= 10 && phone.trim().replace(/\D/g, '').length <= 13)
+                          ? 'text-emerald-600'
+                          : 'text-amber-600'
+                      }`}>
+                        {phone.trim().replace(/\D/g, '').length}/12 digit
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 13);
+                      setPhone(val);
+                    }}
                     placeholder="08123456789"
-                    className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                    className={`w-full px-4 py-2.5 bg-white border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all ${
+                      registerError && (registerError.toLowerCase().includes('telepon') || registerError.toLowerCase().includes('phone') || registerError.toLowerCase().includes('terdaftar'))
+                        ? 'border-rose-500 focus:border-rose-600 focus:ring-2 focus:ring-rose-600/20 bg-rose-50/20'
+                        : 'border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20'
+                    }`}
                   />
+                  {registerError && (registerError.toLowerCase().includes('telepon') || registerError.toLowerCase().includes('phone') || registerError.toLowerCase().includes('terdaftar')) ? (
+                    <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                      <span>Nomor Telepon sudah terdaftar. Silakan gunakan nomor telepon lain atau lakukan Login.</span>
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-slate-400 font-medium">
+                      * Pastikan nomor telepon belum pernah terdaftar di sistem Metix.
+                    </p>
+                  )}
                 </div>
 
                 {/* Kata Sandi - User Custom Password Required */}

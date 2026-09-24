@@ -459,7 +459,7 @@ export default function EventCheckoutClient() {
   const isBuyerPhoneValid =
     /^(08|628|\+628|8)\d{8,11}$/.test(buyerPhone.trim().replace(/\D/g, '')) ||
     (buyerPhone.trim().replace(/\D/g, '').length >= 10 && buyerPhone.trim().replace(/\D/g, '').length <= 13);
-  const isBuyerAddressValid = buyerAddress.trim().length > 0;
+  const isBuyerAddressValid = true;
   const isBuyerNikValid = /^\d{16}$/.test(buyerNik.trim().replace(/\D/g, ''));
 
   const isHoldersValid = ticketHolders.every(
@@ -975,13 +975,12 @@ export default function EventCheckoutClient() {
                   <div className="flex items-center justify-between">
                     <label className="font-extrabold text-slate-800">Nomor WhatsApp *</label>
                     <span
-                      className={`text-[11px] font-bold transition-colors ${
-                        isBuyerPhoneValid
-                          ? 'text-emerald-600'
-                          : buyerPhone.length > 0
+                      className={`text-[11px] font-bold transition-colors ${isBuyerPhoneValid
+                        ? 'text-emerald-600'
+                        : buyerPhone.length > 0
                           ? 'text-amber-600'
                           : 'text-slate-400'
-                      }`}
+                        }`}
                     >
                       {isBuyerPhoneValid ? '✓ Nomor Valid' : `${buyerPhone.length}/12 digit`}
                     </span>
@@ -997,13 +996,12 @@ export default function EventCheckoutClient() {
                       setBuyerPhone(val);
                     }}
                     placeholder="Contoh: 081234567890"
-                    className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none transition-all ${
-                      isBuyerPhoneValid
-                        ? 'border-emerald-500 focus:border-emerald-600 bg-emerald-50/20'
-                        : buyerPhone.length > 0
+                    className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none transition-all ${isBuyerPhoneValid
+                      ? 'border-emerald-500 focus:border-emerald-600 bg-emerald-50/20'
+                      : buyerPhone.length > 0
                         ? 'border-amber-400 focus:border-amber-500 bg-amber-50/20'
                         : 'border-slate-300 focus:border-blue-600'
-                    }`}
+                      }`}
                   />
                   {buyerPhone.length > 0 && !isBuyerPhoneValid ? (
                     <p className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
@@ -1011,8 +1009,8 @@ export default function EventCheckoutClient() {
                       {buyerPhone.length < 10
                         ? `Nomor WhatsApp minimal 10 digit (kurang ${10 - buyerPhone.length} digit)`
                         : !buyerPhone.startsWith('08') && !buyerPhone.startsWith('628') && !buyerPhone.startsWith('8')
-                        ? 'Nomor WA umumnya diawali 08 (contoh: 081234567890)'
-                        : 'Nomor WhatsApp harus 10 - 13 digit angka'}
+                          ? 'Nomor WA umumnya diawali 08 (contoh: 081234567890)'
+                          : 'Nomor WhatsApp harus 10 - 13 digit angka'}
                     </p>
                   ) : isBuyerPhoneValid ? (
                     <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
@@ -1029,13 +1027,12 @@ export default function EventCheckoutClient() {
                   <div className="flex items-center justify-between">
                     <label className="font-extrabold text-slate-800">Nomor NIK KTP *</label>
                     <span
-                      className={`text-[11px] font-bold transition-colors ${
-                        isBuyerNikValid
-                          ? 'text-emerald-600'
-                          : buyerNik.length > 0
+                      className={`text-[11px] font-bold transition-colors ${isBuyerNikValid
+                        ? 'text-emerald-600'
+                        : buyerNik.length > 0
                           ? 'text-amber-600'
                           : 'text-slate-400'
-                      }`}
+                        }`}
                     >
                       {isBuyerNikValid ? '✓ 16 Digit Lengkap' : `${buyerNik.length}/16 digit`}
                     </span>
@@ -1051,13 +1048,12 @@ export default function EventCheckoutClient() {
                       setBuyerNik(val);
                     }}
                     placeholder="16 Digit Angka NIK KTP (cth: 3171012345670001)"
-                    className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none font-mono transition-all ${
-                      isBuyerNikValid
-                        ? 'border-emerald-500 focus:border-emerald-600 bg-emerald-50/20'
-                        : buyerNik.length > 0
+                    className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none font-mono transition-all ${isBuyerNikValid
+                      ? 'border-emerald-500 focus:border-emerald-600 bg-emerald-50/20'
+                      : buyerNik.length > 0
                         ? 'border-amber-400 focus:border-amber-500 bg-amber-50/20'
                         : 'border-slate-300 focus:border-blue-600'
-                    }`}
+                      }`}
                   />
                   {buyerNik.length > 0 && !isBuyerNikValid ? (
                     <p className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
@@ -1069,20 +1065,19 @@ export default function EventCheckoutClient() {
                     </p>
                   ) : (
                     <p className="text-[10px] text-slate-400 font-medium">
-                      Wajib 16 digit angka sesuai kartu identitas KTP
+                      Wajib 16 digit angka sesuai kartu identitas KTP aa
                     </p>
                   )}
                 </div>
 
+                {/* 
                 <div className="space-y-1.5 sm:col-span-2">
                   <div className="flex items-center justify-between">
                     <label className="font-extrabold text-slate-800">Alamat Lengkap Pemesan *</label>
                     <span className="text-[10px] text-slate-400 font-medium">Format domisili / catatan pengiriman</span>
                   </div>
 
-                  {/* Rich Text Editor Box matching uploaded design */}
                   <div className="border border-slate-300 rounded-2xl bg-white shadow-2xs overflow-hidden focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/10 transition-all">
-                    {/* Toolbar Top Bar */}
                     <div className="px-3.5 py-2 bg-white border-b border-slate-200 flex items-center gap-1 sm:gap-2 flex-wrap select-none">
                       <button
                         type="button"
@@ -1157,7 +1152,6 @@ export default function EventCheckoutClient() {
                       </button>
                     </div>
 
-                    {/* Textarea Input */}
                     <textarea
                       ref={addressTextareaRef}
                       rows={3}
@@ -1169,6 +1163,7 @@ export default function EventCheckoutClient() {
                     />
                   </div>
                 </div>
+                */}
               </div>
             </div>
 
@@ -1218,11 +1213,10 @@ export default function EventCheckoutClient() {
                               });
                             }}
                             placeholder="Nama Pemegang Tiket"
-                            className={`w-full px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none transition-all ${
-                              isHolderSame
-                                ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500'
-                                : 'bg-white border-slate-300 focus:border-blue-600'
-                            }`}
+                            className={`w-full px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none transition-all ${isHolderSame
+                              ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500'
+                              : 'bg-white border-slate-300 focus:border-blue-600'
+                              }`}
                           />
                         </div>
 
@@ -1243,15 +1237,14 @@ export default function EventCheckoutClient() {
                               });
                             }}
                             placeholder="WhatsApp (10-12 digit)"
-                            className={`w-full px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none transition-all ${
-                              isHolderSame
-                                ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500'
-                                : holder.phone.replace(/\D/g, '').length >= 10 && holder.phone.replace(/\D/g, '').length <= 13
+                            className={`w-full px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none transition-all ${isHolderSame
+                              ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500'
+                              : holder.phone.replace(/\D/g, '').length >= 10 && holder.phone.replace(/\D/g, '').length <= 13
                                 ? 'bg-white border-emerald-500 focus:border-emerald-600'
                                 : holder.phone.length > 0
-                                ? 'bg-white border-amber-400 focus:border-amber-500'
-                                : 'bg-white border-slate-300 focus:border-blue-600'
-                            }`}
+                                  ? 'bg-white border-amber-400 focus:border-amber-500'
+                                  : 'bg-white border-slate-300 focus:border-blue-600'
+                              }`}
                           />
                           {!isHolderSame && holder.phone.length > 0 && (holder.phone.replace(/\D/g, '').length < 10 || holder.phone.replace(/\D/g, '').length > 13) && (
                             <span className="text-[10px] text-amber-600 font-bold block mt-1">
@@ -1277,15 +1270,14 @@ export default function EventCheckoutClient() {
                               });
                             }}
                             placeholder="NIK KTP (16 Digit)"
-                            className={`w-full px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none font-mono transition-all ${
-                              isHolderSame
-                                ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500'
-                                : holder.nik.replace(/\D/g, '').length === 16
+                            className={`w-full px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none font-mono transition-all ${isHolderSame
+                              ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500'
+                              : holder.nik.replace(/\D/g, '').length === 16
                                 ? 'bg-white border-emerald-500 focus:border-emerald-600'
                                 : holder.nik.length > 0
-                                ? 'bg-white border-amber-400 focus:border-amber-500'
-                                : 'bg-white border-slate-300 focus:border-blue-600'
-                            }`}
+                                  ? 'bg-white border-amber-400 focus:border-amber-500'
+                                  : 'bg-white border-slate-300 focus:border-blue-600'
+                              }`}
                           />
                           {!isHolderSame && holder.nik.length > 0 && holder.nik.replace(/\D/g, '').length !== 16 && (
                             <span className="text-[10px] text-amber-600 font-bold block mt-1">
@@ -1552,11 +1544,10 @@ export default function EventCheckoutClient() {
                           setSelectedPaymentCategory('VIRTUAL_ACCOUNT_BCA');
                         }
                       }}
-                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
-                        selectedPaymentCategory.startsWith('VIRTUAL_ACCOUNT_') || activeCategoryTab === 'VA'
-                          ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950'
-                          : 'hover:bg-slate-50 text-slate-800'
-                      }`}
+                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${selectedPaymentCategory.startsWith('VIRTUAL_ACCOUNT_') || activeCategoryTab === 'VA'
+                        ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950'
+                        : 'hover:bg-slate-50 text-slate-800'
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedPaymentCategory.startsWith('VIRTUAL_ACCOUNT_') ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
@@ -1574,7 +1565,7 @@ export default function EventCheckoutClient() {
                       <div className="p-3 bg-slate-50/90 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-3 gap-2 animate-in fade-in-0">
                         {[
                           { id: 'VIRTUAL_ACCOUNT_BCA', name: 'BCA VA' },
-                          { id: 'VIRTUAL_ACCOUNT_MANDIRI', name: 'Mandiri VA' },
+                          // { id: 'VIRTUAL_ACCOUNT_MANDIRI', name: 'Mandiri VA' },
                           { id: 'VIRTUAL_ACCOUNT_BNI', name: 'BNI VA' },
                           { id: 'VIRTUAL_ACCOUNT_BRI', name: 'BRI VA' },
                           { id: 'VIRTUAL_ACCOUNT_BTN', name: 'BTN VA' },
@@ -1593,11 +1584,10 @@ export default function EventCheckoutClient() {
                               setSelectedPaymentCategory(bank.id);
                               setActiveCategoryTab('VA');
                             }}
-                            className={`p-2.5 rounded-xl border text-xs text-left font-extrabold transition-all cursor-pointer flex items-center justify-between gap-1 ${
-                              selectedPaymentCategory === bank.id
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-600/30'
-                                : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
-                            }`}
+                            className={`p-2.5 rounded-xl border text-xs text-left font-extrabold transition-all cursor-pointer flex items-center justify-between gap-1 ${selectedPaymentCategory === bank.id
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-600/30'
+                              : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
+                              }`}
                           >
                             <span className="truncate">{bank.name}</span>
                             {selectedPaymentCategory === bank.id && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
@@ -1608,7 +1598,7 @@ export default function EventCheckoutClient() {
                   </div>
 
                   {/* 2. E-WALLET */}
-                  <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                  {/* <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
                     <button
                       type="button"
                       onClick={() => {
@@ -1617,11 +1607,10 @@ export default function EventCheckoutClient() {
                           setSelectedPaymentCategory('EMONEY_OVO');
                         }
                       }}
-                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
-                        selectedPaymentCategory.startsWith('EMONEY_') || activeCategoryTab === 'EWALLET'
-                          ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950'
-                          : 'hover:bg-slate-50 text-slate-800'
-                      }`}
+                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${selectedPaymentCategory.startsWith('EMONEY_') || activeCategoryTab === 'EWALLET'
+                        ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950'
+                        : 'hover:bg-slate-50 text-slate-800'
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedPaymentCategory.startsWith('EMONEY_') ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
@@ -1651,11 +1640,10 @@ export default function EventCheckoutClient() {
                               setSelectedPaymentCategory(wallet.id);
                               setActiveCategoryTab('EWALLET');
                             }}
-                            className={`p-2.5 rounded-xl border text-xs text-left font-extrabold transition-all cursor-pointer flex items-center justify-between gap-1 ${
-                              selectedPaymentCategory === wallet.id
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-600/30'
-                                : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
-                            }`}
+                            className={`p-2.5 rounded-xl border text-xs text-left font-extrabold transition-all cursor-pointer flex items-center justify-between gap-1 ${selectedPaymentCategory === wallet.id
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-600/30'
+                              : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
+                              }`}
                           >
                             <span className="truncate">{wallet.name}</span>
                             {selectedPaymentCategory === wallet.id && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
@@ -1663,10 +1651,10 @@ export default function EventCheckoutClient() {
                         ))}
                       </div>
                     )}
-                  </div>
+                  </div> */}
 
                   {/* 3. GERAI RETAIL */}
-                  <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                  {/* <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
                     <button
                       type="button"
                       onClick={() => {
@@ -1675,11 +1663,10 @@ export default function EventCheckoutClient() {
                           setSelectedPaymentCategory('ALFAMART');
                         }
                       }}
-                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
-                        selectedPaymentCategory === 'ALFAMART' || selectedPaymentCategory === 'INDOMARET' || activeCategoryTab === 'RETAIL'
-                          ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950'
-                          : 'hover:bg-slate-50 text-slate-800'
-                      }`}
+                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${selectedPaymentCategory === 'ALFAMART' || selectedPaymentCategory === 'INDOMARET' || activeCategoryTab === 'RETAIL'
+                        ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950'
+                        : 'hover:bg-slate-50 text-slate-800'
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedPaymentCategory === 'ALFAMART' || selectedPaymentCategory === 'INDOMARET' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
@@ -1706,11 +1693,10 @@ export default function EventCheckoutClient() {
                               setSelectedPaymentCategory(store.id);
                               setActiveCategoryTab('RETAIL');
                             }}
-                            className={`p-2.5 rounded-xl border text-xs text-left font-extrabold transition-all cursor-pointer flex items-center justify-between gap-1 ${
-                              selectedPaymentCategory === store.id
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-600/30'
-                                : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
-                            }`}
+                            className={`p-2.5 rounded-xl border text-xs text-left font-extrabold transition-all cursor-pointer flex items-center justify-between gap-1 ${selectedPaymentCategory === store.id
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-600/30'
+                              : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
+                              }`}
                           >
                             <span className="truncate">{store.name}</span>
                             {selectedPaymentCategory === store.id && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
@@ -1718,10 +1704,10 @@ export default function EventCheckoutClient() {
                         ))}
                       </div>
                     )}
-                  </div>
+                  </div> */}
 
                   {/* 4. PAYLATER */}
-                  <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                  {/* <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
                     <button
                       type="button"
                       onClick={() => {
@@ -1730,11 +1716,10 @@ export default function EventCheckoutClient() {
                           setSelectedPaymentCategory('KREDIVO');
                         }
                       }}
-                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
-                        selectedPaymentCategory === 'KREDIVO' || selectedPaymentCategory === 'AKULAKU' || selectedPaymentCategory === 'INDODANA' || activeCategoryTab === 'PAYLATER'
-                          ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950'
-                          : 'hover:bg-slate-50 text-slate-800'
-                      }`}
+                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${selectedPaymentCategory === 'KREDIVO' || selectedPaymentCategory === 'AKULAKU' || selectedPaymentCategory === 'INDODANA' || activeCategoryTab === 'PAYLATER'
+                        ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950'
+                        : 'hover:bg-slate-50 text-slate-800'
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedPaymentCategory === 'KREDIVO' || selectedPaymentCategory === 'AKULAKU' || selectedPaymentCategory === 'INDODANA' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
@@ -1762,11 +1747,10 @@ export default function EventCheckoutClient() {
                               setSelectedPaymentCategory(pl.id);
                               setActiveCategoryTab('PAYLATER');
                             }}
-                            className={`p-2.5 rounded-xl border text-xs text-left font-extrabold transition-all cursor-pointer flex items-center justify-between gap-1 ${
-                              selectedPaymentCategory === pl.id
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-600/30'
-                                : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
-                            }`}
+                            className={`p-2.5 rounded-xl border text-xs text-left font-extrabold transition-all cursor-pointer flex items-center justify-between gap-1 ${selectedPaymentCategory === pl.id
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-1 ring-blue-600/30'
+                              : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
+                              }`}
                           >
                             <span className="truncate">{pl.name}</span>
                             {selectedPaymentCategory === pl.id && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
@@ -1774,21 +1758,20 @@ export default function EventCheckoutClient() {
                         ))}
                       </div>
                     )}
-                  </div>
+                  </div> */}
 
                   {/* 5. KARTU KREDIT / DEBIT */}
-                  <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                  {/* <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
                     <button
                       type="button"
                       onClick={() => {
                         setSelectedPaymentCategory('CREDIT_CARD');
                         setActiveCategoryTab('CREDIT_CARD');
                       }}
-                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
-                        selectedPaymentCategory === 'CREDIT_CARD'
-                          ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950 shadow-xs ring-1 ring-blue-600/30'
-                          : 'hover:bg-slate-50 text-slate-800'
-                      }`}
+                      className={`w-full p-3.5 text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${selectedPaymentCategory === 'CREDIT_CARD'
+                        ? 'bg-blue-50/80 border-blue-600 font-extrabold text-blue-950 shadow-xs ring-1 ring-blue-600/30'
+                        : 'hover:bg-slate-50 text-slate-800'
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${selectedPaymentCategory === 'CREDIT_CARD' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
@@ -1801,7 +1784,7 @@ export default function EventCheckoutClient() {
                       </div>
                       {selectedPaymentCategory === 'CREDIT_CARD' && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
                     </button>
-                  </div>
+                  </div> */}
                 </div>
               </div>
             </div>

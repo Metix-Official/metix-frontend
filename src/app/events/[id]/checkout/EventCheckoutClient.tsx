@@ -1597,7 +1597,7 @@ export default function EventCheckoutClient() {
                       <div className="p-3 bg-slate-50/90 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-3 gap-2 animate-in fade-in-0">
                         {[
                           { id: 'VIRTUAL_ACCOUNT_BCA', name: 'BCA VA' },
-                          // { id: 'VIRTUAL_ACCOUNT_MANDIRI', name: 'Mandiri VA' },
+                          { id: 'VIRTUAL_ACCOUNT_MANDIRI', name: 'Mandiri VA' },
                           { id: 'VIRTUAL_ACCOUNT_BNI', name: 'BNI VA' },
                           { id: 'VIRTUAL_ACCOUNT_BRI', name: 'BRI VA' },
                           { id: 'VIRTUAL_ACCOUNT_BTN', name: 'BTN VA' },

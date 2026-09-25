@@ -3576,7 +3576,7 @@ export default function EventsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Waktu Mulai Event (Start At)</label>
+                    <label className="text-xs font-extrabold text-slate-700">Tanggal Mulai Event (Start At)</label>
                     <input type="hidden" name="start_at" value={createStartAt} />
                     <Popover>
                       <PopoverTrigger asChild>
@@ -3587,9 +3587,9 @@ export default function EventsPage() {
                           <span className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
                             {createStartAt ? (
-                              format(new Date(createStartAt), 'dd MMM yyyy, HH:mm')
+                              format(new Date(createStartAt.replace('Z', '').replace(' ', 'T')), 'dd MMM yyyy')
                             ) : (
-                              <span className="text-slate-400">Pilih waktu mulai</span>
+                              <span className="text-slate-400">Pilih tanggal mulai</span>
                             )}
                           </span>
                         </button>
@@ -3600,32 +3600,16 @@ export default function EventsPage() {
                           selected={createStartAt ? new Date(createStartAt.replace('Z', '').replace(' ', 'T')) : undefined}
                           onSelect={(d) => {
                             if (!d) return;
-                            const rawTime = (createStartAt?.split('T')[1] || createStartAt?.split(' ')[1] || '18:00');
-                            const currentTime = rawTime.replace('Z', '').slice(0, 5) || '18:00';
                             const dateStr = format(d, 'yyyy-MM-dd');
-                            setCreateStartAt(`${dateStr}T${currentTime}`);
+                            setCreateStartAt(`${dateStr}T00:00`);
                           }}
                         />
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
-                          <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-slate-400" /> Jam:
-                          </span>
-                          <input
-                            type="time"
-                            value={(createStartAt?.split('T')[1] || createStartAt?.split(' ')[1] || '18:00').replace('Z', '').slice(0, 5)}
-                            onChange={(e) => {
-                              const currentDate = (createStartAt?.split('T')[0] || createStartAt?.split(' ')[0] || format(new Date(), 'yyyy-MM-dd')).replace('Z', '');
-                              setCreateStartAt(`${currentDate}T${e.target.value}`);
-                            }}
-                            className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
-                          />
-                        </div>
                       </PopoverContent>
                     </Popover>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Waktu Selesai Event (End At)</label>
+                    <label className="text-xs font-extrabold text-slate-700">Tanggal Selesai Event (End At)</label>
                     <input type="hidden" name="end_at" value={createEndAt} />
                     <Popover>
                       <PopoverTrigger asChild>
@@ -3636,9 +3620,9 @@ export default function EventsPage() {
                           <span className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
                             {createEndAt ? (
-                              format(new Date(createEndAt.replace('Z', '').replace(' ', 'T')), 'dd MMM yyyy, HH:mm')
+                              format(new Date(createEndAt.replace('Z', '').replace(' ', 'T')), 'dd MMM yyyy')
                             ) : (
-                              <span className="text-slate-400">Pilih waktu selesai</span>
+                              <span className="text-slate-400">Pilih tanggal selesai</span>
                             )}
                           </span>
                         </button>
@@ -3649,26 +3633,10 @@ export default function EventsPage() {
                           selected={createEndAt ? new Date(createEndAt.replace('Z', '').replace(' ', 'T')) : undefined}
                           onSelect={(d) => {
                             if (!d) return;
-                            const rawTime = (createEndAt?.split('T')[1] || createEndAt?.split(' ')[1] || '23:00');
-                            const currentTime = rawTime.replace('Z', '').slice(0, 5) || '23:00';
                             const dateStr = format(d, 'yyyy-MM-dd');
-                            setCreateEndAt(`${dateStr}T${currentTime}`);
+                            setCreateEndAt(`${dateStr}T23:59`);
                           }}
                         />
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
-                          <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-slate-400" /> Jam:
-                          </span>
-                          <input
-                            type="time"
-                            value={(createEndAt?.split('T')[1] || createEndAt?.split(' ')[1] || '23:00').replace('Z', '').slice(0, 5)}
-                            onChange={(e) => {
-                              const currentDate = (createEndAt?.split('T')[0] || createEndAt?.split(' ')[0] || format(new Date(), 'yyyy-MM-dd')).replace('Z', '');
-                              setCreateEndAt(`${currentDate}T${e.target.value}`);
-                            }}
-                            className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
-                          />
-                        </div>
                       </PopoverContent>
                     </Popover>
                   </div>

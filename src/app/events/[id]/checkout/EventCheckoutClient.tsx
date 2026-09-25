@@ -2061,7 +2061,7 @@ export default function EventCheckoutClient() {
                         <span>Tiket Belum Diterbitkan</span>
                       </div>
                       <p className="text-[11px] leading-relaxed">
-                        Sesuai prosedur, E-Tiket dan QR Code baru akan dibuat & dikirim ke email Anda <strong>setelah pembayaran lunas (PAID)</strong>.
+                        Sesuai prosedur, E-Tiket dan QR Code baru akan dibuat & Anda dapat melihat di halaman <strong>tiket saya</strong> <strong>setelah pembayaran lunas (PAID)</strong>.
                       </p>
                     </div>
                   )}
@@ -2071,6 +2071,7 @@ export default function EventCheckoutClient() {
                       <div className="flex items-center gap-1.5 font-bold text-rose-900">
                         <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                         <span>Konfigurasi Payment Gateway</span>
+                        <span>Jika muncul halaman ini silahkan anda lakukan pembayaran di halaman Tiket Saya</span>
                       </div>
                       <p className="text-[11px] leading-relaxed text-rose-800">
                         {completedOrder.payment_error}

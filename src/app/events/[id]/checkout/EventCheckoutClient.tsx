@@ -454,6 +454,37 @@ export default function EventCheckoutClient() {
   const discountValue = isUsePromoChecked && appliedPromo ? appliedPromo.discountAmount : 0;
   const finalGrandTotal = Math.max(0, totalPrice + localTaxAmount + platformFee - discountValue);
 
+  const selectedPaymentName = React.useMemo(() => {
+    const names: Record<string, string> = {
+      QRIS: 'QRIS',
+      VIRTUAL_ACCOUNT_BCA: 'BCA VA',
+      VIRTUAL_ACCOUNT_MANDIRI: 'Mandiri VA',
+      VIRTUAL_ACCOUNT_BNI: 'BNI VA',
+      VIRTUAL_ACCOUNT_BRI: 'BRI VA',
+      VIRTUAL_ACCOUNT_BTN: 'BTN VA',
+      VIRTUAL_ACCOUNT_PERMATA: 'Permata VA',
+      VIRTUAL_ACCOUNT_BSI: 'BSI VA',
+      VIRTUAL_ACCOUNT_CIMB: 'CIMB VA',
+      VIRTUAL_ACCOUNT_DANAMON: 'Danamon VA',
+      VIRTUAL_ACCOUNT_MAYBANK: 'Maybank VA',
+      VIRTUAL_ACCOUNT_SINARMAS: 'Sinarmas VA',
+      VIRTUAL_ACCOUNT_BNC: 'BNC Neo VA',
+      EMONEY_OVO: 'OVO',
+      EMONEY_DANA: 'DANA',
+      EMONEY_SHOPEEPAY: 'ShopeePay',
+      EMONEY_GOPAY: 'GoPay',
+      EMONEY_LINKAJA: 'LinkAja',
+      ALFAMART: 'Alfamart',
+      INDOMARET: 'Indomaret',
+      CREDIT_CARD: 'Kartu Kredit',
+    };
+    if (names[selectedPaymentCategory]) return names[selectedPaymentCategory];
+    if (selectedPaymentCategory.startsWith('VIRTUAL_ACCOUNT_')) {
+      return `${selectedPaymentCategory.replace('VIRTUAL_ACCOUNT_', '')} VA`;
+    }
+    return selectedPaymentCategory;
+  }, [selectedPaymentCategory]);
+
   // Form Validations
   const isBuyerNameValid = buyerName.trim().length > 0;
   const isBuyerEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail.trim());
@@ -1834,10 +1865,15 @@ export default function EventCheckoutClient() {
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span>Pajak Daerah</span>
+                  <span>Pajak</span>
                   <span className="font-extrabold text-slate-800">+Rp {localTaxAmount.toLocaleString('id-ID')}</span>
                 </div>
-
+                {platformFee > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span>Biaya Layanan ({selectedPaymentName})</span>
+                    <span className="font-extrabold text-slate-800">+Rp {platformFee.toLocaleString('id-ID')}</span>
+                  </div>
+                )}
 
                 {appliedPromo && (
                   <div className="flex justify-between items-center text-emerald-600 font-bold">

@@ -421,7 +421,8 @@ export default function EventsPage() {
       const rawStart = editingEvent.start_at || editingEvent.event_start_at;
       if (rawStart) {
         try {
-          const d = new Date(rawStart);
+          const cleanStart = String(rawStart).replace('Z', '').split('.')[0].replace(' ', 'T');
+          const d = new Date(cleanStart);
           setEditStartAt(format(d, "yyyy-MM-dd'T'HH:mm"));
         } catch {
           setEditStartAt(format(new Date(), "yyyy-MM-dd'T'18:00"));
@@ -433,7 +434,8 @@ export default function EventsPage() {
       const rawEnd = editingEvent.end_at || editingEvent.event_end_at;
       if (rawEnd) {
         try {
-          const d = new Date(rawEnd);
+          const cleanEnd = String(rawEnd).replace('Z', '').split('.')[0].replace(' ', 'T');
+          const d = new Date(cleanEnd);
           setEditEndAt(format(d, "yyyy-MM-dd'T'HH:mm"));
         } catch {
           setEditEndAt(format(new Date(), "yyyy-MM-dd'T'23:00"));
@@ -1628,8 +1630,8 @@ export default function EventsPage() {
                 let dateStr = '15 Sep 2026';
                 if (item.event_start_at || item.start_at) {
                   try {
-                    const rawDate = item.event_start_at || item.start_at;
-                    dateStr = new Date(rawDate!).toLocaleDateString('id-ID', {
+                    const rawDate = String(item.event_start_at || item.start_at).replace('Z', '').split('.')[0].replace(' ', 'T');
+                    dateStr = new Date(rawDate).toLocaleDateString('id-ID', {
                       day: '2-digit',
                       month: 'short',
                       year: 'numeric',
@@ -2151,7 +2153,7 @@ export default function EventsPage() {
                           <span className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
                             {editStartAt ? (
-                              format(new Date(editStartAt), 'dd MMM yyyy, HH:mm')
+                              format(new Date(editStartAt.replace('Z', '').replace(' ', 'T')), 'dd MMM yyyy, HH:mm')
                             ) : (
                               <span className="text-slate-400">Pilih waktu mulai</span>
                             )}
@@ -2161,10 +2163,11 @@ export default function EventsPage() {
                       <PopoverContent className="w-auto p-3" align="start">
                         <CalendarPicker
                           mode="single"
-                          selected={editStartAt ? new Date(editStartAt) : undefined}
+                          selected={editStartAt ? new Date(editStartAt.replace('Z', '').replace(' ', 'T')) : undefined}
                           onSelect={(d) => {
                             if (!d) return;
-                            const currentTime = editStartAt ? editStartAt.split('T')[1] || '18:00' : '18:00';
+                            const rawTime = (editStartAt?.split('T')[1] || editStartAt?.split(' ')[1] || '18:00');
+                            const currentTime = rawTime.replace('Z', '').slice(0, 5) || '18:00';
                             const dateStr = format(d, 'yyyy-MM-dd');
                             setEditStartAt(`${dateStr}T${currentTime}`);
                           }}
@@ -2175,9 +2178,9 @@ export default function EventsPage() {
                           </span>
                           <input
                             type="time"
-                            value={editStartAt ? editStartAt.split('T')[1] || '18:00' : '18:00'}
+                            value={(editStartAt?.split('T')[1] || editStartAt?.split(' ')[1] || '18:00').replace('Z', '').slice(0, 5)}
                             onChange={(e) => {
-                              const currentDate = editStartAt ? editStartAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                              const currentDate = (editStartAt?.split('T')[0] || editStartAt?.split(' ')[0] || format(new Date(), 'yyyy-MM-dd')).replace('Z', '');
                               setEditStartAt(`${currentDate}T${e.target.value}`);
                             }}
                             className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
@@ -2199,7 +2202,7 @@ export default function EventsPage() {
                           <span className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
                             {editEndAt ? (
-                              format(new Date(editEndAt), 'dd MMM yyyy, HH:mm')
+                              format(new Date(editEndAt.replace('Z', '').replace(' ', 'T')), 'dd MMM yyyy, HH:mm')
                             ) : (
                               <span className="text-slate-400">Pilih waktu selesai</span>
                             )}
@@ -2209,10 +2212,11 @@ export default function EventsPage() {
                       <PopoverContent className="w-auto p-3" align="start">
                         <CalendarPicker
                           mode="single"
-                          selected={editEndAt ? new Date(editEndAt) : undefined}
+                          selected={editEndAt ? new Date(editEndAt.replace('Z', '').replace(' ', 'T')) : undefined}
                           onSelect={(d) => {
                             if (!d) return;
-                            const currentTime = editEndAt ? editEndAt.split('T')[1] || '23:00' : '23:00';
+                            const rawTime = (editEndAt?.split('T')[1] || editEndAt?.split(' ')[1] || '23:00');
+                            const currentTime = rawTime.replace('Z', '').slice(0, 5) || '23:00';
                             const dateStr = format(d, 'yyyy-MM-dd');
                             setEditEndAt(`${dateStr}T${currentTime}`);
                           }}
@@ -2223,9 +2227,9 @@ export default function EventsPage() {
                           </span>
                           <input
                             type="time"
-                            value={editEndAt ? editEndAt.split('T')[1] || '23:00' : '23:00'}
+                            value={(editEndAt?.split('T')[1] || editEndAt?.split(' ')[1] || '23:00').replace('Z', '').slice(0, 5)}
                             onChange={(e) => {
-                              const currentDate = editEndAt ? editEndAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                              const currentDate = (editEndAt?.split('T')[0] || editEndAt?.split(' ')[0] || format(new Date(), 'yyyy-MM-dd')).replace('Z', '');
                               setEditEndAt(`${currentDate}T${e.target.value}`);
                             }}
                             className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
@@ -3625,10 +3629,11 @@ export default function EventsPage() {
                       <PopoverContent className="w-auto p-3" align="start">
                         <CalendarPicker
                           mode="single"
-                          selected={createStartAt ? new Date(createStartAt) : undefined}
+                          selected={createStartAt ? new Date(createStartAt.replace('Z', '').replace(' ', 'T')) : undefined}
                           onSelect={(d) => {
                             if (!d) return;
-                            const currentTime = createStartAt ? createStartAt.split('T')[1] || '18:00' : '18:00';
+                            const rawTime = (createStartAt?.split('T')[1] || createStartAt?.split(' ')[1] || '18:00');
+                            const currentTime = rawTime.replace('Z', '').slice(0, 5) || '18:00';
                             const dateStr = format(d, 'yyyy-MM-dd');
                             setCreateStartAt(`${dateStr}T${currentTime}`);
                           }}
@@ -3639,9 +3644,9 @@ export default function EventsPage() {
                           </span>
                           <input
                             type="time"
-                            value={createStartAt ? createStartAt.split('T')[1] || '18:00' : '18:00'}
+                            value={(createStartAt?.split('T')[1] || createStartAt?.split(' ')[1] || '18:00').replace('Z', '').slice(0, 5)}
                             onChange={(e) => {
-                              const currentDate = createStartAt ? createStartAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                              const currentDate = (createStartAt?.split('T')[0] || createStartAt?.split(' ')[0] || format(new Date(), 'yyyy-MM-dd')).replace('Z', '');
                               setCreateStartAt(`${currentDate}T${e.target.value}`);
                             }}
                             className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
@@ -3663,7 +3668,7 @@ export default function EventsPage() {
                           <span className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
                             {createEndAt ? (
-                              format(new Date(createEndAt), 'dd MMM yyyy, HH:mm')
+                              format(new Date(createEndAt.replace('Z', '').replace(' ', 'T')), 'dd MMM yyyy, HH:mm')
                             ) : (
                               <span className="text-slate-400">Pilih waktu selesai</span>
                             )}
@@ -3673,10 +3678,11 @@ export default function EventsPage() {
                       <PopoverContent className="w-auto p-3" align="start">
                         <CalendarPicker
                           mode="single"
-                          selected={createEndAt ? new Date(createEndAt) : undefined}
+                          selected={createEndAt ? new Date(createEndAt.replace('Z', '').replace(' ', 'T')) : undefined}
                           onSelect={(d) => {
                             if (!d) return;
-                            const currentTime = createEndAt ? createEndAt.split('T')[1] || '23:00' : '23:00';
+                            const rawTime = (createEndAt?.split('T')[1] || createEndAt?.split(' ')[1] || '23:00');
+                            const currentTime = rawTime.replace('Z', '').slice(0, 5) || '23:00';
                             const dateStr = format(d, 'yyyy-MM-dd');
                             setCreateEndAt(`${dateStr}T${currentTime}`);
                           }}
@@ -3687,9 +3693,9 @@ export default function EventsPage() {
                           </span>
                           <input
                             type="time"
-                            value={createEndAt ? createEndAt.split('T')[1] || '23:00' : '23:00'}
+                            value={(createEndAt?.split('T')[1] || createEndAt?.split(' ')[1] || '23:00').replace('Z', '').slice(0, 5)}
                             onChange={(e) => {
-                              const currentDate = createEndAt ? createEndAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                              const currentDate = (createEndAt?.split('T')[0] || createEndAt?.split(' ')[0] || format(new Date(), 'yyyy-MM-dd')).replace('Z', '');
                               setCreateEndAt(`${currentDate}T${e.target.value}`);
                             }}
                             className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"

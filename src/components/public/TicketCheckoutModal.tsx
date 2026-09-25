@@ -121,6 +121,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [completedOrder, setCompletedOrder] = useState<any | null>(null);
+  const [isRetryingPayment, setIsRetryingPayment] = useState(false);
 
   // 10-Minute Reservation Countdown Timer State (600 seconds)
   const [timeLeft, setTimeLeft] = useState<number>(600);
@@ -537,6 +538,37 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
     });
   };
 
+  const handleRetryPayment = async () => {
+    if (!completedOrder?.id) return;
+    setIsRetryingPayment(true);
+    try {
+      const paymentRes = await initiateOrderPayment(completedOrder.id, {
+        payment_method: selectedPaymentCategory,
+      });
+      if (paymentRes?.payment_url) {
+        setCompletedOrder((prev: any) => ({
+          ...prev,
+          payment_url: paymentRes.payment_url,
+          payment_error: null,
+        }));
+        if (typeof window !== "undefined") {
+          window.location.href = paymentRes.payment_url;
+          return;
+        }
+      } else {
+        throw new Error("URL pembayaran tidak diterima dari server DOKU.");
+      }
+    } catch (e: any) {
+      console.warn("Retry payment error:", e);
+      setCompletedOrder((prev: any) => ({
+        ...prev,
+        payment_error: e?.message || "Gagal memproses pembayaran DOKU. Silakan coba lagi.",
+      }));
+    } finally {
+      setIsRetryingPayment(false);
+    }
+  };
+
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -820,7 +852,26 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                       <CreditCard className="w-4 h-4" />
                       <span>Lanjutkan Pembayaran Via DOKU</span>
                     </a>
-                  ) : null}
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleRetryPayment}
+                      disabled={isRetryingPayment}
+                      className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-blue-400 text-white text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25"
+                    >
+                      {isRetryingPayment ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-white" />
+                          <span>Menghubungkan DOKU...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="w-4 h-4 text-white" />
+                          <span>Coba Bayar Ulang (Order Ini)</span>
+                        </>
+                      )}
+                    </button>
+                  )}
 
                   <div className="flex gap-3">
                     <button

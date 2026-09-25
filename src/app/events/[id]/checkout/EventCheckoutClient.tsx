@@ -193,6 +193,7 @@ export default function EventCheckoutClient() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [completedOrder, setCompletedOrder] = useState<any | null>(null);
+  const [isRetryingPayment, setIsRetryingPayment] = useState(false);
 
   // Load Event Detail & User Profile
   useEffect(() => {
@@ -534,6 +535,37 @@ export default function EventCheckoutClient() {
       setPromoError(err.message || 'Gagal memverifikasi kode promo.');
     } finally {
       setIsApplyingPromo(false);
+    }
+  };
+
+  const handleRetryPayment = async () => {
+    if (!completedOrder?.id) return;
+    setIsRetryingPayment(true);
+    try {
+      const paymentRes = await initiateOrderPayment(completedOrder.id, {
+        payment_method: selectedPaymentCategory,
+      });
+      if (paymentRes?.payment_url) {
+        setCompletedOrder((prev: any) => ({
+          ...prev,
+          payment_url: paymentRes.payment_url,
+          payment_error: null,
+        }));
+        if (typeof window !== "undefined") {
+          window.location.href = paymentRes.payment_url;
+          return;
+        }
+      } else {
+        throw new Error("URL pembayaran tidak diterima dari server DOKU.");
+      }
+    } catch (e: any) {
+      console.warn("Retry payment error:", e);
+      setCompletedOrder((prev: any) => ({
+        ...prev,
+        payment_error: e?.message || "Gagal memproses pembayaran DOKU. Silakan coba lagi.",
+      }));
+    } finally {
+      setIsRetryingPayment(false);
     }
   };
 
@@ -2064,7 +2096,26 @@ export default function EventCheckoutClient() {
                       <CreditCard className="w-4 h-4 text-slate-950" />
                       <span>Lanjutkan Pembayaran Via DOKU</span>
                     </a>
-                  ) : null}
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleRetryPayment}
+                      disabled={isRetryingPayment}
+                      className="w-full sm:flex-1 py-3.5 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:bg-blue-400 text-white font-black text-xs shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {isRetryingPayment ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-white" />
+                          <span>Menghubungkan DOKU...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="w-4 h-4 text-white" />
+                          <span>Coba Bayar Ulang (Order Ini)</span>
+                        </>
+                      )}
+                    </button>
+                  )}
 
                   <Link
                     href="/dashboard/tickets"

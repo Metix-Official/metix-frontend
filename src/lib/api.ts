@@ -4140,3 +4140,29 @@ export async function updateAccountPassword(data: {
 
   return true;
 }
+
+// ----------------------------------------------------------------------
+// MANUAL SYNC PAID ORDER API (SUPER ADMIN / OWNER)
+// ----------------------------------------------------------------------
+export async function manualSyncPaidOrder(invoiceNumber: string): Promise<{ success: boolean; message: string; data?: any }> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/owner/orders/manual-sync-paid`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getHeaders(token),
+    },
+    body: JSON.stringify({ invoice_number: invoiceNumber }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data?.message || 'Gagal memproses update status pembayaran.');
+  }
+
+  return data;
+}
+

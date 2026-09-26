@@ -1618,7 +1618,7 @@ export default function EventCheckoutClient() {
                         </div>
                         <div className="min-w-0">
                           <span className="font-extrabold text-xs text-slate-900 block">Virtual Account / Transfer Bank</span>
-                          <span className="text-[10px] text-slate-500 font-bold block truncate">BCA, Mandiri, BNI, BRI, BTN, Permata, BSI, CIMB, Danamon, Maybank, Neo, Sinarmas</span>
+                          <span className="text-[10px] text-slate-500 font-bold block truncate">BNI, BRI, BTN, Permata, BSI, CIMB, Danamon, Maybank, Neo, Sinarmas</span>
                         </div>
                       </div>
                       <ChevronDown className={`w-4 h-4 transition-transform shrink-0 ${selectedPaymentCategory.startsWith('VIRTUAL_ACCOUNT_') ? 'rotate-180 text-blue-600' : 'text-slate-400'}`} />
@@ -1627,8 +1627,8 @@ export default function EventCheckoutClient() {
                     {(selectedPaymentCategory.startsWith('VIRTUAL_ACCOUNT_') || activeCategoryTab === 'VA') && (
                       <div className="p-3 bg-slate-50/90 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-3 gap-2 animate-in fade-in-0">
                         {[
-                          { id: 'VIRTUAL_ACCOUNT_BCA', name: 'BCA VA' },
-                          { id: 'VIRTUAL_ACCOUNT_MANDIRI', name: 'Mandiri VA' },
+                          // { id: 'VIRTUAL_ACCOUNT_BCA', name: 'BCA VA' },
+                          // { id: 'VIRTUAL_ACCOUNT_MANDIRI', name: 'Mandiri VA' },
                           { id: 'VIRTUAL_ACCOUNT_BNI', name: 'BNI VA' },
                           { id: 'VIRTUAL_ACCOUNT_BRI', name: 'BRI VA' },
                           { id: 'VIRTUAL_ACCOUNT_BTN', name: 'BTN VA' },

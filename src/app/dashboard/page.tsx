@@ -1625,7 +1625,12 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="space-y-5">
-                  {ticketTypesByEventList.map((eventItem: any) => {
+                  {ticketTypesByEventList
+                    .filter((ev: any) => {
+                      const st = String(ev?.event_status || '').toLowerCase();
+                      return st === 'published' || st === 'active';
+                    })
+                    .map((eventItem: any) => {
                     const types = eventItem.ticket_types || [];
                     const eventSold = eventItem.total_sold || 0;
                     const eventQuota = eventItem.total_quota || 0;
@@ -1681,71 +1686,124 @@ export default function DashboardPage() {
                               Belum ada kategori tiket yang dibuat untuk event ini.
                             </p>
                           ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
-                              {types.map((tt: any) => {
-                                const soldCount = tt.sold_count || 0;
-                                const quota = tt.quota || 0;
-                                const price = tt.price || 0;
-                                const remaining = tt.remaining ?? Math.max(0, quota - soldCount);
-                                const pct = tt.percentage ?? (quota > 0 ? Math.round((soldCount / quota) * 100) : 0);
-                                const subtotalRev = tt.revenue ?? (soldCount * price);
-                                const isSoldOut = quota > 0 && remaining === 0;
+                            (() => {
+                              // Group ticket types strictly by DB field `category` (e.g. Early Bird, VIP, Presale, Regular, Festival)
+                              const categoriesMap = new Map<string, any[]>();
+                              types.forEach((tt: any) => {
+                                const catName = String(
+                                  tt.category || tt.ticket_category || tt.ticket_type_category || 'Utama'
+                                ).trim();
+                                if (!categoriesMap.has(catName)) {
+                                  categoriesMap.set(catName, []);
+                                }
+                                categoriesMap.get(catName)!.push(tt);
+                              });
 
-                                return (
-                                  <div
-                                    key={tt.id || tt.name}
-                                    className="p-4 rounded-xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:shadow-xs transition-all space-y-3"
-                                  >
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div>
-                                        <h5 className="text-xs font-black text-slate-900 line-clamp-1">
-                                          {tt.name}
-                                        </h5>
-                                        <span className="text-[11px] font-extrabold text-indigo-600">
-                                          Rp {price.toLocaleString('id-ID')}
-                                        </span>
+                              return (
+                                <div className="space-y-4">
+                                  {Array.from(categoriesMap.entries()).map(([categoryTitle, catTypes]) => {
+                                    const catTotalSold = catTypes.reduce((sum: number, t: any) => sum + (t.sold_count || 0), 0);
+                                    const catTotalQuota = catTypes.reduce((sum: number, t: any) => sum + (t.quota || 0), 0);
+                                    const catTotalRev = catTypes.reduce((sum: number, t: any) => sum + (t.revenue || ((t.sold_count || 0) * (t.price || 0))), 0);
+
+                                    return (
+                                      <div
+                                        key={categoryTitle}
+                                        className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-3"
+                                      >
+                                        {/* Category Header */}
+                                        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                                          <div className="flex items-center gap-2">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
+                                            <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                                              Kategori: {categoryTitle}
+                                            </h5>
+                                            <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-200">
+                                              {catTypes.length} Tipe Tiket
+                                            </span>
+                                          </div>
+
+                                          <div className="flex items-center gap-3 text-[11px] font-bold text-slate-500">
+                                            <span>Terjual: <strong className="text-slate-900 font-extrabold">{catTotalSold} / {catTotalQuota}</strong></span>
+                                            <span>•</span>
+                                            <span className="text-emerald-600 font-extrabold">
+                                              Rp {catTotalRev.toLocaleString('id-ID')}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        {/* Cards Inside Category Group */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                                          {catTypes.map((tt: any) => {
+                                            const soldCount = tt.sold_count || 0;
+                                            const quota = tt.quota || 0;
+                                            const price = tt.price || 0;
+                                            const remaining = tt.remaining ?? Math.max(0, quota - soldCount);
+                                            const pct = tt.percentage ?? (quota > 0 ? Math.round((soldCount / quota) * 100) : 0);
+                                            const subtotalRev = tt.revenue ?? (soldCount * price);
+                                            const isSoldOut = quota > 0 && remaining === 0;
+
+                                            return (
+                                              <div
+                                                key={tt.id || tt.name}
+                                                className="p-4 rounded-xl bg-slate-50/60 border border-slate-200/80 hover:bg-white hover:border-indigo-300 hover:shadow-xs transition-all space-y-3"
+                                              >
+                                                <div className="flex items-start justify-between gap-2">
+                                                  <div>
+                                                    <h5 className="text-xs font-black text-slate-900 line-clamp-1">
+                                                      {tt.name}
+                                                    </h5>
+                                                    <span className="text-xs font-black text-indigo-600">
+                                                      Rp {price.toLocaleString('id-ID')}
+                                                    </span>
+                                                  </div>
+
+                                                  {isSoldOut ? (
+                                                    <span className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-black uppercase">
+                                                      Sold Out
+                                                    </span>
+                                                  ) : (
+                                                    <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black uppercase">
+                                                      Sisa {remaining}
+                                                    </span>
+                                                  )}
+                                                </div>
+
+                                                {/* Stats: Terjual vs Kuota */}
+                                                <div className="p-2.5 rounded-lg bg-white border border-slate-200/80 flex items-center justify-between text-xs">
+                                                  <span className="text-slate-500 font-semibold text-[11px]">
+                                                    Terjual:
+                                                  </span>
+                                                  <span className="font-black text-slate-900">
+                                                    {soldCount} / {quota} <span className="text-slate-400 font-normal">({pct}%)</span>
+                                                  </span>
+                                                </div>
+
+                                                {/* Progress Bar */}
+                                                <div className="space-y-1">
+                                                  <div className="w-full h-1.5 rounded-full bg-slate-200/70 overflow-hidden">
+                                                    <div
+                                                      className="h-full bg-indigo-600 rounded-full transition-all duration-500"
+                                                      style={{ width: `${Math.min(100, pct)}%` }}
+                                                    />
+                                                  </div>
+                                                  <div className="flex justify-between text-[10px] font-bold text-slate-400">
+                                                    <span>Omzet Tipe Ini:</span>
+                                                    <span className="text-slate-800 font-black">
+                                                      Rp {subtotalRev.toLocaleString('id-ID')}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
                                       </div>
-
-                                      {isSoldOut ? (
-                                        <span className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-black uppercase">
-                                          Sold Out
-                                        </span>
-                                      ) : (
-                                        <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black uppercase">
-                                          Sisa {remaining}
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    {/* Stats: Terjual vs Kuota */}
-                                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
-                                      <span className="text-slate-500 font-semibold text-[11px]">
-                                        Terjual:
-                                      </span>
-                                      <span className="font-black text-slate-900">
-                                        {soldCount} / {quota} <span className="text-slate-400 font-normal">({pct}%)</span>
-                                      </span>
-                                    </div>
-
-                                    {/* Progress Bar */}
-                                    <div className="space-y-1">
-                                      <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                                        <div
-                                          className="h-full bg-indigo-600 rounded-full transition-all duration-500"
-                                          style={{ width: `${Math.min(100, pct)}%` }}
-                                        />
-                                      </div>
-                                      <div className="flex justify-between text-[10px] font-bold text-slate-400">
-                                        <span>Omzet Tipe Ini:</span>
-                                        <span className="text-slate-800 font-black">
-                                          Rp {subtotalRev.toLocaleString('id-ID')}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()
                           )}
                         </div>
                       </div>

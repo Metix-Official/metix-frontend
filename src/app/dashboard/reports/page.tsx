@@ -51,8 +51,7 @@ export default function ReportsPage() {
 
   // Filter States
   const [selectedEventId, setSelectedEventId] = useState<string>('all');
-  const [selectedMonth, setSelectedMonth] = useState<string>('all');
-  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,8 +69,8 @@ export default function ReportsPage() {
     const [repData, evData] = await Promise.all([
       fetchSalesReportData({
         event_id: selectedEventId,
-        month: selectedMonth,
-        year: selectedYear,
+        month: 'all',
+        year: 'all',
         status: selectedStatus,
       }),
       fetchMyEvents(),
@@ -84,12 +83,47 @@ export default function ReportsPage() {
 
   useEffect(() => {
     loadData();
-  }, [selectedEventId, selectedMonth, selectedYear, selectedStatus]);
+  }, [selectedEventId, selectedStatus]);
 
   // Published Events created by EO
   const publishedEvents = useMemo(() => {
     return events.filter((ev) => String(ev.status || '').toLowerCase() === 'published');
   }, [events]);
+
+  // Extract distinct Ticket Categories strictly from DB field category filtered by selectedEventId
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    
+    // Filter orders by selected event if specified
+    const targetOrders = selectedEventId === 'all'
+      ? orders
+      : orders.filter((o) => String(o.event_id) === selectedEventId);
+
+    targetOrders.forEach((o) => {
+      const cat = (o as any).category || (o as any).ticket_category;
+      if (cat && String(cat).trim() && String(cat).trim() !== 'undefined') {
+        set.add(String(cat).trim());
+      }
+    });
+
+    // Filter events by selected event if specified
+    const targetEvents = selectedEventId === 'all'
+      ? events
+      : events.filter((ev) => String(ev.id) === selectedEventId);
+
+    targetEvents.forEach((ev) => {
+      if (ev.ticket_types) {
+        ev.ticket_types.forEach((tt) => {
+          const cat = (tt as any).category;
+          if (cat && String(cat).trim() && String(cat).trim() !== 'undefined') {
+            set.add(String(cat).trim());
+          }
+        });
+      }
+    });
+
+    return Array.from(set);
+  }, [orders, events, selectedEventId]);
 
   // Distinct payment methods extracted from orders
   const availablePaymentMethods = useMemo(() => {
@@ -114,6 +148,14 @@ export default function ReportsPage() {
           (ord.event_id && eoEventIds.has(String(ord.event_id))) ||
           (ord.event_title && eoEventTitles.has(ord.event_title.toLowerCase()))
       );
+    }
+
+    // Filter by Ticket Category Select Option
+    if (selectedCategory !== 'all') {
+      result = result.filter((ord) => {
+        const ordCategory = String((ord as any).category || (ord as any).ticket_category || '').trim();
+        return ordCategory.toLowerCase() === selectedCategory.toLowerCase();
+      });
     }
 
     // Filter by Payment Method Select Option
@@ -206,26 +248,7 @@ export default function ReportsPage() {
           ? (currentRole === ROLES.OWNER ? 'Semua Event Platform' : 'Semua Event EO (Akumulasi)')
           : selectedEventObj?.title || `Event #${selectedEventId}`;
 
-      const monthsMap: Record<string, string> = {
-        all: 'Semua Bulan (Sepanjang Tahun)',
-        '1': 'Januari',
-        '2': 'Februari',
-        '3': 'Maret',
-        '4': 'April',
-        '5': 'Mei',
-        '6': 'Juni',
-        '7': 'Juli',
-        '8': 'Agustus',
-        '9': 'September',
-        '10': 'Oktober',
-        '11': 'November',
-        '12': 'Desember',
-      };
-      const monthLabel = monthsMap[selectedMonth] || selectedMonth;
-      const periodLabel =
-        selectedMonth === 'all' && selectedYear === 'all'
-          ? 'Seluruh Periode Transaksi'
-          : `${monthLabel} ${selectedYear === 'all' ? '(Semua Tahun)' : selectedYear}`;
+      const periodLabel = 'Seluruh Periode Transaksi';
 
       const paymentFilterLabel =
         selectedPaymentMethod === 'all'
@@ -676,16 +699,33 @@ export default function ReportsPage() {
             <div className="flex flex-wrap items-center gap-2.5">
 
               {/* Event Filter (Published Only) */}
-              <div className="min-w-[180px]">
+              <div className="w-48 sm:w-56">
                 <Select value={selectedEventId} onValueChange={setSelectedEventId}>
                   <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
-                    <SelectValue placeholder="Semua Event (Published)" />
+                    <SelectValue placeholder="Semua Event Published" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Semua Event Published ({publishedEvents.length})</SelectItem>
+                    <SelectItem value="all">🌐 Semua Event Published ({publishedEvents.length})</SelectItem>
                     {publishedEvents.map((ev) => (
                       <SelectItem key={ev.id} value={String(ev.id)}>
-                        {ev.title}
+                        🎫 {ev.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Category Filter Dropdown */}
+              <div className="w-44">
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
+                    <SelectValue placeholder="Kategori Tiket" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">🏷️ Semua Kategori</SelectItem>
+                    {availableCategories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        🏷️ {cat}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -693,10 +733,10 @@ export default function ReportsPage() {
               </div>
 
               {/* Payment Method / Type Filter */}
-              <div className="min-w-[160px]">
+              <div className="w-40">
                 <Select value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
                   <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
-                    <SelectValue placeholder="Tipe Pembayaran" />
+                    <SelectValue placeholder="Metode Pembayaran" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Semua Pembayaran</SelectItem>
@@ -719,7 +759,7 @@ export default function ReportsPage() {
               </div>
 
               {/* Status Order Filter */}
-              <div className="min-w-[150px]">
+              <div className="w-32">
                 <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                   <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
                     <SelectValue placeholder="Semua Status" />
@@ -730,44 +770,6 @@ export default function ReportsPage() {
                     <SelectItem value="pending">PENDING (Menunggu)</SelectItem>
                     <SelectItem value="expired">EXPIRED (Kadaluarsa)</SelectItem>
                     <SelectItem value="cancelled">CANCELLED (Dibatalkan)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Month Filter */}
-              <div className="w-32">
-                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
-                    <SelectValue placeholder="Bulan" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Bulan</SelectItem>
-                    <SelectItem value="1">Januari</SelectItem>
-                    <SelectItem value="2">Februari</SelectItem>
-                    <SelectItem value="3">Maret</SelectItem>
-                    <SelectItem value="4">April</SelectItem>
-                    <SelectItem value="5">Mei</SelectItem>
-                    <SelectItem value="6">Juni</SelectItem>
-                    <SelectItem value="7">Juli</SelectItem>
-                    <SelectItem value="8">Agustus</SelectItem>
-                    <SelectItem value="9">September</SelectItem>
-                    <SelectItem value="10">Oktober</SelectItem>
-                    <SelectItem value="11">November</SelectItem>
-                    <SelectItem value="12">Desember</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Year Filter */}
-              <div className="w-28">
-                <Select value={selectedYear} onValueChange={setSelectedYear}>
-                  <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
-                    <SelectValue placeholder="Tahun" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Tahun</SelectItem>
-                    <SelectItem value="2025">2025</SelectItem>
-                    <SelectItem value="2026">2026</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

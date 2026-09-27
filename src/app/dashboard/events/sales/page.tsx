@@ -49,10 +49,54 @@ export default function EventSalesDetailPage() {
 
   // Filter States
   const [selectedEventId, setSelectedEventId] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
+
+  // Filter ONLY Published Events for Select Options
+  const publishedEvents = useMemo(() => {
+    return events.filter((ev) => {
+      const st = String(ev.status || '').toLowerCase();
+      return st === 'published' || st === 'active';
+    });
+  }, [events]);
+
+  // Extract distinct Ticket Categories strictly from DB field category
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    
+    // Filter orders by selected event if specified
+    const targetOrders = selectedEventId === 'all'
+      ? orders
+      : orders.filter((o) => String(o.event_id) === selectedEventId);
+
+    targetOrders.forEach((o) => {
+      const cat = (o as any).category || (o as any).ticket_category;
+      if (cat && String(cat).trim() && String(cat).trim() !== 'undefined') {
+        set.add(String(cat).trim());
+      }
+    });
+
+    // Filter events by selected event if specified
+    const targetEvents = selectedEventId === 'all'
+      ? events
+      : events.filter((ev) => String(ev.id) === selectedEventId);
+
+    targetEvents.forEach((ev) => {
+      if (ev.ticket_types) {
+        ev.ticket_types.forEach((tt) => {
+          const cat = (tt as any).category;
+          if (cat && String(cat).trim() && String(cat).trim() !== 'undefined') {
+            set.add(String(cat).trim());
+          }
+        });
+      }
+    });
+
+    return Array.from(set);
+  }, [orders, events, selectedEventId]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -87,6 +131,13 @@ export default function EventSalesDetailPage() {
       if (selectedEventId !== 'all' && String(ord.event_id) !== selectedEventId) {
         return false;
       }
+      // Category filter (berdasarkan DB field category atau ticket_type_name)
+      if (selectedCategory !== 'all') {
+        const ordCategory = String((ord as any).category || (ord as any).ticket_category || ord.ticket_type_name || '').trim();
+        if (ordCategory.toLowerCase() !== selectedCategory.toLowerCase()) {
+          return false;
+        }
+      }
       // Payment Method filter
       if (selectedPaymentMethod !== 'all' && ord.payment_method !== selectedPaymentMethod) {
         return false;
@@ -120,7 +171,7 @@ export default function EventSalesDetailPage() {
       }
       return true;
     });
-  }, [orders, selectedEventId, selectedPaymentMethod, selectedStatus, searchQuery]);
+  }, [orders, selectedEventId, selectedCategory, selectedPaymentMethod, selectedStatus, searchQuery]);
 
   // Aggregate Metrics from filtered data
   const totalTicketsSold = useMemo(() => {
@@ -552,17 +603,34 @@ export default function EventSalesDetailPage() {
 
             {/* Filter Dropdowns */}
             <div className="flex flex-wrap items-center gap-2.5">
-              {/* Event Selector */}
+              {/* Event Selector (Hanya Event Published) */}
               <div className="w-48 sm:w-56">
                 <Select value={selectedEventId} onValueChange={setSelectedEventId}>
                   <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
-                    <SelectValue placeholder="Semua Event EO" />
+                    <SelectValue placeholder="Semua Event Published" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">🌐 Semua Event ({events.length})</SelectItem>
-                    {events.map((ev) => (
+                    <SelectItem value="all">🌐 Semua Event Published ({publishedEvents.length})</SelectItem>
+                    {publishedEvents.map((ev) => (
                       <SelectItem key={ev.id} value={String(ev.id)}>
                         🎫 {ev.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Category Filter Dropdown */}
+              <div className="w-44">
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
+                    <SelectValue placeholder="Kategori Tiket" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">🏷️ Semua Kategori</SelectItem>
+                    {availableCategories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        🏷️ {cat}
                       </SelectItem>
                     ))}
                   </SelectContent>

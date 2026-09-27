@@ -255,7 +255,7 @@ export default function DashboardPage() {
     const checkinsFromApi = (s as any)?.checkinsCount || (s as any)?.check_ins_count || (dashboardData as any)?.checkinsCount || (dashboardData as any)?.stats?.checkinsCount || 0;
     const totalStaff = eoAdmins.length;
     const totalScannedFromAdmins = eoAdmins.reduce((acc, a) => acc + (a.scan_count || 0), 0);
-    const totalScanned = totalScannedFromAdmins > 0 ? totalScannedFromAdmins : (checkinsFromApi > 0 ? checkinsFromApi : 1);
+    const totalScanned = totalScannedFromAdmins > 0 ? totalScannedFromAdmins : (checkinsFromApi > 0 ? checkinsFromApi : 0);
     const staffText = totalStaff > 0 ? `${totalStaff} Staff Scanner` : 'Gate Scanner';
 
     if (currentRole === 'owner') {
@@ -1072,14 +1072,14 @@ export default function DashboardPage() {
 
         const femalePct = totalGender > 0
           ? (typeof rawGender?.female_percentage === 'number' && rawGender.female_percentage > 0
-              ? Math.round(rawGender.female_percentage)
-              : Math.round((femaleCount / totalGender) * 100))
+            ? Math.round(rawGender.female_percentage)
+            : Math.round((femaleCount / totalGender) * 100))
           : 0;
 
         const malePct = totalGender > 0
           ? (typeof rawGender?.male_percentage === 'number' && rawGender.male_percentage > 0
-              ? Math.round(rawGender.male_percentage)
-              : Math.round((maleCount / totalGender) * 100))
+            ? Math.round(rawGender.male_percentage)
+            : Math.round((maleCount / totalGender) * 100))
           : 0;
 
         const genderStats = {

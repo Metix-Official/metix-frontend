@@ -935,53 +935,102 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                     {isLoadingTickets ? (
                       <Skeleton className="h-28 w-full rounded-2xl" />
                     ) : ticketTypes.length > 0 ? (
-                      <div className="space-y-2.5">
-                        {ticketTypes.map((type) => {
-                          const priceNum = Number(type.price || 0);
-                          const availableStock = Math.max(0, (type.quota || 100) - (type.sold_quantity || 0));
-                          const selectedItem = selectedTickets.find((i) => i.ticketType.id === type.id);
-                          const qty = selectedItem ? selectedItem.quantity : 0;
+                      <div className="space-y-4">
+                        {(() => {
+                          const activeOrSoldOutTickets = ticketTypes.filter(
+                            (t) => (t.status || 'ACTIVE').toUpperCase() !== 'INACTIVE'
+                          );
 
-                          return (
-                            <div
-                              key={type.id}
-                              className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 ${qty > 0
-                                ? 'border-blue-600 bg-blue-50/50 shadow-xs'
-                                : 'border-slate-200 bg-white'
-                                }`}
-                            >
-                              <div className="space-y-0.5">
-                                <h5 className="font-extrabold text-xs text-slate-900">{type.name}</h5>
-                                <div className="text-sm font-black text-blue-700">
-                                  Rp. {priceNum.toLocaleString('id-ID')}
-                                </div>
-                                <span className="text-[10px] text-slate-400 font-bold block">
-                                  Sisa Stok: {availableStock} pcs
+                          if (activeOrSoldOutTickets.length === 0) {
+                            return (
+                              <div className="p-4 rounded-2xl bg-slate-50 text-slate-500 text-xs font-medium text-center">
+                                Belum ada jenis tiket yang aktif untuk event ini.
+                              </div>
+                            );
+                          }
+
+                          const grouped: Record<string, typeof activeOrSoldOutTickets> = {};
+                          activeOrSoldOutTickets.forEach((t) => {
+                            const cat = t.category?.trim() || 'Tiket Event';
+                            if (!grouped[cat]) grouped[cat] = [];
+                            grouped[cat].push(t);
+                          });
+
+                          return Object.entries(grouped).map(([categoryName, tickets]) => (
+                            <div key={categoryName} className="space-y-2">
+                              <div className="flex items-center gap-2 pt-1">
+                                <span className="px-2.5 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-black">
+                                  {categoryName}
                                 </span>
+                                <div className="h-px bg-slate-100 flex-1" />
                               </div>
 
-                              <div className="flex items-center gap-2 border border-slate-200 rounded-xl p-1 bg-white shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => updateQuantity(type, -1)}
-                                  disabled={qty <= 0}
-                                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-slate-100 flex items-center justify-center text-slate-700 transition-colors"
-                                >
-                                  <Minus className="w-3.5 h-3.5" />
-                                </button>
-                                <span className="w-6 text-center text-xs font-black text-slate-900">{qty}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => updateQuantity(type, 1)}
-                                  disabled={qty >= availableStock || totalTicketCount >= 4}
-                                  className="w-7 h-7 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:hover:bg-blue-600 text-white flex items-center justify-center transition-colors"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                </button>
+                              <div className="space-y-2">
+                                {tickets.map((type) => {
+                                  const priceNum = Number(type.price || 0);
+                                  const availableStock = Math.max(0, (type.quota || 100) - (type.sold_quantity || type.sold_count || 0));
+                                  const isSoldOut = (type.status || '').toUpperCase() === 'SOLD_OUT' || availableStock <= 0;
+                                  const selectedItem = selectedTickets.find((i) => i.ticketType.id === type.id);
+                                  const qty = selectedItem ? selectedItem.quantity : 0;
+
+                                  return (
+                                    <div
+                                      key={type.id}
+                                      className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                                        isSoldOut
+                                          ? 'border-slate-200 bg-slate-50 opacity-75'
+                                          : qty > 0
+                                            ? 'border-blue-600 bg-blue-50/50 shadow-xs'
+                                            : 'border-slate-200 bg-white'
+                                      }`}
+                                    >
+                                      <div className="space-y-0.5">
+                                        <div className="flex items-center gap-1.5">
+                                          <h5 className="font-extrabold text-xs text-slate-900">{type.name}</h5>
+                                          {isSoldOut ? (
+                                            <span className="text-[9px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                                              Sold Out
+                                            </span>
+                                          ) : (
+                                            <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                              Tersedia
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="text-xs font-black text-blue-700">
+                                          Rp {priceNum.toLocaleString('id-ID')}
+                                        </div>
+                                        <span className="text-[10px] text-slate-400 font-bold block">
+                                          {isSoldOut ? 'Stok Habis' : `Sisa Stok: ${availableStock} pcs`}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center gap-2 border border-slate-200 rounded-xl p-1 bg-white shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => updateQuantity(type, -1)}
+                                          disabled={isSoldOut || qty <= 0}
+                                          className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-slate-100 flex items-center justify-center text-slate-700 transition-colors disabled:cursor-not-allowed"
+                                        >
+                                          <Minus className="w-3.5 h-3.5" />
+                                        </button>
+                                        <span className="w-6 text-center text-xs font-black text-slate-900">{isSoldOut ? 0 : qty}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateQuantity(type, 1)}
+                                          disabled={isSoldOut || qty >= availableStock || totalTicketCount >= 4}
+                                          className="w-7 h-7 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:hover:bg-blue-600 text-white flex items-center justify-center transition-colors disabled:cursor-not-allowed"
+                                        >
+                                          <Plus className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
-                          );
-                        })}
+                          ));
+                        })()}
                       </div>
                     ) : (
                       <div className="p-4 rounded-2xl bg-slate-50 text-slate-500 text-xs font-medium text-center">

@@ -110,6 +110,7 @@ export interface LoginResponse {
 export interface ApiTicketType {
   id: number;
   event_id: number;
+  category?: string;
   name: string;
   description?: string;
   price: string | number;
@@ -2473,25 +2474,27 @@ export async function fetchTicketTypes(eventId: number | string): Promise<ApiTic
   let types: ApiTicketType[] = [];
 
   try {
-    const resPublic = await fetch(`${API_BASE_URL}/public/events/${eventId}`, {
-      headers: getHeaders(token),
-    });
-    if (resPublic.ok) {
-      const dataPublic = await resPublic.json();
-      const eventData = dataPublic?.data || dataPublic;
-      const resTypes = eventData?.ticket_types || eventData?.ticketTypes || [];
-      if (Array.isArray(resTypes) && resTypes.length > 0) {
-        types = resTypes;
-      }
-    }
-
-    if (types.length === 0 && token && typeof eventId === 'number') {
+    if (token && (typeof eventId === 'number' || (typeof eventId === 'string' && !isNaN(Number(eventId))))) {
       const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/ticket-types`, {
         headers: getHeaders(token),
       });
       if (response.ok) {
         const data = await response.json();
         types = data?.data || data?.ticketTypes || data || [];
+      }
+    }
+
+    if (types.length === 0) {
+      const resPublic = await fetch(`${API_BASE_URL}/public/events/${eventId}`, {
+        headers: getHeaders(token),
+      });
+      if (resPublic.ok) {
+        const dataPublic = await resPublic.json();
+        const eventData = dataPublic?.data || dataPublic;
+        const resTypes = eventData?.ticket_types || eventData?.ticketTypes || [];
+        if (Array.isArray(resTypes) && resTypes.length > 0) {
+          types = resTypes;
+        }
       }
     }
   } catch (error) {
@@ -2504,17 +2507,46 @@ export async function fetchTicketTypes(eventId: number | string): Promise<ApiTic
 export async function createTicketType(
   eventId: number,
   payload: {
+    category?: string;
     name: string;
+    description?: string;
     price: number;
     quota: number;
     max_per_order?: number;
-    sale_start_at?: string;
-    sale_end_at?: string;
-    status?: 'active' | 'inactive';
+    sale_start_at?: string | null;
+    sale_end_at?: string | null;
+    status?: 'ACTIVE' | 'INACTIVE' | 'SOLD_OUT' | string;
   }
 ): Promise<boolean> {
   const token = getStoredToken();
   if (!token) throw new Error('Silakan login terlebih dahulu (Unauthenticated).');
+
+  const bodyData: any = {
+    name: payload.name,
+    price: payload.price,
+    quota: payload.quota,
+    max_per_order: payload.max_per_order || 5,
+  };
+
+  if (payload.category) bodyData.category = payload.category;
+  if (payload.description !== undefined) bodyData.description = payload.description || null;
+  if (payload.status) bodyData.status = payload.status;
+
+  if (payload.sale_start_at && String(payload.sale_start_at).trim() !== '') {
+    let startVal = String(payload.sale_start_at).trim().replace('T', ' ');
+    if (startVal.length === 16) startVal += ':00';
+    bodyData.sale_start_at = startVal;
+  } else {
+    bodyData.sale_start_at = null;
+  }
+
+  if (payload.sale_end_at && String(payload.sale_end_at).trim() !== '') {
+    let endVal = String(payload.sale_end_at).trim().replace('T', ' ');
+    if (endVal.length === 16) endVal += ':00';
+    bodyData.sale_end_at = endVal;
+  } else {
+    bodyData.sale_end_at = null;
+  }
 
   const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/ticket-types`, {
     method: 'POST',
@@ -2522,12 +2554,7 @@ export async function createTicketType(
       'Content-Type': 'application/json',
       ...getHeaders(token),
     },
-    body: JSON.stringify({
-      name: payload.name,
-      price: payload.price,
-      quota: payload.quota,
-      max_per_order: payload.max_per_order ? Math.min(payload.max_per_order, 4) : 4,
-    }),
+    body: JSON.stringify(bodyData),
   });
 
   if (!response.ok) {
@@ -2536,6 +2563,70 @@ export async function createTicketType(
       data?.message ||
       (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
       'Gagal menambahkan tipe tiket.';
+    throw new Error(errorMsg);
+  }
+
+  return true;
+}
+
+export async function updateTicketType(
+  eventId: number,
+  ticketTypeId: number,
+  payload: {
+    category?: string;
+    name?: string;
+    description?: string;
+    price?: number;
+    quota?: number;
+    max_per_order?: number;
+    sale_start_at?: string | null;
+    sale_end_at?: string | null;
+    status?: 'ACTIVE' | 'INACTIVE' | 'SOLD_OUT' | string;
+  }
+): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu (Unauthenticated).');
+
+  const bodyData: any = { ...payload };
+
+  if (bodyData.sale_start_at !== undefined) {
+    if (bodyData.sale_start_at && String(bodyData.sale_start_at).trim() !== '') {
+      let startVal = String(bodyData.sale_start_at).trim().replace('T', ' ');
+      if (startVal.length === 16) startVal += ':00';
+      bodyData.sale_start_at = startVal;
+    } else {
+      bodyData.sale_start_at = null;
+    }
+  }
+
+  if (bodyData.sale_end_at !== undefined) {
+    if (bodyData.sale_end_at && String(bodyData.sale_end_at).trim() !== '') {
+      let endVal = String(bodyData.sale_end_at).trim().replace('T', ' ');
+      if (endVal.length === 16) endVal += ':00';
+      bodyData.sale_end_at = endVal;
+    } else {
+      bodyData.sale_end_at = null;
+    }
+  }
+
+  const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/ticket-types/${ticketTypeId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getHeaders(token),
+    },
+    body: JSON.stringify({
+      ...bodyData,
+      _method: 'PUT',
+    }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal memperbarui tipe tiket.';
     throw new Error(errorMsg);
   }
 

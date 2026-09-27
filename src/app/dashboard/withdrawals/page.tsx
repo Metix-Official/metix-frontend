@@ -139,10 +139,17 @@ export default function WithdrawalManagementPage() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      // 1. Fetch Dashboard Stats for Available Balance
-      const dash = await fetchDashboardData();
-      if (dash && dash.stats) {
-        setAvailableBalance(dash.stats.revenueThisMonth || dash.stats.totalRevenue || 0);
+      // 1. Fetch Dashboard Stats for Available Balance (Pure ticket revenue subtotal without tax/fee)
+      const dash: any = await fetchDashboardData();
+      if (dash) {
+        const payload = dash.data || dash;
+        const totalNetTicketRevenue =
+          Number(payload?.revenue?.total_gross || 0) ||
+          Number(payload?.stats?.revenue?.total_gross || 0) ||
+          Number(payload?.stats?.totalRevenue || 0) ||
+          Number(payload?.stats?.revenueThisMonth || 0) ||
+          Number(payload?.totalRevenue || 0);
+        setAvailableBalance(totalNetTicketRevenue);
       }
 
       if (isOwnerRole) {

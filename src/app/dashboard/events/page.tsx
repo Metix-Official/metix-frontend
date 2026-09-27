@@ -14,6 +14,7 @@ import {
   uploadMedia,
   publishEvent,
   cancelEvent,
+  revertToDraftEvent,
   deleteEvent,
   duplicateEvent,
   archiveEvent,
@@ -58,6 +59,7 @@ import {
   Copy,
   Archive,
   RefreshCw,
+  RotateCw,
   X,
   Loader2,
   Sparkles,
@@ -916,6 +918,27 @@ export default function EventsPage() {
     } catch (err: any) {
       toast.error('Gagal Mengarsipkan Event', {
         description: err?.message || 'Terjadi kesalahan saat membatalkan event.',
+      });
+    } finally {
+      setActionEventId(null);
+    }
+  };
+
+  const handleRevertToDraft = async (eventId: number, title: string) => {
+    setActionEventId(eventId);
+    try {
+      const ok = await revertToDraftEvent(eventId);
+      if (ok) {
+        toast.success('Event Dikembalikan ke Draft! 📝', {
+          description: `Event "${title}" berhasil dikembalikan menjadi DRAFT.`,
+        });
+        loadData();
+      } else {
+        toast.error('Gagal mengembalikan event ke Draft');
+      }
+    } catch (err: any) {
+      toast.error('Gagal Mengubah Status Event', {
+        description: err?.message || 'Terjadi kesalahan saat mengembalikan event ke Draft.',
       });
     } finally {
       setActionEventId(null);
@@ -1870,9 +1893,19 @@ export default function EventsPage() {
                           );
                         } else {
                           return (
-                            <span className="flex-1 py-2 px-2.5 rounded-xl bg-slate-100 text-slate-500 text-xs font-bold text-center border border-slate-200 flex items-center justify-center gap-1">
-                              <XCircle className="w-3.5 h-3.5 text-rose-500" /> Archived
-                            </span>
+                            <button
+                              disabled={actionEventId === item.id}
+                              onClick={() => handleRevertToDraft(item.id, item.title)}
+                              className="flex-1 py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-amber-100/80 text-slate-700 hover:text-amber-800 text-xs font-extrabold border border-slate-200 hover:border-amber-300 transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs disabled:opacity-50"
+                              title="Klik untuk kembalikan status event ini menjadi Draft"
+                            >
+                              {actionEventId === item.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                              ) : (
+                                <RotateCw className="w-3.5 h-3.5 text-amber-600" />
+                              )}
+                              <span>Ubah ke Draft</span>
+                            </button>
                           );
                         }
                       })()}

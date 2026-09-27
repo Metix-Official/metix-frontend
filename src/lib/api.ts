@@ -2427,6 +2427,27 @@ export async function cancelEvent(eventId: number): Promise<boolean> {
   return true;
 }
 
+export async function revertToDraftEvent(eventId: number): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/draft`, {
+    method: 'POST',
+    headers: getHeaders(token),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal mengembalikan event ke Draft.';
+    throw new Error(errorMsg);
+  }
+
+  return true;
+}
+
 export async function deleteEvent(eventId: number): Promise<boolean> {
   const token = getStoredToken();
   if (!token) return false;

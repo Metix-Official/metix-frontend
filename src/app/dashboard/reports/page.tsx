@@ -90,23 +90,11 @@ export default function ReportsPage() {
     return events.filter((ev) => String(ev.status || '').toLowerCase() === 'published');
   }, [events]);
 
-  // Extract distinct Ticket Categories strictly from DB field category filtered by selectedEventId
+  // Extract distinct Ticket Categories strictly from ticket_types.category for selectedEventId
   const availableCategories = useMemo(() => {
     const set = new Set<string>();
     
-    // Filter orders by selected event if specified
-    const targetOrders = selectedEventId === 'all'
-      ? orders
-      : orders.filter((o) => String(o.event_id) === selectedEventId);
-
-    targetOrders.forEach((o) => {
-      const cat = (o as any).category || (o as any).ticket_category;
-      if (cat && String(cat).trim() && String(cat).trim() !== 'undefined') {
-        set.add(String(cat).trim());
-      }
-    });
-
-    // Filter events by selected event if specified
+    // 1. Extract from events (filtered by selectedEventId)
     const targetEvents = selectedEventId === 'all'
       ? events
       : events.filter((ev) => String(ev.id) === selectedEventId);
@@ -115,8 +103,27 @@ export default function ReportsPage() {
       if (ev.ticket_types) {
         ev.ticket_types.forEach((tt) => {
           const cat = (tt as any).category;
-          if (cat && String(cat).trim() && String(cat).trim() !== 'undefined') {
+          if (cat && String(cat).trim() && String(cat).trim() !== 'null' && String(cat).trim() !== 'undefined') {
             set.add(String(cat).trim());
+          }
+        });
+      }
+    });
+
+    // 2. Extract from orders (filtered by selectedEventId) as fallback if order has category
+    const targetOrders = selectedEventId === 'all'
+      ? orders
+      : orders.filter((o) => String(o.event_id) === selectedEventId);
+
+    targetOrders.forEach((o) => {
+      const cat = (o as any).category || (o as any).ticket_category;
+      if (cat && String(cat).trim() && String(cat).trim() !== 'null' && String(cat).trim() !== 'undefined') {
+        set.add(String(cat).trim());
+      }
+      if (o.tickets) {
+        o.tickets.forEach((t: any) => {
+          if (t.category && String(t.category).trim() && String(t.category).trim() !== 'null') {
+            set.add(String(t.category).trim());
           }
         });
       }
@@ -150,15 +157,14 @@ export default function ReportsPage() {
       );
     }
 
-    // Filter by Ticket Category Select Option
+    // Filter by Ticket Category Select Option (mencocokkan murni kolom 'category' di DB ticket_types)
     if (selectedCategory !== 'all') {
       const targetCat = selectedCategory.toLowerCase().trim();
       result = result.filter((ord) => {
         const ordCategory = String((ord as any).category || (ord as any).ticket_category || '').toLowerCase().trim();
-        const ordTicketType = String(ord.ticket_type_name || '').toLowerCase().trim();
-        const ticketMatches = ord.tickets && ord.tickets.some((t: any) => String(t.ticket_type || '').toLowerCase().trim() === targetCat);
+        const ticketCategoryMatches = ord.tickets && ord.tickets.some((t: any) => String(t.category || '').toLowerCase().trim() === targetCat);
 
-        return ordCategory === targetCat || ordTicketType === targetCat || ticketMatches;
+        return ordCategory === targetCat || ticketCategoryMatches;
       });
     }
 
@@ -183,10 +189,12 @@ export default function ReportsPage() {
       });
     }
 
-    // Filter by Order Status Select Option
-    if (selectedStatus !== 'all') {
-      result = result.filter((ord) => (ord.status || '').toLowerCase() === selectedStatus.toLowerCase());
-    }
+    // Filter by Order Status (strictly show paid/completed orders only)
+    const isPaid = (ord: any) => {
+      const st = (ord.status || '').toLowerCase();
+      return st === 'paid' || st === 'completed';
+    };
+    result = result.filter(isPaid);
 
     if (!searchQuery.trim()) return result;
 
@@ -762,22 +770,6 @@ export default function ReportsPage() {
                 </Select>
               </div>
 
-              {/* Status Order Filter */}
-              <div className="w-32">
-                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                  <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
-                    <SelectValue placeholder="Semua Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Status</SelectItem>
-                    <SelectItem value="paid">PAID (Lunas)</SelectItem>
-                    <SelectItem value="pending">PENDING (Menunggu)</SelectItem>
-                    <SelectItem value="expired">EXPIRED (Kadaluarsa)</SelectItem>
-                    <SelectItem value="cancelled">CANCELLED (Dibatalkan)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
             </div>
           </div>
         </div>
@@ -830,13 +822,20 @@ export default function ReportsPage() {
                       </td>
 
                       <td className="py-2.5 px-3">
-                        <div className="flex flex-col">
+                        <div className="flex flex-col gap-0.5">
                           <span className="font-bold text-slate-900 max-w-[180px] truncate text-xs">
                             {ord.event_title}
                           </span>
-                          <span className="text-[10px] text-blue-700 font-black">
-                            {ord.ticket_type_name}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] text-blue-700 font-black">
+                              {ord.ticket_type_name}
+                            </span>
+                            {(ord as any).category || (ord as any).ticket_category ? (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-black">
+                                🏷️ {(ord as any).category || (ord as any).ticket_category}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       </td>
 

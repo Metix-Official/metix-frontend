@@ -63,23 +63,11 @@ export default function EventSalesDetailPage() {
     });
   }, [events]);
 
-  // Extract distinct Ticket Categories strictly from DB field category
+  // Extract distinct Ticket Categories strictly from ticket_types.category for selectedEventId
   const availableCategories = useMemo(() => {
     const set = new Set<string>();
     
-    // Filter orders by selected event if specified
-    const targetOrders = selectedEventId === 'all'
-      ? orders
-      : orders.filter((o) => String(o.event_id) === selectedEventId);
-
-    targetOrders.forEach((o) => {
-      const cat = (o as any).category || (o as any).ticket_category;
-      if (cat && String(cat).trim() && String(cat).trim() !== 'undefined') {
-        set.add(String(cat).trim());
-      }
-    });
-
-    // Filter events by selected event if specified
+    // 1. Extract from events (filtered by selectedEventId)
     const targetEvents = selectedEventId === 'all'
       ? events
       : events.filter((ev) => String(ev.id) === selectedEventId);
@@ -88,8 +76,27 @@ export default function EventSalesDetailPage() {
       if (ev.ticket_types) {
         ev.ticket_types.forEach((tt) => {
           const cat = (tt as any).category;
-          if (cat && String(cat).trim() && String(cat).trim() !== 'undefined') {
+          if (cat && String(cat).trim() && String(cat).trim() !== 'null' && String(cat).trim() !== 'undefined') {
             set.add(String(cat).trim());
+          }
+        });
+      }
+    });
+
+    // 2. Extract from orders (filtered by selectedEventId) as fallback if order has category
+    const targetOrders = selectedEventId === 'all'
+      ? orders
+      : orders.filter((o) => String(o.event_id) === selectedEventId);
+
+    targetOrders.forEach((o) => {
+      const cat = (o as any).category || (o as any).ticket_category;
+      if (cat && String(cat).trim() && String(cat).trim() !== 'null' && String(cat).trim() !== 'undefined') {
+        set.add(String(cat).trim());
+      }
+      if (o.tickets) {
+        o.tickets.forEach((t: any) => {
+          if (t.category && String(t.category).trim() && String(t.category).trim() !== 'null') {
+            set.add(String(t.category).trim());
           }
         });
       }
@@ -131,14 +138,13 @@ export default function EventSalesDetailPage() {
       if (selectedEventId !== 'all' && String(ord.event_id) !== selectedEventId) {
         return false;
       }
-      // Category filter (murni mencocokkan field category DB atau jenis tiket di order)
+      // Category filter (mencocokkan murni kolom 'category' dari tabel ticket_types)
       if (selectedCategory !== 'all') {
         const targetCat = selectedCategory.toLowerCase().trim();
         const ordCategory = String((ord as any).category || (ord as any).ticket_category || '').toLowerCase().trim();
-        const ordTicketType = String(ord.ticket_type_name || '').toLowerCase().trim();
-        const ticketMatches = ord.tickets && ord.tickets.some((t: any) => String(t.ticket_type || '').toLowerCase().trim() === targetCat);
+        const ticketCategoryMatches = ord.tickets && ord.tickets.some((t: any) => String(t.category || '').toLowerCase().trim() === targetCat);
 
-        if (ordCategory !== targetCat && ordTicketType !== targetCat && !ticketMatches) {
+        if (ordCategory !== targetCat && !ticketCategoryMatches) {
           return false;
         }
       }
@@ -146,12 +152,9 @@ export default function EventSalesDetailPage() {
       if (selectedPaymentMethod !== 'all' && ord.payment_method !== selectedPaymentMethod) {
         return false;
       }
-      // Status filter
-      if (selectedStatus !== 'all') {
-        const isPaid = ord.status === 'paid' || ord.status === 'completed';
-        if (selectedStatus === 'paid' && !isPaid) return false;
-        if (selectedStatus === 'pending' && isPaid) return false;
-      }
+      // Status filter (strictly only show paid/completed orders)
+      const isPaid = ord.status === 'paid' || ord.status === 'completed';
+      if (!isPaid) return false;
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -657,20 +660,6 @@ export default function EventSalesDetailPage() {
                   </SelectContent>
                 </Select>
               </div>
-
-              {/* Status Filter */}
-              <div className="w-32">
-                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                  <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Status</SelectItem>
-                    <SelectItem value="paid">Lunas / Paid</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </div>
         </div>
@@ -704,7 +693,7 @@ export default function EventSalesDetailPage() {
                     <th className="py-2.5 px-3">Order Number</th>
                     <th className="py-2.5 px-3">Nama Lengkap (Attendee)</th>
                     <th className="py-2.5 px-3">Nama Event</th>
-                    <th className="py-2.5 px-3">Ticket Type</th>
+                    <th className="py-2.5 px-3">Tipe & Kategori Tiket</th>
                     <th className="py-2.5 px-3">Subtotal (Rp)</th>
                     <th className="py-2.5 px-3">Metode Bayar</th>
                     <th className="py-2.5 px-3">Total Amount (Rp)</th>
@@ -774,12 +763,26 @@ export default function EventSalesDetailPage() {
                             </span>
                           </td>
 
-                          {/* 4. Ticket Type */}
+                          {/* 4. Tipe & Kategori Tiket (Stacked Vertically) */}
                           <td className="py-2.5 px-3">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black">
-                              <Ticket className="w-2.5 h-2.5" />
-                              {ord.ticket_type_name || 'Tiket Pass'}
-                            </span>
+                            <div className="flex flex-col gap-1 items-start">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black">
+                                <Ticket className="w-2.5 h-2.5" />
+                                {ord.ticket_type_name || 'Tiket Pass'}
+                              </span>
+                              {(() => {
+                                let cat = (ord as any).category || (ord as any).ticket_category;
+                                if (!cat && ord.tickets) {
+                                  const foundTicket = ord.tickets.find((t: any) => t.category && String(t.category).trim());
+                                  if (foundTicket) cat = foundTicket.category;
+                                }
+                                return cat ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-black">
+                                    🏷️ {cat}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
                           </td>
 
                           {/* 5. Subtotal */}

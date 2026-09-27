@@ -2983,6 +2983,7 @@ export interface ReportTicketItem {
   id: number;
   ticket_code: string;
   ticket_type: string;
+  category?: string;
   price?: number;
   full_name: string;
   email?: string;
@@ -3004,6 +3005,8 @@ export interface ReportOrderItem {
   event_id?: number;
   event_title?: string;
   ticket_type_name?: string;
+  category?: string;
+  ticket_category?: string;
   quantity: number;
   total_amount: number;
   payment_method?: string;

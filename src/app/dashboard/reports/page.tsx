@@ -152,9 +152,13 @@ export default function ReportsPage() {
 
     // Filter by Ticket Category Select Option
     if (selectedCategory !== 'all') {
+      const targetCat = selectedCategory.toLowerCase().trim();
       result = result.filter((ord) => {
-        const ordCategory = String((ord as any).category || (ord as any).ticket_category || '').trim();
-        return ordCategory.toLowerCase() === selectedCategory.toLowerCase();
+        const ordCategory = String((ord as any).category || (ord as any).ticket_category || '').toLowerCase().trim();
+        const ordTicketType = String(ord.ticket_type_name || '').toLowerCase().trim();
+        const ticketMatches = ord.tickets && ord.tickets.some((t: any) => String(t.ticket_type || '').toLowerCase().trim() === targetCat);
+
+        return ordCategory === targetCat || ordTicketType === targetCat || ticketMatches;
       });
     }
 

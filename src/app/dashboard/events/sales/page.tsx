@@ -131,10 +131,14 @@ export default function EventSalesDetailPage() {
       if (selectedEventId !== 'all' && String(ord.event_id) !== selectedEventId) {
         return false;
       }
-      // Category filter (berdasarkan DB field category atau ticket_type_name)
+      // Category filter (murni mencocokkan field category DB atau jenis tiket di order)
       if (selectedCategory !== 'all') {
-        const ordCategory = String((ord as any).category || (ord as any).ticket_category || ord.ticket_type_name || '').trim();
-        if (ordCategory.toLowerCase() !== selectedCategory.toLowerCase()) {
+        const targetCat = selectedCategory.toLowerCase().trim();
+        const ordCategory = String((ord as any).category || (ord as any).ticket_category || '').toLowerCase().trim();
+        const ordTicketType = String(ord.ticket_type_name || '').toLowerCase().trim();
+        const ticketMatches = ord.tickets && ord.tickets.some((t: any) => String(t.ticket_type || '').toLowerCase().trim() === targetCat);
+
+        if (ordCategory !== targetCat && ordTicketType !== targetCat && !ticketMatches) {
           return false;
         }
       }

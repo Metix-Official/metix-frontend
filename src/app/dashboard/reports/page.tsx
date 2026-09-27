@@ -54,6 +54,7 @@ export default function ReportsPage() {
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Role Determination
@@ -71,6 +72,7 @@ export default function ReportsPage() {
         event_id: selectedEventId,
         month: selectedMonth,
         year: selectedYear,
+        status: selectedStatus,
       }),
       fetchMyEvents(),
     ]);
@@ -82,7 +84,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     loadData();
-  }, [selectedEventId, selectedMonth, selectedYear]);
+  }, [selectedEventId, selectedMonth, selectedYear, selectedStatus]);
 
   // Published Events created by EO
   const publishedEvents = useMemo(() => {
@@ -135,6 +137,11 @@ export default function ReportsPage() {
       });
     }
 
+    // Filter by Order Status Select Option
+    if (selectedStatus !== 'all') {
+      result = result.filter((ord) => (ord.status || '').toLowerCase() === selectedStatus.toLowerCase());
+    }
+
     if (!searchQuery.trim()) return result;
 
     const q = searchQuery.toLowerCase().trim();
@@ -157,9 +164,9 @@ export default function ReportsPage() {
     });
   }, [filteredOrders]);
 
-  // Computed Report Aggregations (Paid Orders Only)
+  // Computed Report Aggregations (Paid Orders Only - Pure Ticket Price without Fee & Tax)
   const totalGrossRevenue = useMemo(
-    () => paidOrders.reduce((sum, item) => sum + item.total_amount, 0),
+    () => paidOrders.reduce((sum, item) => sum + (item.subtotal || item.total_amount || 0), 0),
     [paidOrders]
   );
 
@@ -711,6 +718,22 @@ export default function ReportsPage() {
                 </Select>
               </div>
 
+              {/* Status Order Filter */}
+              <div className="min-w-[150px]">
+                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                  <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
+                    <SelectValue placeholder="Semua Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Status</SelectItem>
+                    <SelectItem value="paid">PAID (Lunas)</SelectItem>
+                    <SelectItem value="pending">PENDING (Menunggu)</SelectItem>
+                    <SelectItem value="expired">EXPIRED (Kadaluarsa)</SelectItem>
+                    <SelectItem value="cancelled">CANCELLED (Dibatalkan)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Month Filter */}
               <div className="w-32">
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
@@ -777,7 +800,7 @@ export default function ReportsPage() {
                     <th className="py-2.5 px-3">Event & Kategori</th>
                     <th className="py-2.5 px-3">Pembayaran</th>
                     <th className="py-2.5 px-3">Qty</th>
-                    <th className="py-2.5 px-3">Total Nominal (Rp)</th>
+                    <th className="py-2.5 px-3">Total Tiket (Rp)</th>
                     <th className="py-2.5 px-3">Status</th>
                     <th className="py-2.5 px-3 text-right">Tanggal & Waktu</th>
                   </tr>
@@ -822,7 +845,7 @@ export default function ReportsPage() {
                       </td>
 
                       <td className="py-2.5 px-3 font-black text-slate-900 text-xs">
-                        Rp {ord.total_amount.toLocaleString('id-ID')}
+                        Rp {(ord.subtotal || ord.total_amount).toLocaleString('id-ID')}
                       </td>
 
                       <td className="py-2.5 px-3">

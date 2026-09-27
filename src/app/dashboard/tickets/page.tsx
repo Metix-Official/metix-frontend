@@ -83,16 +83,52 @@ function OrderCountdownCard({
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
-    if (timeLeft <= 0) return;
+    if (timeLeft <= 0) {
+      if (onDismiss) {
+        onDismiss(order.id || order.order_number);
+      }
+      return;
+    }
     const interval = setInterval(() => {
       const remaining = Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
       setTimeLeft(remaining);
       if (remaining <= 0) {
         clearInterval(interval);
+        if (onDismiss) {
+          onDismiss(order.id || order.order_number);
+        }
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [expiresAtMs, timeLeft]);
+  }, [expiresAtMs, timeLeft, onDismiss, order.id, order.order_number]);
+
+  // Automatic Background Check with DOKU Server every 8 seconds while waiting for payment
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+
+    const pollPaymentStatus = async () => {
+      try {
+        const res = await fetchPaymentStatus(order.id);
+        if (res && (res.status === 'PAID' || res.status === 'SUCCESS' || res.status === 'COMPLETED')) {
+          toast.success('Pembayaran terkonfirmasi LUNAS! Tiket Anda telah otomatis diterbitkan 🎉', { id: `auto-paid-${order.id}` });
+          onRefresh();
+        }
+      } catch (err) {
+        // Silent error on auto check
+      }
+    };
+
+    // First auto-check 3 seconds after page loads
+    const initialTimer = setTimeout(pollPaymentStatus, 3000);
+
+    // Periodic check every 8 seconds
+    const pollInterval = setInterval(pollPaymentStatus, 8000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(pollInterval);
+    };
+  }, [order.id, timeLeft, onRefresh]);
 
   const mins = Math.floor(timeLeft / 60);
   const secs = timeLeft % 60;
@@ -209,42 +245,8 @@ function OrderCountdownCard({
     }
   };
 
-  if (isDismissed) {
+  if (isDismissed || isExpired) {
     return null;
-  }
-
-  if (isExpired) {
-    return (
-      <div className="p-3 sm:p-3.5 rounded-2xl bg-rose-50 border border-rose-200/90 text-rose-950 flex items-center justify-between gap-3 shadow-2xs animate-in fade-in-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200">
-            <XCircle className="w-4 h-4" />
-          </div>
-          <div className="min-w-0 text-xs">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-extrabold text-rose-950 truncate max-w-xs sm:max-w-md">
-                Pesanan Kedaluwarsa: {eventTitle}
-              </span>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-200/80 text-rose-800">
-                Waktu 60 Menit Habis
-              </span>
-            </div>
-            <p className="text-[11px] text-rose-700 truncate">
-              Order #{orderNum.replace(/^#/, '')} • Tagihan Rp {totalPrice.toLocaleString('id-ID')} otomatis dibatalkan.
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleDismiss}
-          className="p-1 rounded-lg hover:bg-rose-200 text-rose-600 transition-colors shrink-0 cursor-pointer"
-          title="Tutup Notifikasi"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-    );
   }
 
   return (

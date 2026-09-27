@@ -1035,22 +1035,7 @@ export async function fetchEventSocialMediaApi(eventId: number | string): Promis
       const data = await res.json();
       const raw = data?.data || data?.social_media || data?.socials || data;
       const parsed = parseSocialMediaObject(raw);
-      if (parsed && (parsed.instagram || parsed.tiktok || parsed.website || parsed.whatsapp || parsed.youtube)) {
-        return parsed;
-      }
-    }
-  } catch {}
-
-  try {
-    const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/social-media`, {
-      headers: getHeaders(token),
-      cache: 'no-store',
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const raw = data?.data || data?.social_media || data?.socials || data;
-      const parsed = parseSocialMediaObject(raw);
-      if (parsed && (parsed.instagram || parsed.tiktok || parsed.website || parsed.whatsapp || parsed.youtube)) {
+      if (parsed) {
         return parsed;
       }
     }
@@ -1934,14 +1919,19 @@ export async function fetchMyEvents(): Promise<{
     const data = await response.json();
     let eventsList: ApiEvent[] = data?.data || data?.events || [];
 
-    const profile = await fetchOrganizerProfile();
-    if (profile && profile.id) {
-      const filtered = eventsList.filter((e) => {
-        const orgId = e.organizer?.id || e.organizer_id;
-        return !orgId || Number(orgId) === Number(profile.id);
-      });
-      if (filtered.length > 0) {
-        eventsList = filtered;
+    const storedUser = getStoredUser();
+    const userRole = (storedUser?.role || '').toUpperCase();
+
+    if (userRole !== 'OWNER') {
+      const profile = await fetchOrganizerProfile();
+      if (profile && profile.id) {
+        const filtered = eventsList.filter((e) => {
+          const orgId = e.organizer?.id || e.organizer_id;
+          return !orgId || Number(orgId) === Number(profile.id);
+        });
+        if (filtered.length > 0) {
+          eventsList = filtered;
+        }
       }
     }
 
@@ -2914,6 +2904,7 @@ export async function fetchSalesReportData(params?: {
   event_id?: string;
   month?: string;
   year?: string;
+  status?: string;
 }): Promise<{
   orders: ReportOrderItem[];
   events: ApiEvent[];
@@ -2928,6 +2919,7 @@ export async function fetchSalesReportData(params?: {
     if (params?.event_id && params.event_id !== 'all') query.append('event_id', params.event_id);
     if (params?.month && params.month !== 'all') query.append('month', params.month);
     if (params?.year && params.year !== 'all') query.append('year', params.year);
+    if (params?.status && params.status !== 'all') query.append('status', params.status);
 
     const url = `${API_BASE_URL}/organizer/reports?${query.toString()}`;
     const response = await fetch(url, {

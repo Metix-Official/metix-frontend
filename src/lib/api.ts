@@ -1988,16 +1988,30 @@ export async function fetchMasterEvents(params?: FetchMasterEventsParams): Promi
   if (!token) return { events: [], meta: { current_page: 1, last_page: 1, per_page: 15, total: 0 } };
 
   try {
-    const url = new URL(`${API_BASE_URL}/organizer/events`);
+    const url = new URL(`${API_BASE_URL}/owner/events`);
     if (params?.search && params.search.trim()) url.searchParams.append('search', params.search.trim());
     if (params?.status && params.status !== 'all') url.searchParams.append('status', params.status);
     if (params?.page) url.searchParams.append('page', String(params.page));
     if (params?.per_page) url.searchParams.append('per_page', String(params.per_page));
 
-    const res = await fetch(url.toString(), {
+    let res = await fetch(url.toString(), {
       headers: getHeaders(token),
       cache: 'no-store',
     });
+
+    if (!res.ok) {
+      // Fallback to organizer/events
+      const fallbackUrl = new URL(`${API_BASE_URL}/organizer/events`);
+      if (params?.search && params.search.trim()) fallbackUrl.searchParams.append('search', params.search.trim());
+      if (params?.status && params.status !== 'all') fallbackUrl.searchParams.append('status', params.status);
+      if (params?.page) fallbackUrl.searchParams.append('page', String(params.page));
+      if (params?.per_page) fallbackUrl.searchParams.append('per_page', String(params.per_page));
+
+      res = await fetch(fallbackUrl.toString(), {
+        headers: getHeaders(token),
+        cache: 'no-store',
+      });
+    }
 
     if (!res.ok) return { events: [], meta: { current_page: 1, last_page: 1, per_page: 15, total: 0 } };
 
@@ -2015,6 +2029,63 @@ export async function fetchMasterEvents(params?: FetchMasterEventsParams): Promi
     console.warn('Failed to fetch master events:', err);
     return { events: [], meta: { current_page: 1, last_page: 1, per_page: 15, total: 0 } };
   }
+}
+
+export async function updateOwnerEventStatusApi(
+  eventId: number | string,
+  status: string
+): Promise<ApiEvent> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu.');
+
+  const res = await fetch(`${API_BASE_URL}/owner/events/${eventId}/status`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ status }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.message || 'Gagal memperbarui status event.');
+  }
+
+  return data?.data || data;
+}
+
+export async function updateOwnerEventVenueApi(
+  eventId: number | string,
+  payload: {
+    name: string;
+    address?: string;
+    city?: string;
+    capacity?: number;
+    latitude?: number;
+    longitude?: number;
+  }
+): Promise<ApiEvent> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu.');
+
+  const res = await fetch(`${API_BASE_URL}/owner/events/${eventId}/venue`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.message || 'Gagal menyimpan venue dan lokasi event.');
+  }
+
+  return data?.data || data;
 }
 
 export interface ApiEventFacilityItem {
@@ -2045,6 +2116,109 @@ export async function fetchEventFacilitiesList(eventId: number | string): Promis
   }
 }
 
+export async function createEventFacilityApi(
+  eventId: number | string,
+  payload: { name: string; description?: string; image?: File | string | null }
+): Promise<ApiEventFacilityItem> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu.');
+
+  const formData = new FormData();
+  formData.append('name', payload.name);
+  if (payload.description) {
+    formData.append('description', payload.description);
+  }
+  if (payload.image instanceof File) {
+    formData.append('image', payload.image);
+  } else if (typeof payload.image === 'string' && payload.image) {
+    formData.append('image', payload.image);
+  }
+
+  const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facilities`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal menambahkan fasilitas event.';
+    throw new Error(errorMsg);
+  }
+
+  return data?.data?.facility || data?.data || data?.facility || data;
+}
+
+export async function updateEventFacilityApi(
+  eventId: number | string,
+  facilityId: number | string,
+  payload: { name: string; description?: string; image?: File | string | null }
+): Promise<ApiEventFacilityItem> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu.');
+
+  const formData = new FormData();
+  formData.append('_method', 'PUT');
+  formData.append('name', payload.name);
+  if (payload.description !== undefined) {
+    formData.append('description', payload.description || '');
+  }
+  if (payload.image instanceof File) {
+    formData.append('image', payload.image);
+  } else if (typeof payload.image === 'string' && payload.image) {
+    formData.append('image', payload.image);
+  }
+
+  const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facilities/${facilityId}`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal memperbarui fasilitas event.';
+    throw new Error(errorMsg);
+  }
+
+  return data?.data?.facility || data?.data || data?.facility || data;
+}
+
+export async function deleteEventFacilityApi(
+  eventId: number | string,
+  facilityId: number | string
+): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu.');
+
+  const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facilities/${facilityId}`, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || 'Gagal menghapus fasilitas event.');
+  }
+
+  return true;
+}
+
 export interface ApiEventLineupItem {
   id: number;
   event_id?: number;
@@ -2073,6 +2247,109 @@ export async function fetchEventLineupsList(eventId: number | string): Promise<A
   }
 }
 
+export async function createEventLineupApi(
+  eventId: number | string,
+  payload: { name: string; description?: string; image?: File | string | null }
+): Promise<ApiEventLineupItem> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu.');
+
+  const formData = new FormData();
+  formData.append('name', payload.name);
+  if (payload.description) {
+    formData.append('description', payload.description);
+  }
+  if (payload.image instanceof File) {
+    formData.append('image', payload.image);
+  } else if (typeof payload.image === 'string' && payload.image) {
+    formData.append('image', payload.image);
+  }
+
+  const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineups`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal menambahkan lineup event.';
+    throw new Error(errorMsg);
+  }
+
+  return data?.data?.lineup || data?.data || data?.lineup || data;
+}
+
+export async function updateEventLineupApi(
+  eventId: number | string,
+  lineupId: number | string,
+  payload: { name: string; description?: string; image?: File | string | null }
+): Promise<ApiEventLineupItem> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu.');
+
+  const formData = new FormData();
+  formData.append('_method', 'PUT');
+  formData.append('name', payload.name);
+  if (payload.description !== undefined) {
+    formData.append('description', payload.description || '');
+  }
+  if (payload.image instanceof File) {
+    formData.append('image', payload.image);
+  } else if (typeof payload.image === 'string' && payload.image) {
+    formData.append('image', payload.image);
+  }
+
+  const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineups/${lineupId}`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal memperbarui lineup event.';
+    throw new Error(errorMsg);
+  }
+
+  return data?.data?.lineup || data?.data || data?.lineup || data;
+}
+
+export async function deleteEventLineupApi(
+  eventId: number | string,
+  lineupId: number | string
+): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu.');
+
+  const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineups/${lineupId}`, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || 'Gagal menghapus lineup event.');
+  }
+
+  return true;
+}
+
 export interface ApiEventSocialMediaItem {
   id: number;
   event_id?: number;
@@ -2099,6 +2376,96 @@ export async function fetchEventSocialMediasList(eventId: number | string): Prom
   } catch {
     return [];
   }
+}
+
+export async function createEventSocialMediaApi(
+  eventId: number | string,
+  payload: { name: string; url?: string; description?: string }
+): Promise<ApiEventSocialMediaItem> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu.');
+
+  const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/social-medias`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      name: payload.name,
+      image: payload.url || null,
+      description: payload.description || null,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal menambahkan media sosial event.';
+    throw new Error(errorMsg);
+  }
+
+  return data?.data?.social_media || data?.data || data;
+}
+
+export async function updateEventSocialMediaApi(
+  eventId: number | string,
+  socialMediaId: number | string,
+  payload: { name: string; url?: string; description?: string }
+): Promise<ApiEventSocialMediaItem> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu.');
+
+  const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/social-medias/${socialMediaId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      name: payload.name,
+      image: payload.url !== undefined ? payload.url : null,
+      description: payload.description !== undefined ? payload.description : null,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal memperbarui media sosial event.';
+    throw new Error(errorMsg);
+  }
+
+  return data?.data?.social_media || data?.data || data;
+}
+
+export async function deleteEventSocialMediaApi(
+  eventId: number | string,
+  socialMediaId: number | string
+): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu.');
+
+  const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/social-medias/${socialMediaId}`, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || 'Gagal menghapus media sosial event.');
+  }
+
+  return true;
 }
 
 export interface ApiEventScannerItem {

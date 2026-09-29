@@ -144,10 +144,10 @@ interface SidebarNavItem {
     }
     if (currentRole === ROLES.EO) {
       return [
-        { name: 'Dashboard EO', href: '/dashboard', iconName: 'LayoutDashboard' },
-        { section: 'Master', name: 'Event', href: '/dashboard/events', iconName: 'Calendar' },
-        { section: 'Operasional', name: 'Profil Organisasi', href: '/dashboard/organization', iconName: 'Building2', badge: 'EO' },
+        { name: 'Dashboard', href: '/dashboard', iconName: 'LayoutDashboard' },
+        { name: 'Profil Organisasi', href: '/dashboard/organization', iconName: 'Building2', badge: 'EO' },
         { name: 'Penarikan Dana', href: '/dashboard/withdrawals', iconName: 'CreditCard', badge: 'Payout' },
+        { name: 'Event Saya', href: '/dashboard/events', iconName: 'Calendar', badge: 'Aktif' },
         { name: 'Kasir Offline (POS)', href: '/dashboard/pos', iconName: 'CreditCard' },
         { name: 'Kelola Admin Scan', href: '/dashboard/admins', iconName: 'Users' },
         { name: 'Laporan Scanner', href: '/dashboard/scanner-reports', iconName: 'QrCode', badge: 'Gate' },
@@ -178,17 +178,17 @@ interface SidebarNavItem {
 
       {/* Compact Sidebar Container */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-56 bg-white border-r border-slate-200/90 text-slate-800 transition-transform duration-300 ease-in-out lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'
-          } flex flex-col justify-between shadow-xs`}
+        className={`fixed top-0 left-0 z-50 h-screen w-56 bg-white border-r border-slate-200/90 text-slate-800 transition-transform duration-300 ease-in-out lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'
+          } flex flex-col justify-between shadow-xs select-none`}
       >
-        {/* Top Header / Branding */}
-        <div>
-          <div className="flex items-center justify-between h-14 sm:h-16 px-4 border-b border-slate-200/80">
+        {/* Top Header / Branding & Role Badge (Flat / Fixed di atas) */}
+        <div className="shrink-0 bg-white border-b border-slate-100">
+          <div className="flex items-center justify-between h-13 sm:h-14 px-4 pt-1">
             <Link href="/" className="flex items-center gap-2 group">
               <img
                 src="/mitex.png"
                 alt="METIX Logo"
-                className="h-7 sm:h-8 w-auto object-contain transition-transform group-hover:scale-105"
+                className="h-7 sm:h-7.5 w-auto object-contain transition-transform group-hover:scale-105"
               />
             </Link>
 
@@ -202,69 +202,70 @@ interface SidebarNavItem {
             </button>
           </div>
 
-          {/* Navigation Items & Role Badge */}
-          <div className="px-2.5 py-3.5 space-y-2">
-            <div className="px-2.5 py-1.5 rounded-xl bg-blue-50/80 border border-blue-200/80 text-blue-900 flex items-center justify-between gap-1.5 shadow-2xs">
+          {/* Role Badge (Super Admin Platform - Flat / Fixed) */}
+          <div className="px-2.5 pb-2.5 pt-0.5">
+            <div className="px-2.5 py-1.5 rounded-xl bg-blue-50/80 border border-blue-200/70 text-blue-900 flex items-center justify-between gap-1.5 shadow-2xs">
               <span className="text-[9.5px] font-black uppercase tracking-wider text-blue-800 truncate">
                 {userRoleLabel}
               </span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
             </div>
-
-            <div className="space-y-1">
-              {roleNavItems.map((item) => {
-                const IconComponent = ICON_MAP[item.iconName] || LayoutDashboard;
-
-                // Only highlight the single item matching current route pathname exactly
-                const isActive =
-                  pathname === item.href ||
-                  (item.href === '/dashboard' && (pathname === '/dashboard' || pathname === '/dashboard/'));
-
-                return (
-                  <React.Fragment key={item.name + '-' + item.href}>
-                    {item.section && (
-                      <div className="pt-3 pb-1 px-3">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                          {item.section}
-                        </span>
-                      </div>
-                    )}
-                    <Link
-                      href={item.href}
-                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 group ${isActive
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
-                        : 'text-slate-700 hover:text-blue-600 hover:bg-blue-50/70'
-                        }`}
-                    >
-                      <div className="flex items-center gap-2.5 overflow-hidden">
-                        <IconComponent
-                          className={`w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-105 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-600'
-                            }`}
-                        />
-                        <span className="whitespace-nowrap truncate">{item.name}</span>
-                      </div>
-
-                      {item.badge && (
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isActive
-                            ? 'bg-white/20 text-white'
-                            : 'bg-blue-50 text-blue-700 border border-blue-200'
-                            }`}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-                    </Link>
-                  </React.Fragment>
-                );
-              })}
-            </div>
           </div>
         </div>
 
-        {/* Footer Card / Account Info */}
-        <div className="p-3 border-t border-slate-200/80">
-          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 flex items-center justify-between shadow-2xs">
+        {/* Scrollable Navigation Menu (Bisa scroll ke bawah) */}
+        <nav className="flex-1 overflow-y-auto px-2.5 py-2 space-y-1 min-h-0">
+          {roleNavItems.map((item) => {
+            const IconComponent = ICON_MAP[item.iconName] || LayoutDashboard;
+
+            // Only highlight the single item matching current route pathname exactly
+            const isActive =
+              pathname === item.href ||
+              (item.href === '/dashboard' && (pathname === '/dashboard' || pathname === '/dashboard/'));
+
+            return (
+              <React.Fragment key={item.name + '-' + item.href}>
+                {item.section && (
+                  <div className="pt-2.5 pb-1 px-3">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      {item.section}
+                    </span>
+                  </div>
+                )}
+                <Link
+                  href={item.href}
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 group ${isActive
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
+                    : 'text-slate-700 hover:text-blue-600 hover:bg-blue-50/70'
+                    }`}
+                >
+                  <div className="flex items-center gap-2.5 overflow-hidden">
+                    <IconComponent
+                      className={`w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-105 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-600'
+                        }`}
+                    />
+                    <span className="whitespace-nowrap truncate">{item.name}</span>
+                  </div>
+
+                  {item.badge && (
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isActive
+                        ? 'bg-white/20 text-white'
+                        : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              </React.Fragment>
+            );
+          })}
+        </nav>
+
+        {/* Footer Card / Account Info (Flat / Fixed di bawah, naik sikit agar tidak tertutup localhost indicator) */}
+        <div className="shrink-0 p-2.5 pb-4 bg-white border-t border-slate-200/80">
+          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 flex items-center justify-between shadow-2xs hover:bg-slate-100/80 transition-colors">
             <div className="flex items-center gap-2.5 overflow-hidden">
               {photoUrl ? (
                 <img
@@ -278,7 +279,7 @@ interface SidebarNavItem {
                 </div>
               )}
               <div className="flex flex-col overflow-hidden">
-                <span className="text-xs font-black text-slate-900 truncate">
+                <span className="text-xs font-black text-slate-900 truncate" title={displayName}>
                   {displayName}
                 </span>
                 <span className="text-[10px] text-blue-600 font-bold truncate">

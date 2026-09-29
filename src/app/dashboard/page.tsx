@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { StatMetric, Transaction, EventItem } from '@/data/mockData';
-import { fetchDashboardData, fetchEoAdmins, fetchMyEvents, fetchUserTickets, fetchSalesReportData, fetchScannerCheckIns, DashboardResponse, EoAdminUser, getStoredUser, manualSyncPaidOrder } from '@/lib/api';
+import { fetchDashboardData, fetchOwnerOrganizers, fetchEoAdmins, fetchMyEvents, fetchUserTickets, fetchSalesReportData, fetchScannerCheckIns, DashboardResponse, EoAdminUser, getStoredUser, manualSyncPaidOrder } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
 import {
@@ -88,11 +88,17 @@ export default function DashboardPage() {
       setIsLoading(true);
 
       // 1. Akun OWNER (Super Admin Platform):
-      // Hanya panggil endpoint owner dashboard (/api/v1/owner/dashboard).
-      // Jangan panggil endpoint /organizer/* atau /scanner/* karena akan menghasilkan 403 / 404.
+      // Panggil owner dashboard dan hitung pending organizer approvals
       if (role === 'OWNER') {
-        const res = await fetchDashboardData();
-        setDashboardData(res as any);
+        const [res, pendingRes] = await Promise.all([
+          fetchDashboardData(),
+          fetchOwnerOrganizers({ status: 'PENDING_APPROVAL' }).catch(() => ({ organizers: [], meta: { total: 0 } })),
+        ]);
+        const pendingCount = (pendingRes as any)?.meta?.total ?? (pendingRes as any)?.organizers?.length ?? 0;
+        setDashboardData({
+          ...res,
+          pendingMitraCount: pendingCount,
+        } as any);
         setIsLoading(false);
         return;
       }
@@ -259,17 +265,54 @@ export default function DashboardPage() {
     const staffText = totalStaff > 0 ? `${totalStaff} Staff Scanner` : 'Gate Scanner';
 
     if (currentRole === 'owner') {
-      const pendingMitra = (s as any)?.pendingMitraApprovals ?? (s as any)?.pending_organizers ?? 0;
-      const totalEvents = (s as any)?.totalEvents ?? (s as any)?.total_events ?? 0;
-      const totalRevenue = (s as any)?.totalRevenue ?? (s as any)?.total_revenue ?? 0;
-      const commissionEarned = (s as any)?.commissionEarned ?? (s as any)?.commission_earned ?? (s as any)?.platform_commission ?? 0;
+      const rawData = (dashboardData as any)?.data || dashboardData;
+      const sOwner = (dashboardData as any)?.stats || rawData?.stats;
+
+      const totalMitra =
+        rawData?.users?.organizers ??
+        (sOwner as any)?.totalOrganizers ??
+        1;
+
+      const pendingMitra =
+        (dashboardData as any)?.pendingMitraCount ??
+        rawData?.users?.pending_organizers ??
+        (sOwner as any)?.pendingMitraApprovals ??
+        (sOwner as any)?.pending_organizers ??
+        0;
+
+      const activeMitra =
+        rawData?.users?.active_organizers ??
+        Math.max(0, totalMitra - pendingMitra);
+
+      const totalEvents =
+        rawData?.events?.total ??
+        (sOwner as any)?.totalEvents ??
+        (sOwner as any)?.total_events ??
+        0;
+
+      const totalRevenue =
+        rawData?.revenue?.total_gross ??
+        (sOwner as any)?.totalRevenue ??
+        (sOwner as any)?.total_revenue ??
+        0;
+
+      const commissionEarned =
+        (sOwner as any)?.commissionEarned ??
+        (sOwner as any)?.commission_earned ??
+        (sOwner as any)?.platform_commission ??
+        rawData?.revenue?.platform_commission ??
+        rawData?.revenue?.commission_earned ??
+        Math.round(Number(totalRevenue || 0) * 0.05);
+
+      const paidOrdersCount = rawData?.orders?.paid ?? rawData?.payments?.paid ?? 0;
+      const publishedEventsCount = rawData?.events?.published ?? 0;
 
       return [
         {
           id: 's1',
           title: 'Revenue Platform',
           value: `Rp ${Number(totalRevenue || 0).toLocaleString('id-ID')}`,
-          change: 'Gross Volume',
+          change: paidOrdersCount > 0 ? `${paidOrdersCount} Transaksi Berhasil` : 'Gross Volume',
           isPositive: true,
           period: 'total transaksi platform',
           iconName: 'DollarSign',
@@ -279,7 +322,7 @@ export default function DashboardPage() {
           id: 's2',
           title: 'Komisi Platform',
           value: `Rp ${Number(commissionEarned || 0).toLocaleString('id-ID')}`,
-          change: 'Net Platform Fee',
+          change: rawData?.revenue?.platform_commission !== undefined ? 'Platform Fee Riil' : 'Estimasi Net Fee (5%)',
           isPositive: true,
           period: 'pendapatan bersihan komisi',
           iconName: 'TrendingUp',
@@ -289,7 +332,7 @@ export default function DashboardPage() {
           id: 's3',
           title: 'Total Event Platform',
           value: Number(totalEvents || 0).toLocaleString('id-ID'),
-          change: 'Semua Mitra',
+          change: publishedEventsCount > 0 ? `${publishedEventsCount} Event Aktif` : 'Semua Mitra',
           isPositive: true,
           period: 'event terdaftar di platform',
           iconName: 'CalendarDays',
@@ -297,11 +340,11 @@ export default function DashboardPage() {
         },
         {
           id: 's4',
-          title: 'Verifikasi Mitra EO',
-          value: `${pendingMitra} Mitra`,
-          change: pendingMitra > 0 ? `${pendingMitra} Perlu Review` : 'Terkonfirmasi',
+          title: 'Mitra Event Organizer',
+          value: `${totalMitra} Mitra`,
+          change: pendingMitra > 0 ? `${pendingMitra} Perlu Review` : `${activeMitra} Terverifikasi`,
           isPositive: pendingMitra === 0,
-          period: 'pengajuan Event Organizer',
+          period: pendingMitra > 0 ? `${pendingMitra} pengajuan butuh review` : 'semua akun mitra aktif',
           iconName: 'ShieldCheck',
           href: '/dashboard/users',
         },
@@ -1631,184 +1674,184 @@ export default function DashboardPage() {
                       return st === 'published' || st === 'active';
                     })
                     .map((eventItem: any) => {
-                    const types = eventItem.ticket_types || [];
-                    const eventSold = eventItem.total_sold || 0;
-                    const eventQuota = eventItem.total_quota || 0;
-                    const eventRev = eventItem.total_revenue || 0;
-                    const fillPercent = eventQuota > 0 ? Math.round((eventSold / eventQuota) * 100) : 0;
+                      const types = eventItem.ticket_types || [];
+                      const eventSold = eventItem.total_sold || 0;
+                      const eventQuota = eventItem.total_quota || 0;
+                      const eventRev = eventItem.total_revenue || 0;
+                      const fillPercent = eventQuota > 0 ? Math.round((eventSold / eventQuota) * 100) : 0;
 
-                    return (
-                      <div
-                        key={eventItem.event_id}
-                        className="rounded-2xl border border-slate-200 overflow-hidden bg-slate-50/40 hover:border-slate-300 transition-colors"
-                      >
-                        {/* Event Header Banner */}
-                        <div className="p-4 sm:p-5 bg-white border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-black uppercase">
-                                Event #{eventItem.event_id}
-                              </span>
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase">
-                                {eventItem.event_status || 'PUBLISHED'}
-                              </span>
+                      return (
+                        <div
+                          key={eventItem.event_id}
+                          className="rounded-2xl border border-slate-200 overflow-hidden bg-slate-50/40 hover:border-slate-300 transition-colors"
+                        >
+                          {/* Event Header Banner */}
+                          <div className="p-4 sm:p-5 bg-white border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-black uppercase">
+                                  Event #{eventItem.event_id}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase">
+                                  {eventItem.event_status || 'PUBLISHED'}
+                                </span>
+                              </div>
+                              <h4 className="text-base font-black text-slate-900 tracking-tight">
+                                {eventItem.event_title}
+                              </h4>
                             </div>
-                            <h4 className="text-base font-black text-slate-900 tracking-tight">
-                              {eventItem.event_title}
-                            </h4>
+
+                            <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-600">
+                              <div className="text-left sm:text-right">
+                                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
+                                  Tiket Terjual
+                                </span>
+                                <span className="text-sm font-black text-slate-900">
+                                  {eventSold.toLocaleString('id-ID')} / {eventQuota.toLocaleString('id-ID')} ({fillPercent}%)
+                                </span>
+                              </div>
+
+                              <div className="text-left sm:text-right border-l border-slate-200 pl-4">
+                                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
+                                  Total Omzet Event
+                                </span>
+                                <span className="text-sm font-black text-emerald-600">
+                                  Rp {eventRev.toLocaleString('id-ID')}
+                                </span>
+                              </div>
+                            </div>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-600">
-                            <div className="text-left sm:text-right">
-                              <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
-                                Tiket Terjual
-                              </span>
-                              <span className="text-sm font-black text-slate-900">
-                                {eventSold.toLocaleString('id-ID')} / {eventQuota.toLocaleString('id-ID')} ({fillPercent}%)
-                              </span>
-                            </div>
+                          {/* Ticket Types Table / Cards */}
+                          <div className="p-4 sm:p-5">
+                            {types.length === 0 ? (
+                              <p className="text-xs text-slate-400 italic py-2">
+                                Belum ada kategori tiket yang dibuat untuk event ini.
+                              </p>
+                            ) : (
+                              (() => {
+                                // Group ticket types strictly by DB field `category` (e.g. Early Bird, VIP, Presale, Regular, Festival)
+                                const categoriesMap = new Map<string, any[]>();
+                                types.forEach((tt: any) => {
+                                  const catName = String(
+                                    tt.category || tt.ticket_category || tt.ticket_type_category || 'Utama'
+                                  ).trim();
+                                  if (!categoriesMap.has(catName)) {
+                                    categoriesMap.set(catName, []);
+                                  }
+                                  categoriesMap.get(catName)!.push(tt);
+                                });
 
-                            <div className="text-left sm:text-right border-l border-slate-200 pl-4">
-                              <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
-                                Total Omzet Event
-                              </span>
-                              <span className="text-sm font-black text-emerald-600">
-                                Rp {eventRev.toLocaleString('id-ID')}
-                              </span>
-                            </div>
+                                return (
+                                  <div className="space-y-4">
+                                    {Array.from(categoriesMap.entries()).map(([categoryTitle, catTypes]) => {
+                                      const catTotalSold = catTypes.reduce((sum: number, t: any) => sum + (t.sold_count || 0), 0);
+                                      const catTotalQuota = catTypes.reduce((sum: number, t: any) => sum + (t.quota || 0), 0);
+                                      const catTotalRev = catTypes.reduce((sum: number, t: any) => sum + (t.revenue || ((t.sold_count || 0) * (t.price || 0))), 0);
+
+                                      return (
+                                        <div
+                                          key={categoryTitle}
+                                          className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-3"
+                                        >
+                                          {/* Category Header */}
+                                          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                                            <div className="flex items-center gap-2">
+                                              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
+                                              <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                                                Kategori: {categoryTitle}
+                                              </h5>
+                                              <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-200">
+                                                {catTypes.length} Tipe Tiket
+                                              </span>
+                                            </div>
+
+                                            <div className="flex items-center gap-3 text-[11px] font-bold text-slate-500">
+                                              <span>Terjual: <strong className="text-slate-900 font-extrabold">{catTotalSold} / {catTotalQuota}</strong></span>
+                                              <span>•</span>
+                                              <span className="text-emerald-600 font-extrabold">
+                                                Rp {catTotalRev.toLocaleString('id-ID')}
+                                              </span>
+                                            </div>
+                                          </div>
+
+                                          {/* Cards Inside Category Group */}
+                                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                                            {catTypes.map((tt: any) => {
+                                              const soldCount = tt.sold_count || 0;
+                                              const quota = tt.quota || 0;
+                                              const price = tt.price || 0;
+                                              const remaining = tt.remaining ?? Math.max(0, quota - soldCount);
+                                              const pct = tt.percentage ?? (quota > 0 ? Math.round((soldCount / quota) * 100) : 0);
+                                              const subtotalRev = tt.revenue ?? (soldCount * price);
+                                              const isSoldOut = quota > 0 && remaining === 0;
+
+                                              return (
+                                                <div
+                                                  key={tt.id || tt.name}
+                                                  className="p-4 rounded-xl bg-slate-50/60 border border-slate-200/80 hover:bg-white hover:border-indigo-300 hover:shadow-xs transition-all space-y-3"
+                                                >
+                                                  <div className="flex items-start justify-between gap-2">
+                                                    <div>
+                                                      <h5 className="text-xs font-black text-slate-900 line-clamp-1">
+                                                        {tt.name}
+                                                      </h5>
+                                                      <span className="text-xs font-black text-indigo-600">
+                                                        Rp {price.toLocaleString('id-ID')}
+                                                      </span>
+                                                    </div>
+
+                                                    {isSoldOut ? (
+                                                      <span className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-black uppercase">
+                                                        Sold Out
+                                                      </span>
+                                                    ) : (
+                                                      <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black uppercase">
+                                                        Sisa {remaining}
+                                                      </span>
+                                                    )}
+                                                  </div>
+
+                                                  {/* Stats: Terjual vs Kuota */}
+                                                  <div className="p-2.5 rounded-lg bg-white border border-slate-200/80 flex items-center justify-between text-xs">
+                                                    <span className="text-slate-500 font-semibold text-[11px]">
+                                                      Terjual:
+                                                    </span>
+                                                    <span className="font-black text-slate-900">
+                                                      {soldCount} / {quota} <span className="text-slate-400 font-normal">({pct}%)</span>
+                                                    </span>
+                                                  </div>
+
+                                                  {/* Progress Bar */}
+                                                  <div className="space-y-1">
+                                                    <div className="w-full h-1.5 rounded-full bg-slate-200/70 overflow-hidden">
+                                                      <div
+                                                        className="h-full bg-indigo-600 rounded-full transition-all duration-500"
+                                                        style={{ width: `${Math.min(100, pct)}%` }}
+                                                      />
+                                                    </div>
+                                                    <div className="flex justify-between text-[10px] font-bold text-slate-400">
+                                                      <span>Omzet Tipe Ini:</span>
+                                                      <span className="text-slate-800 font-black">
+                                                        Rp {subtotalRev.toLocaleString('id-ID')}
+                                                      </span>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })()
+                            )}
                           </div>
                         </div>
-
-                        {/* Ticket Types Table / Cards */}
-                        <div className="p-4 sm:p-5">
-                          {types.length === 0 ? (
-                            <p className="text-xs text-slate-400 italic py-2">
-                              Belum ada kategori tiket yang dibuat untuk event ini.
-                            </p>
-                          ) : (
-                            (() => {
-                              // Group ticket types strictly by DB field `category` (e.g. Early Bird, VIP, Presale, Regular, Festival)
-                              const categoriesMap = new Map<string, any[]>();
-                              types.forEach((tt: any) => {
-                                const catName = String(
-                                  tt.category || tt.ticket_category || tt.ticket_type_category || 'Utama'
-                                ).trim();
-                                if (!categoriesMap.has(catName)) {
-                                  categoriesMap.set(catName, []);
-                                }
-                                categoriesMap.get(catName)!.push(tt);
-                              });
-
-                              return (
-                                <div className="space-y-4">
-                                  {Array.from(categoriesMap.entries()).map(([categoryTitle, catTypes]) => {
-                                    const catTotalSold = catTypes.reduce((sum: number, t: any) => sum + (t.sold_count || 0), 0);
-                                    const catTotalQuota = catTypes.reduce((sum: number, t: any) => sum + (t.quota || 0), 0);
-                                    const catTotalRev = catTypes.reduce((sum: number, t: any) => sum + (t.revenue || ((t.sold_count || 0) * (t.price || 0))), 0);
-
-                                    return (
-                                      <div
-                                        key={categoryTitle}
-                                        className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-3"
-                                      >
-                                        {/* Category Header */}
-                                        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                                          <div className="flex items-center gap-2">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
-                                            <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                                              Kategori: {categoryTitle}
-                                            </h5>
-                                            <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-200">
-                                              {catTypes.length} Tipe Tiket
-                                            </span>
-                                          </div>
-
-                                          <div className="flex items-center gap-3 text-[11px] font-bold text-slate-500">
-                                            <span>Terjual: <strong className="text-slate-900 font-extrabold">{catTotalSold} / {catTotalQuota}</strong></span>
-                                            <span>•</span>
-                                            <span className="text-emerald-600 font-extrabold">
-                                              Rp {catTotalRev.toLocaleString('id-ID')}
-                                            </span>
-                                          </div>
-                                        </div>
-
-                                        {/* Cards Inside Category Group */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                                          {catTypes.map((tt: any) => {
-                                            const soldCount = tt.sold_count || 0;
-                                            const quota = tt.quota || 0;
-                                            const price = tt.price || 0;
-                                            const remaining = tt.remaining ?? Math.max(0, quota - soldCount);
-                                            const pct = tt.percentage ?? (quota > 0 ? Math.round((soldCount / quota) * 100) : 0);
-                                            const subtotalRev = tt.revenue ?? (soldCount * price);
-                                            const isSoldOut = quota > 0 && remaining === 0;
-
-                                            return (
-                                              <div
-                                                key={tt.id || tt.name}
-                                                className="p-4 rounded-xl bg-slate-50/60 border border-slate-200/80 hover:bg-white hover:border-indigo-300 hover:shadow-xs transition-all space-y-3"
-                                              >
-                                                <div className="flex items-start justify-between gap-2">
-                                                  <div>
-                                                    <h5 className="text-xs font-black text-slate-900 line-clamp-1">
-                                                      {tt.name}
-                                                    </h5>
-                                                    <span className="text-xs font-black text-indigo-600">
-                                                      Rp {price.toLocaleString('id-ID')}
-                                                    </span>
-                                                  </div>
-
-                                                  {isSoldOut ? (
-                                                    <span className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-black uppercase">
-                                                      Sold Out
-                                                    </span>
-                                                  ) : (
-                                                    <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black uppercase">
-                                                      Sisa {remaining}
-                                                    </span>
-                                                  )}
-                                                </div>
-
-                                                {/* Stats: Terjual vs Kuota */}
-                                                <div className="p-2.5 rounded-lg bg-white border border-slate-200/80 flex items-center justify-between text-xs">
-                                                  <span className="text-slate-500 font-semibold text-[11px]">
-                                                    Terjual:
-                                                  </span>
-                                                  <span className="font-black text-slate-900">
-                                                    {soldCount} / {quota} <span className="text-slate-400 font-normal">({pct}%)</span>
-                                                  </span>
-                                                </div>
-
-                                                {/* Progress Bar */}
-                                                <div className="space-y-1">
-                                                  <div className="w-full h-1.5 rounded-full bg-slate-200/70 overflow-hidden">
-                                                    <div
-                                                      className="h-full bg-indigo-600 rounded-full transition-all duration-500"
-                                                      style={{ width: `${Math.min(100, pct)}%` }}
-                                                    />
-                                                  </div>
-                                                  <div className="flex justify-between text-[10px] font-bold text-slate-400">
-                                                    <span>Omzet Tipe Ini:</span>
-                                                    <span className="text-slate-800 font-black">
-                                                      Rp {subtotalRev.toLocaleString('id-ID')}
-                                                    </span>
-                                                  </div>
-                                                </div>
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            })()
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
               )}
             </div>

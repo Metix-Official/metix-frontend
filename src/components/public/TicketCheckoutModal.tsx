@@ -976,13 +976,12 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                                   return (
                                     <div
                                       key={type.id}
-                                      className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
-                                        isSoldOut
+                                      className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${isSoldOut
                                           ? 'border-slate-200 bg-slate-50 opacity-75'
                                           : qty > 0
                                             ? 'border-blue-600 bg-blue-50/50 shadow-xs'
                                             : 'border-slate-200 bg-white'
-                                      }`}
+                                        }`}
                                     >
                                       <div className="space-y-0.5">
                                         <div className="flex items-center gap-1.5">

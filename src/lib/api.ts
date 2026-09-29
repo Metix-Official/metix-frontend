@@ -287,8 +287,10 @@ export interface ApiTicketDetail {
   };
   ticket_type?: {
     name: string;
+    category?: string;
     price: string | number;
   };
+  category?: string;
   holder_name?: string;
   attendee?: {
     full_name?: string;
@@ -489,7 +491,7 @@ export interface CreateOfflineOrderPayload {
   buyer_phone: string;
   buyer_nik?: string;
   promo_code?: string;
-  payment_method: 'cash' | 'bank_transfer' | 'qris_offline';
+  payment_method: 'QRIS' | 'cash' | 'bank_transfer' | string;
   items: OfflineOrderItem[];
 }
 
@@ -1879,8 +1881,26 @@ export async function fetchDashboardData(): Promise<DashboardResponse | null> {
     }
 
     const data = await response.json();
+    const rawData = data?.data || data;
+
+    let normalizedStats = data?.stats || rawData?.stats;
+    if (role === 'OWNER') {
+      normalizedStats = {
+        totalEvents: rawData?.events?.total ?? normalizedStats?.totalEvents ?? 0,
+        totalRevenue: rawData?.revenue?.total_gross ?? normalizedStats?.totalRevenue ?? 0,
+        totalUsers: rawData?.users?.total ?? normalizedStats?.totalUsers ?? 0,
+        totalOrganizers: rawData?.users?.organizers ?? normalizedStats?.totalOrganizers ?? 0,
+        pendingMitraApprovals: rawData?.users?.pending_organizers ?? 0,
+        activeOrganizers: rawData?.users?.active_organizers ?? rawData?.users?.organizers ?? 0,
+        totalOrders: rawData?.orders?.total ?? normalizedStats?.totalOrders ?? 0,
+        commissionEarned: rawData?.revenue?.platform_commission ?? normalizedStats?.commissionEarned ?? Math.round((rawData?.revenue?.total_gross || 0) * 0.05),
+        ...(normalizedStats || {}),
+      };
+    }
+
     return {
       ...data,
+      stats: normalizedStats || data?.stats,
       role,
       roleLabel,
     };
@@ -2798,6 +2818,69 @@ export async function fetchOfflineDashboard(eventId: number): Promise<any> {
     return data?.data || data;
   } catch (error) {
     console.warn('Failed to fetch offline dashboard from API:', error);
+    return null;
+  }
+}
+
+export async function fetchOfflineOrderStatus(eventId: number, orderId: number): Promise<any> {
+  const token = getStoredToken();
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/offline-orders/${orderId}/status`, {
+      headers: getHeaders(token),
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    return data?.data || data;
+  } catch (error) {
+    console.warn('Failed to fetch offline order status from API:', error);
+    return null;
+  }
+}
+
+export async function simulateOfflineOrderPayment(eventId: number, orderId: number): Promise<any> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu (Unauthenticated).');
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/offline-orders/${orderId}/simulate-success`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getHeaders(token),
+      },
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) {
+      return data;
+    }
+    throw new Error(data?.message || 'Gagal simulasi pembayaran QRIS.');
+  } catch (err: any) {
+    throw err;
+  }
+}
+
+export async function fetchPublicOrderTickets(orderNumber: string): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/public/orders/${encodeURIComponent(orderNumber)}/tickets`, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      return { error: data?.message || 'Pesanan atau e-tiket tidak ditemukan.' };
+    }
+
+    return data?.data || data;
+  } catch (error) {
+    console.warn('Failed to fetch public order tickets:', error);
     return null;
   }
 }
@@ -3815,6 +3898,12 @@ export async function fetchOrganizerWithdrawals(params?: {
     per_page: number;
     total: number;
   };
+  balance?: {
+    total_revenue: number;
+    total_withdrawn: number;
+    pending_withdrawal: number;
+    available_balance: number;
+  } | null;
 }> {
   const token = getStoredToken();
   if (!token) return { withdrawals: [] };
@@ -3843,9 +3932,12 @@ export async function fetchOrganizerWithdrawals(params?: {
       total: data.data.total,
     } : undefined);
 
+    const balance = data?.data?.balance || data?.balance || null;
+
     return {
       withdrawals: rawList,
       meta,
+      balance,
     };
   } catch (error) {
     console.warn('Failed to fetch organizer withdrawals:', error);
@@ -3977,6 +4069,11 @@ export async function fetchOwnerWithdrawals(params?: {
 }): Promise<{
   withdrawals: ApiWithdrawal[];
   meta?: any;
+  summary?: {
+    total_completed_amount: number;
+    total_pending_amount: number;
+    total_count: number;
+  } | null;
 }> {
   const token = getStoredToken();
   if (!token) return { withdrawals: [] };
@@ -3999,7 +4096,8 @@ export async function fetchOwnerWithdrawals(params?: {
     const data = await response.json();
     const list = data?.data?.data || data?.data || data?.withdrawals || [];
     const meta = data?.data?.current_page ? data.data : undefined;
-    return { withdrawals: list, meta };
+    const summary = data?.data?.summary || data?.summary || null;
+    return { withdrawals: list, meta, summary };
   } catch (error) {
     console.warn('Failed to fetch owner withdrawals:', error);
     return { withdrawals: [] };
@@ -4025,28 +4123,40 @@ export async function approveOwnerWithdrawal(withdrawalId: number): Promise<bool
 
 export async function completeOwnerWithdrawal(
   withdrawalId: number,
-  proofOfTransfer?: string
-): Promise<boolean> {
+  proofOfTransfer?: string | File
+): Promise<{ success: boolean; data?: any }> {
   const token = getStoredToken();
   if (!token) throw new Error('Unauthenticated');
 
+  let body: any;
+  const headers = getHeaders(token);
+
+  if (proofOfTransfer instanceof File) {
+    const formData = new FormData();
+    formData.append('proof_of_transfer', proofOfTransfer);
+    body = formData;
+    delete (headers as any)['Content-Type'];
+  } else {
+    (headers as any)['Content-Type'] = 'application/json';
+    body = JSON.stringify({
+      proof_of_transfer: proofOfTransfer || undefined,
+    });
+  }
+
   const response = await fetch(`${API_BASE_URL}/owner/withdrawals/${withdrawalId}/complete`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getHeaders(token),
-    },
-    body: JSON.stringify({
-      proof_of_transfer: proofOfTransfer || undefined,
-    }),
+    headers,
+    body,
   });
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data?.message || 'Gagal menyelesaikan penarikan.');
+    const errorMsg = data?.message || (data?.errors ? Object.values(data.errors).flat().join(', ') : 'Gagal menyelesaikan penarikan.');
+    throw new Error(errorMsg);
   }
 
-  return true;
+  const resJson = await response.json().catch(() => ({}));
+  return { success: true, data: resJson?.data || resJson };
 }
 
 export async function rejectOwnerWithdrawal(

@@ -1,4 +1,3 @@
-'use me';
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -57,6 +56,10 @@ import {
   Eye,
   Wallet,
   Landmark,
+  Upload,
+  Image as ImageIcon,
+  MoreVertical,
+  Receipt,
 } from 'lucide-react';
 
 const COMMON_BANKS = [
@@ -116,15 +119,36 @@ export default function WithdrawalManagementPage() {
 
   // Withdrawal Detail Modal State
   const [selectedWithdrawalDetail, setSelectedWithdrawalDetail] = useState<ApiWithdrawal | null>(null);
+  const [selectedProofWithdrawal, setSelectedProofWithdrawal] = useState<ApiWithdrawal | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
-  // Owner Payout & Transfer Approval Modal State
   const [isOwnerActionModalOpen, setIsOwnerActionModalOpen] = useState(false);
   const [selectedOwnerWithdrawal, setSelectedOwnerWithdrawal] = useState<ApiWithdrawal | null>(null);
   const [proofOfTransferUrl, setProofOfTransferUrl] = useState('');
+  const [proofOfTransferFile, setProofOfTransferFile] = useState<File | null>(null);
+  const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
   const [rejectionReasonInput, setRejectionReasonInput] = useState('');
   const [isSubmittingOwnerAction, setIsSubmittingOwnerAction] = useState(false);
   const [ownerActionError, setOwnerActionError] = useState<string | null>(null);
+
+  const handleProofFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('Ukuran file maksimal 10MB');
+        return;
+      }
+      setProofOfTransferFile(file);
+      const objectUrl = URL.createObjectURL(file);
+      setProofPreviewUrl(objectUrl);
+    }
+  };
+
+  const handleRemoveProofFile = () => {
+    setProofOfTransferFile(null);
+    setProofPreviewUrl(null);
+    setProofOfTransferUrl('');
+  };
 
   // User Role Detection
   const currentUser = React.useMemo(() => getStoredUser(), []);
@@ -140,16 +164,17 @@ export default function WithdrawalManagementPage() {
     setIsLoading(true);
     try {
       // 1. Fetch Dashboard Stats for Available Balance (Pure ticket revenue subtotal without tax/fee)
+      let grossRevenue = 0;
       const dash: any = await fetchDashboardData();
       if (dash) {
         const payload = dash.data || dash;
-        const totalNetTicketRevenue =
+        grossRevenue =
           Number(payload?.revenue?.total_gross || 0) ||
           Number(payload?.stats?.revenue?.total_gross || 0) ||
           Number(payload?.stats?.totalRevenue || 0) ||
           Number(payload?.stats?.revenueThisMonth || 0) ||
           Number(payload?.totalRevenue || 0);
-        setAvailableBalance(totalNetTicketRevenue);
+        setAvailableBalance(grossRevenue);
       }
 
       if (isOwnerRole) {
@@ -180,13 +205,24 @@ export default function WithdrawalManagementPage() {
           status: statusFilter,
           page: currentPage,
         });
-        setWithdrawals(Array.isArray(res.withdrawals) ? res.withdrawals : []);
+        const list = Array.isArray(res.withdrawals) ? res.withdrawals : [];
+        setWithdrawals(list);
         if (res.meta) {
           setWithdrawalMeta({
             current_page: res.meta.current_page,
             last_page: res.meta.last_page,
             total: res.meta.total,
           });
+        }
+
+        // Accurate synchronization: Saldo Siap Dicairkan = Total Revenue - (Completed + Processing + Pending Withdrawals)
+        if (res.balance) {
+          setAvailableBalance(res.balance.available_balance);
+        } else {
+          const committedWithdrawn = list
+            .filter((w) => w.status === 'COMPLETED' || w.status === 'PENDING' || w.status === 'PROCESSING')
+            .reduce((sum, w) => sum + (w.net_amount || w.amount || 0), 0);
+          setAvailableBalance(Math.max(0, grossRevenue - committedWithdrawn));
         }
       }
     } catch (e) {
@@ -348,6 +384,13 @@ export default function WithdrawalManagementPage() {
       return;
     }
 
+    if (withdrawAmountRaw > availableBalance) {
+      setWithdrawalFormError(
+        `Saldo siap dicairkan Anda tidak mencukupi (Tersedia: Rp ${availableBalance.toLocaleString('id-ID')}).`
+      );
+      return;
+    }
+
     setIsSubmittingWithdrawal(true);
     try {
       await createWithdrawalRequest({
@@ -376,6 +419,8 @@ export default function WithdrawalManagementPage() {
   const handleOpenOwnerActionModal = (withdrawal: ApiWithdrawal) => {
     setSelectedOwnerWithdrawal(withdrawal);
     setProofOfTransferUrl(withdrawal.proof_of_transfer || '');
+    setProofOfTransferFile(null);
+    setProofPreviewUrl(withdrawal.proof_of_transfer ? getPhotoUrl(withdrawal.proof_of_transfer) : null);
     setRejectionReasonInput(withdrawal.rejection_reason || '');
     setOwnerActionError(null);
     setIsOwnerActionModalOpen(true);
@@ -402,11 +447,28 @@ export default function WithdrawalManagementPage() {
     setIsSubmittingOwnerAction(true);
     setOwnerActionError(null);
     try {
-      await completeOwnerWithdrawal(selectedOwnerWithdrawal.id, proofOfTransferUrl.trim() || undefined);
+      const payloadProof = proofOfTransferFile || (proofOfTransferUrl.trim() ? proofOfTransferUrl.trim() : undefined);
+      const res = await completeOwnerWithdrawal(selectedOwnerWithdrawal.id, payloadProof);
       toast.success('Penarikan Dana Berhasil Diselesaikan (COMPLETED)! 💸', {
-        description: 'Bukti transfer telah berhasil disimpan dan dikirimkan ke EO.',
+        description: 'Tanda terima bukti transfer telah berhasil disimpan dan dikirimkan ke EO.',
       });
-      setIsOwnerActionModalOpen(false);
+
+      const updatedProof = (res && typeof res === 'object' && res.data?.proof_of_transfer)
+        ? res.data.proof_of_transfer
+        : (proofPreviewUrl || selectedOwnerWithdrawal.proof_of_transfer);
+
+      // Transition modal state to COMPLETED so it immediately becomes disabled/read-only with only 'Kembali' button
+      setSelectedOwnerWithdrawal((prev) => prev ? {
+        ...prev,
+        status: 'COMPLETED',
+        proof_of_transfer: updatedProof,
+        processed_at: new Date().toISOString(),
+      } : null);
+
+      if (updatedProof) {
+        setProofPreviewUrl(getPhotoUrl(updatedProof));
+      }
+      setProofOfTransferFile(null);
       setProofOfTransferUrl('');
       loadData();
     } catch (err: any) {
@@ -451,25 +513,25 @@ export default function WithdrawalManagementPage() {
       case 'COMPLETED':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Completed (Dana Ditransfer)
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Completed
           </span>
         );
       case 'APPROVED':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
-            <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" /> Approved (Disetujui)
+            <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" /> Approved
           </span>
         );
       case 'PENDING':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
-            <Clock className="w-3.5 h-3.5 text-amber-600" /> Pending Review
+            <Clock className="w-3.5 h-3.5 text-amber-600" /> Pending
           </span>
         );
       case 'REJECTED':
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
-            <XCircle className="w-3.5 h-3.5 text-rose-600" /> Rejected (Ditolak)
+            <XCircle className="w-3.5 h-3.5 text-rose-600" /> Rejected
           </span>
         );
       default:
@@ -481,17 +543,38 @@ export default function WithdrawalManagementPage() {
     }
   };
 
-  const completedTotal = React.useMemo(() => {
+  // Computed Stat Metrics
+  const totalCount = React.useMemo(() => {
+    return withdrawalMeta.total || (Array.isArray(withdrawals) ? withdrawals.length : 0);
+  }, [withdrawalMeta.total, withdrawals]);
+
+  const allTotalNominal = React.useMemo(() => {
     const list = Array.isArray(withdrawals) ? withdrawals : [];
-    return list
-      .filter((w) => w.status === 'COMPLETED')
-      .reduce((sum, w) => sum + (w.net_amount || w.amount || 0), 0);
+    return list.reduce((sum, w) => sum + (w.net_amount || w.amount || 0), 0);
   }, [withdrawals]);
 
-  const pendingCount = React.useMemo(() => {
+  const completedList = React.useMemo(() => {
     const list = Array.isArray(withdrawals) ? withdrawals : [];
-    return list.filter((w) => w.status === 'PENDING').length;
+    return list.filter((w) => w.status === 'COMPLETED');
   }, [withdrawals]);
+
+  const completedTotal = React.useMemo(() => {
+    return completedList.reduce((sum, w) => sum + (w.net_amount || w.amount || 0), 0);
+  }, [completedList]);
+
+  const completedCount = completedList.length;
+
+  const pendingList = React.useMemo(() => {
+    const list = Array.isArray(withdrawals) ? withdrawals : [];
+    return list.filter((w) => w.status === 'PENDING');
+  }, [withdrawals]);
+
+  const processingList = React.useMemo(() => {
+    const list = Array.isArray(withdrawals) ? withdrawals : [];
+    return list.filter((w) => w.status === 'PROCESSING');
+  }, [withdrawals]);
+
+  const pendingAndProcessingCount = pendingList.length + processingList.length;
 
   const primaryBankAccount = React.useMemo(() => {
     const list = Array.isArray(bankAccounts) ? bankAccounts : [];
@@ -546,192 +629,278 @@ export default function WithdrawalManagementPage() {
           </div>
         </div>
 
-        {/* 4 Summary Stat Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
-              Saldo Siap Dicairkan
-            </span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-slate-900">
-                Rp {availableBalance.toLocaleString('id-ID')}
-              </h4>
-              <div className="p-1.5 rounded-xl bg-blue-50 text-blue-700">
-                <Wallet className="w-4 h-4" />
+        {/* Summary Stat Metric Cards (Owner vs EO) */}
+        {isOwnerRole ? (
+          /* OWNER STAT CARDS: Tailored for Owner/Super Admin Console */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {/* Card 1: Total Pengajuan Masuk */}
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                Total Pengajuan Masuk
+              </span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xl font-black text-slate-900">
+                    {totalCount} Transaksi
+                  </h4>
+                  <p className="text-[10px] text-slate-500 font-semibold">
+                    Nilai: Rp {allTotalNominal.toLocaleString('id-ID')}
+                  </p>
+                </div>
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
+                  <FileText className="w-5 h-5" />
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: Total Penarikan Selesai */}
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                Pencairan Selesai (Completed)
+              </span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xl font-black text-emerald-600">
+                    Rp {completedTotal.toLocaleString('id-ID')}
+                  </h4>
+                  <p className="text-[10px] text-emerald-700 font-semibold">
+                    {completedCount} Transaksi Berhasil
+                  </p>
+                </div>
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Menunggu Verifikasi & Transfer */}
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                Menunggu Verifikasi & Transfer
+              </span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className={`text-xl font-black ${pendingAndProcessingCount > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
+                    {pendingAndProcessingCount} Transaksi
+                  </h4>
+                  <p className="text-[10px] text-slate-500 font-semibold">
+                    {pendingList.length} Review, {processingList.length} Proses
+                  </p>
+                </div>
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
+                  <Clock className="w-5 h-5" />
+                </div>
+              </div>
+            </div>
+
+            {/* Card 4: Total Omzet Tiket Platform */}
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                Total Omzet Tiket Platform
+              </span>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xl font-black text-indigo-600">
+                    Rp {availableBalance.toLocaleString('id-ID')}
+                  </h4>
+                  <p className="text-[10px] text-slate-500 font-semibold">
+                    Gross GMV Tiket Event Masuk
+                  </p>
+                </div>
+                <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700">
+                  <Wallet className="w-5 h-5" />
+                </div>
               </div>
             </div>
           </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
-              Total Penarikan Sukses
-            </span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-emerald-600">
-                Rp {completedTotal.toLocaleString('id-ID')}
-              </h4>
-              <div className="p-1.5 rounded-xl bg-emerald-50 text-emerald-700">
-                <CheckCircle2 className="w-4 h-4" />
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
-              Pengajuan Dalam Review
-            </span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-amber-600">
-                {pendingCount} Transaksi
-              </h4>
-              <div className="p-1.5 rounded-xl bg-amber-50 text-amber-700">
-                <Clock className="w-4 h-4" />
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
-              Rekening Utama Pencairan
-            </span>
-            <div className="flex items-center justify-between">
-              <div className="min-w-0">
-                <h4 className="text-xs font-black text-slate-900 truncate">
-                  {primaryBankAccount ? primaryBankAccount.bank_name : 'Belum Didaftarkan'}
+        ) : (
+          /* EO STAT CARDS: Tailored for Event Organizers */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                Saldo Siap Dicairkan
+              </span>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xl font-black text-slate-900">
+                  Rp {availableBalance.toLocaleString('id-ID')}
                 </h4>
-                <p className="text-[11px] text-slate-500 font-semibold truncate">
-                  {primaryBankAccount ? primaryBankAccount.account_number : '-'}
-                </p>
+                <div className="p-1.5 rounded-xl bg-blue-50 text-blue-700">
+                  <Wallet className="w-4 h-4" />
+                </div>
               </div>
-              <div className="p-1.5 rounded-xl bg-purple-50 text-purple-700 shrink-0">
-                <Landmark className="w-4 h-4" />
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                Total Penarikan Sukses
+              </span>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xl font-black text-emerald-600">
+                  Rp {completedTotal.toLocaleString('id-ID')}
+                </h4>
+                <div className="p-1.5 rounded-xl bg-emerald-50 text-emerald-700">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                Pengajuan Dalam Proses
+              </span>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xl font-black text-amber-600">
+                  {pendingAndProcessingCount} Transaksi
+                </h4>
+                <div className="p-1.5 rounded-xl bg-amber-50 text-amber-700">
+                  <Clock className="w-4 h-4" />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                Rekening Utama Pencairan
+              </span>
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <h4 className="text-xs font-black text-slate-900 truncate">
+                    {primaryBankAccount ? primaryBankAccount.bank_name : 'Belum Didaftarkan'}
+                  </h4>
+                  <p className="text-[11px] text-slate-500 font-semibold truncate">
+                    {primaryBankAccount ? primaryBankAccount.account_number : '-'}
+                  </p>
+                </div>
+                <div className="p-1.5 rounded-xl bg-purple-50 text-purple-700 shrink-0">
+                  <Landmark className="w-4 h-4" />
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* SECTION A: KELOLA REKENING BANK EO (Hanya untuk EO) */}
         {!isOwnerRole && (
           <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            <div className="space-y-0.5">
-              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-blue-600" />
-                <span>Daftar Rekening Bank Penampung EO</span>
-              </h3>
-              <p className="text-[11px] text-slate-500 font-medium">
-                Atur rekening bank resmi organisasi Anda untuk menerima dana pencairan tiket event dari Owner.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => handleOpenBankModal()}
-              className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Tambah Rekening Bank Baru</span>
-            </button>
-          </div>
-
-          {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.from({ length: 2 }).map((_, i) => (
-                <Skeleton key={i} className="h-44 w-full rounded-2xl" />
-              ))}
-            </div>
-          ) : bankAccounts.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {bankAccounts.map((acc) => (
-                <div
-                  key={acc.id}
-                  className={`p-5 rounded-2xl border transition-all duration-300 relative flex flex-col justify-between space-y-4 ${acc.is_primary
-                    ? 'bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-white border-blue-300 shadow-md shadow-blue-600/5'
-                    : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
-                    }`}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-xl bg-blue-600 text-white font-black text-xs">
-                          <Landmark className="w-4 h-4" />
-                        </div>
-                        <span className="font-black text-sm text-slate-900">{acc.bank_name}</span>
-                      </div>
-
-                      {acc.is_primary ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
-                          <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Rekening Utama
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleSetPrimaryBank(acc.id, acc.bank_name)}
-                          className="text-[11px] font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
-                        >
-                          Set Utama
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="space-y-1">
-                      <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                        Nomor Rekening
-                      </span>
-                      <p className="text-base font-black tracking-wider text-slate-900 font-mono">
-                        {acc.account_number}
-                      </p>
-                    </div>
-
-                    <div className="space-y-0.5">
-                      <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                        Atas Nama Pemilik
-                      </span>
-                      <p className="text-xs font-extrabold text-slate-800 uppercase tracking-tight">
-                        {acc.account_holder_name}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Card Action Buttons */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenBankModal(acc)}
-                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-                    >
-                      <Pencil className="w-3.5 h-3.5 text-slate-500" /> Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeletingBankTarget(acc)}
-                      className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-rose-600" /> Hapus
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-              <Landmark className="w-10 h-10 text-slate-400 mx-auto" />
-              <div className="space-y-1">
-                <h4 className="text-sm font-extrabold text-slate-900">Belum Ada Rekening Bank</h4>
-                <p className="text-xs text-slate-500 font-medium max-w-sm mx-auto">
-                  Tambahkan minimal 1 akun rekening bank agar Anda dapat menerima dana pencairan tiket event.
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="space-y-0.5">
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-blue-600" />
+                  <span>Daftar Rekening Bank Penampung EO</span>
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Atur rekening bank resmi organisasi Anda untuk menerima dana pencairan tiket event dari Owner.
                 </p>
               </div>
+
               <button
                 type="button"
                 onClick={() => handleOpenBankModal()}
-                className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs shadow-sm cursor-pointer inline-flex items-center gap-1.5"
+                className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
               >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Tambah Rekening Bank Baru</span>
               </button>
             </div>
-          )}
-        </div>
-      )}
+
+            {isLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <Skeleton key={i} className="h-44 w-full rounded-2xl" />
+                ))}
+              </div>
+            ) : bankAccounts.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {bankAccounts.map((acc) => (
+                  <div
+                    key={acc.id}
+                    className={`p-5 rounded-2xl border transition-all duration-300 relative flex flex-col justify-between space-y-4 ${acc.is_primary
+                      ? 'bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-white border-blue-300 shadow-md shadow-blue-600/5'
+                      : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
+                      }`}
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="p-2 rounded-xl bg-blue-600 text-white font-black text-xs">
+                            <Landmark className="w-4 h-4" />
+                          </div>
+                          <span className="font-black text-sm text-slate-900">{acc.bank_name}</span>
+                        </div>
+
+                        {acc.is_primary ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
+                            <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Rekening Utama
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleSetPrimaryBank(acc.id, acc.bank_name)}
+                            className="text-[11px] font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                          >
+                            Set Utama
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                          Nomor Rekening
+                        </span>
+                        <p className="text-base font-black tracking-wider text-slate-900 font-mono">
+                          {acc.account_number}
+                        </p>
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                          Atas Nama Pemilik
+                        </span>
+                        <p className="text-xs font-extrabold text-slate-800 uppercase tracking-tight">
+                          {acc.account_holder_name}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Card Action Buttons */}
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenBankModal(acc)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        <Pencil className="w-3.5 h-3.5 text-slate-500" /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeletingBankTarget(acc)}
+                        className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" /> Hapus
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <Landmark className="w-10 h-10 text-slate-400 mx-auto" />
+                <div className="space-y-1">
+                  <h4 className="text-sm font-extrabold text-slate-900">Belum Ada Rekening Bank</h4>
+                  <p className="text-xs text-slate-500 font-medium max-w-sm mx-auto">
+                    Tambahkan minimal 1 akun rekening bank agar Anda dapat menerima dana pencairan tiket event.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenBankModal()}
+                  className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs shadow-sm cursor-pointer inline-flex items-center gap-1.5"
+                >
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* SECTION B: DAFTAR RIWAYAT PENARIKAN DANA */}
         <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-4">
@@ -774,7 +943,8 @@ export default function WithdrawalManagementPage() {
                     <th className="py-2.5 px-3">Rekening Tujuan</th>
                     <th className="py-2.5 px-3">Nominal Penarikan (Rp)</th>
                     <th className="py-2.5 px-3">Status Pengajuan</th>
-                    <th className="py-2.5 px-3 text-right rounded-r-xl">Aksi Detail</th>
+                    <th className="py-2.5 px-3 text-center">Bukti Transfer</th>
+                    <th className="py-2.5 px-3 text-right rounded-r-xl">{isOwnerRole ? 'Aksi Owner' : 'Aksi Detail'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -825,29 +995,65 @@ export default function WithdrawalManagementPage() {
 
                         <td className="py-2.5 px-3">{getStatusBadge(item.status)}</td>
 
-                        <td className="py-2.5 px-3 text-right flex items-center justify-end gap-1.5">
+                        <td className="py-2.5 px-3 text-center">
                           <button
                             type="button"
-                            onClick={() => handleOpenDetailModal(item.id)}
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-[11px] transition-all cursor-pointer inline-flex items-center gap-1"
+                            onClick={() => setSelectedProofWithdrawal(item)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-2xs group/btn ${item.proof_of_transfer
+                              ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
+                              : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                              }`}
+                            title="Klik untuk melihat Modal Bukti Transfer"
                           >
-                            <Eye className="w-3 h-3" /> Detail
+                            <MoreVertical className={`w-3.5 h-3.5 ${item.proof_of_transfer ? 'text-emerald-600' : 'text-slate-400'} group-hover/btn:scale-110 transition-transform`} />
+                            <span className="text-[11px]">{item.proof_of_transfer ? 'Lihat Struk' : 'Bukti Transfer'}</span>
+                            {item.proof_of_transfer && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            )}
                           </button>
+                        </td>
+
+                        <td className="py-2.5 px-3 text-right flex items-center justify-end gap-1.5">
+                          {!isOwnerRole && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDetailModal(item.id)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-[11px] transition-all cursor-pointer inline-flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3" /> Detail
+                            </button>
+                          )}
 
                           {isOwnerRole && (
                             <button
                               type="button"
                               onClick={() => handleOpenOwnerActionModal(item)}
-                              className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer inline-flex items-center gap-1 shadow-xs ${
+                              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-xs ${
                                 item.status === 'PENDING'
                                   ? 'bg-amber-500 hover:bg-amber-600 text-white'
                                   : item.status === 'PROCESSING'
                                   ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                  : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200'
+                                  : item.status === 'COMPLETED'
+                                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                               }`}
                             >
-                              <ShieldCheck className="w-3 h-3" />
-                              <span>{item.status === 'COMPLETED' ? 'Kelola Bukti' : 'Proses Transfer'}</span>
+                              {item.status === 'COMPLETED' ? (
+                                <>
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Selesai (Lihat Detail)</span>
+                                </>
+                              ) : item.status === 'REJECTED' ? (
+                                <>
+                                  <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>Ditolak (Lihat)</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  <span>Proses Transfer</span>
+                                </>
+                              )}
                             </button>
                           )}
                         </td>
@@ -1157,13 +1363,17 @@ export default function WithdrawalManagementPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmittingWithdrawal || withdrawAmountRaw < 10000 || !selectedBankId}
+                  disabled={isSubmittingWithdrawal || withdrawAmountRaw < 10000 || !selectedBankId || withdrawAmountRaw > availableBalance}
                   className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmittingWithdrawal ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" /> Mengirim Pengajuan...
                     </>
+                  ) : withdrawAmountRaw > availableBalance && availableBalance < 10000 ? (
+                    'Saldo Habis / Rp 0'
+                  ) : withdrawAmountRaw > availableBalance ? (
+                    'Saldo Tidak Cukup'
                   ) : (
                     <>
                       <Send className="w-4 h-4" /> Konfirmasi & Kirim Pengajuan
@@ -1290,19 +1500,71 @@ export default function WithdrawalManagementPage() {
                 </div>
 
                 {/* Proof of Transfer Preview */}
-                {selectedWithdrawalDetail.proof_of_transfer && (
-                  <div className="space-y-2">
-                    <span className="text-xs font-extrabold text-slate-700 block">
-                      Bukti Transfer dari Owner
-                    </span>
-                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 max-h-60 bg-slate-950 flex items-center justify-center p-2">
+                {selectedWithdrawalDetail.proof_of_transfer ? (
+                  <div className="space-y-3 p-4 rounded-2xl bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/40 border border-emerald-200 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                          <CheckCircle2 className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs font-black text-slate-900 uppercase tracking-wider block">
+                            Tanda Terima & Bukti Transfer Bank
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            Diunggah resmi oleh Platform Super Admin / Owner
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        Dana Berhasil Ditransfer
+                      </span>
+                    </div>
+
+                    <div className="relative rounded-xl overflow-hidden border border-emerald-200/80 bg-slate-950 flex items-center justify-center p-2.5">
                       <img
                         src={getPhotoUrl(selectedWithdrawalDetail.proof_of_transfer) || undefined}
                         alt="Bukti Transfer Penarikan"
-                        className="max-h-56 object-contain rounded-lg shadow-md"
+                        className="max-h-64 object-contain rounded-lg shadow-md"
                       />
                     </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-emerald-100">
+                      <span className="text-[11px] font-medium text-slate-500">
+                        Waktu Transfer:{' '}
+                        <strong className="text-slate-800 font-bold">
+                          {selectedWithdrawalDetail.processed_at
+                            ? new Date(selectedWithdrawalDetail.processed_at).toLocaleString('id-ID', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                            : '-'}
+                        </strong>
+                      </span>
+
+                      <a
+                        href={getPhotoUrl(selectedWithdrawalDetail.proof_of_transfer) || '#'}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-emerald-500 text-slate-800 hover:text-emerald-700 text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Lihat Struk Ukuran Penuh
+                      </a>
+                    </div>
                   </div>
+                ) : (
+                  selectedWithdrawalDetail.status === 'COMPLETED' ? null : (
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 text-xs flex items-center gap-2.5">
+                      <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span>
+                        Tanda terima bukti transfer resmi akan otomatis tampil di sini setelah Owner mentransfer dana ke rekening Anda.
+                      </span>
+                    </div>
+                  )
                 )}
 
                 {/* Rejection Reason */}
@@ -1332,149 +1594,317 @@ export default function WithdrawalManagementPage() {
       )}
 
       {/* ================= MODAL OWNER APPROVAL & TRANSFER (PAYOUT CONSOLE) ================= */}
-      {isOwnerActionModalOpen && selectedOwnerWithdrawal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0 overflow-y-auto">
-          <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl p-6 sm:p-8 border border-slate-200 space-y-6 my-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="space-y-1">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black uppercase tracking-wider">
-                  <ShieldCheck className="w-3 h-3" /> Owner Approval & Transfer Console
+      {isOwnerActionModalOpen && selectedOwnerWithdrawal && (() => {
+        const isCompleted = selectedOwnerWithdrawal.status === 'COMPLETED';
+        const isRejected = selectedOwnerWithdrawal.status === 'REJECTED';
+        const isReadOnly = isCompleted || isRejected;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/75 backdrop-blur-sm animate-in fade-in-0">
+            <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[85vh] sm:max-h-[88vh] overflow-hidden animate-in zoom-in-95 duration-200">
+              {/* Header Modal (Fixed Top) */}
+              <div className="flex items-center justify-between border-b border-slate-100 p-4 sm:p-5 shrink-0 bg-white">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black uppercase tracking-wider">
+                    <ShieldCheck className="w-3 h-3" /> Owner Approval & Transfer Console
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900">
+                    Verifikasi Penarikan #{selectedOwnerWithdrawal.reference_number || selectedOwnerWithdrawal.id}
+                  </h3>
                 </div>
-                <h3 className="text-lg font-black text-slate-900">
-                  Verifikasi Penarikan #{selectedOwnerWithdrawal.reference_number || selectedOwnerWithdrawal.id}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsOwnerActionModalOpen(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Error Banner */}
-            {ownerActionError && (
-              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>{ownerActionError}</span>
-              </div>
-            )}
-
-            {/* Target EO Bank Info Box */}
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-white border border-blue-200/90 space-y-3 shadow-xs">
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600">
-                Rekening Tujuan Transfer EO (Bank / DOKU Payout)
-              </span>
-
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <span className="text-slate-400 font-bold block text-[11px]">Bank Tujuan</span>
-                  <span className="font-black text-slate-900 text-sm">
-                    {selectedOwnerWithdrawal.bank_name}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 font-bold block text-[11px]">Nomor Rekening</span>
-                  <span className="font-black text-slate-900 font-mono text-sm">
-                    {selectedOwnerWithdrawal.account_number}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 font-bold block text-[11px]">Atas Nama Pemilik</span>
-                  <span className="font-extrabold text-slate-900 uppercase">
-                    {selectedOwnerWithdrawal.account_holder_name}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 font-bold block text-[11px]">Total Net Payout</span>
-                  <span className="font-black text-emerald-600 text-base">
-                    Rp {(selectedOwnerWithdrawal.net_amount || selectedOwnerWithdrawal.amount || 0).toLocaleString('id-ID')}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Form Inputs for Bukti Transfer / Tolak */}
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-extrabold text-slate-900 block">
-                  Unggah / Tempel Link Bukti Transfer Bank (Struk / Proof)
-                </label>
-                <input
-                  type="text"
-                  value={proofOfTransferUrl}
-                  onChange={(e) => setProofOfTransferUrl(e.target.value)}
-                  placeholder="https://metix-api.lufexa.id/storage/proofs/bukti-transfer-123.jpg"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                />
-                <span className="text-[11px] text-slate-500 block">
-                  Masukkan URL gambar bukti transfer atau path struk DOKU / Bank Owner.
-                </span>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-extrabold text-slate-900 block">
-                  Alasan Penolakan (Hanya jika menolak pengajuan)
-                </label>
-                <textarea
-                  rows={2}
-                  value={rejectionReasonInput}
-                  onChange={(e) => setRejectionReasonInput(e.target.value)}
-                  placeholder="Contoh: Nomor rekening tidak cocok dengan nama pemilik akun..."
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-rose-500 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Action Buttons Cluster */}
-            <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <button
-                type="button"
-                disabled={isSubmittingOwnerAction}
-                onClick={handleOwnerReject}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs border border-rose-200 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <XCircle className="w-4 h-4 text-rose-600" /> Tolak Penarikan
-              </button>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                {selectedOwnerWithdrawal.status === 'PENDING' && (
-                  <button
-                    type="button"
-                    disabled={isSubmittingOwnerAction}
-                    onClick={handleOwnerApprove}
-                    className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    {isSubmittingOwnerAction ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Clock className="w-4 h-4" /> Set Processing
-                      </>
-                    )}
-                  </button>
-                )}
-
                 <button
                   type="button"
-                  disabled={isSubmittingOwnerAction}
-                  onClick={handleOwnerComplete}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  onClick={() => setIsOwnerActionModalOpen(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  title="Tutup Modal"
                 >
-                  {isSubmittingOwnerAction ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" /> Selesaikan & Kirim Bukti
-                    </>
-                  )}
+                  <X className="w-5 h-5" />
                 </button>
+              </div>
+
+              {/* Body Modal (Scrollable Content with min-h-0) */}
+              <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
+                {/* Completed Banner */}
+                {isCompleted && (
+                  <div className="p-4 rounded-2xl bg-emerald-50/90 border border-emerald-200 text-emerald-900 text-xs flex items-start gap-3 shadow-2xs">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-sm text-emerald-950">
+                          Pencairan Dana Telah Selesai (COMPLETED)
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-200/70 text-emerald-800 text-[10px] font-extrabold uppercase">
+                          Terkunci
+                        </span>
+                      </div>
+                      <p className="text-xs text-emerald-800 font-medium leading-relaxed">
+                        Dana sebesar <strong className="text-emerald-950">Rp {(selectedOwnerWithdrawal.net_amount || selectedOwnerWithdrawal.amount || 0).toLocaleString('id-ID')}</strong> telah berhasil ditransfer ke rekening EO pada{' '}
+                        <strong className="text-emerald-950">
+                          {selectedOwnerWithdrawal.processed_at
+                            ? new Date(selectedOwnerWithdrawal.processed_at).toLocaleString('id-ID', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                            : 'Selesai'}
+                        </strong>. Bukti transfer sudah tersimpan permanen dan status terkunci (tidak dapat diubah).
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Rejected Banner */}
+                {isRejected && (
+                  <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-3">
+                    <XCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <span className="font-black block text-sm">Pengajuan Ditolak (REJECTED)</span>
+                      <p className="text-xs text-rose-700 font-medium">
+                        Alasan: {selectedOwnerWithdrawal.rejection_reason || 'Tidak ada alasan khusus.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Banner */}
+                {ownerActionError && (
+                  <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{ownerActionError}</span>
+                  </div>
+                )}
+
+                {/* Target EO Bank Info Box */}
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-white border border-blue-200/90 space-y-2.5 shadow-2xs">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-600">
+                    Rekening Tujuan Transfer EO (Bank / DOKU Payout)
+                  </span>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[11px]">Bank Tujuan</span>
+                      <span className="font-black text-slate-900 text-sm">
+                        {selectedOwnerWithdrawal.bank_name}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[11px]">Nomor Rekening</span>
+                      <span className="font-black text-slate-900 font-mono text-sm">
+                        {selectedOwnerWithdrawal.account_number}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[11px]">Atas Nama Pemilik</span>
+                      <span className="font-extrabold text-slate-900 uppercase">
+                        {selectedOwnerWithdrawal.account_holder_name}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block text-[11px]">Total Net Payout</span>
+                      <span className="font-black text-emerald-600 text-base">
+                        Rp {(selectedOwnerWithdrawal.net_amount || selectedOwnerWithdrawal.amount || 0).toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bukti Transfer Display / Upload Zone */}
+                {isReadOnly ? (
+                  /* READ-ONLY PROOF DISPLAY FOR COMPLETED WITHDRAWAL */
+                  proofPreviewUrl ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5 text-[11px]">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Struk / Bukti Transfer Tersimpan:
+                        </span>
+                        <a
+                          href={proofPreviewUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-bold text-[11px]"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" /> Buka Layar Penuh
+                        </a>
+                      </div>
+
+                      <div className="relative rounded-2xl overflow-hidden border border-emerald-200/90 bg-slate-950 p-2 flex items-center justify-center">
+                        <img
+                          src={proofPreviewUrl}
+                          alt="Bukti Transfer"
+                          className="max-h-60 sm:max-h-72 w-full object-contain rounded-xl shadow-md"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 text-xs text-center">
+                      Tidak ada gambar struk yang dilampirkan.
+                    </div>
+                  )
+                ) : (
+                  /* EDITABLE FORM INPUTS FOR PENDING / PROCESSING WITHDRAWAL */
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-extrabold text-slate-900 block">
+                          Unggah Bukti / Tanda Terima Transfer Bank (Struk / Proof)
+                        </label>
+                        <span className="text-[10px] font-bold text-slate-400">Maks. 10MB (JPG, PNG, PDF)</span>
+                      </div>
+
+                      {proofPreviewUrl ? (
+                        <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 p-2 flex items-center justify-center">
+                          <img
+                            src={proofPreviewUrl}
+                            alt="Preview Bukti Transfer"
+                            className="max-h-48 sm:max-h-52 w-full object-contain rounded-xl"
+                          />
+                          <div className="absolute top-3 right-3 flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={isSubmittingOwnerAction}
+                              onClick={handleRemoveProofFile}
+                              className="px-3 py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-700 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                            >
+                              <X className="w-3.5 h-3.5" /> Ganti / Hapus Struk
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <label className="border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50/40 rounded-2xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all text-center group bg-slate-50/50">
+                          <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-xs">
+                            <Upload className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-black text-slate-900 group-hover:text-blue-600 transition-colors block">
+                              Pilih File Gambar Bukti Transfer (Struk m-Banking / ATM)
+                            </span>
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              Klik atau seret file gambar/struk ke kotak ini
+                            </span>
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            disabled={isSubmittingOwnerAction}
+                            onChange={handleProofFileChange}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+
+                      {/* Alternatif Input URL Gambar */}
+                      <div className="pt-0.5">
+                        <details className="text-[11px] text-slate-500 cursor-pointer group">
+                          <summary className="font-bold hover:text-slate-800 transition-colors list-none flex items-center gap-1">
+                            <span>🔗</span>
+                            <span className="underline decoration-slate-300 underline-offset-2">Atau ingin tempel link URL gambar bukti transfer secara manual?</span>
+                          </summary>
+                          <div className="mt-2 space-y-1">
+                            <input
+                              type="text"
+                              disabled={isSubmittingOwnerAction}
+                              value={proofOfTransferUrl}
+                              onChange={(e) => {
+                                setProofOfTransferUrl(e.target.value);
+                                if (e.target.value.trim().startsWith('http')) {
+                                  setProofPreviewUrl(e.target.value.trim());
+                                }
+                              }}
+                              placeholder="https://metix-api.lufexa.id/storage/proofs/bukti-transfer-123.jpg"
+                              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none disabled:opacity-50"
+                            />
+                          </div>
+                        </details>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-900 block">
+                        Alasan Penolakan (Hanya jika menolak pengajuan)
+                      </label>
+                      <textarea
+                        rows={2}
+                        disabled={isSubmittingOwnerAction}
+                        value={rejectionReasonInput}
+                        onChange={(e) => setRejectionReasonInput(e.target.value)}
+                        placeholder="Contoh: Nomor rekening tidak cocok dengan nama pemilik akun..."
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-rose-500 focus:outline-none disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Modal (Fixed Bottom - Never cut off) */}
+              <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50/95 shrink-0 z-10 shadow-xs">
+                {isReadOnly ? (
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Transaksi Selesai & Terkunci
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsOwnerActionModalOpen(false)}
+                      className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs transition-all cursor-pointer shadow-sm flex items-center gap-1.5"
+                    >
+                      Kembali
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      disabled={isSubmittingOwnerAction}
+                      onClick={handleOwnerReject}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs border border-rose-200 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      <XCircle className="w-4 h-4 text-rose-600" /> Tolak Penarikan
+                    </button>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                      {selectedOwnerWithdrawal.status === 'PENDING' && (
+                        <button
+                          type="button"
+                          disabled={isSubmittingOwnerAction}
+                          onClick={handleOwnerApprove}
+                          className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                        >
+                          {isSubmittingOwnerAction ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Clock className="w-4 h-4" /> Set Processing
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        disabled={isSubmittingOwnerAction}
+                        onClick={handleOwnerComplete}
+                        className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        {isSubmittingOwnerAction ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" /> Menyimpan & Mengirim...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-4 h-4" /> Selesaikan & Kirim Bukti
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ================= MODAL KONFIRMASI HAPUS REKENING ================= */}
       {deletingBankTarget && (
@@ -1512,6 +1942,168 @@ export default function WithdrawalManagementPage() {
                 ) : (
                   'Ya, Hapus Rekening'
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ================= MODAL BUKTI TRANSFER (PROOF OF TRANSFER MODAL) ================= */}
+      {selectedProofWithdrawal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0 overflow-y-auto">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8 animate-in zoom-in-95 duration-200">
+            {/* Header Modal */}
+            <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white p-5 sm:p-6 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-300 shadow-inner">
+                  <Receipt className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black tracking-tight text-white flex items-center gap-2">
+                    Bukti Transfer Dana
+                  </h3>
+                  <p className="text-xs text-blue-200/80 font-medium">
+                    No. Ref: <span className="font-mono font-bold text-white">{selectedProofWithdrawal.reference_number || `#WD-${selectedProofWithdrawal.id}`}</span>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedProofWithdrawal(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-5 sm:p-6 space-y-5">
+              {/* Ringkasan Payout */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
+                    Rekening Tujuan
+                  </span>
+                  <span className="font-extrabold text-slate-900 block mt-0.5">
+                    {selectedProofWithdrawal.bank_name}
+                  </span>
+                  <span className="font-mono text-slate-600 text-[11px] block">
+                    {selectedProofWithdrawal.account_number}
+                  </span>
+                  <span className="text-[10px] text-slate-500 uppercase font-semibold block">
+                    a.n. {selectedProofWithdrawal.account_holder_name}
+                  </span>
+                </div>
+
+                <div className="text-right flex flex-col justify-between items-end">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
+                      Nominal Ditransfer
+                    </span>
+                    <span className="text-base sm:text-lg font-black text-emerald-600 block mt-0.5">
+                      Rp {(selectedProofWithdrawal.net_amount || selectedProofWithdrawal.amount || 0).toLocaleString('id-ID')}
+                    </span>
+                  </div>
+
+                  <div className="mt-1">
+                    {getStatusBadge(selectedProofWithdrawal.status)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Area Bukti Transfer Gambar */}
+              {selectedProofWithdrawal.proof_of_transfer ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-extrabold text-slate-800 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Struk / Bukti Transfer Resmi
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      {selectedProofWithdrawal.processed_at
+                        ? new Date(selectedProofWithdrawal.processed_at).toLocaleString('id-ID', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                        : 'Selesai Diproses'}
+                    </span>
+                  </div>
+
+                  {/* Frame Struk */}
+                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 flex items-center justify-center p-3 group">
+                    <img
+                      src={getPhotoUrl(selectedProofWithdrawal.proof_of_transfer) || undefined}
+                      alt="Struk Bukti Transfer"
+                      className="max-h-72 w-full object-contain rounded-xl shadow-lg"
+                    />
+                  </div>
+
+                  {/* Actions Toolbar */}
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <a
+                      href={getPhotoUrl(selectedProofWithdrawal.proof_of_transfer) || '#'}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Buka Struk Ukuran Penuh</span>
+                    </a>
+
+                    <a
+                      href={getPhotoUrl(selectedProofWithdrawal.proof_of_transfer) || '#'}
+                      download={`Bukti-Transfer-${selectedProofWithdrawal.reference_number || selectedProofWithdrawal.id}.jpg`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Unduh File</span>
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                /* Empty state jika belum ada bukti transfer */
+                <div className="p-6 rounded-2xl bg-amber-50/60 border border-amber-200/80 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-2xs">
+                    <Clock className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-black text-amber-900">
+                      Bukti Transfer Belum Tersedia
+                    </h4>
+                    <p className="text-xs text-amber-700 font-medium max-w-xs mx-auto leading-relaxed">
+                      Pengajuan ini berstatus <strong className="font-black text-amber-900">{selectedProofWithdrawal.status}</strong>. Bukti transfer struk akan otomatis tampil setelah Owner mentransfer dana.
+                    </p>
+                  </div>
+
+                  {isOwnerRole && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const itemToProcess = selectedProofWithdrawal;
+                        setSelectedProofWithdrawal(null);
+                        handleOpenOwnerActionModal(itemToProcess);
+                      }}
+                      className="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-md transition-all cursor-pointer inline-flex items-center gap-1.5"
+                    >
+                      <Upload className="w-4 h-4" /> Unggah Bukti Transfer Sekarang
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Modal */}
+            <div className="bg-slate-50 px-5 py-3.5 border-t border-slate-100 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedProofWithdrawal(null)}
+                className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs cursor-pointer shadow-xs transition-all"
+              >
+                Tutup
               </button>
             </div>
           </div>

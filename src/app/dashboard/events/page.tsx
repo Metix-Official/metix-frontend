@@ -1,43 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import {
-  fetchMyEvents,
-  fetchPublicEventDetail,
-  fetchOrganizerEventDetail,
-  fetchEventLineupsApi,
-  fetchEventFacilitiesApi,
-  fetchEventSocialMediaApi,
-  createEvent,
-  updateEvent,
-  uploadMedia,
-  publishEvent,
-  cancelEvent,
-  revertToDraftEvent,
-  deleteEvent,
-  duplicateEvent,
-  archiveEvent,
-  fetchTicketTypes,
-  createTicketType,
-  updateTicketType,
-  deleteTicketType,
-  fetchPromos,
-  createPromo,
-  deletePromo,
-  fetchEventSetting,
-  updateEventSetting,
-  createVenue,
-  parseSocialMediaObject,
+  fetchMasterEvents,
   ApiEvent,
-  ApiTicketType,
-  ApiPromo,
-  ApiEventSetting,
   getPhotoUrl,
 } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { VenueMapPicker } from '@/components/ui/VenueMapPicker';
-import { format } from 'date-fns';
+import { toast } from '@/components/ui/sonner';
 import {
   Select,
   SelectContent,
@@ -45,1546 +17,199 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calendar as CalendarPicker } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { toast } from '@/components/ui/sonner';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import {
   Calendar,
   Search,
-  Plus,
   MapPin,
-  CheckCircle2,
-  Clock,
-  XCircle,
-  Copy,
-  Archive,
   RefreshCw,
-  RotateCw,
   X,
-  Loader2,
-  Sparkles,
-  Tag,
-  DollarSign,
-  Ticket,
-  Pencil,
-  Trash2,
-  PlusCircle,
-  Save,
-  AlertCircle,
-  Globe,
-  AlertTriangle,
-  Settings,
-  ShieldCheck,
-  Sliders,
-  UserCheck,
-  Repeat,
-  FileCheck,
-  QrCode,
-  SlidersHorizontal,
-  Percent,
-  Users,
-  Music,
-  Share2,
-  Image as ImageIcon,
-  Phone,
-  Video,
-  Camera,
   ChevronLeft,
   ChevronRight,
-  Bold,
-  Italic,
-  Underline,
-  Strikethrough,
-  Quote,
-  Link2,
-  ListOrdered,
-  List,
+  FilterX,
+  Building2,
+  SlidersHorizontal,
+  Music,
+  Share2,
+  QrCode,
+  Settings,
+  Sparkles,
+  ExternalLink,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
+  MoreVertical,
 } from 'lucide-react';
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (err) => reject(err);
-    reader.readAsDataURL(file);
-  });
-}
-
-export default function EventsPage() {
+export default function MasterEventPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [events, setEvents] = useState<ApiEvent[]>([]);
-  const [stats, setStats] = useState<{ totalEarnings?: number; balance?: number }>({});
+
+  // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'published' | 'draft' | 'closed'>('all');
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [actionEventId, setActionEventId] = useState<number | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  type ModalTab = 'info' | 'lineup' | 'facilities' | 'social_media' | 'venue' | 'banner';
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage, setPerPage] = useState<number>(15);
+  const [meta, setMeta] = useState<{
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  }>({
+    current_page: 1,
+    last_page: 1,
+    per_page: 15,
+    total: 0,
+  });
 
-  const MODAL_TABS_ORDER: ModalTab[] = ['info', 'lineup', 'facilities', 'social_media', 'venue', 'banner'];
+  // Events State
+  const [events, setEvents] = useState<ApiEvent[]>([]);
 
-  const PRESET_FACILITIES = [
-    'Parkir Luas',
-    'Musholla',
-    'Food Court / UMKM',
-    'Akses Disabilitas',
-    'Pos Medis & P3K',
-    'Toilet Bersih',
-    'AC & Full Indoor',
-    'Cashless / QRIS Station',
-    'Locker / Penitipan Barang',
-    'Free Wi-Fi Area',
-    'VIP Lounge Area',
-  ];
-
-  const getNextTab = (current: ModalTab): ModalTab => {
-    const idx = MODAL_TABS_ORDER.indexOf(current);
-    return idx < MODAL_TABS_ORDER.length - 1 ? MODAL_TABS_ORDER[idx + 1] : current;
-  };
-
-  const getPrevTab = (current: ModalTab): ModalTab => {
-    const idx = MODAL_TABS_ORDER.indexOf(current);
-    return idx > 0 ? MODAL_TABS_ORDER[idx - 1] : current;
-  };
-
-  // New Event Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [createStartAt, setCreateStartAt] = useState<string>(format(new Date(), "yyyy-MM-dd'T'18:00"));
-  const [createEndAt, setCreateEndAt] = useState<string>(format(new Date(), "yyyy-MM-dd'T'23:00"));
-  const [createLat, setCreateLat] = useState<number>(-6.2088);
-  const [createLng, setCreateLng] = useState<number>(106.8456);
-  const [createCityInput, setCreateCityInput] = useState<string>('');
-  const [createBannerPreview, setCreateBannerPreview] = useState<string>('');
-  const [createBannerFile, setCreateBannerFile] = useState<File | null>(null);
-  const [createBannerPath, setCreateBannerPath] = useState<string>('');
-  const [isUploadingCreateBanner, setIsUploadingCreateBanner] = useState<boolean>(false);
-  const [createBannerUrlInput, setCreateBannerUrlInput] = useState<string>('');
-  const [createModalTab, setCreateModalTab] = useState<ModalTab>('info');
-  const [createTitleInput, setCreateTitleInput] = useState<string>('');
-  const [createSlugInput, setCreateSlugInput] = useState<string>('');
-  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState<boolean>(false);
-
-  // Edit Event Modal State
-  const [editingEvent, setEditingEvent] = useState<ApiEvent | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [editStartAt, setEditStartAt] = useState<string>(format(new Date(), "yyyy-MM-dd'T'18:00"));
-  const [editEndAt, setEditEndAt] = useState<string>(format(new Date(), "yyyy-MM-dd'T'23:00"));
-  const [editLat, setEditLat] = useState<number>(-6.2088);
-  const [editLng, setEditLng] = useState<number>(106.8456);
-  const [editCityInput, setEditCityInput] = useState<string>('');
-  const [editBannerPreview, setEditBannerPreview] = useState<string>('');
-  const [editBannerFile, setEditBannerFile] = useState<File | null>(null);
-  const [editBannerPath, setEditBannerPath] = useState<string>('');
-  const [isUploadingEditBanner, setIsUploadingEditBanner] = useState<boolean>(false);
-  const [editBannerUrlInput, setEditBannerUrlInput] = useState<string>('');
-  const [editModalTab, setEditModalTab] = useState<ModalTab>('info');
-
-  // Lineup States (API Spec: event_id, name, image, description)
-  const [createLineups, setCreateLineups] = useState<Array<{ id: string; name: string; image: string; description: string }>>([]);
-  const [editLineups, setEditLineups] = useState<Array<{ id: string; name: string; image: string; description: string }>>([]);
-
-  // Facilities States
-  const [createFacilities, setCreateFacilities] = useState<string[]>([
-    'Parkir Luas',
-    'Musholla',
-    'Food Court / UMKM',
-    'Akses Disabilitas',
-    'Pos Medis & P3K',
-    'Toilet Bersih',
-    'AC & Full Indoor',
-    'Cashless / QRIS Station',
-  ]);
-  const [editFacilities, setEditFacilities] = useState<string[]>([]);
-  const [customCreateFacility, setCustomCreateFacility] = useState<string>('');
-  const [customEditFacility, setCustomEditFacility] = useState<string>('');
-
-  // Social Media States
-  const [createSocials, setCreateSocials] = useState<{
-    instagram: string;
-    tiktok: string;
-    website: string;
-    whatsapp: string;
-    youtube: string;
-  }>({ instagram: '', tiktok: '', website: '', whatsapp: '', youtube: '' });
-
-  const [editSocials, setEditSocials] = useState<{
-    instagram: string;
-    tiktok: string;
-    website: string;
-    whatsapp: string;
-    youtube: string;
-  }>({ instagram: '', tiktok: '', website: '', whatsapp: '', youtube: '' });
-
-  // Description Rich Text Editor Refs & Formatter
-  const editDescTextareaRef = React.useRef<HTMLTextAreaElement>(null);
-  const createDescTextareaRef = React.useRef<HTMLTextAreaElement>(null);
-
-  const handleApplyEditorFormat = (
-    ref: React.RefObject<HTMLTextAreaElement | null>,
-    type: 'bold' | 'italic' | 'underline' | 'strike' | 'quote' | 'link' | 'ordered-list' | 'bullet-list'
-  ) => {
-    const el = ref.current;
-    if (!el) return;
-
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const text = el.value;
-    const selected = text.substring(start, end);
-
-    let before = text.substring(0, start);
-    let after = text.substring(end);
-    let replacement = selected;
-    let newCursorPos = start;
-
-    switch (type) {
-      case 'bold':
-        replacement = `**${selected || 'teks tebal'}**`;
-        newCursorPos = selected ? end + 4 : start + 2;
-        break;
-      case 'italic':
-        replacement = `*${selected || 'teks miring'}*`;
-        newCursorPos = selected ? end + 2 : start + 1;
-        break;
-      case 'underline':
-        replacement = `<u>${selected || 'garis bawah'}</u>`;
-        newCursorPos = selected ? end + 7 : start + 3;
-        break;
-      case 'strike':
-        replacement = `~~${selected || 'coret'}~~`;
-        newCursorPos = selected ? end + 4 : start + 2;
-        break;
-      case 'quote':
-        replacement = selected ? `> ${selected}` : '> kutipan';
-        newCursorPos = selected ? end + 2 : start + 2;
-        break;
-      case 'link':
-        replacement = selected ? `[${selected}](https://)` : '[tautan](https://)';
-        newCursorPos = selected ? end + 11 : start + 1;
-        break;
-      case 'ordered-list':
-        replacement = selected ? `\n1. ${selected}` : '\n1. baris pertama\n2. baris kedua';
-        newCursorPos = selected ? end + 4 : start + 4;
-        break;
-      case 'bullet-list':
-        replacement = selected ? `\n• ${selected}` : '\n• poin pertama\n• poin kedua';
-        newCursorPos = selected ? end + 3 : start + 3;
-        break;
-    }
-
-    el.value = before + replacement + after;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-
-    setTimeout(() => {
-      el.focus();
-      el.setSelectionRange(newCursorPos, newCursorPos);
-    }, 0);
-  };
-
-  // Lineup Handlers
-  const handleAddCreateLineup = () => {
-    setCreateLineups((prev) => [...prev, { id: `new_${Date.now()}_${Math.random()}`, name: '', image: '', description: '' }]);
-  };
-  const handleRemoveCreateLineup = (id: string) => {
-    setCreateLineups((prev) => prev.filter((item) => item.id !== id));
-  };
-  const handleUpdateCreateLineup = (id: string, field: string, value: string) => {
-    setCreateLineups((prev) => prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
-  };
-
-  const handleAddEditLineup = () => {
-    setEditLineups((prev) => [...prev, { id: `new_${Date.now()}_${Math.random()}`, name: '', image: '', description: '' }]);
-  };
-  const handleRemoveEditLineup = (id: string) => {
-    setEditLineups((prev) => prev.filter((item) => item.id !== id));
-  };
-  const handleUpdateEditLineup = (id: string, field: string, value: string) => {
-    setEditLineups((prev) => prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
-  };
-
-  const handleLineupFileChoose = async (id: string, file: File, mode: 'create' | 'edit') => {
-    try {
-      const previewUrl = URL.createObjectURL(file);
-      if (mode === 'create') {
-        handleUpdateCreateLineup(id, 'image', previewUrl);
-      } else {
-        handleUpdateEditLineup(id, 'image', previewUrl);
-      }
-
-      const uploaded = await uploadMedia(file, 'lineups');
-      if (mode === 'create') {
-        handleUpdateCreateLineup(id, 'image', uploaded.path);
-      } else {
-        handleUpdateEditLineup(id, 'image', uploaded.path);
-      }
-    } catch (err) {
-      console.error('Failed to upload lineup image:', err);
-    }
-  };
-
-  // Facility Handlers
-  const toggleFacility = (facility: string, mode: 'create' | 'edit') => {
-    if (mode === 'create') {
-      setCreateFacilities((prev) =>
-        prev.includes(facility) ? prev.filter((f) => f !== facility) : [...prev, facility]
-      );
-    } else {
-      setEditFacilities((prev) =>
-        prev.includes(facility) ? prev.filter((f) => f !== facility) : [...prev, facility]
-      );
-    }
-  };
-
-  const handleAddCustomFacility = (mode: 'create' | 'edit') => {
-    if (mode === 'create') {
-      const val = customCreateFacility.trim();
-      if (val && !createFacilities.includes(val)) {
-        setCreateFacilities((prev) => [...prev, val]);
-        setCustomCreateFacility('');
-      }
-    } else {
-      const val = customEditFacility.trim();
-      if (val && !editFacilities.includes(val)) {
-        setEditFacilities((prev) => [...prev, val]);
-        setCustomEditFacility('');
-      }
-    }
-  };
-
-  const handleOpenEditModal = async (item: ApiEvent) => {
-    setEditingEvent(item);
-    try {
-      let detail = await fetchOrganizerEventDetail(item.id);
-      if (!detail) {
-        detail = await fetchPublicEventDetail(item.id);
-      }
-      if (detail) {
-        const extraLineups = await fetchEventLineupsApi(item.id);
-        detail.lineups = extraLineups;
-        if (Array.isArray(extraLineups)) {
-          const mappedLineups = extraLineups.map((l: any, idx: number) => {
-            const name = String(l?.name || l?.artist_name || l?.performer || '').trim();
-            const rawImg = l?.image || l?.photo || l?.foto || '';
-            const imgUrl = rawImg ? (getPhotoUrl(rawImg) || rawImg) : '';
-            return {
-              id: String(l?.id || Date.now() + idx),
-              name: name,
-              image: imgUrl,
-              description: l?.description || l?.desc || l?.role || l?.peran || '',
-            };
-          });
-          setEditLineups(mappedLineups);
-        }
-        if (!detail.facilities || !Array.isArray(detail.facilities) || detail.facilities.length === 0) {
-          const extraFacilities = await fetchEventFacilitiesApi(item.id);
-          if (extraFacilities.length > 0) detail.facilities = extraFacilities;
-        }
-
-        const socParsed = parseSocialMediaObject(detail.social_media, detail);
-        const hasSoc = Boolean(socParsed.instagram || socParsed.tiktok || socParsed.website || socParsed.whatsapp || socParsed.youtube);
-        if (!hasSoc) {
-          const extraSoc = await fetchEventSocialMediaApi(item.id);
-          if (extraSoc) detail.social_media = extraSoc;
-        }
-
-        setEditingEvent((prev) => {
-          if (!prev || prev.id !== item.id) return prev;
-          const merged = { ...prev, ...detail };
-          const prevSoc = parseSocialMediaObject(prev.social_media, prev);
-          const detailSoc = parseSocialMediaObject(detail.social_media, detail);
-          merged.social_media = {
-            instagram: detailSoc.instagram || prevSoc.instagram || '',
-            tiktok: detailSoc.tiktok || prevSoc.tiktok || '',
-            website: detailSoc.website || prevSoc.website || '',
-            whatsapp: detailSoc.whatsapp || prevSoc.whatsapp || '',
-            youtube: detailSoc.youtube || prevSoc.youtube || '',
-          };
-          return merged;
-        });
-      }
-    } catch (e) {
-      console.warn('Failed to load full detail for edit modal:', e);
-    }
-  };
-
+  // Debounce search input
   useEffect(() => {
-    if (editingEvent) {
-      if (editingEvent.banner) {
-        const photo = getPhotoUrl(editingEvent.banner, editingEvent.id) || editingEvent.banner;
-        setEditBannerPreview(photo);
-        setEditBannerUrlInput(editingEvent.banner.startsWith('http') ? editingEvent.banner : '');
-      } else {
-        const photo = getPhotoUrl(editingEvent.venue_photo, editingEvent.id);
-        setEditBannerPreview(photo || '');
-        setEditBannerUrlInput('');
-      }
-      setEditCityInput(editingEvent.venue?.city || editingEvent.city || '');
-      const rawStart = editingEvent.start_at || editingEvent.event_start_at;
-      if (rawStart) {
-        try {
-          const cleanStart = String(rawStart).replace('Z', '').split('.')[0].replace(' ', 'T');
-          const d = new Date(cleanStart);
-          setEditStartAt(format(d, "yyyy-MM-dd'T'HH:mm"));
-        } catch {
-          setEditStartAt(format(new Date(), "yyyy-MM-dd'T'18:00"));
-        }
-      } else {
-        setEditStartAt(format(new Date(), "yyyy-MM-dd'T'18:00"));
-      }
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 400);
 
-      const rawEnd = editingEvent.end_at || editingEvent.event_end_at;
-      if (rawEnd) {
-        try {
-          const cleanEnd = String(rawEnd).replace('Z', '').split('.')[0].replace(' ', 'T');
-          const d = new Date(cleanEnd);
-          setEditEndAt(format(d, "yyyy-MM-dd'T'HH:mm"));
-        } catch {
-          setEditEndAt(format(new Date(), "yyyy-MM-dd'T'23:00"));
-        }
-      } else {
-        setEditEndAt(format(new Date(), "yyyy-MM-dd'T'23:00"));
-      }
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
-      // Populate Venue coordinates
-      const venueObj = typeof editingEvent.venue === 'object' ? editingEvent.venue : null;
-      const initialLat = parseFloat(String(editingEvent.latitude || venueObj?.latitude || -6.2088));
-      const initialLng = parseFloat(String(editingEvent.longitude || venueObj?.longitude || 106.8456));
-      setEditLat(isNaN(initialLat) ? -6.2088 : initialLat);
-      setEditLng(isNaN(initialLng) ? 106.8456 : initialLng);
-
-      // Populate Lineups (event_id, name, image, description)
-      let rawLineups: any = editingEvent.lineups || (editingEvent as any).lineup || (editingEvent as any).event_lineups || (editingEvent as any).lineup_event;
-
-      if (typeof rawLineups === 'string') {
-        try {
-          rawLineups = JSON.parse(rawLineups);
-        } catch { }
-      }
-      if (rawLineups && typeof rawLineups === 'object' && !Array.isArray(rawLineups)) {
-        if (Array.isArray(rawLineups.data)) rawLineups = rawLineups.data;
-        else if (Array.isArray(rawLineups.lineups)) rawLineups = rawLineups.lineups;
-        else if (Array.isArray(rawLineups.items)) rawLineups = rawLineups.items;
-      }
-
-      if (Array.isArray(rawLineups) && rawLineups.length > 0) {
-        const uniqueLineups: Array<{ id: string; name: string; image: string; description: string }> = [];
-        rawLineups.forEach((l: any, idx: number) => {
-          if (typeof l === 'string') {
-            if (l.trim()) {
-              uniqueLineups.push({ id: String(Date.now() + idx), name: l.trim(), image: '', description: '' });
-            }
-            return;
-          }
-          const name = String(l?.name || l?.artist_name || l?.performer || '').trim();
-          if (!name) return;
-          const rawImg = l?.image || l?.photo || l?.foto || '';
-          const imgUrl = rawImg ? (getPhotoUrl(rawImg) || rawImg) : '';
-          uniqueLineups.push({
-            id: String(l?.id || Date.now() + idx),
-            name: name,
-            image: imgUrl,
-            description: l?.description || l?.desc || l?.role || l?.peran || '',
-          });
-        });
-        setEditLineups(uniqueLineups);
-      } else {
-        setEditLineups([]);
-      }
-
-      // Populate Facilities
-      let rawFacilities: any = editingEvent.facilities || (editingEvent as any).facility || (editingEvent as any).facilities_list;
-
-      if (typeof rawFacilities === 'string') {
-        try {
-          rawFacilities = JSON.parse(rawFacilities);
-        } catch { }
-      }
-      if (rawFacilities && typeof rawFacilities === 'object' && !Array.isArray(rawFacilities)) {
-        if (Array.isArray(rawFacilities.data)) rawFacilities = rawFacilities.data;
-        else if (Array.isArray(rawFacilities.facilities)) rawFacilities = rawFacilities.facilities;
-        else if (Array.isArray(rawFacilities.items)) rawFacilities = rawFacilities.items;
-      }
-
-      if (Array.isArray(rawFacilities) && rawFacilities.length > 0) {
-        setEditFacilities(
-          Array.from(
-            new Set(
-              rawFacilities
-                .map((f: any) => (typeof f === 'string' ? f : String(f?.name || f?.title || f?.facility || '')))
-                .filter(Boolean)
-            )
-          )
-        );
-      } else if (typeof rawFacilities === 'string' && rawFacilities.trim() !== '') {
-        setEditFacilities([rawFacilities.trim()]);
-      } else {
-        setEditFacilities([]);
-      }
-
-      // Populate Social Media safely handling all backend API data formats
-      const parsedSoc = parseSocialMediaObject(editingEvent.social_media, editingEvent);
-      setEditSocials(parsedSoc);
-
-      setEditModalTab('info');
-    }
-  }, [editingEvent]);
-
-  // File Choose Live Preview Handlers
-  const handleCreateFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setCreateBannerFile(file);
-      setCreateBannerPreview(URL.createObjectURL(file));
-      try {
-        setIsUploadingCreateBanner(true);
-        const uploaded = await uploadMedia(file, 'banners');
-        setCreateBannerPath(uploaded.path);
-        toast.success('Banner berhasil diunggah ke storage!');
-      } catch (err: any) {
-        toast.error(err?.message || 'Gagal mengunggah file banner.');
-      } finally {
-        setIsUploadingCreateBanner(false);
-      }
-    }
-  };
-
-  const handleEditFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setEditBannerFile(file);
-      setEditBannerPreview(URL.createObjectURL(file));
-      try {
-        setIsUploadingEditBanner(true);
-        const uploaded = await uploadMedia(file, 'banners');
-        setEditBannerPath(uploaded.path);
-        toast.success('Banner berhasil diunggah ke storage!');
-      } catch (err: any) {
-        toast.error(err?.message || 'Gagal mengunggah file banner.');
-      } finally {
-        setIsUploadingEditBanner(false);
-      }
-    }
-  };
-  const [deletingEventTarget, setDeletingEventTarget] = useState<ApiEvent | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  // Ticket Types Modal State (Harga & Kuota Tiket)
-  const [selectedEventForTickets, setSelectedEventForTickets] = useState<ApiEvent | null>(null);
-  const [ticketTypes, setTicketTypes] = useState<ApiTicketType[]>([]);
-  const [isTicketLoading, setIsTicketLoading] = useState(false);
-  const [isAddingTicketType, setIsAddingTicketType] = useState(false);
-  const [ticketError, setTicketError] = useState<string | null>(null);
-  const [ticketPriceDisplay, setTicketPriceDisplay] = useState('');
-  const [rawTicketPrice, setRawTicketPrice] = useState<number>(0);
-
-  // Edit Ticket Type State
-  const [editingTicketType, setEditingTicketType] = useState<ApiTicketType | null>(null);
-  const [isUpdatingTicketType, setIsUpdatingTicketType] = useState(false);
-  const [editTicketPriceDisplay, setEditTicketPriceDisplay] = useState('');
-  const [rawEditTicketPrice, setRawEditTicketPrice] = useState<number>(0);
-
-  // Custom Delete Ticket Type Confirmation Modal State
-  const [deletingTicketTypeTarget, setDeletingTicketTypeTarget] = useState<{ id: number; name: string } | null>(null);
-  const [isDeletingTicketType, setIsDeletingTicketType] = useState(false);
-
-  // Event Settings Modal State
-  const [selectedEventForSettings, setSelectedEventForSettings] = useState<ApiEvent | null>(null);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isSettingsLoading, setIsSettingsLoading] = useState(false);
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [settingAllowTransfer, setSettingAllowTransfer] = useState(false);
-  const [settingTransferFee, setSettingTransferFee] = useState<number>(0);
-  const [transferFeeDisplay, setTransferFeeDisplay] = useState<string>('0');
-  const [settingMaxPerOrder, setSettingMaxPerOrder] = useState<number>(4);
-  const [settingReservationTimeout, setSettingReservationTimeout] = useState<number>(10);
-  const [settingRequireIdentity, setSettingRequireIdentity] = useState(false);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
-
-  const handleTransferFeeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value.replace(/\D/g, '');
-    if (!rawValue) {
-      setTransferFeeDisplay('0');
-      setSettingTransferFee(0);
-      return;
-    }
-    const num = parseInt(rawValue, 10);
-    setSettingTransferFee(num);
-    setTransferFeeDisplay(num.toLocaleString('id-ID'));
-  };
-
-  const handleOpenSettingsModal = async (evt: ApiEvent) => {
-    setSelectedEventForSettings(evt);
-    setSettingsError(null);
-    setIsSettingsLoading(true);
-    setIsSettingsModalOpen(true);
-
-    try {
-      const settingData = await fetchEventSetting(evt.id);
-      const fee = settingData?.transfer_fee ?? evt.setting?.transfer_fee ?? 0;
-      setSettingTransferFee(fee);
-      setTransferFeeDisplay(fee > 0 ? fee.toLocaleString('id-ID') : '0');
-
-      if (settingData) {
-        setSettingAllowTransfer(settingData.allow_ticket_transfer ?? false);
-        setSettingMaxPerOrder(settingData.max_ticket_per_order ?? 4);
-        setSettingReservationTimeout(settingData.reservation_timeout ?? 10);
-        setSettingRequireIdentity(settingData.require_identity ?? false);
-      } else if (evt.setting) {
-        setSettingAllowTransfer(evt.setting.allow_ticket_transfer ?? false);
-        setSettingMaxPerOrder(evt.setting.max_ticket_per_order ?? 4);
-        setSettingReservationTimeout(evt.setting.reservation_timeout ?? 10);
-        setSettingRequireIdentity(evt.setting.require_identity ?? false);
-      } else {
-        setSettingAllowTransfer(false);
-        setSettingMaxPerOrder(4);
-        setSettingReservationTimeout(10);
-        setSettingRequireIdentity(false);
-      }
-    } catch {
-      setSettingAllowTransfer(false);
-      setSettingTransferFee(0);
-      setTransferFeeDisplay('0');
-      setSettingMaxPerOrder(4);
-      setSettingReservationTimeout(10);
-      setSettingRequireIdentity(false);
-    } finally {
-      setIsSettingsLoading(false);
-    }
-  };
-
-  // ----------------------------------------------------------------------
-  // EVENT PROMO CODES MODAL STATES & HANDLERS
-  // ----------------------------------------------------------------------
-  const [selectedEventForPromo, setSelectedEventForPromo] = useState<ApiEvent | null>(null);
-  const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
-  const [promos, setPromos] = useState<ApiPromo[]>([]);
-  const [isPromoLoading, setIsPromoLoading] = useState(false);
-  const [isAddingPromo, setIsAddingPromo] = useState(false);
-  const [promoError, setPromoError] = useState<string | null>(null);
-  const [deletingPromoTarget, setDeletingPromoTarget] = useState<{ id: number; code: string } | null>(null);
-  const [isDeletingPromo, setIsDeletingPromo] = useState(false);
-
-  const [promoDiscountType, setPromoDiscountType] = useState<'FIXED' | 'PERCENTAGE'>('FIXED');
-  const [promoDiscountValueDisplay, setPromoDiscountValueDisplay] = useState('');
-  const [rawPromoDiscountValue, setRawPromoDiscountValue] = useState(0);
-
-  const [promoMinPurchaseDisplay, setPromoMinPurchaseDisplay] = useState('');
-  const [rawPromoMinPurchase, setRawPromoMinPurchase] = useState(0);
-
-  const [promoStartAt, setPromoStartAt] = useState<string>(format(new Date(), "yyyy-MM-dd'T'00:00"));
-  const [promoEndAt, setPromoEndAt] = useState<string>(format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), "yyyy-MM-dd'T'23:59"));
-
-  const handlePromoDiscountValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value.replace(/\D/g, '');
-    if (!rawValue) {
-      setPromoDiscountValueDisplay('');
-      setRawPromoDiscountValue(0);
-      return;
-    }
-    const num = parseInt(rawValue, 10);
-    setRawPromoDiscountValue(num);
-    if (promoDiscountType === 'PERCENTAGE') {
-      const clamped = Math.min(100, num);
-      setRawPromoDiscountValue(clamped);
-      setPromoDiscountValueDisplay(String(clamped));
-    } else {
-      setPromoDiscountValueDisplay(num.toLocaleString('id-ID'));
-    }
-  };
-
-  const handlePromoMinPurchaseChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value.replace(/\D/g, '');
-    if (!rawValue) {
-      setPromoMinPurchaseDisplay('');
-      setRawPromoMinPurchase(0);
-      return;
-    }
-    const num = parseInt(rawValue, 10);
-    setRawPromoMinPurchase(num);
-    setPromoMinPurchaseDisplay(num.toLocaleString('id-ID'));
-  };
-
-  const handleOpenPromoModal = async (evt: ApiEvent) => {
-    setSelectedEventForPromo(evt);
-    setPromoError(null);
-    setIsPromoLoading(true);
-    setIsPromoModalOpen(true);
-
-    setPromoDiscountType('FIXED');
-    setPromoDiscountValueDisplay('');
-    setRawPromoDiscountValue(0);
-    setPromoMinPurchaseDisplay('');
-    setRawPromoMinPurchase(0);
-    setPromoStartAt(format(new Date(), "yyyy-MM-dd'T'00:00"));
-    setPromoEndAt(format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), "yyyy-MM-dd'T'23:59"));
-
-    const promoList = await fetchPromos(evt.id);
-    setPromos(promoList);
-    setIsPromoLoading(false);
-  };
-
-  const handleCreatePromoSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!selectedEventForPromo) return;
-
-    setIsAddingPromo(true);
-    setPromoError(null);
-
-    const formElement = e.currentTarget;
-    const form = new FormData(formElement);
-    const code = String(form.get('code')).toUpperCase().trim();
-    const name = String(form.get('name')).trim();
-    const description = String(form.get('description') || '').trim();
-    const discount_type = promoDiscountType;
-    const discount_value = rawPromoDiscountValue || Number(form.get('discount_value'));
-    const min_purchase = rawPromoMinPurchase || Number(form.get('min_purchase') || 0);
-    const quota = Number(form.get('quota') || 100);
-    const max_usage_per_user = Number(form.get('max_usage_per_user') || 1);
-    const start_at_val = String(form.get('start_at'));
-    const end_at_val = String(form.get('end_at'));
-
-    // Format datetime string to YYYY-MM-DD HH:mm:ss if ISO
-    const start_at = start_at_val.includes('T') ? start_at_val.replace('T', ' ') + ':00' : start_at_val;
-    const end_at = end_at_val.includes('T') ? end_at_val.replace('T', ' ') + ':00' : end_at_val;
-
-    try {
-      await createPromo(selectedEventForPromo.id, {
-        code,
-        name,
-        description,
-        discount_type,
-        discount_value,
-        min_purchase,
-        quota,
-        max_usage_per_user,
-        start_at,
-        end_at,
-      });
-
-      toast.success('Kode Promo Berhasil Dibuat! 🎉', {
-        description: `Kode promo "${code}" (${discount_type === 'FIXED' ? 'Rp ' + discount_value.toLocaleString('id-ID') : discount_value + '%'}) berhasil ditambahkan.`,
-      });
-
-      formElement.reset();
-      setPromoDiscountValueDisplay('');
-      setRawPromoDiscountValue(0);
-      setPromoMinPurchaseDisplay('');
-      setRawPromoMinPurchase(0);
-
-      // Refresh promo list
-      const updatedList = await fetchPromos(selectedEventForPromo.id);
-      setPromos(updatedList);
-    } catch (err: any) {
-      const msg = err?.message || 'Gagal membuat kode promo.';
-      setPromoError(msg);
-      toast.error('Gagal Menambah Promo', {
-        description: msg,
-      });
-    } finally {
-      setIsAddingPromo(false);
-    }
-  };
-
-  const confirmDeletePromo = async () => {
-    if (!selectedEventForPromo || !deletingPromoTarget) return;
-
-    setIsDeletingPromo(true);
-    const { id, code } = deletingPromoTarget;
-
-    try {
-      const ok = await deletePromo(selectedEventForPromo.id, id);
-      if (ok) {
-        toast.success('Kode Promo Dihapus', {
-          description: `Kode promo "${code}" berhasil dihapus.`,
-        });
-        const updatedList = await fetchPromos(selectedEventForPromo.id);
-        setPromos(updatedList);
-      } else {
-        toast.error('Gagal menghapus kode promo.');
-      }
-    } catch {
-      toast.error('Gagal menghapus kode promo.');
-    } finally {
-      setIsDeletingPromo(false);
-      setDeletingPromoTarget(null);
-    }
-  };
-
-  const handleSaveSettingsSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedEventForSettings) return;
-
-    setIsSavingSettings(true);
-    setSettingsError(null);
-
-    try {
-      await updateEventSetting(selectedEventForSettings.id, {
-        allow_ticket_transfer: settingAllowTransfer,
-        transfer_fee: Number(settingTransferFee),
-        max_ticket_per_order: Number(settingMaxPerOrder),
-        reservation_timeout: Number(settingReservationTimeout),
-        require_identity: settingRequireIdentity,
-      });
-
-      toast.success('Pengaturan Event Berhasil Disimpan! ⚙️', {
-        description: `Pengaturan untuk event "${selectedEventForSettings.title}" telah diperbarui.`,
-      });
-
-      setIsSettingsModalOpen(false);
-      loadData();
-    } catch (err: any) {
-      const msg = err?.message || 'Gagal menyimpan pengaturan event.';
-      setSettingsError(msg);
-      toast.error('Gagal Menyimpan Pengaturan', { description: msg });
-    } finally {
-      setIsSavingSettings(false);
-    }
-  };
-
-  const handleTicketPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value.replace(/\D/g, '');
-    if (!rawValue) {
-      setTicketPriceDisplay('');
-      setRawTicketPrice(0);
-      return;
-    }
-    const num = parseInt(rawValue, 10);
-    setRawTicketPrice(num);
-    setTicketPriceDisplay(num.toLocaleString('id-ID'));
-  };
-
-  const loadData = async () => {
+  // Load Master Events from API
+  const loadEvents = useCallback(async () => {
     setIsLoading(true);
-    const data = await fetchMyEvents();
-    setEvents(data.events);
-    if (data.stats) {
-      setStats({
-        totalEarnings: data.stats.totalEarnings,
-        balance: data.stats.balance,
+    try {
+      const res = await fetchMasterEvents({
+        search: debouncedSearch,
+        status: statusFilter,
+        page: currentPage,
+        per_page: perPage,
       });
+
+      setEvents(res.events);
+      setMeta(res.meta);
+    } catch (err: any) {
+      toast.error('Gagal Mengambil Data Master Event', {
+        description: err?.message || 'Terjadi kesalahan saat memuat data acara.',
+      });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-  };
+  }, [debouncedSearch, statusFilter, currentPage, perPage]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    loadEvents();
+  }, [loadEvents]);
 
   const handleRefresh = async () => {
-    setIsRefreshing(true);
-    toast.loading('Memuat ulang daftar event...', { id: 'refresh-events-toast' });
-    await loadData();
-    setIsRefreshing(false);
-    toast.success('Daftar event berhasil diperbarui! 🔄', { id: 'refresh-events-toast' });
+    toast.loading('Memuat ulang data event...', { id: 'refresh-events' });
+    await loadEvents();
+    toast.success('Data Master Event berhasil diperbarui! 🔄', { id: 'refresh-events' });
   };
 
-  // 1-Click Publish Event API Function
-  // 1-Click Publish Event API Function
-  const handlePublish = async (eventId: number, title: string) => {
-    setActionEventId(eventId);
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setDebouncedSearch('');
+    setStatusFilter('all');
+    setCurrentPage(1);
+  };
+
+  const hasActiveFilters = searchQuery !== '' || statusFilter !== 'all';
+
+  // Format Date Helper
+  const formatDateRange = (start?: string | null, end?: string | null) => {
+    if (!start) return '-';
     try {
-      const ok = await publishEvent(eventId);
-      if (ok) {
-        toast.success('Event Dipublikasikan! 🚀', {
-          description: `Event "${title}" telah berhasil dipublikasikan dan aktif.`,
-        });
-        loadData();
-      } else {
-        toast.error('Gagal Mempublikasikan Event');
-      }
-    } catch (err: any) {
-      toast.error('Gagal Mempublikasikan Event', {
-        description: err?.message || 'Terjadi kesalahan saat mempublikasikan event.',
-      });
-    } finally {
-      setActionEventId(null);
-    }
-  };
-
-  const handleArchive = async (eventId: number, title: string) => {
-    setActionEventId(eventId);
-    try {
-      const ok = await cancelEvent(eventId);
-      if (ok) {
-        toast.success('Event Diarsipkan! 📦', {
-          description: `Event "${title}" telah diarsipkan/dibatal dan dipindahkan ke tab Archived.`,
-        });
-        loadData();
-      } else {
-        toast.error('Gagal Mengarsipkan Event');
-      }
-    } catch (err: any) {
-      toast.error('Gagal Mengarsipkan Event', {
-        description: err?.message || 'Terjadi kesalahan saat membatalkan event.',
-      });
-    } finally {
-      setActionEventId(null);
-    }
-  };
-
-  const handleRevertToDraft = async (eventId: number, title: string) => {
-    setActionEventId(eventId);
-    try {
-      const ok = await revertToDraftEvent(eventId);
-      if (ok) {
-        toast.success('Event Dikembalikan ke Draft! 📝', {
-          description: `Event "${title}" berhasil dikembalikan menjadi DRAFT.`,
-        });
-        loadData();
-      } else {
-        toast.error('Gagal mengembalikan event ke Draft');
-      }
-    } catch (err: any) {
-      toast.error('Gagal Mengubah Status Event', {
-        description: err?.message || 'Terjadi kesalahan saat mengembalikan event ke Draft.',
-      });
-    } finally {
-      setActionEventId(null);
-    }
-  };
-
-  // Custom Modal Confirm Delete Event
-  const confirmDeleteEvent = async () => {
-    if (!deletingEventTarget) return;
-    setIsDeleting(true);
-    const eventId = deletingEventTarget.id;
-    const title = deletingEventTarget.title;
-
-    const ok = await deleteEvent(eventId);
-    setIsDeleting(false);
-    setDeletingEventTarget(null);
-
-    if (ok) {
-      toast.success('Event Berhasil Dihapus', {
-        description: `Event "${title}" telah dihapus secara permanen.`,
-      });
-      loadData();
-    } else {
-      toast.error('Gagal Menghapus Event', {
-        description: 'Terjadi kesalahan saat menghapus event.',
-      });
-    }
-  };
-
-  const handleDuplicate = async (eventId: number, title: string) => {
-    setActionEventId(eventId);
-    const ok = await duplicateEvent(eventId);
-    if (ok) {
-      toast.success('Event Diduplikasi', {
-        description: `Event "${title}" berhasil diduplikasi ke status Draft.`,
-      });
-      loadData();
-    } else {
-      toast.error('Gagal Menduplikasi Event');
-    }
-    setActionEventId(null);
-  };
-
-  const handleCreateSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setErrorMessage(null);
-
-    try {
-      const formData = new FormData(e.currentTarget);
-
-      // Programmatic Validation & Auto-Tab Navigation
-      const titleVal = formData.get('title');
-      if (!titleVal || String(titleVal).trim() === '') {
-        setCreateModalTab('info');
-        setErrorMessage('Judul Event belum diisi! Silakan isi terlebih dahulu.');
-        setIsSubmitting(false);
-        toast.error('Judul Event belum diisi!');
-        alert('⚠️ PERINGATAN: Data Judul Event belum diisi!\n\nDiharapkan mengisi Judul Event terlebih dahulu sebelum membuat event.');
-        return;
-      }
-
-      let slugVal = String(formData.get('slug') || createSlugInput || '').trim();
-      if (!slugVal && titleVal) {
-        slugVal = String(titleVal)
-          .toLowerCase()
-          .trim()
-          .replace(/[^a-z0-9\s-]/g, '')
-          .replace(/\s+/g, '-');
-      }
-
-      if (!slugVal) {
-        setCreateModalTab('info');
-        setErrorMessage('Data Slug / URL Event belum diisi! Silakan isi bidang slug terlebih dahulu.');
-        setIsSubmitting(false);
-        toast.error('Data Slug / URL Event belum diisi!');
-        return;
-      }
-      formData.set('slug', slugVal);
-
-      const venueName = formData.get('name') || formData.get('venue_name') || formData.get('location');
-      if (!venueName || String(venueName).trim() === '') {
-        setCreateModalTab('venue');
-        setErrorMessage('Nama venue / tempat belum diisi!');
-        setIsSubmitting(false);
-        toast.error('Nama venue / tempat belum diisi!');
-        alert('⚠️ PERINGATAN: Nama Venue / Tempat Event belum diisi!\n\nDiharapkan mengisi bidang Tempat / Venue terlebih dahulu.');
-        return;
-      }
-      formData.set('venue_name', String(venueName));
-      formData.set('name', String(venueName));
-      formData.set('location', String(venueName));
-
-      let startAtVal = String(formData.get('start_at') || createStartAt || '').trim();
-      if (!startAtVal) {
-        setCreateModalTab('info');
-        setErrorMessage('Tanggal & Waktu Mulai Event belum ditentukan!');
-        setIsSubmitting(false);
-        toast.error('Tanggal Mulai Event belum ditentukan!');
-        alert('⚠️ PERINGATAN: Tanggal & Waktu Mulai Event belum ditentukan!\n\nDiharapkan mengisi Tanggal Mulai Event terlebih dahulu.');
-        return;
-      }
-
-      // Call API POST /api/v1/organizer/venues to get created venue_id integer
-      const createdVenue = await createVenue({
-        name: String(venueName),
-        address: String(formData.get('address') || '').trim() || 'Jl. Utama No. 1',
-        city: String(formData.get('city') || createCityInput || '').trim() || 'Jakarta',
-        latitude: createLat,
-        longitude: createLng,
-        capacity: Number(formData.get('capacity')) || 5000,
+      const startDate = new Date(start);
+      const startStr = startDate.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
       });
 
-      if (createdVenue && createdVenue.id) {
-        formData.set('venue_id', String(createdVenue.id));
-      }
+      if (!end) return startStr;
 
-      startAtVal = String(formData.get('start_at') || createStartAt || '').trim();
-      let endAtVal = String(formData.get('end_at') || createEndAt || '').trim();
-
-      if (startAtVal.includes('T')) startAtVal = startAtVal.replace('T', ' ');
-      if (endAtVal.includes('T')) endAtVal = endAtVal.replace('T', ' ');
-
-      if (startAtVal && startAtVal.length === 16) startAtVal += ':00';
-      if (endAtVal && endAtVal.length === 16) endAtVal += ':00';
-
-      if (!startAtVal) startAtVal = format(new Date(), 'yyyy-MM-dd') + ' 18:00:00';
-
-      const createStartDateObj = new Date(startAtVal.replace(' ', 'T'));
-      let createEndDateObj = endAtVal ? new Date(endAtVal.replace(' ', 'T')) : null;
-
-      if (!createEndDateObj || isNaN(createEndDateObj.getTime()) || createEndDateObj <= createStartDateObj) {
-        createEndDateObj = new Date(createStartDateObj.getTime() + 5 * 60 * 60 * 1000);
-        endAtVal = format(createEndDateObj, 'yyyy-MM-dd HH:mm:ss');
-      }
-
-      formData.set('start_at', startAtVal);
-      formData.set('end_at', endAtVal);
-      formData.set('event_start_at', startAtVal);
-      formData.set('event_end_at', endAtVal);
-
-      // Remove venue_photo completely
-      formData.delete('venue_photo');
-      formData.delete('venue_photo_url');
-
-      // Ensure banner string is <= 255 characters to satisfy backend VARCHAR(255) / max:255 validation
-      const bannerUrlInput = formData.get('banner_url');
-      const bannerFile = formData.get('banner');
-      formData.delete('banner_url');
-
-      const defaultShortBanner = 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745';
-
-      if (createBannerPreview) {
-        formData.set('_local_banner_preview', createBannerPreview);
-      }
-
-      if (createBannerPath) {
-        formData.set('banner', createBannerPath);
-      } else if (createBannerFile) {
-        const uploaded = await uploadMedia(createBannerFile, 'banners');
-        formData.set('banner', uploaded.path);
-      } else if (bannerUrlInput && String(bannerUrlInput).trim() !== '') {
-        const cleanUrl = String(bannerUrlInput).trim();
-        formData.set('banner', cleanUrl);
-      } else if (createBannerPreview && createBannerPreview.startsWith('http')) {
-        formData.set('banner', createBannerPreview);
-      } else {
-        formData.set('banner', defaultShortBanner);
-      }
-
-      // Serialize Lineup (name, image, description) for Laravel API compatibility
-      const createLineupsPayload = createLineups.map((l) => ({
-        name: l.name,
-        image: l.image || '',
-        description: l.description || '',
-      }));
-      const lineupsJson = JSON.stringify(createLineupsPayload);
-      formData.set('lineups', lineupsJson);
-      formData.set('lineup', lineupsJson);
-
-      createLineups.forEach((item, index) => {
-        formData.set(`lineups[${index}][name]`, item.name);
-        formData.set(`lineups[${index}][image]`, item.image || '');
-        formData.set(`lineups[${index}][description]`, item.description || '');
-
-        formData.set(`lineup[${index}][name]`, item.name);
-        formData.set(`lineup[${index}][image]`, item.image || '');
-        formData.set(`lineup[${index}][description]`, item.description || '');
-
-        formData.set(`lineups[${index}][role]`, item.description || '');
-        formData.set(`lineups[${index}][photo]`, item.image || '');
+      const endDate = new Date(end);
+      const endStr = endDate.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
       });
 
-      const facilitiesJson = JSON.stringify(createFacilities);
-      formData.set('facilities', facilitiesJson);
-      formData.set('facility', facilitiesJson);
-      createFacilities.forEach((fac, index) => {
-        formData.set(`facilities[${index}]`, fac);
-        formData.set(`facility[${index}]`, fac);
-      });
-
-      const socialsJson = JSON.stringify(createSocials);
-      formData.set('social_media', socialsJson);
-      formData.set('socials', socialsJson);
-      formData.set('instagram', createSocials.instagram || '');
-      formData.set('tiktok', createSocials.tiktok || '');
-      formData.set('website', createSocials.website || '');
-      formData.set('whatsapp', createSocials.whatsapp || '');
-      formData.set('youtube', createSocials.youtube || '');
-
-      formData.set('social_media[instagram]', createSocials.instagram || '');
-      formData.set('social_media[tiktok]', createSocials.tiktok || '');
-      formData.set('social_media[website]', createSocials.website || '');
-      formData.set('social_media[whatsapp]', createSocials.whatsapp || '');
-      formData.set('social_media[youtube]', createSocials.youtube || '');
-
-      await createEvent(formData);
-
-      setIsModalOpen(false);
-      toast.success('Event Berhasil Disimpan! 🎉', {
-        description: 'Event baru Anda telah berhasil dibuat dan disimpan ke database.',
-      });
-      loadData();
-    } catch (err: any) {
-      const msg = err?.message || 'Gagal menyimpan event baru.';
-      setErrorMessage(msg);
-      toast.error('Gagal Menyimpan Event', {
-        description: msg,
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleEditSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!editingEvent) return;
-
-    setIsUpdating(true);
-    setErrorMessage(null);
-
-    try {
-      const formData = new FormData(e.currentTarget);
-
-      // Programmatic Validation & Auto-Tab Navigation
-      const titleVal = formData.get('title');
-      if (!titleVal || String(titleVal).trim() === '') {
-        setEditModalTab('info');
-        setErrorMessage('Judul event wajib diisi!');
-        setIsUpdating(false);
-        toast.error('Judul event wajib diisi!');
-        return;
-      }
-
-      const venueName = formData.get('name') || formData.get('venue_name') || formData.get('location');
-      if (!venueName || String(venueName).trim() === '') {
-        setEditModalTab('venue');
-        setErrorMessage('Nama venue / tempat wajib diisi!');
-        setIsUpdating(false);
-        toast.error('Nama venue / tempat wajib diisi!');
-        return;
-      }
-      formData.set('venue_name', String(venueName));
-      formData.set('name', String(venueName));
-      formData.set('location', String(venueName));
-
-      // Call API POST /api/v1/organizer/venues to get created venue_id integer
-      let venueIdToSet = editingEvent.venue_id || editingEvent.venue?.id;
-      const createdVenue = await createVenue({
-        name: String(venueName),
-        address: String(formData.get('address') || editingEvent.venue?.address || '').trim() || 'Jl. Utama No. 1',
-        city: String(formData.get('city') || editingEvent.venue?.city || '').trim() || 'Jakarta',
-        latitude: editLat,
-        longitude: editLng,
-        capacity: Number(formData.get('capacity')) || editingEvent.venue?.capacity || 5000,
-      });
-
-      if (createdVenue && createdVenue.id) {
-        venueIdToSet = createdVenue.id;
-      }
-
-      if (venueIdToSet) {
-        formData.set('venue_id', String(venueIdToSet));
-      }
-
-      let startAtVal = String(formData.get('start_at') || editStartAt || '').trim();
-      let endAtVal = String(formData.get('end_at') || editEndAt || '').trim();
-
-      if (startAtVal.includes('T')) startAtVal = startAtVal.replace('T', ' ');
-      if (endAtVal.includes('T')) endAtVal = endAtVal.replace('T', ' ');
-
-      if (startAtVal && startAtVal.length === 16) startAtVal += ':00';
-      if (endAtVal && endAtVal.length === 16) endAtVal += ':00';
-
-      if (!startAtVal) startAtVal = format(new Date(), 'yyyy-MM-dd') + ' 18:00:00';
-
-      const editStartDateObj = new Date(startAtVal.replace(' ', 'T'));
-      let editEndDateObj = endAtVal ? new Date(endAtVal.replace(' ', 'T')) : null;
-
-      if (!editEndDateObj || isNaN(editEndDateObj.getTime()) || editEndDateObj <= editStartDateObj) {
-        editEndDateObj = new Date(editStartDateObj.getTime() + 5 * 60 * 60 * 1000);
-        endAtVal = format(editEndDateObj, 'yyyy-MM-dd HH:mm:ss');
-      }
-
-      formData.set('start_at', startAtVal);
-      formData.set('end_at', endAtVal);
-      formData.set('event_start_at', startAtVal);
-      formData.set('event_end_at', endAtVal);
-
-      // Remove venue_photo completely
-      formData.delete('venue_photo');
-      formData.delete('venue_photo_url');
-
-      // Ensure banner string is <= 255 characters to satisfy backend VARCHAR(255) / max:255 validation
-      const bannerUrlInput = formData.get('banner_url');
-      const bannerFile = formData.get('banner');
-      formData.delete('banner_url');
-
-      const defaultShortBanner = 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745';
-
-      if (editBannerPreview) {
-        formData.set('_local_banner_preview', editBannerPreview);
-      }
-
-      if (editBannerPath) {
-        formData.set('banner', editBannerPath);
-      } else if (editBannerFile) {
-        const uploaded = await uploadMedia(editBannerFile, 'banners');
-        formData.set('banner', uploaded.path);
-      } else if (bannerUrlInput && String(bannerUrlInput).trim() !== '') {
-        const cleanUrl = String(bannerUrlInput).trim();
-        formData.set('banner', cleanUrl);
-      } else if (editBannerPreview && editBannerPreview.startsWith('http')) {
-        formData.set('banner', editBannerPreview);
-      } else if (editingEvent.banner) {
-        formData.set('banner', editingEvent.banner);
-      } else {
-        formData.set('banner', defaultShortBanner);
-      }
-
-      // Serialize Lineup (id, name, image, description) for Laravel API compatibility
-      const editLineupsPayload = editLineups.map((l) => ({
-        id: l.id,
-        name: l.name,
-        image: l.image || '',
-        description: l.description || '',
-      }));
-      const lineupsJson = JSON.stringify(editLineupsPayload);
-      formData.set('lineups', lineupsJson);
-      formData.set('lineup', lineupsJson);
-
-      editLineups.forEach((item, index) => {
-        formData.set(`lineups[${index}][name]`, item.name);
-        formData.set(`lineups[${index}][image]`, item.image || '');
-        formData.set(`lineups[${index}][description]`, item.description || '');
-
-        formData.set(`lineup[${index}][name]`, item.name);
-        formData.set(`lineup[${index}][image]`, item.image || '');
-        formData.set(`lineup[${index}][description]`, item.description || '');
-
-        formData.set(`lineups[${index}][role]`, item.description || '');
-        formData.set(`lineups[${index}][photo]`, item.image || '');
-      });
-
-      const facilitiesJson = JSON.stringify(editFacilities);
-      formData.set('facilities', facilitiesJson);
-      formData.set('facility', facilitiesJson);
-      editFacilities.forEach((fac, index) => {
-        formData.set(`facilities[${index}]`, fac);
-        formData.set(`facility[${index}]`, fac);
-      });
-
-      const socialsJson = JSON.stringify(editSocials);
-      formData.set('social_media', socialsJson);
-      formData.set('socials', socialsJson);
-      formData.set('instagram', editSocials.instagram || '');
-      formData.set('tiktok', editSocials.tiktok || '');
-      formData.set('website', editSocials.website || '');
-      formData.set('whatsapp', editSocials.whatsapp || '');
-      formData.set('youtube', editSocials.youtube || '');
-
-      formData.set('social_media[instagram]', editSocials.instagram || '');
-      formData.set('social_media[tiktok]', editSocials.tiktok || '');
-      formData.set('social_media[website]', editSocials.website || '');
-      formData.set('social_media[whatsapp]', editSocials.whatsapp || '');
-      formData.set('social_media[youtube]', editSocials.youtube || '');
-
-      await updateEvent(editingEvent.id, formData);
-
-      const title = editingEvent.title;
-      setEditingEvent(null);
-      toast.success('Pembaruan Event Berhasil! 🎉', {
-        description: `Detail event "${title}" telah berhasil diperbarui.`,
-      });
-      loadData();
-    } catch (err: any) {
-      const msg = err?.message || 'Gagal memperbarui event.';
-      setErrorMessage(msg);
-      toast.error('Gagal Memperbarui Event', {
-        description: msg,
-      });
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  // Open Ticket Types Modal (Harga & Kuota Tiket)
-  const handleOpenTicketTypesModal = async (evt: ApiEvent) => {
-    setSelectedEventForTickets(evt);
-    setTicketError(null);
-    setTicketPriceDisplay('');
-    setRawTicketPrice(0);
-    setIsTicketLoading(true);
-    const types = await fetchTicketTypes(evt.id);
-    setTicketTypes(types);
-    setIsTicketLoading(false);
-  };
-
-  const handleCreateTicketTypeSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!selectedEventForTickets) return;
-
-    setIsAddingTicketType(true);
-    setTicketError(null);
-
-    const formElement = e.currentTarget;
-    const form = new FormData(formElement);
-    const category = String(form.get('category') || '').trim() || 'Early Bird';
-    const name = String(form.get('name') || '').trim();
-    const description = String(form.get('description') || '').trim();
-    const price = rawTicketPrice || Number(form.get('price') || 0);
-    const quota = Number(form.get('quota') || 0);
-    const max_per_order = Number(form.get('max_per_order') || 5);
-    const sale_start_at = String(form.get('sale_start_at') || '').trim();
-    const sale_end_at = String(form.get('sale_end_at') || '').trim();
-    const status = String(form.get('status') || 'ACTIVE');
-
-    try {
-      await createTicketType(selectedEventForTickets.id, {
-        category,
-        name,
-        description,
-        price,
-        quota,
-        max_per_order,
-        sale_start_at: sale_start_at ? sale_start_at.replace('T', ' ') : undefined,
-        sale_end_at: sale_end_at ? sale_end_at.replace('T', ' ') : undefined,
-        status,
-      });
-
-      toast.success('Tipe Tiket Dibuat! 🎉', {
-        description: `Tipe tiket "${name}" (Rp ${price.toLocaleString('id-ID')}) dengan kuota ${quota} berhasil ditambahkan.`,
-      });
-
-      formElement.reset();
-      setTicketPriceDisplay('');
-      setRawTicketPrice(0);
-
-      // Refresh ticket types
-      const types = await fetchTicketTypes(selectedEventForTickets.id);
-      setTicketTypes(types);
-      loadData();
-    } catch (err: any) {
-      const msg = err?.message || 'Gagal menambahkan tipe tiket.';
-      setTicketError(msg);
-      toast.error('Gagal Menambah Tipe Tiket', {
-        description: msg,
-      });
-    } finally {
-      setIsAddingTicketType(false);
-    }
-  };
-
-  const handleDeleteTicketTypeItem = (ticketTypeId: number, name: string) => {
-    setDeletingTicketTypeTarget({ id: ticketTypeId, name });
-  };
-
-  const confirmDeleteTicketType = async () => {
-    if (!selectedEventForTickets || !deletingTicketTypeTarget) return;
-
-    setIsDeletingTicketType(true);
-    const { id, name } = deletingTicketTypeTarget;
-
-    const ok = await deleteTicketType(selectedEventForTickets.id, id);
-    setIsDeletingTicketType(false);
-    setDeletingTicketTypeTarget(null);
-
-    if (ok) {
-      toast.success('Tipe Tiket Dihapus', {
-        description: `Tipe tiket "${name}" telah dihapus.`,
-      });
-      const types = await fetchTicketTypes(selectedEventForTickets.id);
-      setTicketTypes(types);
-      loadData();
-    } else {
-      toast.error('Gagal Menghapus Tipe Tiket');
-    }
-  };
-
-  const formatDateTimeInput = (val?: string | null) => {
-    if (!val) return '';
-    try {
-      const d = new Date(val);
-      if (isNaN(d.getTime())) return '';
-      return format(d, "yyyy-MM-dd'T'HH:mm");
+      return startStr === endStr ? startStr : `${startStr} - ${endStr}`;
     } catch {
-      return '';
+      return start;
     }
   };
 
-  const handleOpenEditTicketTypeModal = (tt: ApiTicketType) => {
-    setEditingTicketType(tt);
-    const p = Number(tt.price || 0);
-    setRawEditTicketPrice(p);
-    setEditTicketPriceDisplay(p ? p.toLocaleString('id-ID') : '');
-  };
-
-  const handleEditTicketPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawVal = e.target.value.replace(/\D/g, '');
-    const numVal = rawVal ? parseInt(rawVal, 10) : 0;
-    setRawEditTicketPrice(numVal);
-    setEditTicketPriceDisplay(numVal ? numVal.toLocaleString('id-ID') : '');
-  };
-
-  const handleUpdateTicketTypeSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!selectedEventForTickets || !editingTicketType) return;
-
-    setIsUpdatingTicketType(true);
-    setTicketError(null);
-
-    const form = new FormData(e.currentTarget);
-    const category = String(form.get('category') || '').trim() || 'Early Bird';
-    const name = String(form.get('name') || '').trim();
-    const description = String(form.get('description') || '').trim();
-    const price = rawEditTicketPrice || Number(form.get('price') || 0);
-    const quota = Number(form.get('quota') || 0);
-    const max_per_order = Number(form.get('max_per_order') || 5);
-    const sale_start_at = String(form.get('sale_start_at') || '').trim();
-    const sale_end_at = String(form.get('sale_end_at') || '').trim();
-    const status = String(form.get('status') || 'ACTIVE');
-
-    try {
-      await updateTicketType(selectedEventForTickets.id, editingTicketType.id, {
-        category,
-        name,
-        description,
-        price,
-        quota,
-        max_per_order,
-        sale_start_at: sale_start_at ? sale_start_at.replace('T', ' ') : undefined,
-        sale_end_at: sale_end_at ? sale_end_at.replace('T', ' ') : undefined,
-        status,
-      });
-
-      toast.success('Tipe Tiket Berhasil Diperbarui! 🎉', {
-        description: `Tipe tiket "${name}" telah diperbarui.`,
-      });
-
-      setEditingTicketType(null);
-
-      // Refresh ticket types list
-      const types = await fetchTicketTypes(selectedEventForTickets.id);
-      setTicketTypes(types);
-      loadData();
-    } catch (err: any) {
-      const msg = err?.message || 'Gagal memperbarui tipe tiket.';
-      toast.error('Gagal Memperbarui Tipe Tiket', {
-        description: msg,
-      });
-    } finally {
-      setIsUpdatingTicketType(false);
-    }
-  };
-
-  const filteredEvents = React.useMemo(() => {
-    return events.filter((evt) => {
-      const q = searchQuery.toLowerCase().trim();
-      const matchSearch =
-        !q ||
-        evt.title.toLowerCase().includes(q) ||
-        (evt.location || '').toLowerCase().includes(q) ||
-        (evt.venue_name || '').toLowerCase().includes(q) ||
-        (evt.venue?.name || '').toLowerCase().includes(q) ||
-        (evt.category || '').toLowerCase().includes(q);
-
-      if (!matchSearch) return false;
-
-      const evtStatus = (evt.status || '').toLowerCase();
-
-      if (activeTab === 'published') return evtStatus === 'published' || evtStatus === 'active';
-      if (activeTab === 'draft') return evtStatus === 'draft';
-      if (activeTab === 'closed') return evtStatus === 'closed' || evtStatus === 'cancelled' || evtStatus === 'archived';
-      return true;
-    });
-  }, [events, searchQuery, activeTab]);
-
-  const getStatusBadge = (status: string) => {
-    const s = (status || '').toLowerCase();
+  // Status Badge Component
+  const renderStatusBadge = (status?: string | null) => {
+    const s = (status || '').toUpperCase();
     switch (s) {
-      case 'published':
-      case 'active':
+      case 'PUBLISHED':
         return (
-          <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Published (Aktif)
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            PUBLISHED
           </span>
         );
-      case 'draft':
+      case 'ONGOING':
         return (
-          <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-            <Clock className="w-3 h-3 text-amber-600" /> Draft Mode
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs animate-pulse">
+            <Clock className="w-3.5 h-3.5 text-blue-600" />
+            ONGOING
           </span>
         );
-      case 'closed':
-      case 'cancelled':
-      case 'archived':
+      case 'COMPLETED':
         return (
-          <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-            <XCircle className="w-3 h-3 text-rose-600" /> Archived
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs">
+            <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+            COMPLETED
           </span>
         );
+      case 'CANCELLED':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+            <XCircle className="w-3.5 h-3.5 text-rose-600" />
+            CANCELLED
+          </span>
+        );
+      case 'DRAFT':
       default:
         return (
-          <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-            {status}
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs">
+            <AlertCircle className="w-3.5 h-3.5 text-slate-500" />
+            DRAFT
           </span>
         );
     }
   };
 
+  const fromRecord = meta.total === 0 ? 0 : (meta.current_page - 1) * meta.per_page + 1;
+  const toRecord = Math.min(meta.current_page * meta.per_page, meta.total);
+
   return (
-    <DashboardLayout pageTitle="Event Platform & Event Saya" activeNav="Event Saya">
+    <DashboardLayout pageTitle="Master Event" activeNav="/dashboard/events">
       <div className="w-full space-y-6">
-        {/* Banner Header */}
-        <div className="rounded-2xl bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 text-white p-4 sm:p-5 shadow-lg shadow-blue-700/15 border border-blue-600/30 relative overflow-hidden">
-          <div className="absolute -right-12 -bottom-12 w-64 h-64 rounded-full bg-white/5 blur-3xl pointer-events-none" />
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
-            <div className="space-y-1">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-[10px] font-extrabold uppercase tracking-wider">
-                <Calendar className="w-3 h-3 text-blue-200" /> Event Organizer Console
+        {/* Banner Hero */}
+        <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 text-white p-6 sm:p-8 shadow-xl shadow-blue-700/15 border border-blue-600/30">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-xs font-bold uppercase tracking-wider">
+                <Calendar className="w-3.5 h-3.5 text-white" /> Data Master
               </div>
-              <h2 className="text-lg sm:text-xl font-black tracking-tight">
-                Kelola Event, Harga Tiket & Kuota
+              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+                Master Event Platform
               </h2>
-              <p className="text-[11px] text-blue-100/90 font-medium max-w-xl">
-                Publikasikan event baru, atur harga & kuota tiket (VIP / Regular), duplikasi konser, dan kelola event dengan mudah.
+              <p className="text-xs text-blue-100 font-medium max-w-2xl leading-relaxed">
+                Kelola seluruh data event platform Metix. Gunakan opsi di setiap baris event untuk mengelola Fasilitas, Lineups, Social Media, Scanner, dan Pengaturan Event.
               </p>
             </div>
 
@@ -1592,3255 +217,354 @@ export default function EventsPage() {
               <button
                 type="button"
                 onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer disabled:opacity-50 active:scale-95"
+                className="px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-xs"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span>{isRefreshing ? 'Memuat...' : 'Refresh'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setErrorMessage(null);
-                  setIsModalOpen(true);
-                }}
-                className="px-4 py-2 rounded-xl bg-white text-blue-900 hover:bg-blue-50 font-black text-xs flex items-center gap-1.5 shadow-md transition-all shrink-0 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <Plus className="w-3.5 h-3.5 text-blue-700" />
-                <span>Buat Event Baru</span>
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <span>Refresh Data</span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Action Success Alert */}
-        {actionSuccess && (
-          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in-0 shadow-2xs">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{actionSuccess}</span>
-          </div>
-        )}
-
-        {/* Summary Stat Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Total Event Terdaftar</span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-slate-900">{events.length} Event</h4>
-              <div className="p-1.5 rounded-xl bg-blue-50 text-blue-700">
-                <Calendar className="w-4 h-4" />
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Event Published (Aktif)</span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-emerald-600">
-                {events.filter((e) => e.status === 'published').length} Event
-              </h4>
-              <div className="p-1.5 rounded-xl bg-emerald-50 text-emerald-700">
-                <CheckCircle2 className="w-4 h-4" />
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Total Revenue Event</span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-indigo-600">
-                Rp {(stats.totalEarnings || 0).toLocaleString('id-ID')}
-              </h4>
-              <div className="p-1.5 rounded-xl bg-indigo-50 text-indigo-700">
-                <DollarSign className="w-4 h-4" />
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Saldo Siap Dicairkan</span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-slate-900">
-                Rp {(stats.balance || 0).toLocaleString('id-ID')}
-              </h4>
-              <div className="p-1.5 rounded-xl bg-amber-50 text-amber-700">
-                <Sparkles className="w-4 h-4" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Filter Controls & Search */}
-        <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-3.5">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80 shrink-0">
-              <button
-                onClick={() => setActiveTab('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${activeTab === 'all'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                  : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                Semua ({events.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('published')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${activeTab === 'published'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                  : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                Published ({events.filter((e) => ['published', 'active'].includes((e.status || '').toLowerCase())).length})
-              </button>
-              <button
-                onClick={() => setActiveTab('draft')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${activeTab === 'draft'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                  : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                Draft ({events.filter((e) => (e.status || '').toLowerCase() === 'draft').length})
-              </button>
-              <button
-                onClick={() => setActiveTab('closed')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${activeTab === 'closed'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                  : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                Archived ({events.filter((e) => ['closed', 'cancelled', 'archived'].includes((e.status || '').toLowerCase())).length})
-              </button>
-            </div>
-
+        {/* Main Card */}
+        <div className="rounded-3xl bg-white border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-5">
+          {/* Controls: Search & Status Filter */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-slate-100">
             {/* Search Input */}
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari event, lokasi, atau kategori..."
-                className="w-full pl-9 pr-3.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-all"
+                placeholder="Cari judul event, lokasi, deskripsi..."
+                className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 transition-all"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-md"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Select Status & Reset */}
+            <div className="flex items-center gap-2.5">
+              <div className="w-[180px]">
+                <Select
+                  value={statusFilter}
+                  onValueChange={(val) => {
+                    setStatusFilter(val);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-blue-600 h-10">
+                    <SelectValue placeholder="Semua Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Status</SelectItem>
+                    <SelectItem value="PUBLISHED">Published</SelectItem>
+                    <SelectItem value="DRAFT">Draft</SelectItem>
+                    <SelectItem value="ONGOING">Ongoing</SelectItem>
+                    <SelectItem value="COMPLETED">Completed</SelectItem>
+                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="h-10 px-3.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Reset Filter"
+                >
+                  <FilterX className="w-3.5 h-3.5" />
+                  <span>Reset</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Events Ticket-Style Grid */}
+          {/* Master Event Table */}
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-80 w-full rounded-3xl" />
-              ))}
+            <div className="space-y-3 py-2">
+              <Skeleton className="h-12 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
             </div>
-          ) : filteredEvents.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
-              {filteredEvents.map((item) => {
-                const bannerUrl = getPhotoUrl(item.banner || item.venue_photo, item.id);
-                const categoryName = item.category || 'Music Concert';
-                const venueName = item.venue?.name || item.venue_name || item.location || 'Venue Belum Diatur';
-                const venueCity = item.venue?.city || item.city || '';
-                const venueDisplay = venueCity ? `${venueName} (${venueCity})` : venueName;
+          ) : events.length > 0 ? (
+            <div className="space-y-4">
+              <div className="overflow-x-auto rounded-2xl border border-slate-200/80">
+                <table className="w-full text-left text-xs text-slate-700 min-w-[1050px]">
+                  <thead className="bg-slate-50 text-slate-600 text-[11px] font-black uppercase tracking-wider border-b border-slate-200/80">
+                    <tr>
+                      <th className="py-3.5 px-4 w-12 text-center">#</th>
+                      <th className="py-3.5 px-4 min-w-[240px]">Event</th>
+                      <th className="py-3.5 px-4">Penyelenggara (EO)</th>
+                      <th className="py-3.5 px-4">Venue & Lokasi</th>
+                      <th className="py-3.5 px-4">Jadwal Pelaksanaan</th>
+                      <th className="py-3.5 px-4 text-center">Status</th>
+                      <th className="py-3.5 px-4 text-center w-24">Opsi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {events.map((evt, index) => {
+                      const bannerUrl = getPhotoUrl(evt.banner);
+                      const orgLogo = getPhotoUrl(evt.organizer?.logo, undefined, true);
+                      const rowNumber = (meta.current_page - 1) * meta.per_page + index + 1;
 
-                let dateStr = '15 Sep 2026';
-                if (item.event_start_at || item.start_at) {
-                  try {
-                    const rawDate = String(item.event_start_at || item.start_at).replace('Z', '').split('.')[0].replace(' ', 'T');
-                    dateStr = new Date(rawDate).toLocaleDateString('id-ID', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    });
-                  } catch {
-                    // Fallback
-                  }
-                }
-
-                return (
-                  <div
-                    key={item.id}
-                    className="relative overflow-hidden rounded-3xl bg-white border border-slate-200/90 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between group"
-                  >
-                    {/* Side Half-Moon Notches for Karcis / Ticket Cutout Effect */}
-                    <div className="absolute -left-3.5 top-[152px] w-7 h-7 rounded-full bg-slate-100 border-r border-slate-300 z-20 shadow-inner" />
-                    <div className="absolute -right-3.5 top-[152px] w-7 h-7 rounded-full bg-slate-100 border-l border-slate-300 z-20 shadow-inner" />
-
-                    {/* Ticket Header Banner */}
-                    <div className="relative h-44 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 overflow-hidden">
-                      {bannerUrl ? (
-                        <img
-                          src={bannerUrl}
-                          alt={item.title}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745';
-                          }}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-white p-4 text-center">
-                          <Sparkles className="w-8 h-8 text-amber-300 mb-1" />
-                          <span className="font-extrabold text-sm tracking-tight">{item.title}</span>
-                        </div>
-                      )}
-
-                      {/* Top Badges */}
-                      <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
-                        <div>{getStatusBadge(item.status)}</div>
-                        <span className="bg-white/20 backdrop-blur-md text-white text-[10px] font-black tracking-widest uppercase px-2.5 py-1 rounded-full border border-white/30">
-                          VIP TICKET PASS
-                        </span>
-                      </div>
-
-                      {/* Bottom Category Badge */}
-                      <div className="absolute bottom-3 left-3 bg-slate-900/70 backdrop-blur-md text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 border border-white/20">
-                        <Tag className="w-3 h-3 text-amber-400" /> {categoryName}
-                      </div>
-                    </div>
-
-                    {/* Dashed Perforated Ticket Coupon Line */}
-                    <div className="relative border-b-2 border-dashed border-slate-200 z-10 px-4 bg-white" />
-
-                    {/* Body Content */}
-                    <div className="p-5 space-y-3 flex-1 bg-white relative">
-                      <h3 className="text-base font-extrabold text-slate-900 tracking-tight leading-snug line-clamp-2 group-hover:text-blue-700 transition-colors">
-                        {item.title}
-                      </h3>
-
-                      <div className="space-y-2 text-xs text-slate-600 font-medium">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
-                          <span className="font-bold text-slate-800">{dateStr}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
-                          <span className="truncate">{venueDisplay}</span>
-                        </div>
-                      </div>
-
-                      {/* Event Settings Clean Metadata Text Row */}
-                      <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 text-[11px] text-slate-600 font-bold">
-                          <span>Max: <strong className="text-slate-900 font-extrabold">{item.setting?.max_ticket_per_order || 4} Tiket</strong></span>
-                          <span className="text-slate-300">•</span>
-                          <span>Timeout: <strong className="text-slate-900 font-extrabold">{item.setting?.reservation_timeout || 10}m</strong></span>
-                        </div>
-
-                        <button
-                          onClick={() => handleOpenPromoModal(item)}
-                          className="px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 transition-all cursor-pointer flex items-center gap-1 font-extrabold text-[11px] shadow-2xs"
-                          title="Kelola Kode Promo Diskon Event"
+                      return (
+                        <tr
+                          key={evt.id}
+                          className="hover:bg-blue-50/40 transition-colors group"
                         >
-                          <Tag className="w-3.5 h-3.5 text-indigo-600" /> Kode Promo
-                        </button>
-                      </div>
-                    </div>
+                          {/* Row Number */}
+                          <td className="py-4 px-4 text-center font-bold text-slate-400 text-[11px]">
+                            {rowNumber}
+                          </td>
 
-                    {/* Ticket Stub Action Buttons */}
-                    <div className="px-4 space-y-2 pb-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => handleOpenTicketTypesModal(item)}
-                          className="py-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                        >
-                          <Ticket className="w-4 h-4 text-blue-600" /> Tiket & Kuota
-                        </button>
-
-                        <button
-                          onClick={() => handleOpenSettingsModal(item)}
-                          className="py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                        >
-                          <Settings className="w-4 h-4 text-slate-600" /> Settings
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Actions Footer */}
-                    <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-1.5">
-                      {(() => {
-                        const s = (item.status || '').toLowerCase();
-                        if (s === 'draft') {
-                          return (
-                            <button
-                              disabled={actionEventId === item.id}
-                              onClick={() => handlePublish(item.id, item.title)}
-                              className="flex-1 py-2 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1 shadow-xs disabled:opacity-50"
-                              title="Publikasikan Event ke Publik"
-                            >
-                              {actionEventId === item.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          {/* Event Banner & Title */}
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-3">
+                              {bannerUrl ? (
+                                <img
+                                  src={bannerUrl}
+                                  alt={evt.title}
+                                  className="w-14 h-11 rounded-xl object-cover border border-slate-200 shadow-2xs shrink-0"
+                                />
                               ) : (
-                                <Globe className="w-3.5 h-3.5" />
+                                <div className="w-14 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-2xs">
+                                  <Calendar className="w-5 h-5" />
+                                </div>
                               )}
-                              <span>Publish</span>
-                            </button>
-                          );
-                        } else if (s === 'published' || s === 'active') {
-                          return (
-                            <button
-                              disabled={actionEventId === item.id}
-                              onClick={() => handleArchive(item.id, item.title)}
-                              className="flex-1 py-2 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1 shadow-xs disabled:opacity-50"
-                              title="Arsipkan / Batalkan Event"
-                            >
-                              {actionEventId === item.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <Archive className="w-3.5 h-3.5" />
-                              )}
-                              <span>Archived</span>
-                            </button>
-                          );
-                        } else {
-                          return (
-                            <button
-                              disabled={actionEventId === item.id}
-                              onClick={() => handleRevertToDraft(item.id, item.title)}
-                              className="flex-1 py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-amber-100/80 text-slate-700 hover:text-amber-800 text-xs font-extrabold border border-slate-200 hover:border-amber-300 transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs disabled:opacity-50"
-                              title="Klik untuk kembalikan status event ini menjadi Draft"
-                            >
-                              {actionEventId === item.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
-                              ) : (
-                                <RotateCw className="w-3.5 h-3.5 text-amber-600" />
-                              )}
-                              <span>Ubah ke Draft</span>
-                            </button>
-                          );
-                        }
-                      })()}
+                              <div className="flex flex-col min-w-0 max-w-[220px]">
+                                <span className="font-extrabold text-slate-900 group-hover:text-blue-700 transition-colors truncate text-xs">
+                                  {evt.title}
+                                </span>
+                                <span className="text-[11px] text-slate-400 font-medium truncate">
+                                  /{evt.slug}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
 
-                      <button
-                        onClick={() => handleOpenEditModal(item)}
-                        className="py-2 px-2.5 rounded-xl bg-white hover:bg-indigo-50 border border-slate-200 text-indigo-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-                        title="Edit Event"
-                      >
-                        <Pencil className="w-3.5 h-3.5" /> Edit
-                      </button>
+                          {/* Organizer */}
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-2">
+                              {orgLogo ? (
+                                <img
+                                  src={orgLogo}
+                                  alt={evt.organizer?.organization_name || 'EO'}
+                                  className="w-7 h-7 rounded-lg object-cover border border-slate-200 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-7 h-7 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center text-[10px] font-bold shrink-0">
+                                  <Building2 className="w-3.5 h-3.5" />
+                                </div>
+                              )}
+                              <span className="font-bold text-slate-800 text-[11px] truncate max-w-[140px]">
+                                {evt.organizer?.organization_name || 'Event Organizer'}
+                              </span>
+                            </div>
+                          </td>
 
-                      <button
-                        disabled={actionEventId === item.id}
-                        onClick={() => setDeletingEventTarget(item)}
-                        className="py-2 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-                        title="Hapus Event"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                          {/* Venue & Location */}
+                          <td className="py-4 px-4">
+                            <div className="flex flex-col text-[11px] max-w-[160px]">
+                              <span className="font-bold text-slate-800 flex items-center gap-1 truncate">
+                                <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                {evt.venue?.name || 'Venue Utama'}
+                              </span>
+                              <span className="text-slate-400 font-medium truncate">
+                                {evt.venue?.city || evt.venue?.address || '-'}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Date Range */}
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-1.5 text-slate-600 font-medium text-[11px]">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span>{formatDateRange(evt.start_at, evt.end_at)}</span>
+                            </div>
+                          </td>
+
+                          {/* Status */}
+                          <td className="py-4 px-4 text-center">
+                            {renderStatusBadge(evt.status)}
+                          </td>
+
+                          {/* OPSI / AKSI RELASI (Titik Tiga ... Dropdown dari atas ke bawah) */}
+                          <td className="py-4 px-4 text-center">
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-200 transition-all inline-flex items-center justify-center cursor-pointer shadow-2xs focus:outline-none"
+                                  title="Opsi Relasi Event"
+                                >
+                                  <MoreVertical className="w-4 h-4" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent align="end" className="w-48 p-1.5 rounded-2xl bg-white shadow-xl border border-slate-200 animate-in fade-in-0 zoom-in-95">
+                                <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1">
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                    Opsi Relasi Event
+                                  </span>
+                                </div>
+                                <div className="flex flex-col space-y-0.5">
+                                  {/* 1. Fasilitas */}
+                                  <Link
+                                    href={`/dashboard/events/${evt.id}/facilities`}
+                                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                                  >
+                                    <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
+                                    <span>Fasilitas</span>
+                                  </Link>
+
+                                  {/* 2. Lineups */}
+                                  <Link
+                                    href={`/dashboard/events/${evt.id}/lineups`}
+                                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-purple-700 hover:bg-purple-50 transition-colors"
+                                  >
+                                    <Music className="w-4 h-4 text-purple-600 shrink-0" />
+                                    <span>Lineups</span>
+                                  </Link>
+
+                                  {/* 3. Event Social Media */}
+                                  <Link
+                                    href={`/dashboard/events/${evt.id}/social-media`}
+                                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
+                                  >
+                                    <Share2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                    <span>Social Media</span>
+                                  </Link>
+
+                                  {/* 4. Event Scanners */}
+                                  <Link
+                                    href={`/dashboard/events/${evt.id}/scanners`}
+                                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-amber-700 hover:bg-amber-50 transition-colors"
+                                  >
+                                    <QrCode className="w-4 h-4 text-amber-600 shrink-0" />
+                                    <span>Scanners</span>
+                                  </Link>
+
+                                  {/* 5. Event Settings */}
+                                  <Link
+                                    href={`/dashboard/events/${evt.id}/settings`}
+                                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-indigo-700 hover:bg-indigo-50 transition-colors"
+                                  >
+                                    <Settings className="w-4 h-4 text-indigo-600 shrink-0" />
+                                    <span>Settings</span>
+                                  </Link>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 text-xs font-semibold text-slate-600">
+                {/* Records Info & Per Page Selector */}
+                <div className="flex items-center gap-3">
+                  <span>
+                    Menampilkan <strong className="text-slate-900">{fromRecord}</strong> -{' '}
+                    <strong className="text-slate-900">{toRecord}</strong> dari{' '}
+                    <strong className="text-slate-900">{meta.total}</strong> event
+                  </span>
+
+                  <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+                    <span className="text-slate-500 text-[11px]">Baris:</span>
+                    <Select
+                      value={String(perPage)}
+                      onValueChange={(val) => {
+                        setPerPage(Number(val));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <SelectTrigger className="w-[72px] h-8 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="15">15</SelectItem>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                );
-              })}
+                </div>
+
+                {/* Page Navigation Buttons */}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={currentPage <= 1 || isLoading}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>Sebelumnya</span>
+                  </button>
+
+                  <div className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-black">
+                    Halaman {meta.current_page} dari {meta.last_page}
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={currentPage >= meta.last_page || isLoading}
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <span>Berikutnya</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           ) : (
             /* Empty State */
-            <div className="py-16 px-4 text-center bg-slate-50/60 rounded-3xl border border-dashed border-slate-200/90 my-2 w-full flex flex-col items-center justify-center space-y-4">
-              <div className="w-16 h-16 rounded-3xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shadow-xs">
-                <Calendar className="w-8 h-8 text-blue-600" />
+            <div className="py-14 text-center space-y-3 bg-slate-50/70 rounded-3xl border border-slate-200/80">
+              <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center mx-auto">
+                <Calendar className="w-7 h-7" />
               </div>
-              <div className="space-y-1.5 max-w-md">
-                <h3 className="text-lg font-black text-slate-900">
-                  Belum Ada Event Ditemukan
-                </h3>
-                <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                  Belum ada event terdaftar pada kategori atau pencarian ini. Klik tombol <strong className="text-slate-700">"+ Buat Event Baru"</strong> untuk mempublikasikan konser atau acara Anda.
+              <div className="space-y-1">
+                <h4 className="text-sm font-extrabold text-slate-900">
+                  Tidak Ada Event Ditemukan
+                </h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  {hasActiveFilters
+                    ? 'Tidak ada hasil yang cocok dengan kata kunci atau filter yang Anda pilih.'
+                    : 'Belum ada data event yang tersimpan di sistem.'}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setErrorMessage(null);
-                  setIsModalOpen(true);
-                }}
-                className="px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-md shadow-blue-600/20 transition-all cursor-pointer hover:scale-105 active:scale-95"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Buat Event Sekarang</span>
-              </button>
+
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <FilterX className="w-3.5 h-3.5" />
+                  <span>Bersihkan Semua Filter</span>
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
-
-      {/* ================= MODAL KONFIRMASI HAPUS EVENT (CUSTOM DIALOG) ================= */}
-      {deletingEventTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 border border-slate-200 text-center space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto border border-rose-200">
-              <AlertTriangle className="w-7 h-7" />
-            </div>
-
-            <div className="space-y-1.5">
-              <h3 className="text-lg font-extrabold text-slate-900">Apakah Anda Yakin Ingin Menghapus?</h3>
-              <p className="text-xs text-slate-500 font-medium">
-                Event <strong className="text-slate-900">"{deletingEventTarget.title}"</strong> akan dihapus secara permanen dari database API. Tindakan ini tidak dapat dibatalkan.
-              </p>
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setDeletingEventTarget(null)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={confirmDeleteEvent}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/20 disabled:opacity-50"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Menghapus...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4" /> Ya, Hapus Permanen
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL KONFIRMASI HAPUS TIPE TIKET (CUSTOM DIALOG) ================= */}
-      {deletingTicketTypeTarget && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-xs animate-in fade-in-0">
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 border border-slate-200 text-center space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto border border-rose-200">
-              <AlertTriangle className="w-7 h-7" />
-            </div>
-
-            <div className="space-y-1.5">
-              <h3 className="text-lg font-extrabold text-slate-900">Konfirmasi Hapus Tipe Tiket</h3>
-              <p className="text-xs text-slate-500 font-medium">
-                Apakah Anda yakin ingin menghapus tipe tiket <strong className="text-slate-900">&quot;{deletingTicketTypeTarget.name}&quot;</strong>? Tindakan ini tidak dapat dibatalkan.
-              </p>
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setDeletingTicketTypeTarget(null)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                disabled={isDeletingTicketType}
-                onClick={confirmDeleteTicketType}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/20 disabled:opacity-50"
-              >
-                {isDeletingTicketType ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Menghapus...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4" /> Ya, Hapus Tipe Tiket
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL EDIT EVENT ================= */}
-      {editingEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 lg:p-8 bg-slate-900/75 backdrop-blur-sm animate-in fade-in-0 overflow-y-auto">
-          <div className="relative w-full max-w-5xl xl:max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
-            {/* Header Modal */}
-            <div className="bg-gradient-to-r from-indigo-800 via-blue-800 to-indigo-900 p-6 text-white relative">
-              <button
-                type="button"
-                onClick={() => setEditingEvent(null)}
-                className="absolute right-4 top-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <h3 className="text-lg font-black tracking-tight">Edit Event — {editingEvent.title}</h3>
-              <p className="text-xs text-blue-100/90 font-medium">
-                Perbarui detail rincian acara, lineup, fasilitas, media sosial, lokasi venue, serta media banner.
-              </p>
-
-              {/* Navigation Tabs Bar */}
-              <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-white/15 overflow-x-auto no-scrollbar">
-                <button
-                  type="button"
-                  onClick={() => setEditModalTab('info')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${editModalTab === 'info'
-                    ? 'bg-white text-indigo-950 shadow-md'
-                    : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                >
-                  <Tag className="w-3.5 h-3.5" /> 1. Info Acara
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditModalTab('lineup')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${editModalTab === 'lineup'
-                    ? 'bg-white text-indigo-950 shadow-md'
-                    : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                >
-                  <Users className="w-3.5 h-3.5" /> 2. Line Up
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditModalTab('facilities')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${editModalTab === 'facilities'
-                    ? 'bg-white text-indigo-950 shadow-md'
-                    : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5" /> 3. Fasilitas
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditModalTab('social_media')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${editModalTab === 'social_media'
-                    ? 'bg-white text-indigo-950 shadow-md'
-                    : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                >
-                  <Share2 className="w-3.5 h-3.5" /> 4. Media Sosial
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditModalTab('venue')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${editModalTab === 'venue'
-                    ? 'bg-white text-indigo-950 shadow-md'
-                    : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                >
-                  <MapPin className="w-3.5 h-3.5" /> 5. Lokasi & Peta Venue
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditModalTab('banner')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${editModalTab === 'banner'
-                    ? 'bg-white text-indigo-950 shadow-md'
-                    : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                >
-                  <ImageIcon className="w-3.5 h-3.5" /> 6. Media Banner
-                </button>
-              </div>
-            </div>
-
-            {errorMessage && (
-              <div className="p-4 bg-rose-50 border-b border-rose-200 text-rose-700 text-xs font-bold">
-                {errorMessage}
-              </div>
-            )}
-
-            {/* Form Modal Content */}
-            <form onSubmit={handleEditSubmit} noValidate className="p-6 sm:p-8 space-y-5 max-h-[78vh] overflow-y-auto">
-              {/* TAB 1: INFO EVENT & TANGGAL */}
-              <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'info' ? 'block' : 'hidden'}`}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Judul Event / Konser</label>
-                    <input
-                      type="text"
-                      name="title"
-                      required
-                      defaultValue={editingEvent.title}
-                      placeholder="e.g. Soundwave Music Fest 2026"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
-                      <span>Slug / URL Event</span>
-                      <span className="text-[10px] text-blue-600 font-semibold font-mono">/events/[slug]</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="slug"
-                      required
-                      defaultValue={editingEvent.slug || editingEvent.title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}
-                      placeholder="e.g. bayfest-2026"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-blue-900 focus:bg-white focus:border-blue-600 focus:outline-none font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-extrabold text-slate-700">Deskripsi Event / Detail Acara</label>
-                    <span className="text-[10px] text-slate-400 font-medium">Format teks tebal, miring, list, dll.</span>
-                  </div>
-
-                  {/* Rich Text Editor Box matching uploaded design */}
-                  <div className="border border-slate-300 rounded-2xl bg-white shadow-2xs overflow-hidden focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/10 transition-all">
-                    {/* Toolbar Top Bar */}
-                    <div className="px-3.5 py-2 bg-white border-b border-slate-200 flex items-center gap-1 sm:gap-2 flex-wrap select-none">
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'bold')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Bold (Tebal)"
-                      >
-                        <Bold className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'italic')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Italic (Miring)"
-                      >
-                        <Italic className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'underline')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Underline (Garis Bawah)"
-                      >
-                        <Underline className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'strike')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Strikethrough (Coret)"
-                      >
-                        <Strikethrough className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'quote')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Quote (Kutipan)"
-                      >
-                        <Quote className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'link')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Link (Tautan)"
-                      >
-                        <Link2 className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'ordered-list')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Numbered List (Daftar Nomor)"
-                      >
-                        <ListOrdered className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(editDescTextareaRef, 'bullet-list')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Bullet List (Daftar Poin)"
-                      >
-                        <List className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-                    </div>
-
-                    {/* Textarea Input */}
-                    <textarea
-                      ref={editDescTextareaRef}
-                      name="description"
-                      rows={5}
-                      defaultValue={editingEvent.description || editingEvent.desc || ''}
-                      placeholder="Tuliskan deskripsi lengkap mengenai event, guest star, rundown, dan informasi acara..."
-                      className="w-full p-4 bg-white border-0 text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none resize-y min-h-[120px] leading-relaxed"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Tanggal Mulai Event (Start At)</label>
-                    <input type="hidden" name="start_at" value={editStartAt} />
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
-                        >
-                          <span className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
-                            {editStartAt ? (
-                              format(new Date(editStartAt.replace('Z', '').replace(' ', 'T')), 'dd MMM yyyy')
-                            ) : (
-                              <span className="text-slate-400">Pilih tanggal mulai</span>
-                            )}
-                          </span>
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-3" align="start">
-                        <CalendarPicker
-                          mode="single"
-                          selected={editStartAt ? new Date(editStartAt.replace('Z', '').replace(' ', 'T')) : undefined}
-                          onSelect={(d) => {
-                            if (!d) return;
-                            const dateStr = format(d, 'yyyy-MM-dd');
-                            setEditStartAt(`${dateStr}T00:00`);
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Tanggal Selesai Event (End At)</label>
-                    <input type="hidden" name="end_at" value={editEndAt} />
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
-                        >
-                          <span className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
-                            {editEndAt ? (
-                              format(new Date(editEndAt.replace('Z', '').replace(' ', 'T')), 'dd MMM yyyy')
-                            ) : (
-                              <span className="text-slate-400">Pilih tanggal selesai</span>
-                            )}
-                          </span>
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-3" align="start">
-                        <CalendarPicker
-                          mode="single"
-                          selected={editEndAt ? new Date(editEndAt.replace('Z', '').replace(' ', 'T')) : undefined}
-                          onSelect={(d) => {
-                            if (!d) return;
-                            const dateStr = format(d, 'yyyy-MM-dd');
-                            setEditEndAt(`${dateStr}T23:59`);
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
-                      <span>Pajak Daerah (%)</span>
-                      <span className="text-[10px] text-blue-600 font-bold">Default 5%</span>
-                    </label>
-                    <div className="relative flex items-center">
-                      <input
-                        type="number"
-                        name="local_tax_percentage"
-                        step="0.1"
-                        min="0"
-                        max="100"
-                        defaultValue={editingEvent?.local_tax_percentage ?? 5.0}
-                        placeholder="5.0"
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none pr-8"
-                      />
-                      <span className="absolute right-3 text-xs font-black text-slate-400">%</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* TAB 2: LINE UP */}
-              <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'lineup' ? 'block' : 'hidden'}`}>
-                <div className="flex items-center justify-between bg-blue-50/70 border border-blue-200/80 p-3.5 rounded-2xl">
-                  <div>
-                    <h4 className="text-xs font-extrabold text-blue-950 flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-blue-600" /> Lineup & Guest Stars Event
-                    </h4>
-                    <p className="text-[11px] text-blue-700 font-medium mt-0.5">
-                      Isi rincian pengisi acara: Nama (*name*), Foto (*image*), dan Deskripsi (*description*).
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddEditLineup}
-                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1 shadow-sm shrink-0"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Tambah Lineup
-                  </button>
-                </div>
-
-                {editLineups.length === 0 ? (
-                  <div className="p-8 border border-dashed border-slate-200 rounded-2xl text-center bg-slate-50/50">
-                    <Music className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-xs font-bold text-slate-600">Belum ada Lineup / Guest Star</p>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Klik tombol "+ Tambah Lineup" di atas untuk menambahkan performer.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {editLineups.map((item, index) => (
-                      <div
-                        key={item.id}
-                        className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 relative group transition-all hover:bg-white hover:shadow-sm"
-                      >
-                        <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
-                          <span className="text-xs font-black text-blue-600 flex items-center gap-1">
-                            <Sparkles className="w-3.5 h-3.5" /> Lineup #{index + 1}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveEditLineup(item.id)}
-                            className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> Hapus
-                          </button>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
-                          {/* Avatar Thumbnail */}
-                          <div className="sm:col-span-3 flex flex-col items-center justify-center space-y-2">
-                            <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-sm relative group/img">
-                              {item.image ? (
-                                <img src={getPhotoUrl(item.image) || item.image} alt={item.name || 'Lineup'} className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-1 text-center">
-                                  <Music className="w-6 h-6 text-slate-400 mb-1" />
-                                  <span className="text-[9px] font-bold">Belum Ada Foto</span>
-                                </div>
-                              )}
-                            </div>
-                            <label className="px-2.5 py-1 bg-white border border-slate-200 hover:border-blue-500 rounded-xl text-[10px] font-extrabold text-blue-700 cursor-pointer shadow-xs transition-all">
-                              <span>Pilih Foto</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) handleLineupFileChoose(item.id, file, 'edit');
-                                }}
-                                className="hidden"
-                              />
-                            </label>
-                          </div>
-
-                          {/* Inputs: name, description, image url */}
-                          <div className="sm:col-span-9 space-y-2">
-                            <div className="space-y-1">
-                              <label className="text-[11px] font-extrabold text-slate-700">Nama Performer / Guest Star (*name*) *</label>
-                              <input
-                                type="text"
-                                value={item.name}
-                                onChange={(e) => handleUpdateEditLineup(item.id, 'name', e.target.value)}
-                                placeholder="e.g. Coldplay / Sheila on 7"
-                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:border-blue-600 focus:outline-none"
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <label className="text-[11px] font-extrabold text-slate-700">Deskripsi / Peran Performer (*description*)</label>
-                              <textarea
-                                rows={2}
-                                value={item.description}
-                                onChange={(e) => handleUpdateEditLineup(item.id, 'description', e.target.value)}
-                                placeholder="e.g. Band rock asal Inggris sebagai bintang tamu utama di Main Stage."
-                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none resize-y"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* TAB 3: FASILITAS */}
-              <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'facilities' ? 'block' : 'hidden'}`}>
-                <div className="bg-emerald-50/70 border border-emerald-200/80 p-3.5 rounded-2xl">
-                  <h4 className="text-xs font-extrabold text-emerald-950 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Fasilitas & Amenities Venue
-                  </h4>
-                  <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
-                    Pilih fasilitas yang tersedia untuk penonton di lokasi acara.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-extrabold text-slate-700 block">Pilihan Fasilitas Populer (Klik untuk Toggle)</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {PRESET_FACILITIES.map((fac) => {
-                      const isSelected = editFacilities.includes(fac);
-                      return (
-                        <button
-                          key={fac}
-                          type="button"
-                          onClick={() => toggleFacility(fac, 'edit')}
-                          className={`p-2.5 rounded-xl border text-left text-xs font-extrabold transition-all cursor-pointer flex items-center justify-between ${isSelected
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
-                            }`}
-                        >
-                          <span className="truncate pr-1">{fac}</span>
-                          {isSelected ? (
-                            <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
-                          ) : (
-                            <Plus className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="space-y-2 pt-2 border-t border-slate-100">
-                  <label className="text-xs font-extrabold text-slate-700 block">Tambah Fasilitas Kustom</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={customEditFacility}
-                      onChange={(e) => setCustomEditFacility(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddCustomFacility('edit');
-                        }
-                      }}
-                      placeholder="e.g. Charging Station / Booth Souvenir..."
-                      className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleAddCustomFacility('edit')}
-                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition-all cursor-pointer shrink-0"
-                    >
-                      + Tambah
-                    </button>
-                  </div>
-                </div>
-
-                {/* Active Selected Facilities Tags */}
-                {editFacilities.length > 0 && (
-                  <div className="space-y-1.5 pt-2">
-                    <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block">
-                      Fasilitas Terpilih ({editFacilities.length}):
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {editFacilities.map((fac: any, idx: number) => {
-                        const facText = typeof fac === 'string' ? fac : String(fac?.name || fac?.title || fac?.facility || '');
-                        return (
-                          <span
-                            key={`edit-fac-${idx}-${facText}`}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200/80 text-blue-800 text-xs font-bold rounded-xl"
-                          >
-                            {facText}
-                            <button
-                              type="button"
-                              onClick={() => toggleFacility(facText, 'edit')}
-                              className="text-blue-600 hover:text-rose-600 transition-colors cursor-pointer"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* TAB 4: MEDIA SOSIAL */}
-              <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'social_media' ? 'block' : 'hidden'}`}>
-                <div className="bg-indigo-50/70 border border-indigo-200/80 p-3.5 rounded-2xl">
-                  <h4 className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5">
-                    <Share2 className="w-4 h-4 text-indigo-600" /> Media Sosial & Tautan Resmi Event
-                  </h4>
-                  <p className="text-[11px] text-indigo-700 font-medium mt-0.5">
-                    Tambahkan sosial media dan kontak customer service event untuk meningkatkan kepercayaan pengunjung.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Camera className="w-3.5 h-3.5 text-pink-600" /> Instagram Event / EO
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium">Cukup isi username</span>
-                    </label>
-                    <div className="flex items-center">
-                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0 truncate max-w-[170px] sm:max-w-none">
-                        https://www.instagram.com/
-                      </span>
-                      <input
-                        type="text"
-                        value={editSocials.instagram.replace(/^(https?:\/\/)?(www\.)?instagram\.com\/?/i, '').replace(/^@+/, '').replace(/\/+$/, '')}
-                        onChange={(e) => {
-                          const val = e.target.value.trim();
-                          const username = val
-                            .replace(/^(https?:\/\/)?(www\.)?instagram\.com\/?/i, '')
-                            .replace(/^@+/, '')
-                            .replace(/\/+$/, '');
-                          setEditSocials({ ...editSocials, instagram: username ? `https://www.instagram.com/${username}` : '' });
-                        }}
-                        placeholder="username_instagram"
-                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Video className="w-3.5 h-3.5 text-slate-900" /> TikTok Event / Organizer
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium">Cukup isi username</span>
-                    </label>
-                    <div className="flex items-center">
-                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0 truncate max-w-[170px] sm:max-w-none">
-                        tiktok.com/@
-                      </span>
-                      <input
-                        type="text"
-                        value={editSocials.tiktok.replace(/^(https?:\/\/)?(www\.)?tiktok\.com\/@?/i, '').replace(/^@+/, '').replace(/\/+$/, '')}
-                        onChange={(e) => {
-                          const val = e.target.value.trim();
-                          const username = val
-                            .replace(/^(https?:\/\/)?(www\.)?tiktok\.com\/@?/i, '')
-                            .replace(/^@+/, '')
-                            .replace(/\/+$/, '');
-                          setEditSocials({ ...editSocials, tiktok: username ? `https://www.tiktok.com/@${username}` : '' });
-                        }}
-                        placeholder="username_tiktok"
-                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Globe className="w-3.5 h-3.5 text-blue-600" /> Official Website
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium">Domain / URL</span>
-                    </label>
-                    <div className="flex items-center">
-                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0">
-                        https://
-                      </span>
-                      <input
-                        type="text"
-                        value={editSocials.website.replace(/^https?:\/\//i, '').replace(/\/+$/, '')}
-                        onChange={(e) => {
-                          const val = e.target.value.trim();
-                          const domain = val.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-                          setEditSocials({ ...editSocials, website: domain ? `https://${domain}` : '' });
-                        }}
-                        placeholder="soundwavefest.com"
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp CS / Helpdesk
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium">Maks. 12 digit (cth: 81234567890)</span>
-                    </label>
-                    <div className="flex items-center">
-                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-600 select-none shrink-0 flex items-center gap-1.5 truncate max-w-[170px] sm:max-w-none">
-                        <span className="text-xs leading-none">🇮🇩</span>
-                        <span>https://wa.me/62</span>
-                      </span>
-                      <input
-                        type="tel"
-                        maxLength={12}
-                        value={(() => {
-                          const val = editSocials.whatsapp || '';
-                          let clean = val
-                            .replace(/^(https?:\/\/)?(www\.)?wa\.me\/?/i, '')
-                            .replace(/^(https?:\/\/)?api\.whatsapp\.com\/send\?phone=/i, '')
-                            .replace(/[^0-9]/g, '');
-                          if (clean.startsWith('62')) clean = clean.slice(2);
-                          else if (clean.startsWith('0')) clean = clean.slice(1);
-                          return clean.slice(0, 12);
-                        })()}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          let clean = raw
-                            .replace(/^(https?:\/\/)?(www\.)?wa\.me\/?/i, '')
-                            .replace(/^(https?:\/\/)?api\.whatsapp\.com\/send\?phone=/i, '')
-                            .replace(/[^0-9]/g, '');
-                          if (clean.startsWith('62')) clean = clean.slice(2);
-                          else if (clean.startsWith('0')) clean = clean.slice(1);
-                          clean = clean.slice(0, 12);
-                          setEditSocials({
-                            ...editSocials,
-                            whatsapp: clean ? `https://wa.me/62${clean}` : '',
-                          });
-                        }}
-                        placeholder="81234567890"
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <Video className="w-3.5 h-3.5 text-rose-600" /> Youtube Teaser / Trailer Link
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium">Link video atau channel</span>
-                  </label>
-                  <div className="flex items-center">
-                    <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0 truncate max-w-[170px] sm:max-w-none">
-                      https://www.youtube.com/
-                    </span>
-                    <input
-                      type="text"
-                      value={editSocials.youtube.replace(/^(https?:\/\/)?(www\.)?youtube\.com\/?/i, '').replace(/^(https?:\/\/)?youtu\.be\/?/i, '')}
-                      onChange={(e) => {
-                        const val = e.target.value.trim();
-                        const cleaned = val
-                          .replace(/^(https?:\/\/)?(www\.)?youtube\.com\/?/i, '')
-                          .replace(/^(https?:\/\/)?youtu\.be\/?/i, '');
-                        setEditSocials({ ...editSocials, youtube: cleaned ? `https://www.youtube.com/${cleaned}` : '' });
-                      }}
-                      placeholder="watch?v=... atau @nama_channel"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* TAB 5: DETAIL VENUE & PETA */}
-              <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'venue' ? 'block' : 'hidden'}`}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Nama Venue / Tempat</label>
-                    <input
-                      type="text"
-                      name="name"
-                      required
-                      defaultValue={editingEvent.venue?.name || editingEvent.venue_name || editingEvent.location || ''}
-                      placeholder="e.g. GBK Senayan / JIExpo Kemayoran"
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Alamat Lengkap</label>
-                    <input
-                      type="text"
-                      name="address"
-                      defaultValue={editingEvent.venue?.address || editingEvent.address || ''}
-                      placeholder="e.g. Jl. Jendral Sudirman No. 1, Gelora"
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Kota / Lokasi Cari</label>
-                    <input
-                      type="text"
-                      name="city"
-                      value={editCityInput}
-                      onChange={(e) => setEditCityInput(e.target.value)}
-                      placeholder="e.g. Jakarta Pusat, Bandung, Surabaya"
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Kapasitas Penonton</label>
-                    <input
-                      type="number"
-                      name="capacity"
-                      defaultValue={editingEvent.venue?.capacity || editingEvent.capacity || 5000}
-                      placeholder="e.g. 50000"
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Leaflet Interactive Map JS Picker */}
-                <input type="hidden" name="latitude" value={editLat} />
-                <input type="hidden" name="longitude" value={editLng} />
-                <VenueMapPicker
-                  initialLat={editLat}
-                  initialLng={editLng}
-                  cityValue={editCityInput}
-                  onCityChange={(cityName) => setEditCityInput(cityName)}
-                  onLocationSelect={(lat, lng) => {
-                    setEditLat(lat);
-                    setEditLng(lng);
-                  }}
-                />
-              </div>
-
-              {/* TAB 6: MEDIA BANNER */}
-              <div className={`space-y-4 animate-in fade-in-0 ${editModalTab === 'banner' ? 'block' : 'hidden'}`}>
-                <div className="space-y-3">
-                  <label className="text-xs font-extrabold text-slate-700 block">Foto Banner Event (Upload dari Komputer)</label>
-                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-sm h-56 sm:h-72 w-full bg-slate-900 group">
-                    {editBannerPreview ? (
-                      <img
-                        src={editBannerPreview}
-                        alt="Banner Event Preview"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=800&q=80';
-                        }}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-white p-4 text-center bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900">
-                        <Sparkles className="w-8 h-8 text-amber-300 mb-1 animate-pulse" />
-                        <span className="font-extrabold text-xs tracking-tight">Belum Ada Banner Terpilih</span>
-                        <span className="text-[10px] text-blue-200 mt-1 font-medium">
-                          Pilih file gambar dari komputer di bawah untuk melihat preview
-                        </span>
-                      </div>
-                    )}
-                    {editBannerPreview && (
-                      <div className="absolute top-2.5 right-2.5 bg-slate-900/80 backdrop-blur-md text-emerald-400 text-[10px] font-black px-2.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Preview Banner Aktif
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5 pt-1">
-                    <label className="text-[11px] font-bold text-slate-700">Upload File Gambar dari Komputer</label>
-                    <input
-                      type="file"
-                      name="banner"
-                      accept="image/*"
-                      onChange={handleEditFileChange}
-                      className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer border border-slate-200 rounded-xl p-1 bg-slate-50 transition-all"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer Actions */}
-              <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
-                {/* Mobile Top Row: Batal on left, Navigation on right */}
-                <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => setEditingEvent(null)}
-                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap text-center"
-                  >
-                    Batal
-                  </button>
-
-                  <div className="flex items-center gap-1.5 sm:hidden">
-                    {editModalTab !== 'info' && (
-                      <button
-                        type="button"
-                        onClick={() => setEditModalTab(getPrevTab(editModalTab))}
-                        className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                      >
-                        <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
-                        <span>Kembali</span>
-                      </button>
-                    )}
-
-                    {editModalTab !== 'banner' && (
-                      <button
-                        type="button"
-                        onClick={() => setEditModalTab(getNextTab(editModalTab))}
-                        className="px-3.5 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                      >
-                        <span>Lanjut</span>
-                        <ChevronRight className="w-3.5 h-3.5 shrink-0" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Right side container: desktop nav buttons + Simpan button */}
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  {/* Desktop Only Prev / Next Buttons */}
-                  <div className="hidden sm:flex items-center gap-2">
-                    {editModalTab !== 'info' && (
-                      <button
-                        type="button"
-                        onClick={() => setEditModalTab(getPrevTab(editModalTab))}
-                        className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-                      >
-                        <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
-                        <span>Kembali</span>
-                      </button>
-                    )}
-
-                    {editModalTab !== 'banner' && (
-                      <button
-                        type="button"
-                        onClick={() => setEditModalTab(getNextTab(editModalTab))}
-                        className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-                      >
-                        <span>Lanjut</span>
-                        <ChevronRight className="w-3.5 h-3.5 shrink-0" />
-                      </button>
-                    )}
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isUpdating}
-                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 whitespace-nowrap"
-                  >
-                    {isUpdating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> Memperbarui...
-                      </>
-                    ) : (
-                      'Simpan Perubahan'
-                    )}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL KELOLA HARGA & KUOTA TIKET ================= */}
-      {selectedEventForTickets && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
-          <div className="relative w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
-            {/* Header Modal */}
-            <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 p-6 text-white relative">
-              <button
-                onClick={() => setSelectedEventForTickets(null)}
-                className="absolute right-4 top-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <h3 className="text-lg font-extrabold tracking-tight">
-                Kelola Tipe Tiket, Harga (Rp) & Batasan Kuota — {selectedEventForTickets.title}
-              </h3>
-              <p className="text-xs text-blue-100 font-medium">
-                Atur kategori tiket (VIP / Regular / Early Bird), tentukan harga (Rp), kuota total, jadwal penjualan, batasan order, dan status ketersediaan.
-              </p>
-            </div>
-
-            <div className="p-6 space-y-6 max-h-[85vh] overflow-y-auto">
-              {ticketError && (
-                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{ticketError}</span>
-                </div>
-              )}
-              <form onSubmit={handleCreateTicketTypeSubmit} className="p-5 rounded-2xl bg-blue-50/50 border border-blue-100 space-y-4">
-                <div className="flex items-center gap-1.5 text-xs font-extrabold text-blue-900">
-                  <PlusCircle className="w-4 h-4 text-blue-600" /> Tambah Jenis & Kategori Tiket Baru
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Jenis Tiket / Fase Penjualan *</label>
-                    <input
-                      type="text"
-                      name="category"
-                      required
-                      list="ticket_category_presets"
-                      defaultValue="Early Bird"
-                      placeholder="e.g. Early Bird / Pre-Sale 1"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    />
-                    <datalist id="ticket_category_presets">
-                      <option value="Early Bird" />
-                      <option value="Pre-Sale 1" />
-                      <option value="Pre-Sale 2 (Guest Star 1)" />
-                      <option value="Pre-Sale 3 (Full Guest Star)" />
-                      <option value="OTS" />
-                    </datalist>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Kategori / Kelas Tiket *</label>
-                    <input
-                      type="text"
-                      name="name"
-                      required
-                      list="ticket_name_presets"
-                      defaultValue="Festival"
-                      placeholder="e.g. Festival / VIP"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    />
-                    <datalist id="ticket_name_presets">
-                      <option value="Festival" />
-                      <option value="VIP" />
-                      <option value="VVIP" />
-                      <option value="Reguler" />
-                    </datalist>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Harga Tiket (Rp.) *</label>
-                    <div className="flex items-center">
-                      <span className="px-3 py-2 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-black text-slate-600">
-                        Rp.
-                      </span>
-                      <input
-                        type="text"
-                        required
-                        placeholder="150.000"
-                        value={ticketPriceDisplay ?? ''}
-                        onChange={handleTicketPriceChange}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-r-xl text-xs font-black text-slate-900 focus:border-blue-600 focus:outline-none"
-                      />
-                      <input type="hidden" name="price" value={rawTicketPrice ?? 0} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Total Kuota Tiket *</label>
-                    <input
-                      type="number"
-                      name="quota"
-                      required
-                      min="1"
-                      placeholder="e.g. 200"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Maks. Tiket / Order</label>
-                    <input
-                      type="number"
-                      name="max_per_order"
-                      defaultValue={5}
-                      min="1"
-                      placeholder="e.g. 5"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Mulai Penjualan (Opsional)</label>
-                    <input
-                      type="datetime-local"
-                      name="sale_start_at"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Selesai Penjualan (Opsional)</label>
-                    <input
-                      type="datetime-local"
-                      name="sale_end_at"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Status Penjualan Tiket</label>
-                    <select
-                      name="status"
-                      defaultValue="ACTIVE"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    >
-                      <option value="ACTIVE" className="text-emerald-700 font-bold">ACTIVE (Tersedia untuk dibeli)</option>
-                      <option value="INACTIVE" className="text-amber-700 font-bold">INACTIVE (Disembunyikan dari halaman buyer)</option>
-                      <option value="SOLD_OUT" className="text-rose-700 font-bold">SOLD_OUT (Ditampilkan dengan tanda Habis)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Deskripsi / Catatan Tiket (Opsional)</label>
-                  <input
-                    type="text"
-                    name="description"
-                    placeholder="e.g. Sudah termasuk free snack & merchandise"
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                  />
-                </div>
-
-                <div className="flex justify-end pt-1">
-                  <button
-                    type="submit"
-                    disabled={isAddingTicketType}
-                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    {isAddingTicketType ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    <span>Simpan Tipe Tiket</span>
-                  </button>
-                </div>
-              </form>
-
-              {/* Table Daftar Tipe Tiket Existing Grouped by Jenis / Fase Penjualan */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
-                  Daftar Kategori Tiket Terdaftar ({ticketTypes.length})
-                </h4>
-
-                {isTicketLoading ? (
-                  <Skeleton className="h-40 w-full rounded-2xl" />
-                ) : ticketTypes.length > 0 ? (
-                  <div className="space-y-4">
-                    {(() => {
-                      const groups: Record<string, ApiTicketType[]> = {};
-                      ticketTypes.forEach((tt) => {
-                        const cat = (tt.category || 'Umum').trim();
-                        if (!groups[cat]) groups[cat] = [];
-                        groups[cat].push(tt);
-                      });
-
-                      return Object.entries(groups).map(([categoryName, items]) => (
-                        <div key={categoryName} className="overflow-x-auto border border-slate-200 rounded-2xl bg-white shadow-2xs">
-                          <div className="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-xs font-black text-slate-800">
-                              <Tag className="w-3.5 h-3.5 text-blue-600" />
-                              <span>Jenis Tiket: <strong className="text-blue-700 font-black">{categoryName}</strong></span>
-                            </div>
-                            <span className="text-[11px] font-extrabold text-slate-500">
-                              {items.length} Kelas Tiket
-                            </span>
-                          </div>
-
-                          <table className="w-full text-left text-xs text-slate-700 min-w-[750px]">
-                            <thead className="bg-slate-50/60 text-slate-500 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-200">
-                              <tr>
-                                <th className="py-2.5 px-4">Kelas Tiket & Deskripsi</th>
-                                <th className="py-2.5 px-4">Harga Tiket</th>
-                                <th className="py-2.5 px-4">Total Kuota & Sisa</th>
-                                <th className="py-2.5 px-4">Maks/Order</th>
-                                <th className="py-2.5 px-4">Jadwal Penjualan</th>
-                                <th className="py-2.5 px-4">Status</th>
-                                <th className="py-2.5 px-4 text-right">Aksi</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {items.map((tt) => {
-                                const sold = tt.sold_count ?? tt.sold_quantity ?? 0;
-                                const totalQuota = tt.quota ?? 0;
-                                const available = tt.available ?? tt.available_quota ?? Math.max(0, totalQuota - sold);
-
-                                let rawStatus = (tt.status || 'ACTIVE').toUpperCase();
-                                if (available <= 0 && totalQuota > 0) {
-                                  rawStatus = 'SOLD_OUT';
-                                }
-
-                                let statusBadge = (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                    ACTIVE
-                                  </span>
-                                );
-                                if (rawStatus === 'INACTIVE') {
-                                  statusBadge = (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                                      INACTIVE
-                                    </span>
-                                  );
-                                } else if (rawStatus === 'SOLD_OUT') {
-                                  statusBadge = (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-                                      SOLD_OUT
-                                    </span>
-                                  );
-                                }
-
-                                let salePeriod = '-';
-                                if (tt.sale_start_at || tt.sale_end_at) {
-                                  const formatTableDate = (dStr?: string | null) => {
-                                    if (!dStr) return null;
-                                    try {
-                                      const cleanStr = dStr.includes('Z') || dStr.includes('+') ? dStr : dStr.replace(' ', 'T');
-                                      const d = new Date(cleanStr);
-                                      if (isNaN(d.getTime())) return null;
-                                      return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-                                    } catch {
-                                      return null;
-                                    }
-                                  };
-
-                                  const startStr = formatTableDate(tt.sale_start_at) || (tt.sale_start_at ? String(tt.sale_start_at) : 'Sekarang');
-                                  const endStr = formatTableDate(tt.sale_end_at) || (tt.sale_end_at ? String(tt.sale_end_at) : 'Selesai Event');
-                                  salePeriod = `${startStr} s/d ${endStr}`;
-                                }
-
-                                return (
-                                  <tr key={tt.id} className="hover:bg-slate-50">
-                                    <td className="py-3 px-4">
-                                      <div className="font-extrabold text-slate-900">{tt.name}</div>
-                                      {tt.description && (
-                                        <div className="text-[11px] text-slate-500 font-medium line-clamp-1">{tt.description}</div>
-                                      )}
-                                    </td>
-                                    <td className="py-3 px-4 font-black text-blue-700 whitespace-nowrap">
-                                      Rp. {Number(tt.price || 0).toLocaleString('id-ID')}
-                                    </td>
-                                    <td className="py-3 px-4 font-semibold text-slate-700 whitespace-nowrap">
-                                      <div>
-                                        <span className="font-extrabold text-slate-900">{totalQuota} Tiket</span>
-                                        <span className="text-slate-500"> (Terjual: <strong className="text-blue-600 font-extrabold">{sold}</strong>)</span>
-                                      </div>
-                                      <div className={`text-[10px] font-bold mt-0.5 ${available > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                        Sisa Tersedia: {available} Tiket
-                                      </div>
-                                    </td>
-                                    <td className="py-3 px-4 font-bold text-slate-800 text-center whitespace-nowrap">
-                                      {tt.max_per_order ?? 5} Tiket
-                                    </td>
-                                    <td className="py-3 px-4 text-[11px] font-medium text-slate-600 whitespace-nowrap">
-                                      {salePeriod}
-                                    </td>
-                                    <td className="py-3 px-4 whitespace-nowrap">
-                                      {statusBadge}
-                                    </td>
-                                    <td className="py-3 px-4 text-right whitespace-nowrap">
-                                      <div className="flex items-center justify-end gap-1.5">
-                                        <button
-                                          onClick={() => handleOpenEditTicketTypeModal(tt)}
-                                          className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors cursor-pointer"
-                                          title="Edit Tipe Tiket"
-                                        >
-                                          <Pencil className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          onClick={() => handleDeleteTicketTypeItem(tt.id, tt.name)}
-                                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors cursor-pointer"
-                                          title="Hapus Tipe Tiket"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                ) : (
-                  <div className="p-6 text-center text-xs text-slate-400 font-medium bg-slate-50 rounded-2xl border border-slate-200">
-                    Belum ada tipe tiket yang dibuat untuk event ini. Gunakan form di atas untuk menambah harga & kuota tiket.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
-              <button
-                onClick={() => setSelectedEventForTickets(null)}
-                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold cursor-pointer"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL EDIT TIPE TIKET ================= */}
-      {editingTicketType && selectedEventForTickets && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
-          <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
-            {/* Header Modal */}
-            <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 p-6 text-white relative">
-              <button
-                onClick={() => setEditingTicketType(null)}
-                className="absolute right-4 top-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <h3 className="text-lg font-extrabold tracking-tight">
-                Edit Tipe Tiket — {editingTicketType.name}
-              </h3>
-              <p className="text-xs text-blue-100 font-medium">
-                Perbarui jenis tiket, nama kelas, harga (Rp), kuota total, jadwal penjualan, batasan order, dan status ketersediaan tiket.
-              </p>
-            </div>
-
-            <form onSubmit={handleUpdateTicketTypeSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Jenis Tiket / Fase Penjualan *</label>
-                  <input
-                    type="text"
-                    name="category"
-                    required
-                    list="ticket_category_presets"
-                    defaultValue={editingTicketType.category || 'Early Bird'}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Kategori / Kelas Tiket *</label>
-                  <input
-                    type="text"
-                    name="name"
-                    required
-                    list="ticket_name_presets"
-                    defaultValue={editingTicketType.name}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Harga Tiket (Rp.) *</label>
-                  <div className="flex items-center">
-                    <span className="px-3 py-2 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-black text-slate-600">
-                      Rp.
-                    </span>
-                    <input
-                      type="text"
-                      required
-                      value={editTicketPriceDisplay}
-                      onChange={handleEditTicketPriceChange}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-r-xl text-xs font-black text-slate-900 focus:border-blue-600 focus:outline-none"
-                    />
-                    <input type="hidden" name="price" value={rawEditTicketPrice} />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Total Kuota Tiket *</label>
-                  <input
-                    type="number"
-                    name="quota"
-                    required
-                    min={editingTicketType.sold_count ?? 1}
-                    defaultValue={editingTicketType.quota}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Maks. Tiket / Order</label>
-                  <input
-                    type="number"
-                    name="max_per_order"
-                    defaultValue={editingTicketType.max_per_order ?? 5}
-                    min="1"
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Mulai Penjualan (Opsional)</label>
-                  <input
-                    type="datetime-local"
-                    name="sale_start_at"
-                    defaultValue={formatDateTimeInput(editingTicketType.sale_start_at)}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Selesai Penjualan (Opsional)</label>
-                  <input
-                    type="datetime-local"
-                    name="sale_end_at"
-                    defaultValue={formatDateTimeInput(editingTicketType.sale_end_at)}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Status Penjualan Tiket</label>
-                  <select
-                    name="status"
-                    defaultValue={(editingTicketType.status || 'ACTIVE').toUpperCase()}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none"
-                  >
-                    <option value="ACTIVE" className="text-emerald-700 font-bold">ACTIVE (Tersedia untuk dibeli)</option>
-                    <option value="INACTIVE" className="text-amber-700 font-bold">INACTIVE (Disembunyikan dari halaman buyer)</option>
-                    <option value="SOLD_OUT" className="text-rose-700 font-bold">SOLD_OUT (Ditampilkan dengan tanda Habis)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[11px] font-extrabold text-slate-700">Deskripsi / Catatan Tiket (Opsional)</label>
-                <input
-                  type="text"
-                  name="description"
-                  defaultValue={editingTicketType.description || ''}
-                  placeholder="e.g. Sudah termasuk free snack & merchandise"
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setEditingTicketType(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isUpdatingTicketType}
-                  className="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                >
-                  {isUpdatingTicketType ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
-                  <span>Simpan Perubahan</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL KELOLA KODE PROMO DISKON ================= */}
-      {isPromoModalOpen && selectedEventForPromo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
-          <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
-            {/* Header Modal */}
-            <div className="bg-gradient-to-r from-indigo-700 via-purple-700 to-blue-800 p-6 text-white relative">
-              <button
-                type="button"
-                onClick={() => setIsPromoModalOpen(false)}
-                className="absolute right-4 top-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <div className="flex items-center gap-2 mb-1">
-                <Tag className="w-4 h-4 text-purple-200" />
-                <span className="text-xs font-extrabold uppercase tracking-wider text-purple-100">
-                  Kelola Kode Promo & Diskon Event
-                </span>
-              </div>
-              <h3 className="text-lg font-extrabold tracking-tight truncate">
-                {selectedEventForPromo.title}
-              </h3>
-              <p className="text-xs text-purple-100/90 font-medium">
-                Atur kode kupon diskon, persen/nominal potongan, minimum pembelian, dan batas waktu promo.
-              </p>
-            </div>
-
-            <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-              {promoError && (
-                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                  <span>{promoError}</span>
-                </div>
-              )}
-
-              {/* Form Tambah Kode Promo Baru */}
-              <form onSubmit={handleCreatePromoSubmit} className="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 space-y-4">
-                <div className="flex items-center gap-1.5 text-xs font-extrabold text-indigo-900">
-                  <PlusCircle className="w-4 h-4 text-indigo-600" /> Tambah Kode Promo / Kupon Baru
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Kode Promo (Kupon)</label>
-                    <input
-                      type="text"
-                      name="code"
-                      required
-                      placeholder="e.g. DISKON50K"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-indigo-950 uppercase tracking-wide focus:border-indigo-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Nama Promo</label>
-                    <input
-                      type="text"
-                      name="name"
-                      required
-                      placeholder="e.g. Promo Kemerdekaan"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Deskripsi Promo (Opsional)</label>
-                  <input
-                    type="text"
-                    name="description"
-                    placeholder="e.g. Potongan Rp 50.000 untuk pembelian tiket"
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:border-indigo-600 focus:outline-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Tipe Diskon</label>
-                    <div className="grid grid-cols-2 gap-1 p-1 bg-white border border-slate-200 rounded-xl h-[38px] items-center">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPromoDiscountType('FIXED');
-                          setPromoDiscountValueDisplay('');
-                          setRawPromoDiscountValue(0);
-                        }}
-                        className={`h-full py-1 text-[11px] font-black rounded-lg transition-all cursor-pointer flex items-center justify-center ${promoDiscountType === 'FIXED'
-                          ? 'bg-indigo-600 text-white shadow-xs'
-                          : 'bg-transparent text-slate-600 hover:bg-slate-100'
-                          }`}
-                      >
-                        Rp (Nominal)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPromoDiscountType('PERCENTAGE');
-                          setPromoDiscountValueDisplay('');
-                          setRawPromoDiscountValue(0);
-                        }}
-                        className={`h-full py-1 text-[11px] font-black rounded-lg transition-all cursor-pointer flex items-center justify-center ${promoDiscountType === 'PERCENTAGE'
-                          ? 'bg-indigo-600 text-white shadow-xs'
-                          : 'bg-transparent text-slate-600 hover:bg-slate-100'
-                          }`}
-                      >
-                        % (Persen)
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">
-                      Nilai Potongan {promoDiscountType === 'FIXED' ? '(Rp)' : '(%)'}
-                    </label>
-                    <div className="flex items-center h-[38px]">
-                      <span className="px-3 h-full bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-black text-slate-600 flex items-center justify-center">
-                        {promoDiscountType === 'FIXED' ? 'Rp.' : '%'}
-                      </span>
-                      <input
-                        type="text"
-                        required
-                        placeholder={promoDiscountType === 'FIXED' ? '50.000' : '20'}
-                        value={promoDiscountValueDisplay}
-                        onChange={handlePromoDiscountValueChange}
-                        className="w-full h-full px-3 bg-white border border-slate-200 rounded-r-xl text-xs font-black text-slate-900 focus:border-indigo-600 focus:outline-none"
-                      />
-                      <input type="hidden" name="discount_value" value={rawPromoDiscountValue} />
-                    </div>
-                  </div>
-
-                  <input type="hidden" name="min_purchase" value="0" />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Kuota Promo</label>
-                    <input
-                      type="number"
-                      name="quota"
-                      required
-                      min="1"
-                      defaultValue="100"
-                      placeholder="100"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Max / User</label>
-                    <input
-                      type="number"
-                      name="max_usage_per_user"
-                      required
-                      min="1"
-                      defaultValue="1"
-                      placeholder="1"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Waktu Mulai Promo</label>
-                    <input type="hidden" name="start_at" value={promoStartAt} />
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
-                        >
-                          <span className="flex items-center gap-1.5 truncate">
-                            <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                            {promoStartAt ? (
-                              format(new Date(promoStartAt), 'dd MMM yyyy, HH:mm')
-                            ) : (
-                              <span className="text-slate-400">Pilih waktu mulai</span>
-                            )}
-                          </span>
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-3" align="start">
-                        <CalendarPicker
-                          mode="single"
-                          selected={promoStartAt ? new Date(promoStartAt) : undefined}
-                          onSelect={(d) => {
-                            if (!d) return;
-                            const currentTime = promoStartAt ? promoStartAt.split('T')[1] || '00:00' : '00:00';
-                            const dateStr = format(d, 'yyyy-MM-dd');
-                            setPromoStartAt(`${dateStr}T${currentTime}`);
-                          }}
-                        />
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
-                          <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-slate-400" /> Jam:
-                          </span>
-                          <input
-                            type="time"
-                            value={promoStartAt ? promoStartAt.split('T')[1] || '00:00' : '00:00'}
-                            onChange={(e) => {
-                              const currentDate = promoStartAt ? promoStartAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
-                              setPromoStartAt(`${currentDate}T${e.target.value}`);
-                            }}
-                            className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
-                          />
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Waktu Berakhir Promo</label>
-                    <input type="hidden" name="end_at" value={promoEndAt} />
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
-                        >
-                          <span className="flex items-center gap-1.5 truncate">
-                            <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                            {promoEndAt ? (
-                              format(new Date(promoEndAt), 'dd MMM yyyy, HH:mm')
-                            ) : (
-                              <span className="text-slate-400">Pilih waktu berakhir</span>
-                            )}
-                          </span>
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-3" align="start">
-                        <CalendarPicker
-                          mode="single"
-                          selected={promoEndAt ? new Date(promoEndAt) : undefined}
-                          onSelect={(d) => {
-                            if (!d) return;
-                            const currentTime = promoEndAt ? promoEndAt.split('T')[1] || '23:59' : '23:59';
-                            const dateStr = format(d, 'yyyy-MM-dd');
-                            setPromoEndAt(`${dateStr}T${currentTime}`);
-                          }}
-                        />
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
-                          <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-slate-400" /> Jam:
-                          </span>
-                          <input
-                            type="time"
-                            value={promoEndAt ? promoEndAt.split('T')[1] || '23:59' : '23:59'}
-                            onChange={(e) => {
-                              const currentDate = promoEndAt ? promoEndAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
-                              setPromoEndAt(`${currentDate}T${e.target.value}`);
-                            }}
-                            className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
-                          />
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-1">
-                  <button
-                    type="submit"
-                    disabled={isAddingPromo}
-                    className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-sm transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    {isAddingPromo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    <span>Simpan Kode Promo via API</span>
-                  </button>
-                </div>
-              </form>
-
-              {/* Table Daftar Promo Existing */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
-                  Daftar Kode Promo Terdaftar ({promos.length})
-                </h4>
-
-                {isPromoLoading ? (
-                  <Skeleton className="h-40 w-full rounded-2xl" />
-                ) : promos.length > 0 ? (
-                  <div className="overflow-x-auto border border-slate-200 rounded-2xl">
-                    <table className="w-full text-left text-xs text-slate-700 min-w-[600px]">
-                      <thead className="bg-slate-50 text-slate-500 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-200">
-                        <tr>
-                          <th className="py-3 px-4">Kode Promo</th>
-                          <th className="py-3 px-4">Diskon / Potongan</th>
-                          <th className="py-3 px-4">Syarat & Kuota</th>
-                          <th className="py-3 px-4">Masa Berlaku</th>
-                          <th className="py-3 px-4 text-right">Aksi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {promos.map((p) => (
-                          <tr key={p.id} className="hover:bg-slate-50">
-                            <td className="py-3 px-4">
-                              <div className="inline-block px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-black uppercase text-xs tracking-wider">
-                                {p.code}
-                              </div>
-                              <div className="font-extrabold text-slate-900 text-xs mt-1">{p.name}</div>
-                              {p.description && (
-                                <div className="text-[10px] text-slate-500 line-clamp-1">{p.description}</div>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 font-black text-emerald-700 text-xs">
-                              {p.discount_type === 'FIXED'
-                                ? `Rp. ${Number(p.discount_value || 0).toLocaleString('id-ID')}`
-                                : `${p.discount_value}%`}
-                            </td>
-                            <td className="py-3 px-4 text-[11px] font-semibold text-slate-700 space-y-0.5">
-                              <div className="text-slate-900 font-extrabold">Kuota: {p.quota || 0} Tiket</div>
-                              <div className="text-slate-500">Terpakai: {p.used_count || 0}</div>
-                            </td>
-                            <td className="py-3 px-4 text-[10px] text-slate-600 font-medium space-y-0.5">
-                              <div>Mulai: {p.start_at ? format(new Date(p.start_at), 'dd MMM yyyy HH:mm') : '-'}</div>
-                              <div>End: {p.end_at ? format(new Date(p.end_at), 'dd MMM yyyy HH:mm') : '-'}</div>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <button
-                                onClick={() => setDeletingPromoTarget({ id: p.id, code: p.code })}
-                                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors cursor-pointer"
-                                title="Hapus Promo"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="p-6 text-center text-xs text-slate-400 font-medium bg-slate-50 rounded-2xl border border-slate-200">
-                    Belum ada kode promo yang dibuat untuk event ini. Gunakan form di atas untuk membuat diskon event.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
-              <button
-                onClick={() => setIsPromoModalOpen(false)}
-                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold cursor-pointer"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Konfirmasi Hapus Promo */}
-      {deletingPromoTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
-          <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 p-6 space-y-4 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <div>
-              <h4 className="text-base font-extrabold text-slate-900">Hapus Kode Promo?</h4>
-              <p className="text-xs text-slate-500 font-medium mt-1">
-                Apakah Anda yakin ingin menghapus kode promo <strong className="text-slate-900 font-bold">{deletingPromoTarget.code}</strong>? Tindakan ini tidak dapat dibatalkan.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-center gap-2 pt-2">
-              <button
-                disabled={isDeletingPromo}
-                onClick={() => setDeletingPromoTarget(null)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer flex-1"
-              >
-                Batal
-              </button>
-              <button
-                disabled={isDeletingPromo}
-                onClick={confirmDeletePromo}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold shadow-sm transition-all cursor-pointer flex-1 flex items-center justify-center gap-1"
-              >
-                {isDeletingPromo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                <span>Hapus</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL BUAT EVENT BARU ================= */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 lg:p-8 bg-slate-900/75 backdrop-blur-sm animate-in fade-in-0 overflow-y-auto">
-          <div className="relative w-full max-w-5xl xl:max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
-            {/* Header Modal */}
-            <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-900 p-6 text-white relative">
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="absolute right-4 top-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <h3 className="text-lg font-black tracking-tight">Form Buat Event Baru</h3>
-              <p className="text-xs text-blue-100/90 font-medium">
-                Isi rincian judul, tanggal, lineup, fasilitas, media sosial, lokasi venue & peta, serta banner publikasi event Anda.
-              </p>
-
-              {/* Navigation Tabs Bar */}
-              <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-white/15 overflow-x-auto no-scrollbar">
-                <button
-                  type="button"
-                  onClick={() => setCreateModalTab('info')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${createModalTab === 'info'
-                    ? 'bg-white text-blue-950 shadow-md'
-                    : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                >
-                  <Tag className="w-3.5 h-3.5" /> 1. Info Acara
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCreateModalTab('lineup')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${createModalTab === 'lineup'
-                    ? 'bg-white text-blue-950 shadow-md'
-                    : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                >
-                  <Users className="w-3.5 h-3.5" /> 2. Line Up
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCreateModalTab('facilities')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${createModalTab === 'facilities'
-                    ? 'bg-white text-blue-950 shadow-md'
-                    : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5" /> 3. Fasilitas
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCreateModalTab('social_media')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${createModalTab === 'social_media'
-                    ? 'bg-white text-blue-950 shadow-md'
-                    : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                >
-                  <Share2 className="w-3.5 h-3.5" /> 4. Media Sosial
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCreateModalTab('venue')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${createModalTab === 'venue'
-                    ? 'bg-white text-blue-950 shadow-md'
-                    : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                >
-                  <MapPin className="w-3.5 h-3.5" /> 5. Lokasi & Peta Venue
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCreateModalTab('banner')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${createModalTab === 'banner'
-                    ? 'bg-white text-blue-950 shadow-md'
-                    : 'bg-white/10 hover:bg-white/20 text-white'
-                    }`}
-                >
-                  <ImageIcon className="w-3.5 h-3.5" /> 6. Media Banner
-                </button>
-              </div>
-            </div>
-
-            {errorMessage && (
-              <div className="p-4 bg-rose-50 border-b border-rose-200 text-rose-700 text-xs font-bold">
-                {errorMessage}
-              </div>
-            )}
-
-            {/* Form Modal Content */}
-            <form onSubmit={handleCreateSubmit} noValidate className="p-6 sm:p-8 space-y-5 max-h-[78vh] overflow-y-auto">
-              {/* TAB 1: INFO EVENT & TANGGAL */}
-              <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'info' ? 'block' : 'hidden'}`}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Judul Event / Konser</label>
-                    <input
-                      type="text"
-                      name="title"
-                      required
-                      value={createTitleInput}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setCreateTitleInput(val);
-                        if (!isSlugManuallyEdited) {
-                          setCreateSlugInput(
-                            val
-                              .toLowerCase()
-                              .trim()
-                              .replace(/[^a-z0-9\s-]/g, '')
-                              .replace(/\s+/g, '-')
-                          );
-                        }
-                      }}
-                      placeholder="e.g. Soundwave Music Fest 2026"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
-                      <span>Slug / URL Event</span>
-                      <span className="text-[10px] text-blue-600 font-semibold font-mono">/events/[slug]</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="slug"
-                      required
-                      value={createSlugInput}
-                      onChange={(e) => {
-                        setIsSlugManuallyEdited(true);
-                        setCreateSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'));
-                      }}
-                      placeholder="e.g. bayfest-2026"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-blue-900 focus:bg-white focus:border-blue-600 focus:outline-none font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-extrabold text-slate-700">Deskripsi Event / Detail Acara</label>
-                    <span className="text-[10px] text-slate-400 font-medium">Mendukung format teks tebal, miring, list, dll.</span>
-                  </div>
-
-                  {/* Rich Text Editor Box matching uploaded design */}
-                  <div className="border border-slate-300 rounded-2xl bg-white shadow-2xs overflow-hidden focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/10 transition-all">
-                    {/* Toolbar Top Bar */}
-                    <div className="px-3.5 py-2 bg-white border-b border-slate-200 flex items-center gap-1 sm:gap-2 flex-wrap select-none">
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'bold')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Bold (Tebal)"
-                      >
-                        <Bold className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'italic')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Italic (Miring)"
-                      >
-                        <Italic className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'underline')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Underline (Garis Bawah)"
-                      >
-                        <Underline className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'strike')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Strikethrough (Coret)"
-                      >
-                        <Strikethrough className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'quote')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Quote (Kutipan)"
-                      >
-                        <Quote className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'link')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Link (Tautan)"
-                      >
-                        <Link2 className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'ordered-list')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Numbered List (Daftar Nomor)"
-                      >
-                        <ListOrdered className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleApplyEditorFormat(createDescTextareaRef, 'bullet-list')}
-                        className="p-1.5 rounded-lg text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer"
-                        title="Bullet List (Daftar Poin)"
-                      >
-                        <List className="w-4 h-4 stroke-[2.5]" />
-                      </button>
-                    </div>
-
-                    {/* Textarea Input */}
-                    <textarea
-                      ref={createDescTextareaRef}
-                      name="description"
-                      rows={5}
-                      placeholder="Tuliskan deskripsi lengkap mengenai event, guest star, rundown, dan informasi acara..."
-                      className="w-full p-4 bg-white border-0 text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none resize-y min-h-[120px] leading-relaxed"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Tanggal Mulai Event (Start At)</label>
-                    <input type="hidden" name="start_at" value={createStartAt} />
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
-                        >
-                          <span className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
-                            {createStartAt ? (
-                              format(new Date(createStartAt.replace('Z', '').replace(' ', 'T')), 'dd MMM yyyy')
-                            ) : (
-                              <span className="text-slate-400">Pilih tanggal mulai</span>
-                            )}
-                          </span>
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-3" align="start">
-                        <CalendarPicker
-                          mode="single"
-                          selected={createStartAt ? new Date(createStartAt.replace('Z', '').replace(' ', 'T')) : undefined}
-                          onSelect={(d) => {
-                            if (!d) return;
-                            const dateStr = format(d, 'yyyy-MM-dd');
-                            setCreateStartAt(`${dateStr}T00:00`);
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Tanggal Selesai Event (End At)</label>
-                    <input type="hidden" name="end_at" value={createEndAt} />
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
-                        >
-                          <span className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
-                            {createEndAt ? (
-                              format(new Date(createEndAt.replace('Z', '').replace(' ', 'T')), 'dd MMM yyyy')
-                            ) : (
-                              <span className="text-slate-400">Pilih tanggal selesai</span>
-                            )}
-                          </span>
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-3" align="start">
-                        <CalendarPicker
-                          mode="single"
-                          selected={createEndAt ? new Date(createEndAt.replace('Z', '').replace(' ', 'T')) : undefined}
-                          onSelect={(d) => {
-                            if (!d) return;
-                            const dateStr = format(d, 'yyyy-MM-dd');
-                            setCreateEndAt(`${dateStr}T23:59`);
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
-                      <span>Pajak Daerah (%)</span>
-                      <span className="text-[10px] text-blue-600 font-bold">Default 5%</span>
-                    </label>
-                    <div className="relative flex items-center">
-                      <input
-                        type="number"
-                        name="local_tax_percentage"
-                        step="0.1"
-                        min="0"
-                        max="100"
-                        defaultValue="5.0"
-                        placeholder="5.0"
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none pr-8"
-                      />
-                      <span className="absolute right-3 text-xs font-black text-slate-400">%</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* TAB 2: LINE UP */}
-              <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'lineup' ? 'block' : 'hidden'}`}>
-                <div className="flex items-center justify-between bg-blue-50/70 border border-blue-200/80 p-3.5 rounded-2xl">
-                  <div>
-                    <h4 className="text-xs font-extrabold text-blue-950 flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-blue-600" /> Lineup & Guest Stars Event
-                    </h4>
-                    <p className="text-[11px] text-blue-700 font-medium mt-0.5">
-                      Isi rincian pengisi acara: Nama (*name*), Foto (*image*), dan Deskripsi (*description*).
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddCreateLineup}
-                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1 shadow-sm shrink-0"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Tambah Lineup
-                  </button>
-                </div>
-
-                {createLineups.length === 0 ? (
-                  <div className="p-8 border border-dashed border-slate-200 rounded-2xl text-center bg-slate-50/50">
-                    <Music className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-xs font-bold text-slate-600">Belum ada Lineup / Guest Star</p>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Klik tombol "+ Tambah Lineup" di atas untuk menambahkan performer.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {createLineups.map((item, index) => (
-                      <div
-                        key={item.id}
-                        className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 relative group transition-all hover:bg-white hover:shadow-sm"
-                      >
-                        <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
-                          <span className="text-xs font-black text-blue-600 flex items-center gap-1">
-                            <Sparkles className="w-3.5 h-3.5" /> Lineup #{index + 1}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveCreateLineup(item.id)}
-                            className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> Hapus
-                          </button>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
-                          {/* Avatar Thumbnail */}
-                          <div className="sm:col-span-3 flex flex-col items-center justify-center space-y-2">
-                            <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-sm relative group/img">
-                              {item.image ? (
-                                <img src={getPhotoUrl(item.image) || item.image} alt={item.name || 'Lineup'} className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-1 text-center">
-                                  <Music className="w-6 h-6 text-slate-400 mb-1" />
-                                  <span className="text-[9px] font-bold">Belum Ada Foto</span>
-                                </div>
-                              )}
-                            </div>
-                            <label className="px-2.5 py-1 bg-white border border-slate-200 hover:border-blue-500 rounded-xl text-[10px] font-extrabold text-blue-700 cursor-pointer shadow-xs transition-all">
-                              <span>Pilih Foto</span>
-                              <input
-                                type="file"
-                                name="image"
-                                accept="image/*"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) handleLineupFileChoose(item.id, file, 'create');
-                                }}
-                                className="hidden"
-                              />
-                            </label>
-                          </div>
-
-                          {/* Inputs: name, description, image url */}
-                          <div className="sm:col-span-9 space-y-2">
-                            <div className="space-y-1">
-                              <label className="text-[11px] font-extrabold text-slate-700">Nama Performer / Guest Star (*name*) *</label>
-                              <input
-                                type="text"
-                                value={item.name}
-                                onChange={(e) => handleUpdateCreateLineup(item.id, 'name', e.target.value)}
-                                placeholder="e.g. Coldplay / Sheila on 7"
-                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:border-blue-600 focus:outline-none"
-                              />
-                            </div>
-
-                            <div className="space-y-1">
-                              <label className="text-[11px] font-extrabold text-slate-700">Deskripsi / Peran Performer (*description*)</label>
-                              <textarea
-                                rows={2}
-                                value={item.description}
-                                onChange={(e) => handleUpdateCreateLineup(item.id, 'description', e.target.value)}
-                                placeholder="e.g. Band rock asal Inggris sebagai bintang tamu utama di Main Stage."
-                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:border-blue-600 focus:outline-none resize-y"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* TAB 3: FASILITAS */}
-              <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'facilities' ? 'block' : 'hidden'}`}>
-                <div className="bg-emerald-50/70 border border-emerald-200/80 p-3.5 rounded-2xl">
-                  <h4 className="text-xs font-extrabold text-emerald-950 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Fasilitas & Amenities Venue
-                  </h4>
-                  <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
-                    Pilih fasilitas yang tersedia untuk penonton di lokasi acara.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-extrabold text-slate-700 block">Pilihan Fasilitas Populer (Klik untuk Toggle)</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {PRESET_FACILITIES.map((fac) => {
-                      const isSelected = createFacilities.includes(fac);
-                      return (
-                        <button
-                          key={fac}
-                          type="button"
-                          onClick={() => toggleFacility(fac, 'create')}
-                          className={`p-2.5 rounded-xl border text-left text-xs font-extrabold transition-all cursor-pointer flex items-center justify-between ${isSelected
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
-                            }`}
-                        >
-                          <span className="truncate pr-1">{fac}</span>
-                          {isSelected ? (
-                            <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
-                          ) : (
-                            <Plus className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="space-y-2 pt-2 border-t border-slate-100">
-                  <label className="text-xs font-extrabold text-slate-700 block">Tambah Fasilitas Kustom</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={customCreateFacility}
-                      onChange={(e) => setCustomCreateFacility(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddCustomFacility('create');
-                        }
-                      }}
-                      placeholder="e.g. Charging Station / Booth Souvenir..."
-                      className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleAddCustomFacility('create')}
-                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition-all cursor-pointer shrink-0"
-                    >
-                      + Tambah
-                    </button>
-                  </div>
-                </div>
-
-                {/* Active Selected Facilities Tags */}
-                {createFacilities.length > 0 && (
-                  <div className="space-y-1.5 pt-2">
-                    <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block">
-                      Fasilitas Terpilih ({createFacilities.length}):
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {createFacilities.map((fac: any, idx: number) => {
-                        const facText = typeof fac === 'string' ? fac : String(fac?.name || fac?.title || fac?.facility || '');
-                        return (
-                          <span
-                            key={`create-fac-${idx}-${facText}`}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200/80 text-blue-800 text-xs font-bold rounded-xl"
-                          >
-                            {facText}
-                            <button
-                              type="button"
-                              onClick={() => toggleFacility(facText, 'create')}
-                              className="text-blue-600 hover:text-rose-600 transition-colors cursor-pointer"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* TAB 4: MEDIA SOSIAL */}
-              <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'social_media' ? 'block' : 'hidden'}`}>
-                <div className="bg-indigo-50/70 border border-indigo-200/80 p-3.5 rounded-2xl">
-                  <h4 className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5">
-                    <Share2 className="w-4 h-4 text-indigo-600" /> Media Sosial & Tautan Resmi Event
-                  </h4>
-                  <p className="text-[11px] text-indigo-700 font-medium mt-0.5">
-                    Tambahkan sosial media dan kontak customer service event untuk meningkatkan kepercayaan pengunjung.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Camera className="w-3.5 h-3.5 text-pink-600" /> Instagram Event / EO
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium">Cukup isi username</span>
-                    </label>
-                    <div className="flex items-center">
-                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0 truncate max-w-[170px] sm:max-w-none">
-                        https://www.instagram.com/
-                      </span>
-                      <input
-                        type="text"
-                        value={createSocials.instagram.replace(/^(https?:\/\/)?(www\.)?instagram\.com\/?/i, '').replace(/^@+/, '').replace(/\/+$/, '')}
-                        onChange={(e) => {
-                          const val = e.target.value.trim();
-                          const username = val
-                            .replace(/^(https?:\/\/)?(www\.)?instagram\.com\/?/i, '')
-                            .replace(/^@+/, '')
-                            .replace(/\/+$/, '');
-                          setCreateSocials({ ...createSocials, instagram: username ? `https://www.instagram.com/${username}` : '' });
-                        }}
-                        placeholder="username_instagram"
-                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Video className="w-3.5 h-3.5 text-slate-900" /> TikTok Event / Organizer
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium">Cukup isi username</span>
-                    </label>
-                    <div className="flex items-center">
-                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0 truncate max-w-[170px] sm:max-w-none">
-                        tiktok.com/@
-                      </span>
-                      <input
-                        type="text"
-                        value={createSocials.tiktok.replace(/^(https?:\/\/)?(www\.)?tiktok\.com\/@?/i, '').replace(/^@+/, '').replace(/\/+$/, '')}
-                        onChange={(e) => {
-                          const val = e.target.value.trim();
-                          const username = val
-                            .replace(/^(https?:\/\/)?(www\.)?tiktok\.com\/@?/i, '')
-                            .replace(/^@+/, '')
-                            .replace(/\/+$/, '');
-                          setCreateSocials({ ...createSocials, tiktok: username ? `https://www.tiktok.com/@${username}` : '' });
-                        }}
-                        placeholder="username_tiktok"
-                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Globe className="w-3.5 h-3.5 text-blue-600" /> Official Website
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium">Domain / URL</span>
-                    </label>
-                    <div className="flex items-center">
-                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0">
-                        https://
-                      </span>
-                      <input
-                        type="text"
-                        value={createSocials.website.replace(/^https?:\/\//i, '').replace(/\/+$/, '')}
-                        onChange={(e) => {
-                          const val = e.target.value.trim();
-                          const domain = val.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-                          setCreateSocials({ ...createSocials, website: domain ? `https://${domain}` : '' });
-                        }}
-                        placeholder="soundwavefest.com"
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp CS / Helpdesk
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium">Maks. 12 digit (cth: 81234567890)</span>
-                    </label>
-                    <div className="flex items-center">
-                      <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-600 select-none shrink-0 flex items-center gap-1.5 truncate max-w-[170px] sm:max-w-none">
-                        <span className="text-xs leading-none">🇮🇩</span>
-                        <span>https://wa.me/62</span>
-                      </span>
-                      <input
-                        type="tel"
-                        maxLength={12}
-                        value={(() => {
-                          const val = createSocials.whatsapp || '';
-                          let clean = val
-                            .replace(/^(https?:\/\/)?(www\.)?wa\.me\/?/i, '')
-                            .replace(/^(https?:\/\/)?api\.whatsapp\.com\/send\?phone=/i, '')
-                            .replace(/[^0-9]/g, '');
-                          if (clean.startsWith('62')) clean = clean.slice(2);
-                          else if (clean.startsWith('0')) clean = clean.slice(1);
-                          return clean.slice(0, 12);
-                        })()}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          let clean = raw
-                            .replace(/^(https?:\/\/)?(www\.)?wa\.me\/?/i, '')
-                            .replace(/^(https?:\/\/)?api\.whatsapp\.com\/send\?phone=/i, '')
-                            .replace(/[^0-9]/g, '');
-                          if (clean.startsWith('62')) clean = clean.slice(2);
-                          else if (clean.startsWith('0')) clean = clean.slice(1);
-                          clean = clean.slice(0, 12);
-                          setCreateSocials({
-                            ...createSocials,
-                            whatsapp: clean ? `https://wa.me/62${clean}` : '',
-                          });
-                        }}
-                        placeholder="81234567890"
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-extrabold text-slate-700 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <Video className="w-3.5 h-3.5 text-rose-600" /> Youtube Teaser / Trailer Link
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium">Link video atau channel</span>
-                  </label>
-                  <div className="flex items-center">
-                    <span className="px-3 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-bold text-slate-500 select-none shrink-0 truncate max-w-[170px] sm:max-w-none">
-                      https://www.youtube.com/
-                    </span>
-                    <input
-                      type="text"
-                      value={createSocials.youtube.replace(/^(https?:\/\/)?(www\.)?youtube\.com\/?/i, '').replace(/^(https?:\/\/)?youtu\.be\/?/i, '')}
-                      onChange={(e) => {
-                        const val = e.target.value.trim();
-                        const cleaned = val
-                          .replace(/^(https?:\/\/)?(www\.)?youtube\.com\/?/i, '')
-                          .replace(/^(https?:\/\/)?youtu\.be\/?/i, '');
-                        setCreateSocials({ ...createSocials, youtube: cleaned ? `https://www.youtube.com/${cleaned}` : '' });
-                      }}
-                      placeholder="watch?v=... atau @nama_channel"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* TAB 5: DETAIL VENUE & PETA */}
-              <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'venue' ? 'block' : 'hidden'}`}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Nama Venue / Tempat</label>
-                    <input
-                      type="text"
-                      name="name"
-                      required
-                      placeholder="e.g. GBK Senayan / JIExpo Kemayoran"
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Alamat Lengkap</label>
-                    <input
-                      type="text"
-                      name="address"
-                      placeholder="e.g. Jl. Jendral Sudirman No. 1, Gelora"
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Kota / Lokasi Cari</label>
-                    <input
-                      type="text"
-                      name="city"
-                      value={createCityInput}
-                      onChange={(e) => setCreateCityInput(e.target.value)}
-                      placeholder="e.g. Jakarta Pusat, Bandung, Surabaya"
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Kapasitas Penonton</label>
-                    <input
-                      type="number"
-                      name="capacity"
-                      defaultValue={5000}
-                      placeholder="e.g. 50000"
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Leaflet Interactive Map JS Picker */}
-                <input type="hidden" name="latitude" value={createLat} />
-                <input type="hidden" name="longitude" value={createLng} />
-                <VenueMapPicker
-                  initialLat={createLat}
-                  initialLng={createLng}
-                  cityValue={createCityInput}
-                  onCityChange={(cityName) => setCreateCityInput(cityName)}
-                  onLocationSelect={(lat, lng) => {
-                    setCreateLat(lat);
-                    setCreateLng(lng);
-                  }}
-                />
-              </div>
-
-              {/* TAB 6: MEDIA BANNER */}
-              <div className={`space-y-4 animate-in fade-in-0 ${createModalTab === 'banner' ? 'block' : 'hidden'}`}>
-                <div className="space-y-3">
-                  <label className="text-xs font-extrabold text-slate-700 block">Foto Banner Event (Upload dari Komputer)</label>
-                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-sm h-56 sm:h-72 w-full bg-slate-900 group">
-                    {createBannerPreview ? (
-                      <img
-                        src={createBannerPreview}
-                        alt="Banner Event Preview"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=800&q=80';
-                        }}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-white p-4 text-center bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900">
-                        <Sparkles className="w-8 h-8 text-amber-300 mb-1 animate-pulse" />
-                        <span className="font-extrabold text-xs tracking-tight">Belum Ada Banner Terpilih</span>
-                        <span className="text-[10px] text-blue-200 mt-1 font-medium">
-                          Pilih file gambar dari komputer di bawah untuk melihat preview
-                        </span>
-                      </div>
-                    )}
-                    {createBannerPreview && (
-                      <div className="absolute top-2.5 right-2.5 bg-slate-900/80 backdrop-blur-md text-emerald-400 text-[10px] font-black px-2.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Preview Banner Aktif
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5 pt-1">
-                    <label className="text-[11px] font-bold text-slate-700">Upload File Gambar dari Komputer</label>
-                    <input
-                      type="file"
-                      name="banner"
-                      accept="image/*"
-                      onChange={handleCreateFileChange}
-                      className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer border border-slate-200 rounded-xl p-1 bg-slate-50 transition-all"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer Actions */}
-              <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
-                {/* Mobile Top Row: Batal on left, Navigation on right */}
-                <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap text-center"
-                  >
-                    Batal
-                  </button>
-
-                  <div className="flex items-center gap-1.5 sm:hidden">
-                    {createModalTab !== 'info' && (
-                      <button
-                        type="button"
-                        onClick={() => setCreateModalTab(getPrevTab(createModalTab))}
-                        className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                      >
-                        <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
-                        <span>Kembali</span>
-                      </button>
-                    )}
-
-                    {createModalTab !== 'banner' && (
-                      <button
-                        type="button"
-                        onClick={() => setCreateModalTab(getNextTab(createModalTab))}
-                        className="px-3.5 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                      >
-                        <span>Lanjut</span>
-                        <ChevronRight className="w-3.5 h-3.5 shrink-0" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Right side container: desktop nav buttons + Simpan button */}
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  {/* Desktop Only Prev / Next Buttons */}
-                  <div className="hidden sm:flex items-center gap-2">
-                    {createModalTab !== 'info' && (
-                      <button
-                        type="button"
-                        onClick={() => setCreateModalTab(getPrevTab(createModalTab))}
-                        className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-                      >
-                        <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
-                        <span>Kembali</span>
-                      </button>
-                    )}
-
-                    {createModalTab !== 'banner' && (
-                      <button
-                        type="button"
-                        onClick={() => setCreateModalTab(getNextTab(createModalTab))}
-                        className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-                      >
-                        <span>Lanjut</span>
-                        <ChevronRight className="w-3.5 h-3.5 shrink-0" />
-                      </button>
-                    )}
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 whitespace-nowrap"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> Menyimpan ke API...
-                      </>
-                    ) : (
-                      'Simpan'
-                    )}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL EVENT SETTINGS ================= */}
-      {isSettingsModalOpen && selectedEventForSettings && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
-          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
-            {/* Header Modal */}
-            <div className="bg-gradient-to-r from-blue-700 to-indigo-700 p-6 text-white relative">
-              <button
-                type="button"
-                onClick={() => setIsSettingsModalOpen(false)}
-                className="absolute right-4 top-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <div className="flex items-center gap-2 mb-1">
-                <Settings className="w-4 h-4 text-blue-200" />
-                <span className="text-xs font-extrabold uppercase tracking-wider text-blue-100">
-                  Pengaturan Event & Aturan Tiket
-                </span>
-              </div>
-              <h3 className="text-lg font-extrabold tracking-tight truncate">
-                {selectedEventForSettings.title}
-              </h3>
-            </div>
-
-            {settingsError && (
-              <div className="p-4 bg-rose-50 border-b border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                <span>{settingsError}</span>
-              </div>
-            )}
-
-            {isSettingsLoading ? (
-              <div className="p-8 space-y-4">
-                <Skeleton className="h-6 w-48 rounded-xl" />
-                <Skeleton className="h-24 w-full rounded-2xl" />
-                <Skeleton className="h-12 w-full rounded-xl" />
-              </div>
-            ) : (
-              <form onSubmit={handleSaveSettingsSubmit} className="p-6 space-y-5">
-                {/* Allow Ticket Transfer Switch */}
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
-                  <div className="space-y-0.5">
-                    <label className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5 cursor-pointer">
-                      <Repeat className="w-4 h-4 text-blue-600" /> Izinkan Transfer Tiket
-                    </label>
-                    <p className="text-[11px] text-slate-500 font-medium">
-                      Pembeli tiket dapat mentransfer tiket ke pengguna lain secara online.
-                    </p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settingAllowTransfer}
-                    onChange={(e) => setSettingAllowTransfer(e.target.checked)}
-                    className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
-                  />
-                </div>
-
-                {/* Transfer Fee Formatted Input */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-extrabold text-slate-700 block">
-                    Biaya Transfer Tiket (Rp)
-                  </label>
-                  <div className="flex items-center">
-                    <span className="px-3.5 py-2.5 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-black text-slate-600">
-                      Rp.
-                    </span>
-                    <input
-                      type="text"
-                      value={transferFeeDisplay}
-                      onChange={handleTransferFeeChange}
-                      placeholder="0"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-r-xl text-xs font-black text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-all shadow-2xs"
-                    />
-                  </div>
-                  <p className="text-[10px] text-slate-400 font-medium">
-                    Set 0 jika biaya transfer tiket gratis untuk pembeli.
-                  </p>
-                </div>
-
-                {/* Grid: Max Tickets per Order & Timeout */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 block">
-                      Maksimal Pembelian Tiket
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="50"
-                      required
-                      value={settingMaxPerOrder}
-                      onChange={(e) => setSettingMaxPerOrder(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                    <p className="text-[10px] text-slate-400 font-medium">Default: 4 tiket per transaksi.</p>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 block">
-                      Timeout Reservasi (Menit)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="60"
-                      required
-                      value={settingReservationTimeout}
-                      onChange={(e) => setSettingReservationTimeout(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none"
-                    />
-                    <p className="text-[10px] text-slate-400 font-medium">Batas waktu bayar checkout (default 10 menit).</p>
-                  </div>
-                </div>
-
-                {/* Require Identity Switch */}
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
-                  <div className="space-y-0.5">
-                    <label className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5 cursor-pointer">
-                      <UserCheck className="w-4 h-4 text-amber-600" /> Wajibkan Pengisian KTP / NIK
-                    </label>
-                    <p className="text-[11px] text-slate-500 font-medium">
-                      Pembeli wajib mengisi nomor NIK/KTP dan data pemegang tiket saat checkout.
-                    </p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={settingRequireIdentity}
-                    onChange={(e) => setSettingRequireIdentity(e.target.checked)}
-                    className="w-5 h-5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer shrink-0"
-                  />
-                </div>
-
-                {/* Footer Buttons */}
-                <div className="pt-2 flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsSettingsModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all cursor-pointer"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSavingSettings}
-                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    {isSavingSettings ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> Menyimpan...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4" /> Simpan Pengaturan
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
     </DashboardLayout>
   );
 }

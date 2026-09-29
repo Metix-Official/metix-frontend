@@ -1966,6 +1966,175 @@ export async function fetchMyEvents(): Promise<{
   }
 }
 
+export interface FetchMasterEventsParams {
+  search?: string;
+  status?: string;
+  page?: number;
+  per_page?: number;
+}
+
+export interface FetchMasterEventsResponse {
+  events: ApiEvent[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
+export async function fetchMasterEvents(params?: FetchMasterEventsParams): Promise<FetchMasterEventsResponse> {
+  const token = getStoredToken();
+  if (!token) return { events: [], meta: { current_page: 1, last_page: 1, per_page: 15, total: 0 } };
+
+  try {
+    const url = new URL(`${API_BASE_URL}/organizer/events`);
+    if (params?.search && params.search.trim()) url.searchParams.append('search', params.search.trim());
+    if (params?.status && params.status !== 'all') url.searchParams.append('status', params.status);
+    if (params?.page) url.searchParams.append('page', String(params.page));
+    if (params?.per_page) url.searchParams.append('per_page', String(params.per_page));
+
+    const res = await fetch(url.toString(), {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+
+    if (!res.ok) return { events: [], meta: { current_page: 1, last_page: 1, per_page: 15, total: 0 } };
+
+    const data = await res.json();
+    const eventList: ApiEvent[] = Array.isArray(data?.data) ? data.data : (Array.isArray(data?.events) ? data.events : []);
+    const meta = data?.meta || {
+      current_page: Number(params?.page || 1),
+      last_page: 1,
+      per_page: Number(params?.per_page || 15),
+      total: eventList.length,
+    };
+
+    return { events: eventList, meta };
+  } catch (err) {
+    console.warn('Failed to fetch master events:', err);
+    return { events: [], meta: { current_page: 1, last_page: 1, per_page: 15, total: 0 } };
+  }
+}
+
+export interface ApiEventFacilityItem {
+  id: number;
+  event_id?: number;
+  name: string;
+  image?: string | null;
+  description?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function fetchEventFacilitiesList(eventId: number | string): Promise<ApiEventFacilityItem[]> {
+  const token = getStoredToken();
+  if (!token || !eventId) return [];
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facilities`, {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const list = data?.data || data?.facilities || [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+export interface ApiEventLineupItem {
+  id: number;
+  event_id?: number;
+  name: string;
+  image?: string | null;
+  description?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function fetchEventLineupsList(eventId: number | string): Promise<ApiEventLineupItem[]> {
+  const token = getStoredToken();
+  if (!token || !eventId) return [];
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/lineups`, {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const list = data?.data || data?.lineups || [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+export interface ApiEventSocialMediaItem {
+  id: number;
+  event_id?: number;
+  name: string;
+  image?: string | null;
+  description?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function fetchEventSocialMediasList(eventId: number | string): Promise<ApiEventSocialMediaItem[]> {
+  const token = getStoredToken();
+  if (!token || !eventId) return [];
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/social-medias`, {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const list = data?.data || data?.social_medias || [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+export interface ApiEventScannerItem {
+  id: number;
+  event_id?: number;
+  name: string;
+  email: string;
+  phone?: string | null;
+  role_in_team?: string;
+  scan_count?: number;
+  scan_quota?: number;
+  status?: string;
+  joined_at?: string;
+}
+
+export async function fetchEventScannersList(eventId: number | string): Promise<ApiEventScannerItem[]> {
+  const token = getStoredToken();
+  if (!token || !eventId) return [];
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/organizer/team`, {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const list = data?.data || [];
+    if (Array.isArray(list)) {
+      return list.filter((m: any) => !m.event_id || Number(m.event_id) === Number(eventId));
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
 export interface CreateVenuePayload {
   name: string;
   address: string;
@@ -2970,32 +3139,141 @@ export async function updateUserProfile(formData: FormData): Promise<UserProfile
   return updatedUser;
 }
 
-export async function fetchOwnerUsers(params?: {
+export interface OwnerUserItem {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string | null;
+  nik?: string | null;
+  address?: string | null;
+  photo_path?: string | null;
+  photo_url?: string | null;
+  role: 'OWNER' | 'EO' | 'BUYER' | 'SCANNER' | string;
+  status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED' | string;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  buyer_address?: string | null;
+  city?: string | null;
+  province?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface FetchOwnerUsersParams {
   search?: string;
+  role?: string;
+  status?: string;
   page?: number;
-}): Promise<{ users: UserProfile[]; total: number }> {
+  per_page?: number;
+}
+
+export interface FetchOwnerUsersResponse {
+  users: OwnerUserItem[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
+export async function fetchOwnerUsers(params?: FetchOwnerUsersParams): Promise<FetchOwnerUsersResponse> {
   const token = getStoredToken();
-  if (!token) return { users: [], total: 0 };
+  if (!token) {
+    return { users: [], meta: { current_page: 1, last_page: 1, per_page: 15, total: 0 } };
+  }
 
   try {
-    const url = new URL(`${API_BASE_URL}/owner/organizers`);
-    if (params?.search) url.searchParams.append('search', params.search);
-    if (params?.page) url.searchParams.append('page', String(params.page));
+    const url = new URL(`${API_BASE_URL}/owner/users`);
+    if (params?.search && params.search.trim()) {
+      url.searchParams.append('search', params.search.trim());
+    }
+    if (params?.role && params.role !== 'all') {
+      url.searchParams.append('role', params.role);
+    }
+    if (params?.status && params.status !== 'all') {
+      url.searchParams.append('status', params.status);
+    }
+    if (params?.page) {
+      url.searchParams.append('page', String(params.page));
+    }
+    if (params?.per_page) {
+      url.searchParams.append('per_page', String(params.per_page));
+    }
 
     const response = await fetch(url.toString(), {
       headers: getHeaders(token),
     });
 
-    if (!response.ok) return { users: [], total: 0 };
+    if (!response.ok) {
+      return { users: [], meta: { current_page: 1, last_page: 1, per_page: 15, total: 0 } };
+    }
 
     const data = await response.json();
-    const userList = data?.data || data?.organizers || [];
-    const total = data?.meta?.total || userList.length;
+    const userList: OwnerUserItem[] = Array.isArray(data?.data) ? data.data : [];
+    const meta = data?.meta || {
+      current_page: Number(params?.page || 1),
+      last_page: 1,
+      per_page: Number(params?.per_page || 15),
+      total: userList.length,
+    };
 
-    return { users: userList, total };
+    return { users: userList, meta };
   } catch (error) {
     console.warn('Failed to fetch owner users from API:', error);
-    return { users: [], total: 0 };
+    return { users: [], meta: { current_page: 1, last_page: 1, per_page: 15, total: 0 } };
+  }
+}
+
+export async function deleteOwnerUser(userId: number): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) return false;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/owner/users/${userId}`, {
+      method: 'DELETE',
+      headers: getHeaders(token),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function updateOwnerUser(
+  userId: number,
+  payload: Partial<OwnerUserItem> & { password?: string }
+): Promise<{ success: boolean; user?: OwnerUserItem; message?: string }> {
+  const token = getStoredToken();
+  if (!token) return { success: false, message: 'Unauthenticated' };
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/owner/users/${userId}`, {
+      method: 'PUT',
+      headers: {
+        ...getHeaders(token),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      const errMsg =
+        data?.message ||
+        (data?.errors ? Object.values(data.errors).flat().join(', ') : 'Gagal memperbarui data user');
+      return { success: false, message: errMsg };
+    }
+
+    return {
+      success: true,
+      user: data?.data || data?.user,
+      message: data?.message || 'Data user berhasil diperbarui',
+    };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Terjadi kesalahan koneksi' };
   }
 }
 
@@ -3550,12 +3828,23 @@ export interface ApiOrganizerProfile {
   user_id?: number;
   organization_name: string;
   logo?: string | null;
+  logo_url?: string | null;
   description?: string | null;
   address?: string | null;
+  city?: string | null;
   phone?: string | null;
+  phone_number?: string | null;
   email?: string | null;
+  legal_document?: string | null;
+  legal_document_url?: string | null;
   status?: 'PENDING_APPROVAL' | 'ACTIVE' | 'INACTIVE' | 'REJECTED';
   rejection_reason?: string | null;
+  user?: {
+    id?: number;
+    name?: string;
+    email?: string;
+    phone?: string;
+  } | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -4382,4 +4671,311 @@ export async function manualSyncPaidOrder(invoiceNumber: string): Promise<{ succ
 
   return data;
 }
+
+// ----------------------------------------------------------------------
+// MASTER ORDER & ORDER ITEMS API (OWNER)
+// ----------------------------------------------------------------------
+export interface MasterOrderItem {
+  id: number;
+  order_id: number;
+  ticket_type_id: number;
+  ticket_type_name: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  created_at?: string;
+  ticket_type?: {
+    id: number;
+    name: string;
+    category?: string | null;
+    price: number;
+    quota?: number | null;
+    sold_count?: number | null;
+    status?: string | null;
+    description?: string | null;
+  } | null;
+}
+
+export interface MasterOrder {
+  id: number;
+  order_number: string;
+  buyer_name: string;
+  buyer_email: string;
+  buyer_phone?: string;
+  event?: {
+    id: number;
+    title: string;
+    slug: string;
+    banner?: string;
+    start_time?: string;
+    location_name?: string;
+  } | null;
+  subtotal: number;
+  local_tax: number;
+  local_tax_amount: number;
+  platform_fee: number;
+  payment_fee: number;
+  discount_amount: number;
+  payment_method: string;
+  total_amount: number;
+  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'REFUNDED' | string;
+  expires_at?: string | null;
+  paid_at?: string | null;
+  created_at?: string | null;
+  items_count?: number;
+  items?: MasterOrderItem[];
+  payments?: any[];
+}
+
+export interface MasterOrdersResponse {
+  success: boolean;
+  message: string;
+  data: MasterOrder[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
+export interface MasterOrderDetailResponse {
+  success: boolean;
+  message: string;
+  data: MasterOrder;
+}
+
+export interface MasterOrderItemsResponse {
+  success: boolean;
+  message: string;
+  order: {
+    id: number;
+    order_number: string;
+    buyer_name: string;
+    buyer_email: string;
+    event_title: string;
+    status: string;
+    total_amount: number;
+  };
+  data: MasterOrderItem[];
+}
+
+export async function fetchMasterOrders(params?: {
+  search?: string;
+  status?: string;
+  page?: number;
+  per_page?: number;
+}): Promise<MasterOrdersResponse> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const queryParams = new URLSearchParams();
+  if (params?.search) queryParams.set('search', params.search);
+  if (params?.status && params.status !== 'all') queryParams.set('status', params.status);
+  if (params?.page) queryParams.set('page', String(params.page));
+  if (params?.per_page) queryParams.set('per_page', String(params.per_page));
+
+  const url = `${API_BASE_URL}/owner/orders${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: getHeaders(token),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(json?.message || 'Gagal memuat daftar master order.');
+  }
+
+  return {
+    success: true,
+    message: json.message || 'Berhasil',
+    data: json.data || [],
+    meta: json.meta || {
+      current_page: params?.page || 1,
+      last_page: 1,
+      per_page: params?.per_page || 15,
+      total: (json.data || []).length,
+    },
+  };
+}
+
+export async function fetchMasterOrderDetail(orderId: number | string): Promise<MasterOrder> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/owner/orders/${orderId}`, {
+    method: 'GET',
+    headers: getHeaders(token),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(json?.message || 'Gagal memuat detail order.');
+  }
+
+  return json.data;
+}
+
+export async function fetchMasterOrderItems(orderId: number | string): Promise<MasterOrderItemsResponse> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/owner/orders/${orderId}/items`, {
+    method: 'GET',
+    headers: getHeaders(token),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(json?.message || 'Gagal memuat data order items.');
+  }
+
+  return json;
+}
+
+// ----------------------------------------------------------------------
+// MASTER PAYMENTS API (OWNER)
+// ----------------------------------------------------------------------
+export interface MasterPayment {
+  id: number;
+  order_id: number;
+  order_number: string;
+  buyer_name: string;
+  buyer_email: string;
+  buyer_phone?: string;
+  event_title: string;
+  event_id?: number;
+  provider: string;
+  payment_method: string;
+  provider_transaction_id: string;
+  invoice_number: string;
+  amount: number;
+  payment_url?: string | null;
+  status: 'PENDING' | 'PAID' | 'EXPIRED' | 'FAILED' | 'CANCELLED' | 'REFUNDED' | string;
+  paid_at?: string | null;
+  expired_at?: string | null;
+  created_at?: string | null;
+  raw_response?: any;
+}
+
+export interface MasterPaymentsResponse {
+  success: boolean;
+  message: string;
+  data: MasterPayment[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
+export async function fetchMasterPayments(params?: {
+  search?: string;
+  status?: string;
+  page?: number;
+  per_page?: number;
+}): Promise<MasterPaymentsResponse> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const queryParams = new URLSearchParams();
+  if (params?.search) queryParams.set('search', params.search);
+  if (params?.status && params.status !== 'all') queryParams.set('status', params.status);
+  if (params?.page) queryParams.set('page', String(params.page));
+  if (params?.per_page) queryParams.set('per_page', String(params.per_page));
+
+  const url = `${API_BASE_URL}/owner/payments${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: getHeaders(token),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(json?.message || 'Gagal memuat daftar pembayaran.');
+  }
+
+  return {
+    success: true,
+    message: json.message || 'Berhasil',
+    data: json.data || [],
+    meta: json.meta || {
+      current_page: params?.page || 1,
+      last_page: 1,
+      per_page: params?.per_page || 15,
+      total: (json.data || []).length,
+    },
+  };
+}
+
+// ----------------------------------------------------------------------
+// MASTER PAYMENT WEBHOOKS API (OWNER)
+// ----------------------------------------------------------------------
+export interface MasterPaymentWebhook {
+  id: number;
+  provider: string;
+  event_type: string;
+  reference_id: string;
+  payload: any;
+  signature: string;
+  status: string;
+  processed_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface MasterPaymentWebhooksResponse {
+  success: boolean;
+  message: string;
+  data: MasterPaymentWebhook[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
+export async function fetchMasterPaymentWebhooks(params?: {
+  search?: string;
+  status?: string;
+  page?: number;
+  per_page?: number;
+}): Promise<MasterPaymentWebhooksResponse> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const queryParams = new URLSearchParams();
+  if (params?.search) queryParams.set('search', params.search);
+  if (params?.status && params.status !== 'all') queryParams.set('status', params.status);
+  if (params?.page) queryParams.set('page', String(params.page));
+  if (params?.per_page) queryParams.set('per_page', String(params.per_page));
+
+  const url = `${API_BASE_URL}/owner/payment-webhooks${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: getHeaders(token),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(json?.message || 'Gagal memuat data payment webhooks.');
+  }
+
+  return {
+    success: true,
+    message: json.message || 'Berhasil',
+    data: json.data || [],
+    meta: json.meta || {
+      current_page: params?.page || 1,
+      last_page: 1,
+      per_page: params?.per_page || 15,
+      total: (json.data || []).length,
+    },
+  };
+}
+
+
+
 

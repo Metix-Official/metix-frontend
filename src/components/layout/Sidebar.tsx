@@ -15,6 +15,8 @@ import {
   Sparkles,
   Printer,
   Building2,
+  ShoppingBag,
+  Webhook,
 } from 'lucide-react';
 import { UserProfile, getPhotoUrl } from '@/lib/api';
 import { getUserRole, ROLES } from '@/lib/roles';
@@ -39,6 +41,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Settings,
   Printer,
   Building2,
+  ShoppingBag,
+  Webhook,
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -107,8 +111,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   }, [currentRole]);
 
+interface SidebarNavItem {
+  name: string;
+  href: string;
+  iconName: string;
+  badge?: string;
+  section?: string;
+}
+
   // Dynamic Navigation Items per Role with distinct Href routes
-  const roleNavItems = React.useMemo(() => {
+  const roleNavItems: SidebarNavItem[] = React.useMemo(() => {
     if (currentRole === ROLES.SCANNER) {
       return [
         { name: 'Dashboard Scanner', href: '/dashboard/checkin', iconName: 'QrCode' },
@@ -118,7 +130,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (currentRole === ROLES.OWNER) {
       return [
         { name: 'Dashboard Owner', href: '/dashboard', iconName: 'LayoutDashboard' },
-        { name: 'Kelola Semua Akun', href: '/dashboard/users', iconName: 'Users', badge: 'Users' },
+        { section: 'Master', name: 'User', href: '/dashboard/users', iconName: 'Users' },
+        { name: 'Event', href: '/dashboard/events', iconName: 'Calendar' },
+        { name: 'Order', href: '/dashboard/orders', iconName: 'ShoppingBag' },
+        { name: 'Payment', href: '/dashboard/payments', iconName: 'CreditCard' },
+        { name: 'Payment Webhook', href: '/dashboard/payment-webhooks', iconName: 'Webhook' },
+        { section: 'Manajemen', name: 'Organisasi EO', href: '/dashboard/organizers', iconName: 'Building2' },
         { name: 'Persetujuan Dana', href: '/dashboard/withdrawals', iconName: 'CreditCard' },
         { name: 'Laporan Analisis', href: '/dashboard/reports', iconName: 'Send' },
         { name: 'Audit Logs', href: '/dashboard/audit-logs', iconName: 'Printer' },
@@ -128,9 +145,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (currentRole === ROLES.EO) {
       return [
         { name: 'Dashboard EO', href: '/dashboard', iconName: 'LayoutDashboard' },
-        { name: 'Profil Organisasi', href: '/dashboard/organization', iconName: 'Building2', badge: 'EO' },
+        { section: 'Master', name: 'Event', href: '/dashboard/events', iconName: 'Calendar' },
+        { section: 'Operasional', name: 'Profil Organisasi', href: '/dashboard/organization', iconName: 'Building2', badge: 'EO' },
         { name: 'Penarikan Dana', href: '/dashboard/withdrawals', iconName: 'CreditCard', badge: 'Payout' },
-        { name: 'Event Saya', href: '/dashboard/events', iconName: 'Calendar', badge: 'Aktif' },
         { name: 'Kasir Offline (POS)', href: '/dashboard/pos', iconName: 'CreditCard' },
         { name: 'Kelola Admin Scan', href: '/dashboard/admins', iconName: 'Users' },
         { name: 'Laporan Scanner', href: '/dashboard/scanner-reports', iconName: 'QrCode', badge: 'Gate' },
@@ -204,33 +221,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   (item.href === '/dashboard' && (pathname === '/dashboard' || pathname === '/dashboard/'));
 
                 return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 group ${isActive
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
-                      : 'text-slate-700 hover:text-blue-600 hover:bg-blue-50/70'
-                      }`}
-                  >
-                    <div className="flex items-center gap-2.5 overflow-hidden">
-                      <IconComponent
-                        className={`w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-105 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-600'
-                          }`}
-                      />
-                      <span className="whitespace-nowrap truncate">{item.name}</span>
-                    </div>
-
-                    {item.badge && (
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isActive
-                          ? 'bg-white/20 text-white'
-                          : 'bg-blue-50 text-blue-700 border border-blue-200'
-                          }`}
-                      >
-                        {item.badge}
-                      </span>
+                  <React.Fragment key={item.name + '-' + item.href}>
+                    {item.section && (
+                      <div className="pt-3 pb-1 px-3">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          {item.section}
+                        </span>
+                      </div>
                     )}
-                  </Link>
+                    <Link
+                      href={item.href}
+                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 group ${isActive
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
+                        : 'text-slate-700 hover:text-blue-600 hover:bg-blue-50/70'
+                        }`}
+                    >
+                      <div className="flex items-center gap-2.5 overflow-hidden">
+                        <IconComponent
+                          className={`w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-105 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-600'
+                            }`}
+                        />
+                        <span className="whitespace-nowrap truncate">{item.name}</span>
+                      </div>
+
+                      {item.badge && (
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isActive
+                            ? 'bg-white/20 text-white'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200'
+                            }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </Link>
+                  </React.Fragment>
                 );
               })}
             </div>

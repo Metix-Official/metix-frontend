@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Sparkles, MapPin, Calendar, Tag, ShieldCheck, Zap, TrendingUp, CheckCircle2, ArrowRight, Coins } from 'lucide-react';
 import { ApiEvent, getPhotoUrl } from '@/lib/api';
+import { computeEventPricing } from '@/lib/ticketUtils';
 import Link from 'next/link';
 
 const InstagramIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -43,16 +44,9 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
   const currentEvent = events && events.length > 0 ? events[0] : null;
 
   const minPrice = useMemo(() => {
-    if (!currentEvent || !currentEvent.ticket_types || currentEvent.ticket_types.length === 0) {
-      return 'Rp 80.000';
-    }
-    const validPrices = currentEvent.ticket_types
-      .map((t) => Number(t.price))
-      .filter((p) => !isNaN(p) && p > 0);
-
-    if (validPrices.length === 0) return 'Rp 80.000';
-    const lowest = Math.min(...validPrices);
-    return `Rp ${lowest.toLocaleString('id-ID')}`;
+    if (!currentEvent) return 'Rp 80.000';
+    const pricing = computeEventPricing(currentEvent.ticket_types, currentEvent.status);
+    return pricing.priceStr !== 'Coming Soon' ? pricing.priceStr : 'Rp 80.000';
   }, [currentEvent]);
 
   const dateFormatted = useMemo(() => {

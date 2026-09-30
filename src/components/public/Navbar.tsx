@@ -13,6 +13,7 @@ import {
   LogOut,
   Settings,
   Calendar,
+  Info,
 } from 'lucide-react';
 import Link from 'next/link';
 import { getDefaultRoleDashboard } from '@/lib/roles';
@@ -32,6 +33,7 @@ interface NavbarProps {
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   onSearchSubmit?: (query: string) => void;
+  onOpenHelpGuide?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -41,6 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   searchQuery = '',
   onSearchChange,
   onSearchSubmit,
+  onOpenHelpGuide,
 }) => {
   const [isFlagDropdownOpen, setIsFlagDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -182,6 +185,24 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Right Desktop Action Buttons */}
             <div className="flex items-center gap-3.5 shrink-0 ml-auto">
+              {/* Help Center / Info Button (Pusat Bantuan) */}
+              <div className="relative group/help">
+                <button
+                  type="button"
+                  onClick={onOpenHelpGuide}
+                  className="w-9 h-9 rounded-full border border-slate-200/90 hover:border-blue-400 bg-slate-50/90 hover:bg-blue-50 text-slate-600 hover:text-blue-700 flex items-center justify-center transition-all shadow-2xs cursor-pointer"
+                  title="Pusat Bantuan"
+                  aria-label="Pusat Bantuan"
+                >
+                  <Info className="w-4 h-4" />
+                </button>
+                {/* Tooltip Pusat Bantuan */}
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-bold rounded-lg shadow-lg opacity-0 pointer-events-none group-hover/help:opacity-100 transition-opacity whitespace-nowrap z-50">
+                  Pusat Bantuan
+                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45" />
+                </div>
+              </div>
+
               {/* Flag ID / EN Picker Dropdown */}
               <div className="relative" ref={flagRef}>
                 <button
@@ -327,7 +348,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Mobile Right Controls */}
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="flex items-center gap-1.5 md:hidden">
+            {/* Help Center Info Button Mobile */}
+            <button
+              type="button"
+              onClick={onOpenHelpGuide}
+              className="p-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:text-blue-700 transition-colors"
+              title="Pusat Bantuan"
+              aria-label="Pusat Bantuan"
+            >
+              <Info className="w-4 h-4" />
+            </button>
+
             {/* Flag ID / EN Picker */}
             <button
               onClick={() => setIsFlagDropdownOpen(!isFlagDropdownOpen)}

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { isTicketTypeSoldOut } from '@/lib/ticketUtils';
 import {
   ArrowLeft,
   ArrowRight,
@@ -968,10 +969,7 @@ export default function EventCheckoutClient() {
                           const selected = selectedTickets.find((t) => t.ticket_type_id === ticket.id);
                           const qty = selected ? selected.quantity : 0;
                           const priceNum = Number(ticket.price);
-                          
-                          const isSoldOut = 
-                            (ticket.status || '').toUpperCase() === 'SOLD_OUT' || 
-                            (ticket.available_quota !== undefined ? ticket.available_quota : (ticket.quota ?? 1) - (ticket.sold_quantity ?? ticket.sold_count ?? 0)) <= 0;
+                          const isSoldOut = isTicketTypeSoldOut(ticket);
 
                           return (
                             <div
@@ -992,15 +990,21 @@ export default function EventCheckoutClient() {
                                       Tersedia
                                     </span>
                                   ) : (
-                                    <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200">
-                                      Sold Out / Habis
+                                    <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 shadow-2xs">
+                                      Sold Out
                                     </span>
                                   )}
                                 </h4>
                                 <p className="text-xs text-slate-500 font-medium">
                                   {ticket.description || 'Akses resmi ke venue event.'}
                                 </p>
-                                <span className="text-base font-black text-blue-700 block pt-1">
+                                <span
+                                  className={`text-base font-black block pt-1 ${
+                                    isSoldOut
+                                      ? 'line-through text-slate-400 decoration-rose-500 decoration-2'
+                                      : 'text-blue-700'
+                                  }`}
+                                >
                                   Rp {priceNum.toLocaleString('id-ID')}
                                 </span>
                               </div>

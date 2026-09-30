@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { fetchEoAdmins, EoAdminUser, fetchAuditLogs, fetchScannerCheckIns, fetchMyEvents } from '@/lib/api';
+import { fetchEoAdmins, EoAdminUser, fetchAuditLogs, fetchScannerCheckIns, fetchMyEvents, getStoredUser } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import {
   UserCheck,
@@ -63,8 +63,12 @@ export default function ScannerReportsPage() {
 
         const realLogsMap: Record<string | number, ScanRecordItem[]> = {};
 
-        const auditRes = await fetchAuditLogs();
-        const auditLogs = auditRes?.logs || [];
+        const currentUser = getStoredUser();
+        let auditLogs: any[] = [];
+        if (currentUser?.role === 'OWNER') {
+          const auditRes = await fetchAuditLogs();
+          auditLogs = auditRes?.logs || [];
+        }
 
         // Fetch events created by EO to query all check-ins
         let eoEvents: any[] = [];
@@ -73,7 +77,7 @@ export default function ScannerReportsPage() {
           eoEvents = evData?.events || [];
         } catch {}
 
-        const candidateEventIds = new Set<number | string>([1, 2, 3, 4, 5]);
+        const candidateEventIds = new Set<number | string>();
         eoEvents.forEach((ev: any) => {
           if (ev.id) candidateEventIds.add(ev.id);
         });

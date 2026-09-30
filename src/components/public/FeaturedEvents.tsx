@@ -6,6 +6,7 @@ import { PublicEvent } from '@/data/publicMockData';
 import { EventCard } from './EventCard';
 import { ApiEvent } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { computeEventPricing } from '@/lib/ticketUtils';
 import Link from 'next/link';
 
 interface FeaturedEventsProps {
@@ -51,14 +52,10 @@ export const FeaturedEvents: React.FC<FeaturedEventsProps> = ({
         }
       }
 
-      let priceStr = 'Coming Soon';
-      if (item.ticket_types && item.ticket_types.length > 0) {
-        const prices = item.ticket_types.map((t) => Number(t.price)).filter((p) => !isNaN(p) && p >= 0);
-        if (prices.length > 0) {
-          const min = Math.min(...prices);
-          priceStr = min === 0 ? 'Gratis' : `Rp ${min.toLocaleString('id-ID')}`;
-        }
-      }
+      // Compute pricing with ticketUtils: ACTIVE vs SOLD_OUT, ignoring INACTIVE
+      const pricing = computeEventPricing(item.ticket_types, item.status);
+      const priceStr = pricing.priceStr;
+      const isSoldOut = pricing.isSoldOut || item.status?.toUpperCase() === 'CLOSED';
 
       // Venue parsing from API schema
       let venueStr = item.location || 'Venue Location';
@@ -100,7 +97,7 @@ export const FeaturedEvents: React.FC<FeaturedEventsProps> = ({
         price: priceStr,
         banner: item.banner,
         imageTheme: themes[idx % themes.length],
-        isSoldOut: item.status?.toUpperCase() === 'CLOSED',
+        isSoldOut: isSoldOut,
         rawApiEvent: item,
       };
     });

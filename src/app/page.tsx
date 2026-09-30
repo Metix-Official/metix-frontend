@@ -9,6 +9,7 @@ import { UpcomingEvents } from '@/components/public/UpcomingEvents';
 import { OrganizerCTA } from '@/components/public/OrganizerCTA';
 import { Footer } from '@/components/public/Footer';
 import { AuthModal } from '@/components/public/AuthModal';
+import { WelcomeTicketGuideModal } from '@/components/public/WelcomeTicketGuideModal';
 import { useLanguage } from '@/hooks/useLanguage';
 import { fetchPublicEvents, ApiEvent } from '@/lib/api';
 
@@ -16,6 +17,7 @@ export default function PublicHomepage() {
   const { lang, setLang } = useLanguage('id');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+  const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
   
   // Real Search & Category Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,6 +52,13 @@ export default function PublicHomepage() {
         window.history.replaceState({}, '', '/');
       }
     }
+
+    // Auto-open welcome modal when user first arrives on the homepage
+    const timer = setTimeout(() => {
+      setIsWelcomeModalOpen(true);
+    }, 400);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const handleOpenAuthModal = (mode: 'login' | 'register' = 'login') => {
@@ -59,6 +68,14 @@ export default function PublicHomepage() {
 
   const handleSearchSubmit = (query: string) => {
     setSearchQuery(query);
+    const element = document.getElementById('events');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleOrderTicket = () => {
+    setIsWelcomeModalOpen(false);
     const element = document.getElementById('events');
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' });
@@ -81,6 +98,7 @@ export default function PublicHomepage() {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onSearchSubmit={handleSearchSubmit}
+          onOpenHelpGuide={() => setIsWelcomeModalOpen(true)}
         />
 
         {/* Hero Interactive Carousel Section */}
@@ -116,6 +134,13 @@ export default function PublicHomepage() {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         initialMode={authModalMode}
+      />
+
+      {/* Welcome & Ticket Guide Modal (Auto-open on landing) */}
+      <WelcomeTicketGuideModal
+        isOpen={isWelcomeModalOpen}
+        onClose={() => setIsWelcomeModalOpen(false)}
+        onOrderTicket={handleOrderTicket}
       />
     </div>
   );

@@ -2485,6 +2485,22 @@ export async function fetchEventScannersList(eventId: number | string): Promise<
   const token = getStoredToken();
   if (!token || !eventId) return [];
 
+  // 1. Try dedicated endpoint GET /organizer/events/{event}/scanners
+  try {
+    const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/scanners`, {
+      headers: getHeaders(token),
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const list = data?.data || [];
+      if (Array.isArray(list)) {
+        return list;
+      }
+    }
+  } catch {}
+
+  // 2. Fallback to /organizer/team if event scanners endpoint unavailable
   try {
     const res = await fetch(`${API_BASE_URL}/organizer/team`, {
       headers: getHeaders(token),
@@ -2494,11 +2510,48 @@ export async function fetchEventScannersList(eventId: number | string): Promise<
     const data = await res.json();
     const list = data?.data || [];
     if (Array.isArray(list)) {
-      return list.filter((m: any) => !m.event_id || Number(m.event_id) === Number(eventId));
+      return list.filter((m: any) => Number(m.event_id) === Number(eventId));
     }
     return [];
   } catch {
     return [];
+  }
+}
+
+export async function assignScannerToEvent(eventId: number | string, scannerUserId: number | string): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token || !eventId || !scannerUserId) return false;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/scanners`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getHeaders(token),
+      },
+      body: JSON.stringify({
+        scanner_user_id: Number(scannerUserId),
+        status: 'ACTIVE',
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function unassignScannerFromEvent(eventId: number | string, scannerUserId: number | string): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token || !eventId || !scannerUserId) return false;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/scanners/${scannerUserId}`, {
+      method: 'DELETE',
+      headers: getHeaders(token),
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }
 

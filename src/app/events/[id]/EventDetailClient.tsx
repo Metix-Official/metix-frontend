@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { computeEventPricing } from '@/lib/ticketUtils';
 import {
   ArrowLeft,
   ArrowRight,
@@ -93,27 +94,14 @@ export default function EventDetailClient() {
     }
   }, [params]);
 
-  // Check if event has any tickets created
-  const hasTickets = React.useMemo(() => {
-    if (!event || !event.ticket_types) return false;
-    return event.ticket_types.length > 0;
+  // Compute ticket pricing using ticketUtils (ACTIVE vs SOLD_OUT, excluding INACTIVE)
+  const eventPricing = React.useMemo(() => {
+    return computeEventPricing(event?.ticket_types, event?.status);
   }, [event]);
 
-  // Compute lowest ticket price or show Coming Soon if not yet created
-  const lowestPrice = React.useMemo(() => {
-    if (!event || !event.ticket_types || event.ticket_types.length === 0) {
-      return 'Coming Soon';
-    }
-    const validPrices = event.ticket_types
-      .map((t) => Number(t.price))
-      .filter((p) => !isNaN(p) && p >= 0);
-    if (validPrices.length > 0) {
-      const min = Math.min(...validPrices);
-      if (min === 0) return 'Gratis';
-      return `Rp ${min.toLocaleString('id-ID')}`;
-    }
-    return 'Coming Soon';
-  }, [event]);
+  const hasTickets = eventPricing.hasTickets;
+  const lowestPrice = eventPricing.priceStr;
+  const isEventSoldOut = eventPricing.isSoldOut || event?.status?.toLowerCase() === 'closed';
 
   // Format Date & Time from start_at / event_start_at
   const dateFormatted = React.useMemo(() => {
@@ -749,25 +737,36 @@ export default function EventDetailClient() {
               </div>
             </div>
 
-            {/* Card 2: Price & "Beli Sekarang" CTA Button (Desktop Only, hidden on Mobile) */}
+            {/* Card 2: Price & "Beli Sekarang" CTA Button (Desktop Only, hidden on Mobile - Sesuai Gambar 2) */}
             <div className="hidden lg:block bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-600">
-                  {lowestPrice === 'Coming Soon' ? 'Harga Tiket' : 'Mulai Dari'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-600">
+                    {lowestPrice === 'Coming Soon' ? 'Harga Tiket' : 'Mulai Dari'}
+                  </span>
+                  {isEventSoldOut && (
+                    <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 text-[10px] font-black uppercase border border-rose-200 shadow-2xs">
+                      Sold Out
+                    </span>
+                  )}
+                </div>
                 <span
                   className={`text-xl sm:text-2xl font-black ${
-                    lowestPrice === 'Coming Soon' ? 'text-amber-600' : 'text-slate-900'
+                    isEventSoldOut
+                      ? 'line-through text-slate-400 decoration-rose-500 decoration-2'
+                      : lowestPrice === 'Coming Soon'
+                      ? 'text-amber-600'
+                      : 'text-slate-900'
                   }`}
                 >
                   {lowestPrice}
                 </span>
               </div>
 
-              {event.status === 'closed' ? (
+              {isEventSoldOut ? (
                 <button
                   disabled
-                  className="w-full py-3.5 rounded-lg bg-slate-100 text-slate-400 font-extrabold text-sm cursor-not-allowed text-center"
+                  className="w-full py-3.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 font-extrabold text-sm cursor-not-allowed text-center"
                 >
                   Tiket Habis (Sold Out)
                 </button>
@@ -782,10 +781,11 @@ export default function EventDetailClient() {
               ) : (
                 <button
                   onClick={handleBuyClick}
-                  className="w-full py-3.5 rounded-lg bg-blue-700 hover:bg-blue-800 active:bg-blue-900 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-blue-700/20 hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black text-sm shadow-lg shadow-blue-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer group"
                 >
-                  <Ticket className="w-4 h-4 text-amber-300" />
+                  <Ticket className="w-4 h-4 text-amber-300 transition-transform group-hover:rotate-12" />
                   <span>Beli Sekarang</span>
+                  <ArrowRight className="w-4 h-4 opacity-80 group-hover:translate-x-1 transition-transform" />
                 </button>
               )}
             </div>
@@ -889,19 +889,30 @@ export default function EventDetailClient() {
       {/* Mobile Fixed Bottom CTA Dock (Visible on Mobile Only: lg:hidden) */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 p-3.5 px-4 shadow-2xl flex items-center justify-between gap-3 animate-in slide-in-from-bottom-5">
         <div className="flex flex-col">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-            {lowestPrice === 'Coming Soon' ? 'Harga Tiket' : 'Mulai Dari'}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+              {lowestPrice === 'Coming Soon' ? 'Harga Tiket' : 'Mulai Dari'}
+            </span>
+            {isEventSoldOut && (
+              <span className="px-1.5 py-0.2 rounded-md bg-rose-100 text-rose-700 text-[9px] font-black uppercase tracking-wider border border-rose-200 shadow-2xs">
+                Sold Out
+              </span>
+            )}
+          </div>
           <span
             className={`text-base font-black tracking-tight ${
-              lowestPrice === 'Coming Soon' ? 'text-amber-600' : 'text-slate-900'
+              isEventSoldOut
+                ? 'line-through text-slate-400 decoration-rose-500 decoration-2'
+                : lowestPrice === 'Coming Soon'
+                ? 'text-amber-600'
+                : 'text-slate-900'
             }`}
           >
             {lowestPrice}
           </span>
         </div>
 
-        {event.status === 'closed' ? (
+        {isEventSoldOut ? (
           <button
             disabled
             className="py-3 px-5 rounded-xl bg-slate-100 text-slate-400 font-extrabold text-xs cursor-not-allowed"

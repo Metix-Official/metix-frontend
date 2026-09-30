@@ -763,7 +763,7 @@ export function EoEventsView() {
         end_at,
       });
 
-      toast.success('Kode Promo Berhasil Dibuat! ≡ƒÄë', {
+      toast.success('Kode Promo Berhasil Dibuat!', {
         description: `Kode promo "${code}" (${discount_type === 'FIXED' ? 'Rp ' + discount_value.toLocaleString('id-ID') : discount_value + '%'}) berhasil ditambahkan.`,
       });
 
@@ -1158,7 +1158,7 @@ export function EoEventsView() {
       await createEvent(formData);
 
       setIsModalOpen(false);
-      toast.success('Event Berhasil Disimpan! ≡ƒÄë', {
+      toast.success('Event Berhasil Disimpan!', {
         description: 'Event baru Anda telah berhasil dibuat dan disimpan ke database.',
       });
       loadData();
@@ -1330,7 +1330,7 @@ export function EoEventsView() {
 
       const title = editingEvent.title;
       setEditingEvent(null);
-      toast.success('Pembaruan Event Berhasil! ≡ƒÄë', {
+      toast.success('Pembaruan Event Berhasil!', {
         description: `Detail event "${title}" telah berhasil diperbarui.`,
       });
       loadData();
@@ -1389,7 +1389,7 @@ export function EoEventsView() {
         status,
       });
 
-      toast.success('Tipe Tiket Dibuat! ≡ƒÄë', {
+      toast.success('Tipe Tiket Dibuat!', {
         description: `Tipe tiket "${name}" (Rp ${price.toLocaleString('id-ID')}) dengan kuota ${quota} berhasil ditambahkan.`,
       });
 
@@ -1494,7 +1494,7 @@ export function EoEventsView() {
         status,
       });
 
-      toast.success('Tipe Tiket Berhasil Diperbarui! ≡ƒÄë', {
+      toast.success('Tipe Tiket Berhasil Diperbarui!', {
         description: `Tipe tiket "${name}" telah diperbarui.`,
       });
 

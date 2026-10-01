@@ -708,9 +708,8 @@ export default function EventTicketsPage({ params }: TicketsPageProps) {
                                   </span>
                                 </div>
                                 <div
-                                  className={`text-[10px] font-bold mt-0.5 ${
-                                    available > 0 ? 'text-emerald-600' : 'text-rose-600'
-                                  }`}
+                                  className={`text-[10px] font-bold mt-0.5 ${available > 0 ? 'text-emerald-600' : 'text-rose-600'
+                                    }`}
                                 >
                                   Sisa Tersedia: {available} Tiket
                                 </div>

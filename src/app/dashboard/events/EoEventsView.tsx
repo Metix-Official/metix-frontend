@@ -91,6 +91,8 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Bold,
   Italic,
   Underline,
@@ -108,6 +110,140 @@ function fileToDataUrl(file: File): Promise<string> {
     reader.onerror = (err) => reject(err);
     reader.readAsDataURL(file);
   });
+}
+
+function ShadcnTicketDateTimePicker({
+  label,
+  name,
+  value,
+  onChange,
+  placeholder = 'Pilih tanggal & waktu',
+}: {
+  label?: string;
+  name: string;
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  accentColor?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Parse current date and time
+  const parsedDate = value ? new Date(value.includes('T') ? value : value.replace(' ', 'T')) : undefined;
+  const isValidDate = parsedDate && !isNaN(parsedDate.getTime());
+
+  const currentHour = isValidDate ? String(parsedDate.getHours()).padStart(2, '0') : '09';
+  const currentMinute = isValidDate ? String(parsedDate.getMinutes()).padStart(2, '0') : '00';
+
+  const handleSelectDate = (date: Date | undefined) => {
+    if (!date) return;
+    const dateStr = format(date, 'yyyy-MM-dd');
+    onChange(`${dateStr}T${currentHour}:${currentMinute}`);
+  };
+
+  const handleTimeChange = (hour: string, minute: string) => {
+    const baseDate = isValidDate ? format(parsedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+    onChange(`${baseDate}T${hour}:${minute}`);
+  };
+
+  return (
+    <div className="space-y-1">
+      {label && <label className="text-[11px] font-extrabold text-slate-700 block">{label}</label>}
+      <input type="hidden" name={name} value={value} />
+
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <div className="relative flex items-center">
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className={`w-full h-9 px-3 rounded-xl border text-xs font-semibold text-left flex items-center justify-between cursor-pointer transition-colors bg-white ${
+                isValidDate
+                  ? 'border-slate-300 text-slate-900 pr-8'
+                  : 'border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0 truncate">
+                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="truncate">
+                  {isValidDate ? format(parsedDate, 'dd/MM/yyyy HH:mm') : placeholder}
+                </span>
+              </div>
+            </button>
+          </PopoverTrigger>
+
+          {isValidDate && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+              }}
+              className="absolute right-2 p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Hapus tanggal"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <PopoverContent
+          className="z-[70] w-auto p-3 bg-white rounded-2xl shadow-xl border border-slate-200"
+          align="start"
+        >
+          <div className="space-y-2.5">
+            <CalendarPicker
+              mode="single"
+              selected={isValidDate ? parsedDate : undefined}
+              onSelect={handleSelectDate}
+            />
+
+            <div className="border-t border-slate-100 pt-2 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="text-[11px] font-bold">Pukul:</span>
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg px-1.5 py-0.5">
+                  <select
+                    value={currentHour}
+                    onChange={(e) => handleTimeChange(e.target.value, currentMinute)}
+                    className="bg-transparent text-xs font-black text-slate-900 focus:outline-none cursor-pointer"
+                  >
+                    {Array.from({ length: 24 }).map((_, i) => {
+                      const h = String(i).padStart(2, '0');
+                      return (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <span className="mx-0.5 text-slate-400 font-bold">:</span>
+                  <select
+                    value={currentMinute}
+                    onChange={(e) => handleTimeChange(currentHour, e.target.value)}
+                    className="bg-transparent text-xs font-black text-slate-900 focus:outline-none cursor-pointer"
+                  >
+                    {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors cursor-pointer"
+              >
+                Pilih
+              </button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
 }
 
 export function EoEventsView() {
@@ -578,9 +714,16 @@ export function EoEventsView() {
   const [ticketError, setTicketError] = useState<string | null>(null);
   const [ticketPriceDisplay, setTicketPriceDisplay] = useState('');
   const [rawTicketPrice, setRawTicketPrice] = useState<number>(0);
+  const [showAdvancedTicketOptions, setShowAdvancedTicketOptions] = useState(false);
+  const [createTicketStatus, setCreateTicketStatus] = useState<'ACTIVE' | 'INACTIVE' | 'SOLD_OUT'>('ACTIVE');
+  const [newTicketSaleStart, setNewTicketSaleStart] = useState<string>('');
+  const [newTicketSaleEnd, setNewTicketSaleEnd] = useState<string>('');
 
   // Edit Ticket Type State
   const [editingTicketType, setEditingTicketType] = useState<ApiTicketType | null>(null);
+  const [editTicketStatus, setEditTicketStatus] = useState<'ACTIVE' | 'INACTIVE' | 'SOLD_OUT'>('ACTIVE');
+  const [editTicketSaleStart, setEditTicketSaleStart] = useState<string>('');
+  const [editTicketSaleEnd, setEditTicketSaleEnd] = useState<string>('');
   const [isUpdatingTicketType, setIsUpdatingTicketType] = useState(false);
   const [editTicketPriceDisplay, setEditTicketPriceDisplay] = useState('');
   const [rawEditTicketPrice, setRawEditTicketPrice] = useState<number>(0);
@@ -1351,6 +1494,10 @@ export function EoEventsView() {
     setTicketError(null);
     setTicketPriceDisplay('');
     setRawTicketPrice(0);
+    setShowAdvancedTicketOptions(false);
+    setCreateTicketStatus('ACTIVE');
+    setNewTicketSaleStart('');
+    setNewTicketSaleEnd('');
     setIsTicketLoading(true);
     const types = await fetchTicketTypes(evt.id);
     setTicketTypes(types);
@@ -1396,6 +1543,10 @@ export function EoEventsView() {
       formElement.reset();
       setTicketPriceDisplay('');
       setRawTicketPrice(0);
+      setShowAdvancedTicketOptions(false);
+      setCreateTicketStatus('ACTIVE');
+      setNewTicketSaleStart('');
+      setNewTicketSaleEnd('');
 
       // Refresh ticket types
       const types = await fetchTicketTypes(selectedEventForTickets.id);
@@ -1454,6 +1605,10 @@ export function EoEventsView() {
     const p = Number(tt.price || 0);
     setRawEditTicketPrice(p);
     setEditTicketPriceDisplay(p ? p.toLocaleString('id-ID') : '');
+    const st = (tt.status || 'ACTIVE').toUpperCase();
+    setEditTicketStatus(st === 'INACTIVE' ? 'INACTIVE' : st === 'SOLD_OUT' ? 'SOLD_OUT' : 'ACTIVE');
+    setEditTicketSaleStart(tt.sale_start_at ? formatDateTimeInput(tt.sale_start_at) : '');
+    setEditTicketSaleEnd(tt.sale_end_at ? formatDateTimeInput(tt.sale_end_at) : '');
   };
 
   const handleEditTicketPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2915,67 +3070,107 @@ export function EoEventsView() {
 
       {/* ================= MODAL KELOLA HARGA & KUOTA TIKET ================= */}
       {selectedEventForTickets && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
-          <div className="relative w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
+          <div className="relative w-full max-w-4xl max-h-[90vh] flex flex-col bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
             {/* Header Modal */}
-            <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 p-6 text-white relative">
-              <button
-                onClick={() => setSelectedEventForTickets(null)}
-                className="absolute right-4 top-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <h3 className="text-lg font-extrabold tracking-tight">
-                Kelola Tipe Tiket, Harga (Rp) & Batasan Kuota  {selectedEventForTickets.title}
-              </h3>
-              <p className="text-xs text-blue-100 font-medium">
-                Atur kategori tiket (VIP / Regular / Early Bird), tentukan harga (Rp), kuota total, jadwal penjualan, batasan order, dan status ketersediaan.
-              </p>
-            </div>
+            {(() => {
+              const bannerUrl = selectedEventForTickets.banner
+                ? (getPhotoUrl(selectedEventForTickets.banner, selectedEventForTickets.id) || selectedEventForTickets.banner)
+                : (selectedEventForTickets.venue_photo
+                  ? (getPhotoUrl(selectedEventForTickets.venue_photo, selectedEventForTickets.id) || selectedEventForTickets.venue_photo)
+                  : null);
 
-            <div className="p-6 space-y-6 max-h-[85vh] overflow-y-auto">
+              return (
+                <div className="shrink-0 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 px-5 py-4 sm:px-6 sm:py-4 text-white relative flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5 min-w-0 pr-8">
+                    {bannerUrl ? (
+                      <img
+                        src={bannerUrl}
+                        alt={selectedEventForTickets.title}
+                        className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl object-cover border border-white/20 shadow-xs shrink-0"
+                      />
+                    ) : (
+                      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white shrink-0">
+                        <Ticket className="w-6 h-6" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-blue-200 bg-white/10 px-2 py-0.5 rounded-md">
+                          Tiket & Kuota
+                        </span>
+                        <span className="text-xs text-blue-200/60 font-medium">#{selectedEventForTickets.id}</span>
+                      </div>
+                      <h3 className="text-base sm:text-lg font-black tracking-tight text-white truncate">
+                        {selectedEventForTickets.title}
+                      </h3>
+                      <p className="text-xs text-blue-100/80 font-medium line-clamp-1">
+                        Atur harga, kuota, dan kategori tiket event ini.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setSelectedEventForTickets(null)}
+                    className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer shrink-0"
+                    title="Tutup Modal"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
               {ticketError && (
-                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{ticketError}</span>
                 </div>
               )}
-              <form onSubmit={handleCreateTicketTypeSubmit} className="p-5 rounded-2xl bg-blue-50/50 border border-blue-100 space-y-4">
-                <div className="flex items-center gap-1.5 text-xs font-extrabold text-blue-900">
-                  <PlusCircle className="w-4 h-4 text-blue-600" /> Tambah Jenis & Kategori Tiket Baru
+
+              {/* Form Tambah Tiket Baru */}
+              <form onSubmit={handleCreateTicketTypeSubmit} className="p-4 sm:p-5 rounded-2xl bg-blue-50/50 border border-blue-100 space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-extrabold text-blue-900">
+                    <PlusCircle className="w-4 h-4 text-blue-600" />
+                    <span>Tambah Tiket Baru</span>
+                  </div>
                 </div>
 
+                {/* 4 Kolom Utama */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Jenis Tiket / Fase Penjualan *</label>
+                    <label className="text-[11px] font-extrabold text-slate-700">Fase / Jenis Tiket *</label>
                     <input
                       type="text"
                       name="category"
                       required
                       list="ticket_category_presets"
                       defaultValue="Early Bird"
-                      placeholder="e.g. Early Bird / Pre-Sale 1"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
+                      placeholder="e.g. Early Bird"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
                     <datalist id="ticket_category_presets">
                       <option value="Early Bird" />
                       <option value="Pre-Sale 1" />
-                      <option value="Pre-Sale 2 (Guest Star 1)" />
-                      <option value="Pre-Sale 3 (Full Guest Star)" />
+                      <option value="Pre-Sale 2" />
+                      <option value="General / Reguler" />
                       <option value="OTS" />
                     </datalist>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Kategori / Kelas Tiket *</label>
+                    <label className="text-[11px] font-extrabold text-slate-700">Kelas Tiket *</label>
                     <input
                       type="text"
                       name="name"
                       required
                       list="ticket_name_presets"
                       defaultValue="Festival"
-                      placeholder="e.g. Festival / VIP"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
+                      placeholder="e.g. VIP / Festival"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
                     <datalist id="ticket_name_presets">
                       <option value="Festival" />
@@ -2986,10 +3181,10 @@ export function EoEventsView() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Harga Tiket (Rp.) *</label>
+                    <label className="text-[11px] font-extrabold text-slate-700">Harga Tiket (Rp) *</label>
                     <div className="flex items-center">
-                      <span className="px-3 py-2 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-black text-slate-600">
-                        Rp.
+                      <span className="px-2.5 py-2 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-xs font-black text-slate-600">
+                        Rp
                       </span>
                       <input
                         type="text"
@@ -3004,95 +3199,161 @@ export function EoEventsView() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Total Kuota Tiket *</label>
+                    <label className="text-[11px] font-extrabold text-slate-700">Total Kuota *</label>
                     <input
                       type="number"
                       name="quota"
                       required
                       min="1"
                       placeholder="e.g. 200"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Maks. Tiket / Order</label>
-                    <input
-                      type="number"
-                      name="max_per_order"
-                      defaultValue={5}
-                      min="1"
-                      placeholder="e.g. 5"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Mulai Penjualan (Opsional)</label>
-                    <input
-                      type="datetime-local"
-                      name="sale_start_at"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Selesai Penjualan (Opsional)</label>
-                    <input
-                      type="datetime-local"
-                      name="sale_end_at"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-extrabold text-slate-700">Status Penjualan Tiket</label>
-                    <select
-                      name="status"
-                      defaultValue="ACTIVE"
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none"
-                    >
-                      <option value="ACTIVE" className="text-emerald-700 font-bold">ACTIVE (Tersedia untuk dibeli)</option>
-                      <option value="INACTIVE" className="text-amber-700 font-bold">INACTIVE (Disembunyikan dari halaman buyer)</option>
-                      <option value="SOLD_OUT" className="text-rose-700 font-bold">SOLD_OUT (Ditampilkan dengan tanda Habis)</option>
-                    </select>
-                  </div>
+                {/* Tombol Opsi Tambahan / Lanjutan */}
+                <div className="pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedTicketOptions((prev) => !prev)}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${showAdvancedTicketOptions
+                        ? 'bg-blue-100/60 border-blue-200 text-blue-900'
+                        : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+                      <span className="font-bold">Pengaturan Tambahan</span>
+                      <span className="text-[10px] text-slate-400 font-normal">(Jadwal tayang, maks. order, status & catatan)</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-blue-700">
+                      <span>{showAdvancedTicketOptions ? 'Sembunyikan' : 'Buka'}</span>
+                      {showAdvancedTicketOptions ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </div>
+                  </button>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Deskripsi / Catatan Tiket (Opsional)</label>
-                  <input
-                    type="text"
-                    name="description"
-                    placeholder="e.g. Sudah termasuk free snack & merchandise"
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                  />
-                </div>
+                {/* Opsi Tambahan (Collapsible) */}
+                {showAdvancedTicketOptions ? (
+                  <div className="pt-3 border-t border-blue-100/70 space-y-3 animate-in fade-in-50 duration-150">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {/* Mulai Penjualan */}
+                      <ShadcnTicketDateTimePicker
+                        label="Mulai Penjualan (Opsional)"
+                        name="sale_start_at"
+                        value={newTicketSaleStart}
+                        onChange={setNewTicketSaleStart}
+                        placeholder="Langsung aktif / kapan saja"
+                      />
+
+                      {/* Selesai Penjualan */}
+                      <ShadcnTicketDateTimePicker
+                        label="Selesai Penjualan (Opsional)"
+                        name="sale_end_at"
+                        value={newTicketSaleEnd}
+                        onChange={setNewTicketSaleEnd}
+                        placeholder="Sampai event selesai"
+                      />
+
+                      {/* Maks Order */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-extrabold text-slate-700 block">Maks. Tiket / Order</label>
+                        <input
+                          type="number"
+                          name="max_per_order"
+                          defaultValue={4}
+                          min="1"
+                          placeholder="4"
+                          className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                      {/* Status Tiket - Compact Pill Selector */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-extrabold text-slate-700 block">Status Penjualan</label>
+                        <input type="hidden" name="status" value={createTicketStatus} />
+                        <div className="grid grid-cols-3 p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 gap-1 h-9 items-center">
+                          <button
+                            type="button"
+                            onClick={() => setCreateTicketStatus('ACTIVE')}
+                            className={`h-7 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${createTicketStatus === 'ACTIVE'
+                                ? 'bg-white text-emerald-700 shadow-xs font-black'
+                                : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span>ACTIVE</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCreateTicketStatus('INACTIVE')}
+                            className={`h-7 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${createTicketStatus === 'INACTIVE'
+                                ? 'bg-white text-amber-700 shadow-xs font-black'
+                                : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            <span>INACTIVE</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCreateTicketStatus('SOLD_OUT')}
+                            className={`h-7 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${createTicketStatus === 'SOLD_OUT'
+                                ? 'bg-white text-rose-700 shadow-xs font-black'
+                                : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                            <span>SOLD_OUT</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Catatan / Fasilitas */}
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-[11px] font-extrabold text-slate-700 block">Catatan / Fasilitas (Opsional)</label>
+                        <input
+                          type="text"
+                          name="description"
+                          placeholder="Contoh: Termasuk minuman, snack, & merchandise"
+                          className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <input type="hidden" name="max_per_order" value="4" />
+                    <input type="hidden" name="status" value={createTicketStatus} />
+                  </>
+                )}
 
                 <div className="flex justify-end pt-1">
                   <button
                     type="submit"
                     disabled={isAddingTicketType}
-                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-sm transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                   >
-                    {isAddingTicketType ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    <span>Simpan Tipe Tiket</span>
+                    {isAddingTicketType ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                    <span>Simpan Tiket</span>
                   </button>
                 </div>
               </form>
 
-              {/* Table Daftar Tipe Tiket Existing Grouped by Jenis / Fase Penjualan */}
+              {/* Table Daftar Tipe Tiket Existing */}
               <div className="space-y-3">
-                <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
-                  Daftar Kategori Tiket Terdaftar ({ticketTypes.length})
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                    Daftar Tiket ({ticketTypes.length})
+                  </h4>
+                </div>
 
                 {isTicketLoading ? (
-                  <Skeleton className="h-40 w-full rounded-2xl" />
+                  <Skeleton className="h-32 w-full rounded-2xl" />
                 ) : ticketTypes.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {(() => {
                       const groups: Record<string, ApiTicketType[]> = {};
                       ticketTypes.forEach((tt) => {
@@ -3102,147 +3363,127 @@ export function EoEventsView() {
                       });
 
                       return Object.entries(groups).map(([categoryName, items]) => (
-                        <div key={categoryName} className="overflow-x-auto border border-slate-200 rounded-2xl bg-white shadow-2xs">
-                          <div className="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-xs font-black text-slate-800">
+                        <div key={categoryName} className="border border-slate-200 rounded-2xl bg-white shadow-2xs overflow-hidden">
+                          <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-xs font-black text-slate-800">
                               <Tag className="w-3.5 h-3.5 text-blue-600" />
-                              <span>Jenis Tiket: <strong className="text-blue-700 font-black">{categoryName}</strong></span>
+                              <span>{categoryName}</span>
                             </div>
-                            <span className="text-[11px] font-extrabold text-slate-500">
-                              {items.length} Kelas Tiket
+                            <span className="text-[11px] font-bold text-slate-500">
+                              {items.length} kelas
                             </span>
                           </div>
 
-                          <table className="w-full text-left text-xs text-slate-700 min-w-[750px]">
-                            <thead className="bg-slate-50/60 text-slate-500 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-200">
-                              <tr>
-                                <th className="py-2.5 px-4">Kelas Tiket & Deskripsi</th>
-                                <th className="py-2.5 px-4">Harga Tiket</th>
-                                <th className="py-2.5 px-4">Total Kuota & Sisa</th>
-                                <th className="py-2.5 px-4">Maks/Order</th>
-                                <th className="py-2.5 px-4">Jadwal Penjualan</th>
-                                <th className="py-2.5 px-4">Status</th>
-                                <th className="py-2.5 px-4 text-right">Aksi</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {items.map((tt) => {
-                                const sold = tt.sold_count ?? tt.sold_quantity ?? 0;
-                                const totalQuota = tt.quota ?? 0;
-                                const available = tt.available ?? tt.available_quota ?? Math.max(0, totalQuota - sold);
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs text-slate-700">
+                              <thead className="bg-slate-50/50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-100">
+                                <tr>
+                                  <th className="py-2.5 px-4">Kelas Tiket</th>
+                                  <th className="py-2.5 px-4">Harga</th>
+                                  <th className="py-2.5 px-4">Kuota & Sisa</th>
+                                  <th className="py-2.5 px-4">Status</th>
+                                  <th className="py-2.5 px-4 text-right">Aksi</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {items.map((tt) => {
+                                  const sold = tt.sold_count ?? tt.sold_quantity ?? 0;
+                                  const totalQuota = tt.quota ?? 0;
+                                  const available = tt.available ?? tt.available_quota ?? Math.max(0, totalQuota - sold);
 
-                                let rawStatus = (tt.status || 'ACTIVE').toUpperCase();
-                                if (available <= 0 && totalQuota > 0) {
-                                  rawStatus = 'SOLD_OUT';
-                                }
+                                  let rawStatus = (tt.status || 'ACTIVE').toUpperCase();
+                                  if (available <= 0 && totalQuota > 0) {
+                                    rawStatus = 'SOLD_OUT';
+                                  }
 
-                                let statusBadge = (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                    ACTIVE
-                                  </span>
-                                );
-                                if (rawStatus === 'INACTIVE') {
-                                  statusBadge = (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                                      INACTIVE
+                                  let statusBadge = (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                      <span>ACTIVE</span>
                                     </span>
                                   );
-                                } else if (rawStatus === 'SOLD_OUT') {
-                                  statusBadge = (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-                                      SOLD_OUT
-                                    </span>
+                                  if (rawStatus === 'INACTIVE') {
+                                    statusBadge = (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200/80 shadow-2xs">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                        <span>INACTIVE</span>
+                                      </span>
+                                    );
+                                  } else if (rawStatus === 'SOLD_OUT') {
+                                    statusBadge = (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                                        <span>SOLD_OUT</span>
+                                      </span>
+                                    );
+                                  }
+
+                                  return (
+                                    <tr key={tt.id} className="hover:bg-slate-50/80 transition-colors">
+                                      <td className="py-2.5 px-4">
+                                        <div className="font-extrabold text-slate-900">{tt.name}</div>
+                                        {tt.description && (
+                                          <div className="text-[11px] text-slate-400 font-medium line-clamp-1">{tt.description}</div>
+                                        )}
+                                      </td>
+                                      <td className="py-2.5 px-4 font-black text-blue-700 whitespace-nowrap">
+                                        Rp {Number(tt.price || 0).toLocaleString('id-ID')}
+                                      </td>
+                                      <td className="py-2.5 px-4 whitespace-nowrap">
+                                        <div className="text-slate-800 font-bold">
+                                          {totalQuota} Tiket <span className="text-slate-400 font-normal">({sold} terjual)</span>
+                                        </div>
+                                        <div className={`text-[10px] font-extrabold ${available > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                          Sisa: {available}
+                                        </div>
+                                      </td>
+                                      <td className="py-2.5 px-4 whitespace-nowrap">
+                                        {statusBadge}
+                                      </td>
+                                      <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                                        <div className="flex items-center justify-end gap-1.5">
+                                          <button
+                                            onClick={() => handleOpenEditTicketTypeModal(tt)}
+                                            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors cursor-pointer"
+                                            title="Edit Tipe Tiket"
+                                          >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            onClick={() => handleDeleteTicketTypeItem(tt.id, tt.name)}
+                                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors cursor-pointer"
+                                            title="Hapus Tipe Tiket"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
                                   );
-                                }
-
-                                let salePeriod = '-';
-                                if (tt.sale_start_at || tt.sale_end_at) {
-                                  const formatTableDate = (dStr?: string | null) => {
-                                    if (!dStr) return null;
-                                    try {
-                                      const cleanStr = dStr.includes('Z') || dStr.includes('+') ? dStr : dStr.replace(' ', 'T');
-                                      const d = new Date(cleanStr);
-                                      if (isNaN(d.getTime())) return null;
-                                      return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-                                    } catch {
-                                      return null;
-                                    }
-                                  };
-
-                                  const startStr = formatTableDate(tt.sale_start_at) || (tt.sale_start_at ? String(tt.sale_start_at) : 'Sekarang');
-                                  const endStr = formatTableDate(tt.sale_end_at) || (tt.sale_end_at ? String(tt.sale_end_at) : 'Selesai Event');
-                                  salePeriod = `${startStr} s/d ${endStr}`;
-                                }
-
-                                return (
-                                  <tr key={tt.id} className="hover:bg-slate-50">
-                                    <td className="py-3 px-4">
-                                      <div className="font-extrabold text-slate-900">{tt.name}</div>
-                                      {tt.description && (
-                                        <div className="text-[11px] text-slate-500 font-medium line-clamp-1">{tt.description}</div>
-                                      )}
-                                    </td>
-                                    <td className="py-3 px-4 font-black text-blue-700 whitespace-nowrap">
-                                      Rp. {Number(tt.price || 0).toLocaleString('id-ID')}
-                                    </td>
-                                    <td className="py-3 px-4 font-semibold text-slate-700 whitespace-nowrap">
-                                      <div>
-                                        <span className="font-extrabold text-slate-900">{totalQuota} Tiket</span>
-                                        <span className="text-slate-500"> (Terjual: <strong className="text-blue-600 font-extrabold">{sold}</strong>)</span>
-                                      </div>
-                                      <div className={`text-[10px] font-bold mt-0.5 ${available > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                        Sisa Tersedia: {available} Tiket
-                                      </div>
-                                    </td>
-                                    <td className="py-3 px-4 font-bold text-slate-800 text-center whitespace-nowrap">
-                                      {tt.max_per_order ?? 5} Tiket
-                                    </td>
-                                    <td className="py-3 px-4 text-[11px] font-medium text-slate-600 whitespace-nowrap">
-                                      {salePeriod}
-                                    </td>
-                                    <td className="py-3 px-4 whitespace-nowrap">
-                                      {statusBadge}
-                                    </td>
-                                    <td className="py-3 px-4 text-right whitespace-nowrap">
-                                      <div className="flex items-center justify-end gap-1.5">
-                                        <button
-                                          onClick={() => handleOpenEditTicketTypeModal(tt)}
-                                          className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors cursor-pointer"
-                                          title="Edit Tipe Tiket"
-                                        >
-                                          <Pencil className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          onClick={() => handleDeleteTicketTypeItem(tt.id, tt.name)}
-                                          className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors cursor-pointer"
-                                          title="Hapus Tipe Tiket"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
                       ));
                     })()}
                   </div>
                 ) : (
                   <div className="p-6 text-center text-xs text-slate-400 font-medium bg-slate-50 rounded-2xl border border-slate-200">
-                    Belum ada tipe tiket yang dibuat untuk event ini. Gunakan form di atas untuk menambah harga & kuota tiket.
+                    Belum ada tipe tiket yang dibuat. Gunakan form di atas untuk menambahkan tiket baru.
                   </div>
                 )}
               </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+            <div className="shrink-0 px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-xs text-slate-500 font-medium">
+                Total: <strong className="text-slate-800 font-bold">{ticketTypes.length}</strong> tipe tiket
+              </span>
               <button
                 onClick={() => setSelectedEventForTickets(null)}
-                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors cursor-pointer"
               >
                 Tutup
               </button>
@@ -3253,25 +3494,27 @@ export function EoEventsView() {
 
       {/* ================= MODAL EDIT TIPE TIKET ================= */}
       {editingTicketType && selectedEventForTickets && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
-          <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
+          <div className="relative w-full max-w-3xl max-h-[90vh] flex flex-col bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
             {/* Header Modal */}
-            <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 p-6 text-white relative">
+            <div className="shrink-0 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 px-5 py-4 text-white relative flex items-center justify-between">
+              <div>
+                <h3 className="text-base sm:text-lg font-black tracking-tight">
+                  Edit Tipe Tiket: {editingTicketType.name}
+                </h3>
+                <p className="text-xs text-blue-100/80 font-medium">
+                  Perbarui jenis tiket, harga, kuota, dan status penjualan.
+                </p>
+              </div>
               <button
                 onClick={() => setEditingTicketType(null)}
-                className="absolute right-4 top-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
-              <h3 className="text-lg font-extrabold tracking-tight">
-                Edit Tipe Tiket {editingTicketType.name}
-              </h3>
-              <p className="text-xs text-blue-100 font-medium">
-                Perbarui jenis tiket, nama kelas, harga (Rp), kuota total, jadwal penjualan, batasan order, dan status ketersediaan tiket.
-              </p>
             </div>
 
-            <form onSubmit={handleUpdateTicketTypeSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+            <form onSubmit={handleUpdateTicketTypeSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="space-y-1">
                   <label className="text-[11px] font-extrabold text-slate-700">Jenis Tiket / Fase Penjualan *</label>
@@ -3327,61 +3570,94 @@ export function EoEventsView() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Maks. Tiket / Order</label>
-                  <input
-                    type="number"
-                    name="max_per_order"
-                    defaultValue={editingTicketType.max_per_order ?? 5}
-                    min="1"
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Mulai Penjualan (Opsional)</label>
-                  <input
-                    type="datetime-local"
+              <div className="pt-2 border-t border-slate-100 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Mulai Penjualan */}
+                  <ShadcnTicketDateTimePicker
+                    label="Mulai Penjualan (Opsional)"
                     name="sale_start_at"
-                    defaultValue={formatDateTimeInput(editingTicketType.sale_start_at)}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
+                    value={editTicketSaleStart}
+                    onChange={setEditTicketSaleStart}
+                    placeholder="Langsung aktif / kapan saja"
                   />
-                </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Selesai Penjualan (Opsional)</label>
-                  <input
-                    type="datetime-local"
+                  {/* Selesai Penjualan */}
+                  <ShadcnTicketDateTimePicker
+                    label="Selesai Penjualan (Opsional)"
                     name="sale_end_at"
-                    defaultValue={formatDateTimeInput(editingTicketType.sale_end_at)}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
+                    value={editTicketSaleEnd}
+                    onChange={setEditTicketSaleEnd}
+                    placeholder="Sampai event selesai"
                   />
+
+                  {/* Maks Order */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-extrabold text-slate-700 block">Maks. Tiket / Order</label>
+                    <input
+                      type="number"
+                      name="max_per_order"
+                      defaultValue={editingTicketType.max_per_order ?? 5}
+                      min="1"
+                      placeholder="5"
+                      className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-extrabold text-slate-700">Status Penjualan Tiket</label>
-                  <select
-                    name="status"
-                    defaultValue={(editingTicketType.status || 'ACTIVE').toUpperCase()}
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none"
-                  >
-                    <option value="ACTIVE" className="text-emerald-700 font-bold">ACTIVE (Tersedia untuk dibeli)</option>
-                    <option value="INACTIVE" className="text-amber-700 font-bold">INACTIVE (Disembunyikan dari halaman buyer)</option>
-                    <option value="SOLD_OUT" className="text-rose-700 font-bold">SOLD_OUT (Ditampilkan dengan tanda Habis)</option>
-                  </select>
-                </div>
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                  {/* Status Tiket - Compact Pill Selector */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-extrabold text-slate-700 block">Status Penjualan</label>
+                    <input type="hidden" name="status" value={editTicketStatus} />
+                    <div className="grid grid-cols-3 p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 gap-1 h-9 items-center">
+                      <button
+                        type="button"
+                        onClick={() => setEditTicketStatus('ACTIVE')}
+                        className={`h-7 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${editTicketStatus === 'ACTIVE'
+                            ? 'bg-white text-emerald-700 shadow-xs font-black'
+                            : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <span>ACTIVE</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditTicketStatus('INACTIVE')}
+                        className={`h-7 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${editTicketStatus === 'INACTIVE'
+                            ? 'bg-white text-amber-700 shadow-xs font-black'
+                            : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        <span>INACTIVE</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditTicketStatus('SOLD_OUT')}
+                        className={`h-7 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${editTicketStatus === 'SOLD_OUT'
+                            ? 'bg-white text-rose-700 shadow-xs font-black'
+                            : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                        <span>SOLD_OUT</span>
+                      </button>
+                    </div>
+                  </div>
 
-              <div className="space-y-1">
-                <label className="text-[11px] font-extrabold text-slate-700">Deskripsi / Catatan Tiket (Opsional)</label>
-                <input
-                  type="text"
-                  name="description"
-                  defaultValue={editingTicketType.description || ''}
-                  placeholder="e.g. Sudah termasuk free snack & merchandise"
-                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                />
+                  {/* Deskripsi / Catatan */}
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[11px] font-extrabold text-slate-700 block">Deskripsi / Catatan (Opsional)</label>
+                    <input
+                      type="text"
+                      name="description"
+                      defaultValue={editingTicketType.description || ''}
+                      placeholder="e.g. Sudah termasuk free snack & merchandise"
+                      className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">

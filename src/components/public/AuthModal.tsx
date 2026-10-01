@@ -148,6 +148,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     e.preventDefault();
     setRegisterError(null);
 
+    if (!name.trim()) {
+      setRegisterError('Nama lengkap wajib diisi.');
+      return;
+    }
+
+    if (!email.trim() || !email.includes('@')) {
+      setRegisterError('Format email tidak valid.');
+      return;
+    }
+
     if (!password || password.length < 8) {
       setRegisterError('Kata sandi wajib diisi minimal 8 karakter.');
       return;
@@ -156,9 +166,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsSubmittingRegister(true);
 
     try {
-      // Request OTP for registration
-      await requestOtpApi({ email, purpose: 'REGISTER' });
-      setOtpTargetEmail(email);
+      // Request OTP for registration (with phone checking in backend)
+      await requestOtpApi({
+        email: email.trim(),
+        purpose: 'REGISTER',
+        phone: phone.trim() || undefined,
+      });
+      setOtpTargetEmail(email.trim());
       setOtpPurpose('REGISTER');
       setIsOtpModalOpen(true);
     } catch (err: any) {
@@ -223,6 +237,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const daysList = Array.from({ length: 31 }, (_, i) => (i + 1).toString());
   const yearsList = Array.from({ length: 70 }, (_, i) => (2015 - i).toString());
+
+  const isEmailError = Boolean(
+    registerError &&
+      (registerError.toLowerCase().includes('email') ||
+        (registerError.toLowerCase().includes('terdaftar') &&
+          !registerError.toLowerCase().includes('telepon') &&
+          !registerError.toLowerCase().includes('phone') &&
+          !registerError.toLowerCase().includes('nomor')))
+  );
+
+  const isPhoneError = Boolean(
+    registerError &&
+      (registerError.toLowerCase().includes('telepon') ||
+        registerError.toLowerCase().includes('phone') ||
+        registerError.toLowerCase().includes('nomor'))
+  );
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 transition-all animate-fade-in-up">
@@ -498,10 +528,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     type="email"
                     required
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (registerError) setRegisterError(null);
+                    }}
                     placeholder="Masukkan email"
-                    className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                    className={`w-full px-4 py-2.5 bg-white border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all ${
+                      isEmailError
+                        ? 'border-rose-500 focus:border-rose-600 focus:ring-2 focus:ring-rose-600/20 bg-rose-50/20'
+                        : 'border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20'
+                    }`}
                   />
+                  {isEmailError && (
+                    <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                      <span>{registerError}</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Jenis Kelamin Cards (Animated Segmented Control) */}
@@ -618,18 +661,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     onChange={(e) => {
                       const val = e.target.value.replace(/\D/g, '').slice(0, 13);
                       setPhone(val);
+                      if (registerError) setRegisterError(null);
                     }}
                     placeholder="08123456789"
                     className={`w-full px-4 py-2.5 bg-white border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all ${
-                      registerError && (registerError.toLowerCase().includes('telepon') || registerError.toLowerCase().includes('phone') || registerError.toLowerCase().includes('terdaftar'))
+                      isPhoneError
                         ? 'border-rose-500 focus:border-rose-600 focus:ring-2 focus:ring-rose-600/20 bg-rose-50/20'
                         : 'border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20'
                     }`}
                   />
-                  {registerError && (registerError.toLowerCase().includes('telepon') || registerError.toLowerCase().includes('phone') || registerError.toLowerCase().includes('terdaftar')) ? (
+                  {isPhoneError ? (
                     <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
-                      <span>Nomor Telepon sudah terdaftar. Silakan gunakan nomor telepon lain atau lakukan Login.</span>
+                      <span>{registerError}</span>
                     </p>
                   ) : (
                     <p className="text-[10px] text-slate-400 font-medium">

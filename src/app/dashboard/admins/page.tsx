@@ -151,12 +151,15 @@ export default function EoAdminsPage() {
       const eventIdNum = formData.event_id && formData.event_id !== 'all' ? Number(formData.event_id) : null;
       const eventTitleStr = selectedEvt?.title || (formData.event_id === 'all' ? 'Semua Event (Global)' : undefined);
 
+      const rawPhone = formData.phone.trim();
+      const sanitizedPhone = rawPhone && !['-', '—', 'none', 'null'].includes(rawPhone) ? rawPhone : undefined;
+
       if (editingAdmin) {
         await updateEoAdmin(editingAdmin.id, {
           name: formData.name.trim(),
           email: formData.email.trim(),
           password: formData.password || undefined,
-          phone: formData.phone.trim() || undefined,
+          phone: sanitizedPhone,
           scan_quota: quotaNum,
           event_id: eventIdNum,
           event_title: eventTitleStr,
@@ -166,7 +169,7 @@ export default function EoAdminsPage() {
           name: formData.name.trim(),
           email: formData.email.trim(),
           password: formData.password,
-          phone: formData.phone.trim() || undefined,
+          phone: sanitizedPhone,
           scan_quota: quotaNum,
           event_id: eventIdNum,
           event_title: eventTitleStr,

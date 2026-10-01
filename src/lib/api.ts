@@ -20,7 +20,7 @@ export function getPhotoUrl(photoUrl?: string | null, eventId?: number | string,
     return photoUrl;
   }
 
-  
+
 
   if (!photoUrl || photoUrl === 'organizers/logo_default.png' || photoUrl === 'logo_default.png' || photoUrl.includes('logo_default')) {
     return null;
@@ -181,7 +181,7 @@ export function parseSocialMediaObject(rawSocials: any, eventData?: any): {
   if (typeof rawSocials === 'string') {
     try {
       rawSocials = JSON.parse(rawSocials);
-    } catch {}
+    } catch { }
   }
 
   if (Array.isArray(rawSocials)) {
@@ -674,7 +674,7 @@ export async function registerUser(payload: RegisterPayload): Promise<LoginRespo
   };
 }
 
-export async function requestOtpApi(payload: { email: string; purpose?: 'LOGIN' | 'REGISTER' }): Promise<{ success: boolean; message: string }> {
+export async function requestOtpApi(payload: { email: string; purpose?: 'LOGIN' | 'REGISTER'; phone?: string }): Promise<{ success: boolean; message: string }> {
   const response = await fetch(`${API_BASE_URL}/auth/otp/request`, {
     method: 'POST',
     headers: {
@@ -689,8 +689,8 @@ export async function requestOtpApi(payload: { email: string; purpose?: 'LOGIN' 
 
   if (!response.ok) {
     const errorMsg =
-      data?.message ||
       (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      data?.message ||
       'Gagal meminta kode OTP.';
     throw new Error(errorMsg);
   }
@@ -832,8 +832,8 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
           user.organizer_profile.status === 'ACTIVE'
             ? 'approved'
             : user.organizer_profile.status === 'REJECTED'
-            ? 'rejected'
-            : 'pending';
+              ? 'rejected'
+              : 'pending';
         if (user.organizer_profile.rejection_reason) {
           user.rejection_reason = user.organizer_profile.rejection_reason;
         }
@@ -914,8 +914,8 @@ export async function fetchPublicEvents(params?: {
             typeof e.category === 'string'
               ? e.category
               : e.category && typeof e.category === 'object'
-              ? e.category.name || e.category.title || ''
-              : String(e.category || '')
+                ? e.category.name || e.category.title || ''
+                : String(e.category || '')
           )
           .filter((c: any) => Boolean(c) && String(c).trim() !== '' && c !== '[object Object]')
       )
@@ -968,7 +968,7 @@ export async function fetchOrganizerEventDetail(eventId: number | string): Promi
       const eventData = data?.data || data?.event || data;
       if (eventData) return eventData;
     }
-  } catch {}
+  } catch { }
 
   return fetchPublicEventDetail(eventId);
 }
@@ -987,7 +987,7 @@ export async function fetchEventLineupsApi(eventId: number | string): Promise<Ap
       const list = data?.data || data?.lineups || data;
       if (Array.isArray(list)) return list;
     }
-  } catch {}
+  } catch { }
 
   try {
     const res = await fetch(`${API_BASE_URL}/public/events/${eventId}/lineups`, {
@@ -999,7 +999,7 @@ export async function fetchEventLineupsApi(eventId: number | string): Promise<Ap
       const list = data?.data || data?.lineups || data;
       if (Array.isArray(list)) return list;
     }
-  } catch {}
+  } catch { }
 
   return [];
 }
@@ -1020,7 +1020,7 @@ export async function fetchEventFacilitiesApi(eventId: number | string): Promise
         return list.map((f: any) => (typeof f === 'string' ? f : String(f?.name || f?.title || f?.facility || ''))).filter(Boolean);
       }
     }
-  } catch {}
+  } catch { }
 
   return [];
 }
@@ -1042,7 +1042,7 @@ export async function fetchEventSocialMediaApi(eventId: number | string): Promis
         return parsed;
       }
     }
-  } catch {}
+  } catch { }
 
   return null;
 }
@@ -1080,7 +1080,7 @@ export async function createReservation(payload: {
   const rawRes = data?.data?.reservation || data?.reservation || data?.data || data;
   const resId = rawRes?.id || rawRes?.reservation_id || data?.id || data?.reservation_id || data?.data?.id || data?.data?.reservation_id;
   const reservationIds = data?.data?.reservation_ids || data?.reservation_ids || [Number(resId)];
-  
+
   return {
     ...rawRes,
     id: Number(resId),
@@ -1471,45 +1471,18 @@ export async function processCheckIn(payload: CheckInPayload): Promise<CheckInRe
           return oNum && (oNum === cleanLower || cleanLower.includes(oNum) || oNum.includes(cleanLower));
         });
       }
-    } catch {}
+    } catch { }
   }
 
-  // 2. Build candidate event list (order event first, then target event, then organizer/scanner events)
-  const candidateEventIds: number[] = [];
-  if (matchedOrder?.event_id || matchedOrder?.event?.id) {
-    candidateEventIds.push(Number(matchedOrder.event_id || matchedOrder.event.id));
+  const targetEventId = payload.event_id;
+  const deviceUuid = payload.device_uuid || 'WEB-SCANNER-01';
+
+  if (!targetEventId) {
+    return {
+      success: false,
+      message: 'Silakan pilih event penugasan Anda terlebih dahulu sebelum melakukan scan tiket.',
+    };
   }
-  if (payload.event_id && !candidateEventIds.includes(Number(payload.event_id))) {
-    candidateEventIds.push(Number(payload.event_id));
-  }
-
-  try {
-    const scannerEvents = await fetchScannerEvents();
-    scannerEvents.forEach((ev) => {
-      if (ev.id && !candidateEventIds.includes(Number(ev.id))) {
-        candidateEventIds.push(Number(ev.id));
-      }
-    });
-  } catch {}
-
-  let myEventsList: ApiEvent[] = [];
-  try {
-    const myEventsData = await fetchMyEvents();
-    myEventsList = myEventsData?.events || [];
-    myEventsList.forEach((ev: ApiEvent) => {
-      if (ev.id && !candidateEventIds.includes(Number(ev.id))) {
-        candidateEventIds.push(Number(ev.id));
-      }
-    });
-  } catch {}
-
-  if (candidateEventIds.length === 0) {
-    candidateEventIds.push(4, 1);
-  }
-
-  let lastMessage = '';
-  let lastErrorDetails = '';
-  let isAccessDenied = false;
 
   // Codes to test with backend scan
   const codesToTry = [resolvedTicketCode];
@@ -1517,12 +1490,9 @@ export async function processCheckIn(payload: CheckInPayload): Promise<CheckInRe
     codesToTry.push(cleanedCode);
   }
 
-  for (const eventId of candidateEventIds) {
-    const deviceUuid = payload.device_uuid || 'WEB-SCANNER-01';
-
-    // Auto-register scanner device for the current event & user if needed
+  for (const codeAttempt of codesToTry) {
     try {
-      await fetch(`${API_BASE_URL}/scanner/devices`, {
+      const response = await fetch(`${API_BASE_URL}/scanner/events/${targetEventId}/scan`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1530,134 +1500,57 @@ export async function processCheckIn(payload: CheckInPayload): Promise<CheckInRe
           ...getHeaders(token),
         },
         body: JSON.stringify({
-          event_id: eventId,
+          qr_token: codeAttempt,
+          ticket_code: codeAttempt,
+          code: codeAttempt,
+          order_number: cleanedCode,
           device_uuid: deviceUuid,
-          device_name: 'Web Gate Scanner Device',
         }),
-      }).catch(() => {});
-    } catch {}
+      });
 
-    for (const codeAttempt of codesToTry) {
-      try {
-        const response = await fetch(`${API_BASE_URL}/scanner/events/${eventId}/scan`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            ...getHeaders(token),
-          },
-          body: JSON.stringify({
-            qr_token: codeAttempt,
-            ticket_code: codeAttempt,
-            code: codeAttempt,
-            order_number: cleanedCode,
-            device_uuid: deviceUuid,
-          }),
-        });
+      const data = await response.json().catch(() => ({}));
+      const isSuccess = response.ok && data?.success !== false;
 
-        const data = await response.json().catch(() => ({}));
-        const isSuccess = response.ok && data?.success !== false;
+      if (isSuccess) {
+        const rawTicket = data?.ticket || data?.data?.ticket || data?.data;
+        const returnedTicket = {
+          code: rawTicket?.ticket_code || rawTicket?.code || codeAttempt,
+          holder_name: rawTicket?.holder_name || rawTicket?.order?.buyer_name || rawTicket?.buyer_name || matchedOrder?.buyer_name || 'Pengunjung Gate',
+          event_name: rawTicket?.event_name || rawTicket?.event?.title || matchedOrder?.event?.title || 'Event Metix',
+          type_name: rawTicket?.type_name || rawTicket?.ticket_type?.name || 'Tiket Masuk',
+          status: 'used',
+        };
 
-        if (isSuccess) {
-          const rawTicket = data?.ticket || data?.data?.ticket || data?.data;
-          const returnedTicket = {
-            code: rawTicket?.ticket_code || rawTicket?.code || codeAttempt,
-            holder_name: rawTicket?.holder_name || rawTicket?.order?.buyer_name || rawTicket?.buyer_name || matchedOrder?.buyer_name || 'Pengunjung Gate',
-            event_name: rawTicket?.event_name || rawTicket?.event?.title || matchedOrder?.event?.title || 'Event Metix',
-            type_name: rawTicket?.type_name || rawTicket?.ticket_type?.name || 'Tiket Masuk',
-            status: 'used',
-          };
-
-          
-
-          return {
-            success: true,
-            message: data?.message || 'Check-In Berhasil! Tiket Valid.',
-            ticket: returnedTicket,
-          };
-        }
-
-        let errMsg = data?.message || data?.error;
-        if (data?.errors && typeof data.errors === 'object') {
-          const errArr = Object.values(data.errors).flat();
-          if (errArr.length > 0) {
-            errMsg = errMsg ? `${errMsg} (${errArr.join(', ')})` : errArr.join(', ');
-          }
-        }
-        lastMessage = errMsg || lastMessage;
-
-        const lowerMsg = (errMsg || '').toLowerCase();
-        if (lowerMsg.includes('akses ke event') || lowerMsg.includes('unauthorized') || lowerMsg.includes('forbidden')) {
-          isAccessDenied = true;
-        }
-
-        // Stop immediately if ticket is already used or cancelled (definitive response)
-        if (lowerMsg.includes('sudah digunakan') || lowerMsg.includes('already') || lowerMsg.includes('dibatalkan') || lowerMsg.includes('cancelled')) {
-          return {
-            success: false,
-            message: errMsg || 'Tiket ini sudah pernah digunakan untuk check-in sebelumnya.',
-          };
-        }
-      } catch (err: any) {
-        lastErrorDetails = err?.message || 'Koneksi API server gagal.';
+        return {
+          success: true,
+          message: data?.message || 'Check-In Berhasil! Tiket Valid.',
+          ticket: returnedTicket,
+        };
       }
-    }
-  }
 
-  // Fallback authorization: If backend scan route rejected due to scanner permissions,
-  // but order is verified as PAID in user's events/orders
-  if (matchedOrder) {
-    const ordStatus = (matchedOrder.status || '').toUpperCase();
-    if (ordStatus === 'PAID' || ordStatus === 'SUCCESS' || ordStatus === 'COMPLETED') {
-      const targetHolder = matchedOrder.buyer_name || matchedOrder.user?.name || 'Pengunjung Gate';
-      const targetEvent = matchedOrder.event?.title || matchedOrder.event_title || 'Event Metix';
-      const targetType = matchedOrder.tickets?.[0]?.ticket_type?.name || matchedOrder.ticket_type_name || 'Tiket Masuk';
-
-      
+      let errMsg = data?.message || data?.error || 'Gagal memvalidasi tiket untuk event ini.';
+      if (data?.errors && typeof data.errors === 'object') {
+        const errArr = Object.values(data.errors).flat();
+        if (errArr.length > 0) {
+          errMsg = `${errMsg} (${errArr.join(', ')})`;
+        }
+      }
 
       return {
-        success: true,
-        message: `Check-In Berhasil! E-Tiket [${resolvedTicketCode}] valid (${targetHolder}).`,
-        ticket: {
-          code: resolvedTicketCode,
-          holder_name: targetHolder,
-          event_name: targetEvent,
-          type_name: targetType,
-          status: 'used',
-        },
+        success: false,
+        message: errMsg,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err?.message || 'Koneksi ke server scanner terganggu. Silakan periksa jaringan Anda.',
       };
     }
   }
 
-  // Fallback for EO / Admin verifying valid Metix tickets when backend restricts /scan route strictly to SCANNER role
-  const isMetixCodePattern = /^TKT-MTX-\d{8}-[A-Z0-9]+(-\d+)?$/i.test(cleanedCode) || /^MTX-\d{8}-[A-Z0-9]+$/i.test(cleanedCode);
-  if (isAccessDenied && isMetixCodePattern) {
-    const targetEvent = payload.event_id
-      ? (myEventsList.find((e: any) => Number(e.id) === Number(payload.event_id))?.title || 'Event Metix')
-      : 'Event Metix';
-
-    
-
-    return {
-      success: true,
-      message: `Check-In Berhasil! E-Tiket [${cleanedCode}] Valid.`,
-      ticket: {
-        code: cleanedCode,
-        holder_name: 'Pengunjung Gate',
-        event_name: targetEvent,
-        type_name: 'Tiket Masuk',
-        status: 'used',
-      },
-    };
-  }
-
-  const finalMsg = isAccessDenied
-    ? 'Akses Ditolak: Akun Anda tidak memiliki izin scanner untuk event ini. Pastikan event yang dipilih sesuai atau akun Anda terdaftar di menu Petugas Scanner.'
-    : (lastMessage || lastErrorDetails || `Kode Tiket [${cleanedCode}] tidak valid atau tidak ditemukan.`);
-
   return {
     success: false,
-    message: finalMsg,
+    message: `Kode tiket [${cleanedCode}] tidak valid atau tidak ditemukan.`,
   };
 }
 
@@ -1729,7 +1622,7 @@ export async function fetchScannerEvents(): Promise<ApiEvent[]> {
       if (myEvts?.events && myEvts.events.length > 0) {
         return myEvts.events;
       }
-    } catch {}
+    } catch { }
   }
 
   return [];
@@ -2498,7 +2391,7 @@ export async function fetchEventScannersList(eventId: number | string): Promise<
         return list;
       }
     }
-  } catch {}
+  } catch { }
 
   // 2. Fallback to /organizer/team if event scanners endpoint unavailable
   try {
@@ -2619,7 +2512,7 @@ export async function saveEventLineupsApi(eventId: number | string, lineups: Api
       const listData = await listRes.json().catch(() => ({}));
       currentItems = Array.isArray(listData?.data) ? listData.data : (listData?.data?.data || []);
     }
-  } catch {}
+  } catch { }
 
   const payloadItemIds = new Set(validLineups.map((item) => String(item.id)).filter(Boolean));
 
@@ -2631,7 +2524,7 @@ export async function saveEventLineupsApi(eventId: number | string, lineups: Api
           method: 'DELETE',
           headers: getHeaders(token),
         });
-      } catch {}
+      } catch { }
     }
   }
 
@@ -2706,11 +2599,11 @@ export async function saveEventFacilitiesApi(eventId: number | string, facilitie
           await fetch(`${API_BASE_URL}/organizer/events/${eventId}/facilities/${item.id}`, {
             method: 'DELETE',
             headers: getHeaders(token),
-          }).catch(() => {});
+          }).catch(() => { });
         }
       }
     }
-  } catch {}
+  } catch { }
 
   if (cleanList.length === 0) return true;
 
@@ -2812,7 +2705,7 @@ export async function createEvent(formData: FormData): Promise<boolean> {
       const freshToken = getStoredToken();
       if (freshToken) token = freshToken;
     }
-  } catch {}
+  } catch { }
 
   const orgProfile = await fetchOrganizerProfile().catch(() => null);
   if (orgProfile && orgProfile.id) {
@@ -2840,7 +2733,7 @@ export async function createEvent(formData: FormData): Promise<boolean> {
   if (typeof rawLineups === 'string') {
     try {
       parsedLineups = JSON.parse(rawLineups);
-    } catch {}
+    } catch { }
   }
 
   const rawFacilities = formData.get('facilities');
@@ -2848,7 +2741,7 @@ export async function createEvent(formData: FormData): Promise<boolean> {
   if (typeof rawFacilities === 'string') {
     try {
       parsedFacilities = JSON.parse(rawFacilities);
-    } catch {}
+    } catch { }
   }
 
   const rawSocials = formData.get('social_media');
@@ -2856,7 +2749,7 @@ export async function createEvent(formData: FormData): Promise<boolean> {
   if (typeof rawSocials === 'string') {
     try {
       parsedSocials = JSON.parse(rawSocials);
-    } catch {}
+    } catch { }
   }
 
   try {
@@ -2897,7 +2790,7 @@ export async function createEvent(formData: FormData): Promise<boolean> {
     if (createdId) {
       if (localPreview && typeof window !== 'undefined') {
         try {
-                  } catch {}
+        } catch { }
       }
 
       // Synchronize sub-resource APIs for Lineup, Facilities, Social Media
@@ -2942,7 +2835,7 @@ export async function updateEvent(eventId: number, formData: FormData): Promise<
   if (typeof rawLineups === 'string') {
     try {
       parsedLineups = JSON.parse(rawLineups);
-    } catch {}
+    } catch { }
   }
 
   const rawFacilities = formData.get('facilities');
@@ -2950,7 +2843,7 @@ export async function updateEvent(eventId: number, formData: FormData): Promise<
   if (typeof rawFacilities === 'string') {
     try {
       parsedFacilities = JSON.parse(rawFacilities);
-    } catch {}
+    } catch { }
   }
 
   const rawSocials = formData.get('social_media');
@@ -2958,7 +2851,7 @@ export async function updateEvent(eventId: number, formData: FormData): Promise<
   if (typeof rawSocials === 'string') {
     try {
       parsedSocials = JSON.parse(rawSocials);
-    } catch {}
+    } catch { }
   }
 
   const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}`, {
@@ -2980,7 +2873,7 @@ export async function updateEvent(eventId: number, formData: FormData): Promise<
   if (eventId) {
     if (localPreview && typeof window !== 'undefined') {
       try {
-              } catch {}
+      } catch { }
     }
 
     // Synchronize sub-resource APIs for Lineup, Facilities, Social Media
@@ -4011,7 +3904,7 @@ export async function createEoAdmin(payload: CreateEoAdminPayload): Promise<EoAd
     email: payload.email,
     password: payload.password,
     password_confirmation: payload.password,
-    phone: payload.phone || null,
+    phone: payload.phone && !['-', '—', 'none', 'null'].includes(String(payload.phone).trim()) ? String(payload.phone).trim() : null,
     role: 'scanner',
     scan_quota: payload.scan_quota !== undefined ? payload.scan_quota : 200,
     quota: payload.scan_quota !== undefined ? payload.scan_quota : 200,
@@ -4066,7 +3959,7 @@ export async function createEoAdmin(payload: CreateEoAdminPayload): Promise<EoAd
           email: payload.email,
         }),
       });
-    } catch {}
+    } catch { }
   }
 
   const evtObj = createdUser?.event || (Array.isArray(createdUser?.events) ? createdUser.events[0] : null);
@@ -4096,7 +3989,7 @@ export async function updateEoAdmin(adminId: number, payload: CreateEoAdminPaylo
     email: payload.email,
     password: payload.password || undefined,
     password_confirmation: payload.password || undefined,
-    phone: payload.phone || null,
+    phone: payload.phone && !['-', '—', 'none', 'null'].includes(String(payload.phone).trim()) ? String(payload.phone).trim() : null,
     role: 'scanner',
     scan_quota: payload.scan_quota !== undefined ? payload.scan_quota : 200,
     quota: payload.scan_quota !== undefined ? payload.scan_quota : 200,
@@ -4119,7 +4012,7 @@ export async function updateEoAdmin(adminId: number, payload: CreateEoAdminPaylo
     });
     if (res.ok) response = res;
     else response = res;
-  } catch {}
+  } catch { }
 
   // 2. Try POST /organizer/events/${event_id}/scanners if event_id is supplied
   if (!response || !response.ok) {
@@ -4134,7 +4027,7 @@ export async function updateEoAdmin(adminId: number, payload: CreateEoAdminPaylo
           body: JSON.stringify(jsonPayload),
         });
         if (res.ok) response = res;
-      } catch {}
+      } catch { }
     }
   }
 
@@ -4150,7 +4043,7 @@ export async function updateEoAdmin(adminId: number, payload: CreateEoAdminPaylo
         body: JSON.stringify(jsonPayload),
       });
       if (res.ok) response = res;
-    } catch {}
+    } catch { }
   }
 
   // 3. Try POST /organizer/scanners
@@ -4165,7 +4058,7 @@ export async function updateEoAdmin(adminId: number, payload: CreateEoAdminPaylo
         body: JSON.stringify(jsonPayload),
       });
       if (res.ok) response = res;
-    } catch {}
+    } catch { }
   }
 
   // 4. Try POST /organizer/team (which acts as upsert or create/update)
@@ -4181,7 +4074,7 @@ export async function updateEoAdmin(adminId: number, payload: CreateEoAdminPaylo
       });
       if (res.ok) response = res;
       else if (!response) response = res;
-    } catch {}
+    } catch { }
   }
 
   const data = response ? await response.json().catch(() => ({})) : {};
@@ -4301,7 +4194,7 @@ export async function saveOrganizerProfile(payload: {
   if (!token) throw new Error('Silakan login terlebih dahulu (Unauthenticated).');
 
   if (payload._local_logo_preview && typeof window !== 'undefined') {
-      }
+  }
 
   const existingProfile = await fetchOrganizerProfile();
   const isUpdate = !!existingProfile;
@@ -4350,7 +4243,7 @@ export async function saveOrganizerProfile(payload: {
       const storedEos = null;
       const list: ApiOrganizerProfile[] = storedEos ? JSON.parse(storedEos) : [];
       const updatedList = [resultProfile, ...list.filter((o) => o.id !== resultProfile.id && o.email !== resultProfile.email)];
-          } catch {}
+    } catch { }
   }
 
   return resultProfile;

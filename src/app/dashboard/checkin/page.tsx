@@ -51,6 +51,7 @@ import {
   Activity,
   Check,
   RotateCw,
+  RefreshCw,
 } from 'lucide-react';
 
 interface ScanLogItem {
@@ -109,12 +110,16 @@ export default function CheckInPage() {
       } catch { }
     }
 
-    setEvents(evts);
-    if (evts && evts.length > 0) {
-      const activeEvt = evts.find((e: ApiEvent) => e.status?.toLowerCase() === 'published') || evts[0];
-      setSelectedEvent(activeEvt);
+    const publishedEvts = evts.filter((e: ApiEvent) => {
+      const st = (e.status || '').toLowerCase();
+      return st === 'published' || st === 'active';
+    });
+
+    setEvents(publishedEvts);
+    if (publishedEvts && publishedEvts.length > 0) {
+      setSelectedEvent(publishedEvts[0]);
     } else {
-      setSelectedEvent(null);
+      setSelectedEvent(null); 1
     }
     setIsLoading(false);
   };
@@ -123,6 +128,53 @@ export default function CheckInPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [staffScanCount, setStaffScanCount] = useState(0);
   const [staffScanQuota, setStaffScanQuota] = useState<number | null>(200);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Dedicated data reload without reloading the browser page
+  const refreshCheckInData = async (showFeedback = true) => {
+    if (!selectedEvent?.id) {
+      if (showFeedback) toast.info('Pilih event terlebih dahulu untuk memuat data.');
+      return;
+    }
+
+    if (showFeedback) setIsRefreshing(true);
+
+    try {
+      // 1. Fetch updated check-in history
+      const history = await fetchScannerCheckIns(selectedEvent.id);
+      setScanHistory(history);
+      setTotalCheckInCount(history.length);
+
+      // 2. Fetch updated staff quota metrics
+      const user = currentUser || (await fetchUserProfile());
+      if (user) {
+        if (!currentUser) setCurrentUser(user);
+        const myScans = history.filter((item: any) => {
+          return (
+            (item.checked_in_by_id && Number(item.checked_in_by_id) === Number(user.id)) ||
+            (item.checked_in_by_email && item.checked_in_by_email.toLowerCase() === user.email?.toLowerCase()) ||
+            (item.scanner_user && (item.scanner_user.includes(user.name) || item.scanner_user.includes(user.email)))
+          );
+        });
+        setStaffScanCount(myScans.length > 0 ? myScans.length : history.length);
+      } else {
+        setStaffScanCount(history.length);
+      }
+
+      if (showFeedback) {
+        toast.success(`Data check-in berhasil diperbarui (${history.length} log).`);
+      }
+    } catch (err: any) {
+      console.warn('Gagal memuat ulang data check-in:', err);
+      if (showFeedback) {
+        toast.error(err?.message || 'Gagal memuat data check-in.');
+      }
+    } finally {
+      if (showFeedback) {
+        setTimeout(() => setIsRefreshing(false), 400);
+      }
+    }
+  };
 
   useEffect(() => {
     loadEvents();
@@ -134,22 +186,7 @@ export default function CheckInPage() {
   // Load real-time check-in history & listen for WebSocket events when event changes
   useEffect(() => {
     if (selectedEvent?.id) {
-      fetchScannerCheckIns(selectedEvent.id).then((history) => {
-        setScanHistory(history);
-        setTotalCheckInCount(history.length);
-        if (currentUser) {
-          const myScans = history.filter((item: any) => {
-            return (
-              (item.checked_in_by_id && Number(item.checked_in_by_id) === Number(currentUser.id)) ||
-              (item.checked_in_by_email && item.checked_in_by_email.toLowerCase() === currentUser.email?.toLowerCase()) ||
-              (item.scanner_user && (item.scanner_user.includes(currentUser.name) || item.scanner_user.includes(currentUser.email)))
-            );
-          });
-          setStaffScanCount(myScans.length > 0 ? myScans.length : history.length);
-        } else {
-          setStaffScanCount(history.length);
-        }
-      });
+      refreshCheckInData(false);
 
       let echoInstance: any = null;
       const user = getStoredUser();
@@ -282,7 +319,7 @@ export default function CheckInPage() {
                 // @ts-ignore
                 const mod = await import('jsqr');
                 jsQRFunc = mod?.default || mod;
-              } catch {}
+              } catch { }
             }
 
             if (jsQRFunc) {
@@ -334,40 +371,24 @@ export default function CheckInPage() {
     setIsScanning(true);
     setScanResult(null);
 
+    if (!selectedEvent?.id) {
+      setScanResult({
+        success: false,
+        message: 'Silakan pilih event penugasan Anda terlebih dahulu sebelum melakukan scan tiket.',
+      });
+      playBeep(false);
+      setIsScanning(false);
+      return;
+    }
+
     try {
       const result = await processCheckIn({
         ticket_code: code,
-        event_id: selectedEvent?.id,
+        event_id: selectedEvent.id,
       });
 
       setScanResult(result);
       playBeep(result.success);
-
-      // If check-in is successful and the returned ticket indicates a specific event,
-      // update selectedEvent if needed
-      if (result.success && result.ticket?.event_name) {
-        const eventNameLower = result.ticket.event_name.toLowerCase();
-        const matched = events.find(
-          (ev) => ev.title?.toLowerCase() === eventNameLower
-        );
-        if (matched) {
-          if (matched.id !== selectedEvent?.id) {
-            setSelectedEvent(matched);
-          }
-        } else {
-          const dynamicEvent: ApiEvent = {
-            id: Number(selectedEvent?.id ? selectedEvent.id + 9999 : 9999),
-            title: result.ticket.event_name,
-            slug: result.ticket.event_name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-            status: 'PUBLISHED',
-          };
-          setEvents((prev) => {
-            if (prev.some((e) => e.title.toLowerCase() === dynamicEvent.title.toLowerCase())) return prev;
-            return [dynamicEvent, ...prev];
-          });
-          setSelectedEvent(dynamicEvent);
-        }
-      }
 
       const logItem: ScanLogItem = {
         id: Math.random().toString(),
@@ -493,57 +514,80 @@ export default function CheckInPage() {
                 )}
               </div>
 
-              <div className="w-full sm:w-auto">
-                <Select
-                  value={selectedEvent?.id ? String(selectedEvent.id) : ''}
-                  onValueChange={(val) => {
-                    const ev = events.find((x) => String(x.id) === val);
-                    if (ev) setSelectedEvent(ev);
-                  }}
-                  disabled={events.length === 0}
-                >
-                  <SelectTrigger className="h-10 min-w-[260px] sm:min-w-[300px] bg-white text-slate-900 hover:bg-slate-50 border border-white/40 shadow-md rounded-xl px-3.5 text-xs font-semibold cursor-pointer transition-all focus:ring-2 focus:ring-white/50">
-                    <div className="flex items-center gap-2 truncate pr-1">
-                      <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
-                      <span className="font-bold text-xs text-slate-900 truncate">
-                        {selectedEvent?.title || (events.length > 0 ? "Pilih Event Gate Scanner" : "Belum Ada Event")}
-                      </span>
-                    </div>
-                  </SelectTrigger>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="w-full sm:w-auto flex-1 sm:flex-initial">
+                {(() => {
+                  const publishedEvents = events.filter((e) => {
+                    const st = (e.status || '').toLowerCase();
+                    return st === 'published' || st === 'active';
+                  });
 
-                  <SelectContent className="bg-white border border-slate-200 text-slate-900 min-w-[300px] shadow-xl rounded-xl p-1 z-50">
-                    <SelectGroup>
-                      <SelectLabel className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        Event Terdaftar EO
-                      </SelectLabel>
-                      <SelectSeparator className="my-1 bg-slate-100" />
-                      {events.length === 0 ? (
-                        <div className="p-3 text-center text-xs text-slate-500 font-medium">
-                          Tidak ada event dari EO yang tersedia saat ini.
+                  return (
+                    <Select
+                      value={selectedEvent?.id ? String(selectedEvent.id) : ''}
+                      onValueChange={(val) => {
+                        const ev = publishedEvents.find((x) => String(x.id) === val);
+                        if (ev) setSelectedEvent(ev);
+                      }}
+                      disabled={publishedEvents.length === 0}
+                    >
+                      <SelectTrigger className="h-10 min-w-[240px] sm:min-w-[280px] bg-white text-slate-900 hover:bg-slate-50 border border-white/40 shadow-md rounded-xl px-3.5 text-xs font-semibold cursor-pointer transition-all focus:ring-2 focus:ring-white/50">
+                        <div className="flex items-center gap-2 truncate pr-1">
+                          <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+                          <span className="font-bold text-xs text-slate-900 truncate">
+                            {selectedEvent?.title || (publishedEvents.length > 0 ? "Pilih Event Gate Scanner" : "Belum Ada Event Publish")}
+                          </span>
                         </div>
-                      ) : (
-                        events.map((ev, idx) => (
-                          <SelectItem
-                            key={`evt_option_${ev.id}_${idx}`}
-                            value={String(ev.id)}
-                            className="py-2.5 pl-8 pr-3 cursor-pointer rounded-lg hover:bg-slate-50 focus:bg-blue-50 focus:text-blue-900 transition-colors my-0.5"
-                          >
-                            <div className="flex flex-col gap-0.5 text-left">
-                              <span className="font-bold text-xs text-slate-900 leading-snug">
-                                {ev.title}
-                              </span>
-                              {ev.organizer?.organization_name && (
-                                <span className="text-[11px] text-slate-500 font-medium">
-                                  Penyelenggara: <span className="font-semibold text-blue-600">{ev.organizer.organization_name}</span>
-                                </span>
-                              )}
+                      </SelectTrigger>
+
+                      <SelectContent className="bg-white border border-slate-200 text-slate-900 min-w-[280px] shadow-xl rounded-xl p-1 z-50">
+                        <SelectGroup>
+                          <SelectLabel className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Event Publish ({publishedEvents.length})
+                          </SelectLabel>
+                          <SelectSeparator className="my-1 bg-slate-100" />
+                          {publishedEvents.length === 0 ? (
+                            <div className="p-3 text-center text-xs text-slate-500 font-medium">
+                              Tidak ada event berstatus publish yang tersedia saat ini.
                             </div>
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                          ) : (
+                            publishedEvents.map((ev, idx) => (
+                              <SelectItem
+                                key={`evt_option_${ev.id}_${idx}`}
+                                value={String(ev.id)}
+                                className="py-2.5 pl-8 pr-3 cursor-pointer rounded-lg hover:bg-slate-50 focus:bg-blue-50 focus:text-blue-900 transition-colors my-0.5"
+                              >
+                                <div className="flex flex-col gap-0.5 text-left">
+                                  <span className="font-bold text-xs text-slate-900 leading-snug">
+                                    {ev.title}
+                                  </span>
+                                  {ev.organizer?.organization_name && (
+                                    <span className="text-[11px] text-slate-500 font-medium">
+                                      Penyelenggara: <span className="font-semibold text-blue-600">{ev.organizer.organization_name}</span>
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  );
+                })()}
+                </div>
+
+                {/* Tombol Load Data Tanpa Reload Halaman */}
+                <button
+                  type="button"
+                  onClick={() => refreshCheckInData(true)}
+                  disabled={isRefreshing || !selectedEvent}
+                  title="Muat Ulang Data Scanner (Tanpa Refresh Halaman)"
+                  className="h-10 px-3.5 rounded-xl bg-white/20 hover:bg-white/30 active:scale-95 text-white border border-white/35 shadow-md flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer disabled:opacity-40 shrink-0 backdrop-blur-sm"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-blue-200' : 'text-white'}`} />
+                  <span className="hidden sm:inline">{isRefreshing ? 'Memuat...' : 'Load Data'}</span>
+                </button>
               </div>
             </div>
           </div>
@@ -869,9 +913,20 @@ export default function CheckInPage() {
                 <h3 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
                   <Clock className="w-4 h-4 text-blue-600" /> Log Kedatangan Gate Real-Time
                 </h3>
-                <span className="text-[11px] font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100">
-                  {scanHistory.length} Log
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-black text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100">
+                    {scanHistory.length} Log
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => refreshCheckInData(true)}
+                    disabled={isRefreshing || !selectedEvent}
+                    title="Muat Ulang Log & Data"
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-all cursor-pointer active:scale-95 disabled:opacity-40"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+                  </button>
+                </div>
               </div>
 
               {scanHistory.length > 0 ? (

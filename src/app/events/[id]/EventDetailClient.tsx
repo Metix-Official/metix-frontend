@@ -94,14 +94,27 @@ export default function EventDetailClient() {
     }
   }, [params]);
 
-  // Compute ticket pricing using ticketUtils (ACTIVE vs SOLD_OUT, excluding INACTIVE)
+  const [now, setNow] = useState<Date>(() => new Date());
+
+  // Compute ticket pricing using ticketUtils (ACTIVE vs SOLD_OUT, including sale_start_at and sale_end_at schedules)
   const eventPricing = React.useMemo(() => {
-    return computeEventPricing(event?.ticket_types, event?.status);
-  }, [event]);
+    return computeEventPricing(event?.ticket_types, event?.status, now);
+  }, [event, now]);
+
+  // Live countdown ticker if any ticket has a target countdown (opening or closing soon)
+  useEffect(() => {
+    if (!eventPricing.targetCountdownDate) return;
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [eventPricing.targetCountdownDate]);
 
   const hasTickets = eventPricing.hasTickets;
   const lowestPrice = eventPricing.priceStr;
-  const isEventSoldOut = eventPricing.isSoldOut || event?.status?.toLowerCase() === 'closed';
+  const isEventSoldOut = eventPricing.isSoldOut || eventPricing.saleState === 'SOLD_OUT' || event?.status?.toLowerCase() === 'closed';
+  const isEventUpcoming = eventPricing.saleState === 'UPCOMING';
+  const isSaleEnded = eventPricing.saleState === 'SALE_ENDED';
 
   // Format Date & Time from start_at / event_start_at
   const dateFormatted = React.useMemo(() => {
@@ -744,16 +757,27 @@ export default function EventDetailClient() {
                   <span className="text-xs font-bold text-slate-600">
                     {lowestPrice === 'Coming Soon' ? 'Harga Tiket' : 'Mulai Dari'}
                   </span>
-                  {isEventSoldOut && (
+                  {isEventSoldOut ? (
                     <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 text-[10px] font-black uppercase border border-rose-200 shadow-2xs">
                       Sold Out
                     </span>
-                  )}
+                  ) : isEventUpcoming ? (
+                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-black uppercase border border-amber-200 shadow-2xs flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-amber-600 animate-pulse" />
+                      Segera Dibuka
+                    </span>
+                  ) : isSaleEnded ? (
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-black uppercase border border-slate-300 shadow-2xs">
+                      Penjualan Berakhir
+                    </span>
+                  ) : null}
                 </div>
                 <span
                   className={`text-xl sm:text-2xl font-black ${
                     isEventSoldOut
                       ? 'line-through text-slate-400 decoration-rose-500 decoration-2'
+                      : isEventUpcoming
+                      ? 'text-amber-600'
                       : lowestPrice === 'Coming Soon'
                       ? 'text-amber-600'
                       : 'text-slate-900'
@@ -763,12 +787,55 @@ export default function EventDetailClient() {
                 </span>
               </div>
 
+              {/* Countdown Banner if upcoming or ending soon */}
+              {eventPricing.countdownString && (
+                <div
+                  className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
+                    eventPricing.countdownType === 'UPCOMING'
+                      ? 'bg-amber-50/90 border-amber-200/80 text-amber-900'
+                      : 'bg-rose-50/90 border-rose-200/80 text-rose-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Clock
+                      className={`w-4 h-4 ${
+                        eventPricing.countdownType === 'UPCOMING'
+                          ? 'text-amber-600 animate-pulse'
+                          : 'text-rose-600 animate-bounce'
+                      }`}
+                    />
+                    <span className="font-bold">
+                      {eventPricing.countdownType === 'UPCOMING' ? 'Penjualan Dibuka Dalam:' : 'Penjualan Berakhir:'}
+                    </span>
+                  </div>
+                  <span className="font-mono font-black px-2.5 py-0.5 rounded-lg bg-white shadow-2xs border border-amber-200/80 text-amber-800">
+                    {eventPricing.countdownString}
+                  </span>
+                </div>
+              )}
+
               {isEventSoldOut ? (
                 <button
                   disabled
                   className="w-full py-3.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 font-extrabold text-sm cursor-not-allowed text-center"
                 >
                   Tiket Habis (Sold Out)
+                </button>
+              ) : isEventUpcoming ? (
+                <button
+                  disabled
+                  className="w-full py-3.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 font-extrabold text-sm cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Clock className="w-4 h-4 text-amber-500" />
+                  <span>Segera Dibuka</span>
+                </button>
+              ) : isSaleEnded ? (
+                <button
+                  disabled
+                  className="w-full py-3.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 font-extrabold text-sm cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <AlertCircle className="w-4 h-4 text-slate-400" />
+                  <span>Penjualan Berakhir</span>
                 </button>
               ) : !hasTickets || lowestPrice === 'Coming Soon' ? (
                 <button
@@ -893,16 +960,27 @@ export default function EventDetailClient() {
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
               {lowestPrice === 'Coming Soon' ? 'Harga Tiket' : 'Mulai Dari'}
             </span>
-            {isEventSoldOut && (
+            {isEventSoldOut ? (
               <span className="px-1.5 py-0.2 rounded-md bg-rose-100 text-rose-700 text-[9px] font-black uppercase tracking-wider border border-rose-200 shadow-2xs">
                 Sold Out
               </span>
-            )}
+            ) : isEventUpcoming ? (
+              <span className="px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-800 text-[9px] font-black uppercase tracking-wider border border-amber-200 shadow-2xs flex items-center gap-1">
+                <Clock className="w-2.5 h-2.5 text-amber-600 animate-pulse" />
+                Segera
+              </span>
+            ) : isSaleEnded ? (
+              <span className="px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-600 text-[9px] font-black uppercase tracking-wider border border-slate-200 shadow-2xs">
+                Berakhir
+              </span>
+            ) : null}
           </div>
           <span
             className={`text-base font-black tracking-tight ${
               isEventSoldOut
                 ? 'line-through text-slate-400 decoration-rose-500 decoration-2'
+                : isEventUpcoming
+                ? 'text-amber-600'
                 : lowestPrice === 'Coming Soon'
                 ? 'text-amber-600'
                 : 'text-slate-900'
@@ -910,6 +988,12 @@ export default function EventDetailClient() {
           >
             {lowestPrice}
           </span>
+          {eventPricing.countdownString && (
+            <span className="text-[10px] font-mono font-bold text-amber-700 flex items-center gap-1 mt-0.5">
+              <Clock className="w-2.5 h-2.5 text-amber-600 animate-pulse" />
+              {eventPricing.countdownString}
+            </span>
+          )}
         </div>
 
         {isEventSoldOut ? (
@@ -918,6 +1002,21 @@ export default function EventDetailClient() {
             className="py-3 px-5 rounded-xl bg-slate-100 text-slate-400 font-extrabold text-xs cursor-not-allowed"
           >
             Tiket Habis
+          </button>
+        ) : isEventUpcoming ? (
+          <button
+            disabled
+            className="py-2.5 px-4 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 font-extrabold text-xs cursor-not-allowed flex items-center gap-1.5"
+          >
+            <Clock className="w-3.5 h-3.5 text-amber-500" />
+            <span>Segera Dibuka</span>
+          </button>
+        ) : isSaleEnded ? (
+          <button
+            disabled
+            className="py-3 px-4 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 font-extrabold text-xs cursor-not-allowed"
+          >
+            Penjualan Berakhir
           </button>
         ) : !hasTickets || lowestPrice === 'Coming Soon' ? (
           <button

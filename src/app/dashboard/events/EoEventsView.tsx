@@ -156,11 +156,10 @@ function ShadcnTicketDateTimePicker({
           <PopoverTrigger asChild>
             <button
               type="button"
-              className={`w-full h-9 px-3 rounded-xl border text-xs font-semibold text-left flex items-center justify-between cursor-pointer transition-colors bg-white ${
-                isValidDate
-                  ? 'border-slate-300 text-slate-900 pr-8'
-                  : 'border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
-              }`}
+              className={`w-full h-9 px-3 rounded-xl border text-xs font-semibold text-left flex items-center justify-between cursor-pointer transition-colors bg-white ${isValidDate
+                ? 'border-slate-300 text-slate-900 pr-8'
+                : 'border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                }`}
             >
               <div className="flex items-center gap-2 min-w-0 truncate">
                 <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -3217,8 +3216,8 @@ export function EoEventsView() {
                     type="button"
                     onClick={() => setShowAdvancedTicketOptions((prev) => !prev)}
                     className={`w-full px-3 py-2 rounded-xl border text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${showAdvancedTicketOptions
-                        ? 'bg-blue-100/60 border-blue-200 text-blue-900'
-                        : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                      ? 'bg-blue-100/60 border-blue-200 text-blue-900'
+                      : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
                       }`}
                   >
                     <div className="flex items-center gap-2">
@@ -3279,8 +3278,8 @@ export function EoEventsView() {
                             type="button"
                             onClick={() => setCreateTicketStatus('ACTIVE')}
                             className={`h-7 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${createTicketStatus === 'ACTIVE'
-                                ? 'bg-white text-emerald-700 shadow-xs font-black'
-                                : 'text-slate-600 hover:text-slate-900'
+                              ? 'bg-white text-emerald-700 shadow-xs font-black'
+                              : 'text-slate-600 hover:text-slate-900'
                               }`}
                           >
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -3290,8 +3289,8 @@ export function EoEventsView() {
                             type="button"
                             onClick={() => setCreateTicketStatus('INACTIVE')}
                             className={`h-7 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${createTicketStatus === 'INACTIVE'
-                                ? 'bg-white text-amber-700 shadow-xs font-black'
-                                : 'text-slate-600 hover:text-slate-900'
+                              ? 'bg-white text-amber-700 shadow-xs font-black'
+                              : 'text-slate-600 hover:text-slate-900'
                               }`}
                           >
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
@@ -3301,8 +3300,8 @@ export function EoEventsView() {
                             type="button"
                             onClick={() => setCreateTicketStatus('SOLD_OUT')}
                             className={`h-7 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${createTicketStatus === 'SOLD_OUT'
-                                ? 'bg-white text-rose-700 shadow-xs font-black'
-                                : 'text-slate-600 hover:text-slate-900'
+                              ? 'bg-white text-rose-700 shadow-xs font-black'
+                              : 'text-slate-600 hover:text-slate-900'
                               }`}
                           >
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
@@ -3596,9 +3595,9 @@ export function EoEventsView() {
                     <input
                       type="number"
                       name="max_per_order"
-                      defaultValue={editingTicketType.max_per_order ?? 5}
+                      defaultValue={editingTicketType.max_per_order ?? 4}
                       min="1"
-                      placeholder="5"
+                      placeholder="4"
                       className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
                   </div>
@@ -3614,8 +3613,8 @@ export function EoEventsView() {
                         type="button"
                         onClick={() => setEditTicketStatus('ACTIVE')}
                         className={`h-7 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${editTicketStatus === 'ACTIVE'
-                            ? 'bg-white text-emerald-700 shadow-xs font-black'
-                            : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-white text-emerald-700 shadow-xs font-black'
+                          : 'text-slate-600 hover:text-slate-900'
                           }`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -3625,8 +3624,8 @@ export function EoEventsView() {
                         type="button"
                         onClick={() => setEditTicketStatus('INACTIVE')}
                         className={`h-7 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${editTicketStatus === 'INACTIVE'
-                            ? 'bg-white text-amber-700 shadow-xs font-black'
-                            : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-white text-amber-700 shadow-xs font-black'
+                          : 'text-slate-600 hover:text-slate-900'
                           }`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
@@ -3636,8 +3635,8 @@ export function EoEventsView() {
                         type="button"
                         onClick={() => setEditTicketStatus('SOLD_OUT')}
                         className={`h-7 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${editTicketStatus === 'SOLD_OUT'
-                            ? 'bg-white text-rose-700 shadow-xs font-black'
-                            : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-white text-rose-700 shadow-xs font-black'
+                          : 'text-slate-600 hover:text-slate-900'
                           }`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />

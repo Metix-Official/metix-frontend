@@ -21,6 +21,7 @@ import {
   ApiWithdrawal,
   getPhotoUrl,
 } from '@/lib/api';
+import { getUserRole, ROLES } from '@/lib/roles';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/sonner';
 import {
@@ -75,6 +76,15 @@ const COMMON_BANKS = [
   'Bank Jago',
   'Bank SeaBank',
 ];
+
+const isPdfFile = (urlOrPath?: string | null, file?: File | null): boolean => {
+  if (file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
+    return true;
+  }
+  if (!urlOrPath) return false;
+  const clean = urlOrPath.split('?')[0].toLowerCase();
+  return clean.endsWith('.pdf') || clean.includes('.pdf');
+};
 
 export default function WithdrawalManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -150,14 +160,29 @@ export default function WithdrawalManagementPage() {
     setProofOfTransferUrl('');
   };
 
-  // User Role Detection
+  // User Role Detection (100% Dinamis berdasarkan data role dari database/API)
   const currentUser = React.useMemo(() => getStoredUser(), []);
   const isOwnerRole = React.useMemo(() => {
-    return (
-      currentUser?.role === 'OWNER' ||
-      currentUser?.email === 'admin@metix.com' ||
-      (currentUser?.roles && currentUser.roles.some((r: any) => r.name === 'owner'))
-    );
+    // 1. Pengecekan via role helper sentral aplikasi
+    if (getUserRole(currentUser) === ROLES.OWNER) {
+      return true;
+    }
+
+    // 2. Pengecekan atribut role langsung (case-insensitive)
+    const rawRole = (currentUser?.role || '').toUpperCase();
+    if (rawRole === 'OWNER' || rawRole === 'SUPERADMIN' || rawRole === 'ADMIN_PLATFORM') {
+      return true;
+    }
+
+    // 3. Pengecekan relasi array roles (Spatie Permission / multi-role)
+    if (currentUser?.roles && Array.isArray(currentUser.roles)) {
+      return currentUser.roles.some((r: any) => {
+        const name = (r?.name || '').toUpperCase();
+        return name === 'OWNER' || name === 'SUPERADMIN' || name === 'ADMIN_PLATFORM';
+      });
+    }
+
+    return false;
   }, [currentUser]);
 
   const loadData = async () => {
@@ -1521,40 +1546,69 @@ export default function WithdrawalManagementPage() {
                       </span>
                     </div>
 
-                    <div className="relative rounded-xl overflow-hidden border border-emerald-200/80 bg-slate-950 flex items-center justify-center p-2.5">
-                      <img
-                        src={getPhotoUrl(selectedWithdrawalDetail.proof_of_transfer) || undefined}
-                        alt="Bukti Transfer Penarikan"
-                        className="max-h-64 object-contain rounded-lg shadow-md"
-                      />
-                    </div>
+                    {(() => {
+                      const proofUrl = getPhotoUrl(selectedWithdrawalDetail.proof_of_transfer);
+                      const isPdf = isPdfFile(selectedWithdrawalDetail.proof_of_transfer);
 
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-emerald-100">
-                      <span className="text-[11px] font-medium text-slate-500">
-                        Waktu Transfer:{' '}
-                        <strong className="text-slate-800 font-bold">
-                          {selectedWithdrawalDetail.processed_at
-                            ? new Date(selectedWithdrawalDetail.processed_at).toLocaleString('id-ID', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                            : '-'}
-                        </strong>
-                      </span>
+                      return (
+                        <>
+                          <div className="relative rounded-xl overflow-hidden border border-emerald-200/80 bg-slate-950 flex flex-col items-center justify-center p-2.5">
+                            {isPdf ? (
+                              <div className="w-full flex flex-col items-center justify-center py-2 px-1 text-center bg-slate-900 rounded-lg">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="w-6 h-6 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center">
+                                    <FileText className="w-3.5 h-3.5" />
+                                  </div>
+                                  <span className="text-xs font-bold text-white">
+                                    Dokumen Bukti Transfer (PDF)
+                                  </span>
+                                </div>
+                                <div className="w-full rounded-lg overflow-hidden border border-slate-800 bg-white">
+                                  <iframe
+                                    src={`${proofUrl}#toolbar=0`}
+                                    className="w-full h-64 border-0"
+                                    title="Preview PDF Bukti Transfer"
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <img
+                                src={proofUrl || undefined}
+                                alt="Bukti Transfer Penarikan"
+                                className="max-h-64 object-contain rounded-lg shadow-md"
+                              />
+                            )}
+                          </div>
 
-                      <a
-                        href={getPhotoUrl(selectedWithdrawalDetail.proof_of_transfer) || '#'}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-emerald-500 text-slate-800 hover:text-emerald-700 text-xs font-bold shadow-2xs transition-all cursor-pointer"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        Lihat Struk Ukuran Penuh
-                      </a>
-                    </div>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-emerald-100">
+                            <span className="text-[11px] font-medium text-slate-500">
+                              Waktu Transfer:{' '}
+                              <strong className="text-slate-800 font-bold">
+                                {selectedWithdrawalDetail.processed_at
+                                  ? new Date(selectedWithdrawalDetail.processed_at).toLocaleString('id-ID', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                  : '-'}
+                              </strong>
+                            </span>
+
+                            <a
+                              href={proofUrl || '#'}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-emerald-500 text-slate-800 hover:text-emerald-700 text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              {isPdf ? 'Buka Dokumen PDF' : 'Lihat Struk Ukuran Penuh'}
+                            </a>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 ) : (
                   selectedWithdrawalDetail.status === 'COMPLETED' ? null : (
@@ -1729,13 +1783,38 @@ export default function WithdrawalManagementPage() {
                         </a>
                       </div>
 
-                      <div className="relative rounded-2xl overflow-hidden border border-emerald-200/90 bg-slate-950 p-2 flex items-center justify-center">
-                        <img
-                          src={proofPreviewUrl}
-                          alt="Bukti Transfer"
-                          className="max-h-60 sm:max-h-72 w-full object-contain rounded-xl shadow-md"
-                        />
-                      </div>
+                      {(() => {
+                        const isPdf = isPdfFile(proofPreviewUrl);
+                        return (
+                          <div className="relative rounded-2xl overflow-hidden border border-emerald-200/90 bg-slate-950 p-2 flex flex-col items-center justify-center">
+                            {isPdf ? (
+                              <div className="w-full flex flex-col items-center justify-center py-2 px-1 text-center bg-slate-900 rounded-xl">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="w-6 h-6 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center">
+                                    <FileText className="w-3.5 h-3.5" />
+                                  </div>
+                                  <span className="text-xs font-bold text-white">
+                                    Dokumen Bukti Transfer (PDF)
+                                  </span>
+                                </div>
+                                <div className="w-full rounded-lg overflow-hidden border border-slate-800 bg-white">
+                                  <iframe
+                                    src={`${proofPreviewUrl}#toolbar=0`}
+                                    className="w-full h-64 border-0"
+                                    title="Preview PDF Bukti Transfer"
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <img
+                                src={proofPreviewUrl}
+                                alt="Bukti Transfer"
+                                className="max-h-60 sm:max-h-72 w-full object-contain rounded-xl shadow-md"
+                              />
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   ) : (
                     <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 text-xs text-center">
@@ -1754,13 +1833,38 @@ export default function WithdrawalManagementPage() {
                       </div>
 
                       {proofPreviewUrl ? (
-                        <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 p-2 flex items-center justify-center">
-                          <img
-                            src={proofPreviewUrl}
-                            alt="Preview Bukti Transfer"
-                            className="max-h-48 sm:max-h-52 w-full object-contain rounded-xl"
-                          />
-                          <div className="absolute top-3 right-3 flex items-center gap-2">
+                        <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 p-2 flex flex-col items-center justify-center">
+                          {isPdfFile(proofPreviewUrl, proofOfTransferFile) ? (
+                            <div className="w-full flex flex-col items-center justify-center py-2 px-1 bg-slate-900 rounded-xl">
+                              <div className="flex items-center justify-between w-full px-2 mb-2 pr-32">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div className="w-6 h-6 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center shrink-0">
+                                    <FileText className="w-3.5 h-3.5" />
+                                  </div>
+                                  <span className="text-xs font-bold text-white truncate">
+                                    {proofOfTransferFile?.name || 'Dokumen Bukti Transfer (PDF)'}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 shrink-0">
+                                  PDF Siap
+                                </span>
+                              </div>
+                              <div className="w-full rounded-lg overflow-hidden border border-slate-800 bg-white">
+                                <iframe
+                                  src={`${proofPreviewUrl}#toolbar=0`}
+                                  className="w-full h-56 sm:h-64 border-0"
+                                  title="Preview PDF Bukti Transfer"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <img
+                              src={proofPreviewUrl}
+                              alt="Preview Bukti Transfer"
+                              className="max-h-48 sm:max-h-52 w-full object-contain rounded-xl"
+                            />
+                          )}
+                          <div className="absolute top-3 right-3 flex items-center gap-2 z-10">
                             <button
                               type="button"
                               disabled={isSubmittingOwnerAction}
@@ -2031,38 +2135,69 @@ export default function WithdrawalManagementPage() {
                     </span>
                   </div>
 
-                  {/* Frame Struk */}
-                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 flex items-center justify-center p-3 group">
-                    <img
-                      src={getPhotoUrl(selectedProofWithdrawal.proof_of_transfer) || undefined}
-                      alt="Struk Bukti Transfer"
-                      className="max-h-72 w-full object-contain rounded-xl shadow-lg"
-                    />
-                  </div>
+                  {(() => {
+                    const proofUrl = getPhotoUrl(selectedProofWithdrawal.proof_of_transfer);
+                    const isPdf = isPdfFile(selectedProofWithdrawal.proof_of_transfer);
 
-                  {/* Actions Toolbar */}
-                  <div className="flex items-center justify-between gap-2 pt-1">
-                    <a
-                      href={getPhotoUrl(selectedProofWithdrawal.proof_of_transfer) || '#'}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition-all cursor-pointer shadow-2xs"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Buka Struk Ukuran Penuh</span>
-                    </a>
+                    return (
+                      <>
+                        {/* Frame Struk (Gambar atau PDF) */}
+                        <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 flex flex-col items-center justify-center p-3 group">
+                          {isPdf ? (
+                            <div className="w-full flex flex-col items-center justify-center py-4 px-3 text-center bg-slate-900 rounded-xl border border-slate-800">
+                              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center mb-2 shadow-inner">
+                                <FileText className="w-6 h-6" />
+                              </div>
+                              <h5 className="text-xs font-bold text-white mb-0.5">
+                                Dokumen Bukti Transfer (PDF)
+                              </h5>
+                              <p className="text-[11px] text-slate-400 max-w-xs mb-3">
+                                Bukti transfer ini berupa dokumen PDF.
+                              </p>
+                              {/* Embedded PDF iframe preview */}
+                              <div className="w-full rounded-lg overflow-hidden border border-slate-800 bg-white">
+                                <iframe
+                                  src={`${proofUrl}#toolbar=0`}
+                                  className="w-full h-64 border-0"
+                                  title="Preview PDF Bukti Transfer"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <img
+                              src={proofUrl || undefined}
+                              alt="Struk Bukti Transfer"
+                              className="max-h-72 w-full object-contain rounded-xl shadow-lg"
+                            />
+                          )}
+                        </div>
 
-                    <a
-                      href={getPhotoUrl(selectedProofWithdrawal.proof_of_transfer) || '#'}
-                      download={`Bukti-Transfer-${selectedProofWithdrawal.reference_number || selectedProofWithdrawal.id}.jpg`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer shadow-2xs"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Unduh File</span>
-                    </a>
-                  </div>
+                        {/* Actions Toolbar */}
+                        <div className="flex items-center justify-between gap-2 pt-1">
+                          <a
+                            href={proofUrl || '#'}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition-all cursor-pointer shadow-2xs"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            <span>{isPdf ? 'Buka Dokumen Penuh' : 'Buka Struk Ukuran Penuh'}</span>
+                          </a>
+
+                          <a
+                            href={proofUrl || '#'}
+                            download={`Bukti-Transfer-${selectedProofWithdrawal.reference_number || selectedProofWithdrawal.id}.${isPdf ? 'pdf' : 'jpg'}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-200 transition-all cursor-pointer shadow-2xs"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Unduh {isPdf ? 'PDF' : 'File'}</span>
+                          </a>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               ) : (
                 /* Empty state jika belum ada bukti transfer */

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { isTicketTypeSoldOut } from '@/lib/ticketUtils';
+import { isTicketTypeSoldOut, getTicketTypeScheduleState } from '@/lib/ticketUtils';
 import {
   ArrowLeft,
   ArrowRight,
@@ -957,11 +957,15 @@ export default function EventCheckoutClient() {
 
                   return Object.entries(grouped).map(([categoryName, tickets]) => (
                     <div key={categoryName} className="space-y-3">
-                      <div className="flex items-center gap-2 pt-1">
-                        <span className="px-3 py-1 rounded-lg bg-slate-100 border border-slate-200/80 text-slate-800 text-xs font-black">
-                          {categoryName}
+                      <div className="flex items-center justify-between pt-1 pb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 text-[11px] font-black tracking-wider uppercase">
+                            {categoryName}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-400">
+                          {tickets.length} Kategori
                         </span>
-                        <div className="h-px bg-slate-100 flex-1" />
                       </div>
 
                       <div className="space-y-3">
@@ -970,64 +974,124 @@ export default function EventCheckoutClient() {
                           const qty = selected ? selected.quantity : 0;
                           const priceNum = Number(ticket.price);
                           const isSoldOut = isTicketTypeSoldOut(ticket);
+                          const sched = getTicketTypeScheduleState(ticket);
+                          const isUpcoming = sched.isUpcoming;
+                          const isEnded = sched.isExpired;
+                          const isAvailable = !isSoldOut && !isUpcoming && !isEnded;
+
+                          const hasMeaningfulDesc = Boolean(
+                            ticket.description &&
+                            ticket.description.trim() !== '' &&
+                            ticket.description.trim() !== 'Akses resmi ke venue event.'
+                          );
 
                           return (
                             <div
                               key={ticket.id}
-                              className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
-                                isSoldOut
-                                  ? 'bg-slate-50/80 border-slate-200 opacity-75'
+                              className={`p-3.5 sm:p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 ${isSoldOut || isEnded
+                                ? 'bg-slate-50/70 border-slate-200/90 opacity-60'
+                                : isUpcoming
+                                  ? 'bg-white border-amber-200/90 hover:border-amber-300 shadow-2xs'
                                   : qty > 0
-                                    ? 'bg-blue-50/70 border-blue-300 ring-1 ring-blue-500/20'
-                                    : 'bg-white border-slate-200 hover:border-slate-300'
-                              }`}
+                                    ? 'bg-blue-50/40 border-blue-500/60 ring-2 ring-blue-500/10 shadow-xs'
+                                    : 'bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-2xs'
+                                }`}
                             >
-                              <div className="space-y-1">
-                                <h4 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-                                  {ticket.name}
-                                  {!isSoldOut ? (
-                                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                                      Tersedia
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200 shadow-2xs">
-                                      Sold Out
-                                    </span>
-                                  )}
-                                </h4>
-                                <p className="text-xs text-slate-500 font-medium">
-                                  {ticket.description || 'Akses resmi ke venue event.'}
-                                </p>
-                                <span
-                                  className={`text-base font-black block pt-1 ${
-                                    isSoldOut
-                                      ? 'line-through text-slate-400 decoration-rose-500 decoration-2'
-                                      : 'text-blue-700'
-                                  }`}
+                              {/* Left Side: Ticket Icon + Name & Price */}
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div
+                                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${isSoldOut || isEnded
+                                    ? 'bg-slate-100 border-slate-200 text-slate-400'
+                                    : isUpcoming
+                                      ? 'bg-amber-50 border-amber-200/80 text-amber-600'
+                                      : qty > 0
+                                        ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                                        : 'bg-slate-50 border-slate-200 text-blue-600'
+                                    }`}
                                 >
-                                  Rp {priceNum.toLocaleString('id-ID')}
-                                </span>
+                                  <Ticket className="w-5 h-5" />
+                                </div>
+
+                                <div className="space-y-0.5 min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight truncate">
+                                      {ticket.name}
+                                    </h4>
+                                    {isSoldOut ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200/70 shrink-0">
+                                        Sold Out
+                                      </span>
+                                    ) : isAvailable ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/70 shrink-0">
+                                        Tersedia
+                                      </span>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span
+                                      className={`text-sm sm:text-base font-black ${isSoldOut || isEnded
+                                        ? 'line-through text-slate-400 decoration-rose-500 decoration-2'
+                                        : qty > 0
+                                          ? 'text-blue-700'
+                                          : 'text-slate-900'
+                                        }`}
+                                    >
+                                      Rp {priceNum.toLocaleString('id-ID')}
+                                    </span>
+                                    {hasMeaningfulDesc && (
+                                      <>
+                                        <span className="text-slate-300 text-xs hidden sm:inline">•</span>
+                                        <span className="text-xs text-slate-400 truncate hidden sm:inline">
+                                          {ticket.description}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
 
-                              {/* Quantity Counter Stepper */}
-                              <div className="flex items-center gap-3 self-end sm:self-center">
-                                <button
-                                  type="button"
-                                  onClick={() => handleQuantityChange(ticket.id, qty - 1)}
-                                  disabled={isSoldOut || qty <= 0}
-                                  className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-slate-100 text-slate-700 font-black text-base flex items-center justify-center cursor-pointer disabled:cursor-not-allowed transition-colors"
-                                >
-                                  -
-                                </button>
-                                <span className="w-8 text-center text-sm font-black text-slate-900">{isSoldOut ? 0 : qty}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleQuantityChange(ticket.id, qty + 1)}
-                                  disabled={isSoldOut || totalTicketCount >= 4}
-                                  className="w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:hover:bg-blue-600 text-white font-black text-base flex items-center justify-center cursor-pointer disabled:cursor-not-allowed transition-colors shadow-xs"
-                                >
-                                  +
-                                </button>
+                              {/* Right Side: Status or Stepper */}
+                              <div className="shrink-0 flex items-center">
+                                {isUpcoming ? (
+                                  <div className="flex flex-col items-end gap-0.5">
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200/90 text-amber-800 shadow-2xs">
+                                      <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse shrink-0" />
+                                      <span className="font-mono text-xs font-black tracking-tight">
+                                        {sched.timeLeftFormatted || 'Segera'}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] font-extrabold text-amber-700/80 pr-1">
+                                      Segera Dibuka
+                                    </span>
+                                  </div>
+                                ) : isSoldOut || isEnded ? (
+                                  <span className="px-3.5 py-1.5 rounded-xl bg-rose-50 text-rose-600 text-xs font-black border border-rose-200/80 shadow-2xs">
+                                    Sold Out
+                                  </span>
+                                ) : (
+                                  <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/90 shadow-2xs">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuantityChange(ticket.id, qty - 1)}
+                                      disabled={qty <= 0}
+                                      className="w-8 h-8 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-30 disabled:hover:bg-white text-slate-800 font-black text-sm flex items-center justify-center cursor-pointer disabled:cursor-not-allowed shadow-2xs active:scale-95 transition-all"
+                                    >
+                                      -
+                                    </button>
+                                    <span className="w-7 text-center text-sm font-black text-slate-900">
+                                      {qty}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuantityChange(ticket.id, qty + 1)}
+                                      disabled={totalTicketCount >= 4}
+                                      className="w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:hover:bg-blue-600 text-white font-black text-sm flex items-center justify-center cursor-pointer disabled:cursor-not-allowed shadow-xs active:scale-95 transition-all"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -1043,7 +1107,7 @@ export default function EventCheckoutClient() {
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                  <User className="w-5 h-5 text-blue-600" /> 2. Data Pemesan Tiket (Autofill dari Akun)
+                  <User className="w-5 h-5 text-blue-600" /> 2. Data Pemesan Tiket
                 </h3>
                 {isUserLoggedIn && (
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">

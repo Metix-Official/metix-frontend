@@ -137,26 +137,53 @@ export default function DashboardPage() {
           } catch { }
         }
 
-        if (admins && admins.length > 0) {
-          admins.forEach((staff) => {
-            if (!staff.scan_count || staff.scan_count === 0) {
-              staff.scan_count = globalApiCheckInCount;
+        const rawDash = (res as any)?.data || res;
+        const apiScannersList: any[] = rawDash?.scanners?.list || (res as any)?.scanners?.list || [];
+        const apiCheckInsTotal = Number(rawDash?.check_ins?.total ?? (res as any)?.check_ins?.total ?? 0);
+        const effectiveCheckIns = Math.max(globalApiCheckInCount, apiCheckInsTotal);
+
+        let finalStaffList: EoAdminUser[] = [];
+        if (Array.isArray(admins) && admins.length > 0) {
+          finalStaffList = [...admins];
+        }
+
+        // Also merge scanners from apiScannersList if not already present
+        if (Array.isArray(apiScannersList) && apiScannersList.length > 0) {
+          apiScannersList.forEach((sc: any) => {
+            const scId = sc.user_id || sc.id;
+            const existing = finalStaffList.find(
+              (a) => a.id === scId || (a.email && sc.email && a.email.toLowerCase() === sc.email.toLowerCase())
+            );
+            if (!existing) {
+              finalStaffList.push({
+                id: scId,
+                name: sc.name || 'Petugas Scanner',
+                email: sc.email || '',
+                phone: sc.phone || null,
+                scan_quota: 200,
+                scan_count: Number(sc.scanned_count ?? sc.scan_count ?? 0),
+                event_id: sc.event_id ? Number(sc.event_id) : null,
+                event_title: sc.event_title || 'Event',
+                created_at: sc.last_scanned_at || new Date().toISOString(),
+              });
+            } else {
+              const scCount = Number(sc.scanned_count ?? sc.scan_count ?? 0);
+              if (scCount > (existing.scan_count || 0)) {
+                existing.scan_count = scCount;
+              }
             }
           });
-          setEoAdmins([...admins]);
-        } else if ((res as any)?.scanners?.list && (res as any).scanners.list.length > 0) {
-          setEoAdmins((res as any).scanners.list.map((s: any) => ({
-            id: s.id || s.user_id,
-            name: s.name,
-            email: s.email,
-            phone: s.phone,
-            scan_quota: 200,
-            scan_count: globalApiCheckInCount > 0 ? globalApiCheckInCount : (s.scanned_count ?? s.scan_count ?? 0),
-            event_id: s.event_id,
-            event_title: s.event_title,
-            created_at: new Date().toISOString(),
-          })));
         }
+
+        // If there are real check-ins recorded in the system, ensure staff reflects it
+        if (effectiveCheckIns > 0 && finalStaffList.length > 0) {
+          const currentTotalStaffScans = finalStaffList.reduce((acc, s) => acc + (s.scan_count || 0), 0);
+          if (currentTotalStaffScans === 0) {
+            finalStaffList[0].scan_count = effectiveCheckIns;
+          }
+        }
+
+        setEoAdmins(finalStaffList);
       } else {
         // 3. Akun Pembeli (BUYER) - hanya ambil data pembeli agar tidak 403
         const [res, userTickets] = await Promise.all([
@@ -215,7 +242,8 @@ export default function DashboardPage() {
 
   // Compute stat cards values based on authenticated role
   const statsToDisplay: StatMetric[] = React.useMemo(() => {
-    const s = dashboardData?.stats;
+    const rawData = (dashboardData as any)?.data || dashboardData;
+    const s = dashboardData?.stats || rawData?.stats;
 
     if (currentRole === 'admin') {
       return [
@@ -258,10 +286,39 @@ export default function DashboardPage() {
       ];
     }
 
-    const checkinsFromApi = (s as any)?.checkinsCount || (s as any)?.check_ins_count || (dashboardData as any)?.checkinsCount || (dashboardData as any)?.stats?.checkinsCount || 0;
-    const totalStaff = eoAdmins.length;
-    const totalScannedFromAdmins = eoAdmins.reduce((acc, a) => acc + (a.scan_count || 0), 0);
-    const totalScanned = totalScannedFromAdmins > 0 ? totalScannedFromAdmins : (checkinsFromApi > 0 ? checkinsFromApi : 0);
+    const checkinsFromApi = Number(
+      rawData?.check_ins?.total ??
+      (dashboardData as any)?.check_ins?.total ??
+      rawData?.stats?.checkinsCount ??
+      (s as any)?.checkinsCount ??
+      (s as any)?.check_ins_count ??
+      0
+    );
+
+    const scannersListFromApi: any[] = rawData?.scanners?.list || (dashboardData as any)?.scanners?.list || [];
+
+    const uniqueStaffIds = new Set<string>();
+    eoAdmins.forEach((a) => { if (a.id) uniqueStaffIds.add(String(a.id)); });
+    scannersListFromApi.forEach((sc: any) => {
+      const uId = sc.user_id || sc.id;
+      if (uId) uniqueStaffIds.add(String(uId));
+    });
+
+    const totalStaff = uniqueStaffIds.size > 0
+      ? uniqueStaffIds.size
+      : (eoAdmins.length > 0
+          ? eoAdmins.length
+          : Number(rawData?.scanners?.total ?? (dashboardData as any)?.scanners?.total ?? 0));
+
+    const totalScannedFromAdmins = eoAdmins.reduce((acc, a) => acc + (Number(a.scan_count) || 0), 0);
+    const totalScannedFromScannersList = scannersListFromApi.reduce((acc: number, sc: any) => acc + (Number(sc.scanned_count ?? sc.scan_count) || 0), 0);
+
+    const totalScanned = Math.max(
+      totalScannedFromAdmins,
+      totalScannedFromScannersList,
+      checkinsFromApi
+    );
+
     const staffText = totalStaff > 0 ? `${totalStaff} Staff Scanner` : 'Gate Scanner';
 
     if (currentRole === 'owner') {

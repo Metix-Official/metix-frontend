@@ -122,6 +122,12 @@ export const Navbar: React.FC<NavbarProps> = ({
     return role === 'EO' || role === 'MITRA' || role === 'ORGANIZER' || !!user.organizer_profile;
   })();
 
+  const isOwner = (() => {
+    if (!user) return false;
+    const role = (user.role || (user as any).roles?.[0]?.name || '').toUpperCase();
+    return role === 'OWNER' || role === 'SUPERADMIN' || role === 'ADMIN_PLATFORM' || role === 'SUPER ADMIN';
+  })();
+
   const rawLogo =
     (user as any)?.organizer?.logo ||
     (user as any)?.organizer_profile?.logo ||
@@ -290,7 +296,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <LayoutDashboard className="w-4 h-4 text-blue-600" /> Dashboard Portal
                       </Link>
 
-                      {isEo ? (
+                      {isOwner ? (
+                        <Link
+                          href="/dashboard/events"
+                          onClick={() => setIsProfileMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-extrabold text-slate-800 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                        >
+                          <Calendar className="w-4 h-4 text-blue-600" /> Event
+                        </Link>
+                      ) : isEo ? (
                         <Link
                           href="/dashboard/events"
                           onClick={() => setIsProfileMenuOpen(false)}

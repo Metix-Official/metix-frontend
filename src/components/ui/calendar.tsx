@@ -75,22 +75,42 @@ export const Calendar: React.FC<CalendarProps> = ({
 
   return (
     <div className={cn('p-3 space-y-4 w-64 select-none', className)}>
-      {/* Month Navigation */}
-      <div className="flex items-center justify-between">
+      {/* Month & Year Navigation */}
+      <div className="flex items-center justify-between gap-1">
         <button
           type="button"
           onClick={prevMonth}
-          className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-600 transition-colors"
+          className="p-1 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <span className="font-extrabold text-xs text-slate-900">
-          {monthNames[month]} {year}
-        </span>
+
+        <div className="flex items-center gap-1">
+          <select
+            value={month}
+            onChange={(e) => setCurrentMonth(new Date(year, Number(e.target.value), 1))}
+            className="text-[11px] font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-blue-600 cursor-pointer"
+          >
+            {monthNames.map((name, idx) => (
+              <option key={name} value={idx}>{name}</option>
+            ))}
+          </select>
+
+          <select
+            value={year}
+            onChange={(e) => setCurrentMonth(new Date(Number(e.target.value), month, 1))}
+            className="text-[11px] font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-1.5 py-1 focus:outline-none focus:border-blue-600 cursor-pointer"
+          >
+            {Array.from({ length: 95 }, (_, i) => new Date().getFullYear() - 80 + i).map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
+
         <button
           type="button"
           onClick={nextMonth}
-          className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-600 transition-colors"
+          className="p-1 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
         >
           <ChevronRight className="w-4 h-4" />
         </button>

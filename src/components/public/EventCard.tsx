@@ -238,15 +238,14 @@ export const EventCard: React.FC<EventCardProps> = ({
           </div>
 
           <span
-            className={`text-base sm:text-lg font-black tracking-tight transition-colors ${
-              isEventSoldOut
+            className={`text-base sm:text-lg font-black tracking-tight transition-colors ${isEventSoldOut
                 ? 'line-through text-slate-400 decoration-rose-500 decoration-2'
                 : displayedPrice === 'Coming Soon'
-                ? 'text-amber-600'
-                : isSaleEnded
-                ? 'text-slate-400'
-                : 'text-blue-600 group-hover:text-blue-700'
-            }`}
+                  ? 'text-amber-600'
+                  : isSaleEnded
+                    ? 'text-slate-400'
+                    : 'text-blue-600 group-hover:text-blue-700'
+              }`}
           >
             {displayedPrice}
           </span>
@@ -270,17 +269,16 @@ export const EventCard: React.FC<EventCardProps> = ({
 
         {/* CTA Button */}
         <div
-          className={`px-3.5 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 shrink-0 ${
-            isEventSoldOut
+          className={`px-3.5 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 shrink-0 ${isEventSoldOut
               ? 'bg-slate-200 text-slate-500 border border-slate-300/80 shadow-none cursor-not-allowed'
               : isSaleEnded
-              ? 'bg-slate-200 text-slate-500 border border-slate-300/80 shadow-none cursor-not-allowed'
-              : isUpcomingSale
-              ? 'bg-slate-100 text-slate-600 border border-slate-300/80 shadow-2xs cursor-not-allowed'
-              : displayedPrice === 'Coming Soon'
-              ? 'bg-amber-600 text-white group-hover:bg-amber-700 shadow-amber-600/20 group-hover:shadow-amber-600/40 group-hover:scale-105'
-              : 'bg-blue-600 text-white group-hover:bg-blue-700 shadow-blue-600/20 group-hover:shadow-blue-600/40 group-hover:scale-105 shadow-md'
-          }`}
+                ? 'bg-slate-200 text-slate-500 border border-slate-300/80 shadow-none cursor-not-allowed'
+                : isUpcomingSale
+                  ? 'bg-slate-100 text-slate-600 border border-slate-300/80 shadow-2xs cursor-not-allowed'
+                  : displayedPrice === 'Coming Soon'
+                    ? 'bg-amber-600 text-white group-hover:bg-amber-700 shadow-amber-600/20 group-hover:shadow-amber-600/40 group-hover:scale-105'
+                    : 'bg-blue-600 text-white group-hover:bg-blue-700 shadow-blue-600/20 group-hover:shadow-blue-600/40 group-hover:scale-105 shadow-md'
+            }`}
         >
           {isUpcomingSale ? (
             <>

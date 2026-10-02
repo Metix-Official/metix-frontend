@@ -490,6 +490,8 @@ export interface CreateOfflineOrderPayload {
   buyer_email: string;
   buyer_phone: string;
   buyer_nik?: string;
+  date_of_birth?: string | null;
+  gender?: 'MALE' | 'FEMALE' | string | null;
   promo_code?: string;
   payment_method: 'QRIS' | 'cash' | 'bank_transfer' | string;
   items: OfflineOrderItem[];
@@ -1787,6 +1789,15 @@ export async function fetchDashboardData(): Promise<DashboardResponse | null> {
         activeOrganizers: rawData?.users?.active_organizers ?? rawData?.users?.organizers ?? 0,
         totalOrders: rawData?.orders?.total ?? normalizedStats?.totalOrders ?? 0,
         commissionEarned: rawData?.revenue?.platform_commission ?? normalizedStats?.commissionEarned ?? Math.round((rawData?.revenue?.total_gross || 0) * 0.05),
+        ...(normalizedStats || {}),
+      };
+    } else if (role === 'EO') {
+      normalizedStats = {
+        totalEvents: rawData?.events?.total ?? normalizedStats?.totalEvents ?? 0,
+        totalOrders: rawData?.orders?.paid ?? rawData?.orders?.total ?? normalizedStats?.totalOrders ?? 0,
+        totalRevenue: rawData?.revenue?.total_gross ?? normalizedStats?.totalRevenue ?? 0,
+        checkinsCount: rawData?.check_ins?.total ?? 0,
+        scannersCount: rawData?.scanners?.total ?? 0,
         ...(normalizedStats || {}),
       };
     }
@@ -3671,6 +3682,8 @@ export interface ReportOrderItem {
   id: number;
   order_number: string;
   subtotal: number;
+  tax_amount?: number;
+  platform_fee?: number;
   buyer_name: string;
   full_name: string;
   attendees?: string[];
@@ -3719,25 +3732,55 @@ export async function fetchSalesReportData(params?: {
       const resData = await response.json();
       const payload = resData.data || resData;
       const rawOrders = payload.orders || [];
-      const formattedOrders: ReportOrderItem[] = rawOrders.map((ord: any) => ({
-        id: ord.id,
-        order_number: ord.order_number || `ORD-${ord.id}`,
-        subtotal: Number(ord.subtotal ?? ord.total_amount ?? 0),
-        buyer_name: ord.buyer_name || 'Pembeli Metix',
-        full_name: ord.full_name || ord.buyer_name || 'Pengunjung Gate',
-        attendees: ord.attendees || [],
-        buyer_email: ord.buyer_email || 'buyer@metix.id',
-        buyer_phone: ord.buyer_phone,
-        event_id: ord.event_id,
-        event_title: ord.event_title || 'Event Metix',
-        ticket_type_name: ord.ticket_type_name || 'Tiket Metix',
-        quantity: ord.quantity || 1,
-        total_amount: Number(ord.total_amount || 0),
-        payment_method: ord.payment_method || 'Midtrans QRIS & VA',
-        status: String(ord.status || 'pending').toLowerCase(),
-        created_at: ord.created_at || new Date().toISOString(),
-        tickets: ord.tickets || [],
-      }));
+      const formattedOrders: ReportOrderItem[] = rawOrders.map((ord: any) => {
+        const rawSubtotal = Number(ord.subtotal ?? 0);
+        const rawTotal = Number(ord.total_amount ?? 0);
+        const rawTax = Number(ord.local_tax_amount ?? ord.local_tax ?? ord.tax_amount ?? ord.tax ?? 0);
+        const rawFee = Number(ord.platform_fee ?? ord.fee_platform ?? 0);
+
+        let subtotal = rawSubtotal;
+        let tax = rawTax;
+        let fee = rawFee;
+
+        // Fallbacks if backend only provided total_amount or subtotal
+        if (subtotal === 0 && rawTotal > 0) {
+          subtotal = Math.round(rawTotal / 1.12);
+        } else if (subtotal > 0 && rawTotal === subtotal && fee === 0 && tax === 0) {
+          tax = Math.round(subtotal * 0.05);
+          fee = Math.round(subtotal * 0.07);
+        }
+
+        if (tax === 0 && subtotal > 0) {
+          tax = Math.round(subtotal * 0.05);
+        }
+        if (fee === 0 && subtotal > 0) {
+          fee = Math.round(subtotal * 0.07);
+        }
+
+        const totalAmount = rawTotal > 0 ? rawTotal : (subtotal + tax + fee);
+
+        return {
+          id: ord.id,
+          order_number: ord.order_number || `ORD-${ord.id}`,
+          subtotal: subtotal,
+          tax_amount: tax,
+          platform_fee: fee,
+          buyer_name: ord.buyer_name || 'Pembeli Metix',
+          full_name: ord.full_name || ord.buyer_name || 'Pengunjung Gate',
+          attendees: ord.attendees || [],
+          buyer_email: ord.buyer_email || 'buyer@metix.id',
+          buyer_phone: ord.buyer_phone,
+          event_id: ord.event_id,
+          event_title: ord.event_title || 'Event Metix',
+          ticket_type_name: ord.ticket_type_name || 'Tiket Metix',
+          quantity: ord.quantity || 1,
+          total_amount: totalAmount,
+          payment_method: ord.payment_method || 'Midtrans QRIS & VA',
+          status: String(ord.status || 'pending').toLowerCase(),
+          created_at: ord.created_at || new Date().toISOString(),
+          tickets: ord.tickets || [],
+        };
+      });
 
       return {
         orders: formattedOrders,
@@ -3852,6 +3895,8 @@ export async function fetchEoAdmins(): Promise<EoAdminUser[]> {
   const token = getStoredToken();
   if (!token) return [];
 
+  let staffList: EoAdminUser[] = [];
+
   try {
     let response = await fetch(`${API_BASE_URL}/organizer/team`, {
       headers: getHeaders(token),
@@ -3868,8 +3913,8 @@ export async function fetchEoAdmins(): Promise<EoAdminUser[]> {
     if (response.ok) {
       const data = await response.json();
       const list = data?.data || data?.team || data?.scanners || (Array.isArray(data) ? data : []);
-      if (Array.isArray(list)) {
-        return list.map((item: any) => {
+      if (Array.isArray(list) && list.length > 0) {
+        staffList = list.map((item: any) => {
           const evtObj = item.event || (Array.isArray(item.events) ? item.events[0] : null) || item.assigned_event;
           const evtId = item.event_id || evtObj?.id || item.user?.event_id || (Array.isArray(item.event_ids) ? item.event_ids[0] : null);
           const evtTitle = item.event_title || evtObj?.title || evtObj?.name || item.user?.event_title;
@@ -3880,7 +3925,7 @@ export async function fetchEoAdmins(): Promise<EoAdminUser[]> {
             email: item.email || item.user?.email || '',
             phone: item.phone || item.user?.phone || null,
             scan_quota: item.scan_quota !== undefined ? item.scan_quota : (item.quota ?? item.user?.scan_quota ?? 200),
-            scan_count: item.scan_count || item.scanned_count || item.user?.scan_count || 0,
+            scan_count: Number(item.scan_count ?? item.scanned_count ?? item.user?.scan_count ?? 0),
             event_id: evtId ? Number(evtId) : null,
             event_title: evtTitle || (evtId ? `Event #${evtId}` : 'Semua Event (Global)'),
             created_at: item.joined_at || item.created_at || item.user?.created_at || new Date().toISOString(),
@@ -3892,7 +3937,36 @@ export async function fetchEoAdmins(): Promise<EoAdminUser[]> {
     console.warn('Failed to fetch EO admins from API:', err);
   }
 
-  return [];
+  // Fallback to /organizer/dashboard if team returned empty
+  if (staffList.length === 0) {
+    try {
+      const dashRes = await fetch(`${API_BASE_URL}/organizer/dashboard`, {
+        headers: getHeaders(token),
+        cache: 'no-store',
+      });
+      if (dashRes.ok) {
+        const dashData = await dashRes.json();
+        const rawScanners = dashData?.data?.scanners?.list || dashData?.scanners?.list || [];
+        if (Array.isArray(rawScanners) && rawScanners.length > 0) {
+          staffList = rawScanners.map((sc: any) => ({
+            id: sc.user_id || sc.id || Date.now(),
+            name: sc.name || 'Petugas Scanner',
+            email: sc.email || '',
+            phone: sc.phone || null,
+            scan_quota: 200,
+            scan_count: Number(sc.scanned_count ?? sc.scan_count ?? 0),
+            event_id: sc.event_id ? Number(sc.event_id) : null,
+            event_title: sc.event_title || 'Event',
+            created_at: sc.last_scanned_at || new Date().toISOString(),
+          }));
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fallback fetch scanners from dashboard:', err);
+    }
+  }
+
+  return staffList;
 }
 
 export async function createEoAdmin(payload: CreateEoAdminPayload): Promise<EoAdminUser> {

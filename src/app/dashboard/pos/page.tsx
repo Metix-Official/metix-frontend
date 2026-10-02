@@ -24,6 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarPicker } from '@/components/ui/calendar';
+import { format } from 'date-fns';
 import {
   CreditCard,
   Calendar,
@@ -122,6 +125,8 @@ export default function PosPage() {
   const [buyerEmail, setBuyerEmail] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
   const [buyerNik, setBuyerNik] = useState('');
+  const [buyerDateOfBirth, setBuyerDateOfBirth] = useState('');
+  const [buyerGender, setBuyerGender] = useState<'MALE' | 'FEMALE' | ''>('');
 
   // Payment State: QRIS DOKU is default recommended
   const [paymentMethod, setPaymentMethod] = useState<'QRIS' | 'cash'>('QRIS');
@@ -190,10 +195,12 @@ export default function PosPage() {
     setIsLoading(true);
     const data = await fetchMyEvents();
     setEvents(data.events);
-    if (data.events.length > 0) {
-      const activeEvt = data.events.find((e) => e.status === 'published') || data.events[0];
-      setSelectedEvent(activeEvt);
-    }
+    // Default null: User must choose an event before tickets and pricing are loaded
+    setSelectedEvent(null);
+    setTicketTypes([]);
+    setCart([]);
+    setRecentOrders([]);
+    setPosStats({});
     setIsLoading(false);
   };
 
@@ -223,6 +230,11 @@ export default function PosPage() {
     if (selectedEvent) {
       setCart([]);
       loadTicketTypesAndPosDashboard(selectedEvent.id);
+    } else {
+      setTicketTypes([]);
+      setCart([]);
+      setRecentOrders([]);
+      setPosStats({});
     }
   }, [selectedEvent?.id]);
 
@@ -273,6 +285,8 @@ export default function PosPage() {
     setBuyerEmail(`walkin.${randomId}@metix.id`);
     setBuyerPhone('081234567890');
     setBuyerNik('');
+    setBuyerDateOfBirth('2000-01-01');
+    setBuyerGender('MALE');
   };
 
   const getAvailableStock = (type: ApiTicketType) => {
@@ -448,6 +462,8 @@ export default function PosPage() {
         buyer_email: buyerEmail,
         buyer_phone: buyerPhone,
         buyer_nik: buyerNik || undefined,
+        date_of_birth: buyerDateOfBirth || null,
+        gender: buyerGender || null,
         promo_code: appliedPromo?.code || (promoInput.trim() ? promoInput.trim().toUpperCase() : undefined),
         payment_method: paymentMethod,
         items: cart.map((c) => ({
@@ -521,6 +537,8 @@ export default function PosPage() {
       setBuyerEmail('');
       setBuyerPhone('');
       setBuyerNik('');
+      setBuyerDateOfBirth('');
+      setBuyerGender('');
       setAmountTendered('');
       setAmountTenderedDisplay('');
 
@@ -915,42 +933,17 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
     <DashboardLayout pageTitle="Kasir Offline (POS)" activeNav="Kasir Offline (POS)">
       <div className="w-full space-y-6">
         {/* Banner Header */}
-        <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-800 to-indigo-900 text-white p-6 sm:p-8 shadow-xl shadow-blue-700/15 border border-blue-600/30">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-xs font-bold uppercase tracking-wider">
-                <QrCode className="w-3.5 h-3.5 text-amber-300" /> Point of Sale (POS) & Box-Office Console
-              </div>
-              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">
-                Kasir Tiket On-The-Spot & Pembayaran QRIS DOKU
-              </h2>
-              <p className="text-xs text-blue-100 font-medium max-w-2xl">
-                Melayani penjualan tiket di venue dengan pembayaran langsung via <strong>QRIS Merchant DOKU Metix</strong>. Dana masuk penampungan escrow, komisi platform fee dan pajak daerah otomatis tersinkronkan.
-              </p>
+        <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-800 to-indigo-900 text-white p-6 sm:p-7 shadow-xl shadow-blue-700/15 border border-blue-600/30">
+          <div className="space-y-1.5 max-w-3xl">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-xs font-black uppercase tracking-wider backdrop-blur-md">
+              <QrCode className="w-3.5 h-3.5 text-amber-300" /> Point of Sale (POS) Console
             </div>
-
-            {/* Event Selector Dropdown */}
-            <div className="flex items-center gap-2 bg-white/15 backdrop-blur-md p-2 rounded-2xl border border-white/20 shrink-0 min-w-[260px]">
-              <Calendar className="w-4 h-4 text-amber-300 ml-1 shrink-0" />
-              <Select
-                value={selectedEvent?.id ? String(selectedEvent.id) : ''}
-                onValueChange={(val) => {
-                  const ev = events.find((x) => String(x.id) === val);
-                  if (ev) setSelectedEvent(ev);
-                }}
-              >
-                <SelectTrigger className="w-full bg-transparent border-0 text-white font-extrabold text-xs focus:ring-0 focus:outline-none shadow-none h-auto p-0 cursor-pointer hover:text-amber-200 transition-colors">
-                  <SelectValue placeholder="Pilih Event POS" />
-                </SelectTrigger>
-                <SelectContent>
-                  {events.map((ev) => (
-                    <SelectItem key={ev.id} value={String(ev.id)}>
-                      {ev.title} ({ev.status.toUpperCase()})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+              Kasir Tiket On-The-Spot & Box-Office
+            </h2>
+            <p className="text-xs text-blue-100 font-medium">
+              Layanan penjualan tiket langsung di venue acara dengan integrasi pembayaran instan <strong>QRIS DOKU</strong> dan <strong>Tunai (Cash)</strong>.
+            </p>
           </div>
         </div>
 
@@ -960,7 +953,7 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
             <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Total Penjualan POS</span>
             <div className="flex items-center justify-between">
               <h4 className="text-xl font-black text-slate-900">
-                Rp {(posStats.totalRevenue || 0).toLocaleString('id-ID')}
+                Rp {selectedEvent ? (posStats.totalRevenue || 0).toLocaleString('id-ID') : '0'}
               </h4>
               <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
                 <DollarSign className="w-5 h-5" />
@@ -972,7 +965,7 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
             <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Transaksi Lunas</span>
             <div className="flex items-center justify-between">
               <h4 className="text-xl font-black text-emerald-600">
-                {posStats.totalOrdersCount || 0} Order
+                {selectedEvent ? (posStats.totalOrdersCount || 0) : 0} Order
               </h4>
               <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
                 <Receipt className="w-5 h-5" />
@@ -984,7 +977,7 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
             <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Penjualan QRIS DOKU</span>
             <div className="flex items-center justify-between">
               <h4 className="text-xl font-black text-indigo-600">
-                Rp {(posStats.salesByMethod?.qris || 0).toLocaleString('id-ID')}
+                Rp {selectedEvent ? (posStats.salesByMethod?.qris || 0).toLocaleString('id-ID') : '0'}
               </h4>
               <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700">
                 <QrCode className="w-5 h-5" />
@@ -996,7 +989,7 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
             <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Penjualan Tunai (Cash)</span>
             <div className="flex items-center justify-between">
               <h4 className="text-xl font-black text-amber-600">
-                Rp {(posStats.salesByMethod?.cash || 0).toLocaleString('id-ID')}
+                Rp {selectedEvent ? (posStats.salesByMethod?.cash || 0).toLocaleString('id-ID') : '0'}
               </h4>
               <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
                 <Building2 className="w-5 h-5" />
@@ -1009,26 +1002,73 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Ticket Catalog (7 Cols) */}
           <div className="lg:col-span-7 space-y-4">
-            <div className="rounded-3xl bg-white border border-slate-200/90 p-6 shadow-2xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700">
+            <div className="rounded-3xl bg-white border border-slate-200/90 p-5 sm:p-6 shadow-2xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-600 border border-blue-100/80 shadow-2xs">
                     <Ticket className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Katalog Tiket Venue</h3>
-                    <p className="text-xs text-slate-500 font-medium">Klik tiket untuk menambahkannya ke keranjang kasir.</p>
+                    <h3 className="text-base font-black text-slate-900 tracking-tight">Katalog Tiket Venue</h3>
+                    <p className="text-xs text-slate-500 font-medium">Pilih tiket untuk menambahkannya ke keranjang kasir.</p>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => selectedEvent && loadTicketTypesAndPosDashboard(selectedEvent.id)}
-                  className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
-                  title="Refresh Tiket"
-                >
-                  <RefreshCw className={`w-4 h-4 ${isTicketsLoading ? 'animate-spin' : ''}`} />
-                </button>
+                {/* Event Selector & Refresh Button */}
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <Select
+                    value={selectedEvent?.id ? String(selectedEvent.id) : 'none'}
+                    onValueChange={(val) => {
+                      if (!val || val === 'none') {
+                        setSelectedEvent(null);
+                        setTicketTypes([]);
+                        setCart([]);
+                        setRecentOrders([]);
+                        setPosStats({});
+                        return;
+                      }
+                      const ev = events.find((x) => String(x.id) === val);
+                      if (ev) setSelectedEvent(ev);
+                    }}
+                  >
+                    <SelectTrigger className="h-9 px-3.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-black text-slate-800 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-all shadow-2xs min-w-[170px] max-w-[240px] cursor-pointer">
+                      <div className="flex items-center gap-2 truncate">
+                        <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <SelectValue placeholder="Pilih Event" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent align="end" className="rounded-2xl shadow-xl border-slate-200 p-1 min-w-[200px]">
+                      <SelectItem
+                        value="none"
+                        className="rounded-xl text-xs font-bold py-2 text-slate-400 cursor-pointer"
+                      >
+                        Pilih Event
+                      </SelectItem>
+                      {(events.some((e) => String(e.status || '').toLowerCase() === 'published')
+                        ? events.filter((e) => String(e.status || '').toLowerCase() === 'published')
+                        : events
+                      ).map((ev) => (
+                        <SelectItem
+                          key={ev.id}
+                          value={String(ev.id)}
+                          className="rounded-xl text-xs font-bold py-2 cursor-pointer"
+                        >
+                          🎫 {ev.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <button
+                    type="button"
+                    disabled={!selectedEvent}
+                    onClick={() => selectedEvent && loadTicketTypesAndPosDashboard(selectedEvent.id)}
+                    className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-200 text-slate-600 hover:text-blue-600 transition-all cursor-pointer shadow-2xs"
+                    title="Refresh Tiket"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isTicketsLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
               </div>
 
               {isTicketsLoading ? (
@@ -1170,6 +1210,20 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                       </div>
                     ))}
                 </div>
+              ) : !selectedEvent ? (
+                <div className="py-16 px-4 text-center bg-slate-50/70 rounded-3xl border-2 border-dashed border-slate-200/90 space-y-3">
+                  <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-xs">
+                    <Calendar className="w-7 h-7" />
+                  </div>
+                  <div className="space-y-1 max-w-sm mx-auto">
+                    <h4 className="text-sm font-black text-slate-800">
+                      Pilih Event Terlebih Dahulu
+                    </h4>
+                    <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                      Silakan pilih salah satu event pada dropdown di atas untuk memuat katalog tiket, harga tiket, dan kuota tersedia.
+                    </p>
+                  </div>
+                </div>
               ) : (
                 <div className="py-12 text-center text-xs text-slate-400 font-medium">
                   Belum ada kategori tiket aktif pada event ini.
@@ -1206,7 +1260,9 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
 
                   {paidOrders.length === 0 ? (
                     <div className="py-6 text-center text-xs text-slate-400 font-medium bg-slate-50 rounded-2xl border border-slate-200">
-                      Belum ada transaksi POS offline lunas hari ini.
+                      {!selectedEvent
+                        ? 'Pilih event terlebih dahulu untuk melihat riwayat transaksi.'
+                        : 'Belum ada transaksi POS offline lunas hari ini.'}
                     </div>
                   ) : (
                     <div className="overflow-auto max-h-[380px] sm:max-h-[420px] rounded-2xl border border-slate-200/80 shadow-2xs overscroll-contain">
@@ -1223,96 +1279,96 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
-                        {paidOrders.map((ord: any) => {
-                          const ticketQty = ord.total_tickets
-                            || (Array.isArray(ord.tickets) && ord.tickets.length > 0 ? ord.tickets.length : null)
-                            || (Array.isArray(ord.items) && ord.items.length > 0 ? ord.items.reduce((sum: number, it: any) => sum + Number(it.quantity || 1), 0) : null)
-                            || 1;
-                          const itemsTooltip = ord.items_summary
-                            || (Array.isArray(ord.items) && ord.items.length > 0 ? ord.items.map((it: any) => `${it.quantity || 1}x ${it.name || it.ticket_type_name || 'Tiket'}`).join(', ') : `${ticketQty} Tiket`);
+                          {paidOrders.map((ord: any) => {
+                            const ticketQty = ord.total_tickets
+                              || (Array.isArray(ord.tickets) && ord.tickets.length > 0 ? ord.tickets.length : null)
+                              || (Array.isArray(ord.items) && ord.items.length > 0 ? ord.items.reduce((sum: number, it: any) => sum + Number(it.quantity || 1), 0) : null)
+                              || 1;
+                            const itemsTooltip = ord.items_summary
+                              || (Array.isArray(ord.items) && ord.items.length > 0 ? ord.items.map((it: any) => `${it.quantity || 1}x ${it.name || it.ticket_type_name || 'Tiket'}`).join(', ') : `${ticketQty} Tiket`);
 
-                          return (
-                            <tr key={ord.id} className="hover:bg-slate-50 transition-colors">
-                              <td className="py-3 px-3 font-mono font-bold text-blue-700 whitespace-nowrap">
-                                {ord.order_number}
-                              </td>
-                              <td className="py-3 px-3">
-                                <span
-                                  className="font-semibold text-slate-900 block max-w-[130px] sm:max-w-[160px] truncate"
-                                  title={ord.buyer_name || 'Pembeli POS'}
-                                >
-                                  {ord.buyer_name || 'Pembeli POS'}
-                                </span>
-                                {ord.buyer_phone && (
+                            return (
+                              <tr key={ord.id} className="hover:bg-slate-50 transition-colors">
+                                <td className="py-3 px-3 font-mono font-bold text-blue-700 whitespace-nowrap">
+                                  {ord.order_number}
+                                </td>
+                                <td className="py-3 px-3">
                                   <span
-                                    className="text-[10px] text-slate-400 font-mono block max-w-[130px] truncate"
-                                    title={ord.buyer_phone}
+                                    className="font-semibold text-slate-900 block max-w-[130px] sm:max-w-[160px] truncate"
+                                    title={ord.buyer_name || 'Pembeli POS'}
                                   >
-                                    {ord.buyer_phone}
+                                    {ord.buyer_name || 'Pembeli POS'}
                                   </span>
-                                )}
-                              </td>
-                              <td className="py-3 px-3 text-center whitespace-nowrap">
-                                <span
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 font-black text-xs shadow-2xs"
-                                  title={itemsTooltip}
-                                >
-                                  <Ticket className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                  <span>{ticketQty}</span>
-                                  <span className="text-[10px] font-bold text-blue-500">Tiket</span>
-                                </span>
-                              </td>
-                              <td className="py-3 px-3 font-extrabold uppercase text-[10px] text-slate-500 whitespace-nowrap">
-                                {ord.payment_method || 'QRIS'}
-                              </td>
-                              <td className="py-3 px-3 font-black text-slate-900 whitespace-nowrap">
-                                Rp {Number(ord.grand_total || ord.total_amount || 0).toLocaleString('id-ID')}
-                              </td>
-                              <td className="py-3 px-3 text-center whitespace-nowrap">
-                                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                  <CheckCircle2 className="w-3 h-3 shrink-0" /> Paid
-                                </span>
-                              </td>
-                              <td className="py-3 px-3 text-right whitespace-nowrap">
-                                <div className="flex items-center justify-end gap-1.5 shrink-0">
-                                  {/* Button 1: Detail QR / Buka E-Tiket */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenTicketView(ord.order_number)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 font-bold text-[11px] whitespace-nowrap shrink-0 transition-all cursor-pointer shadow-2xs"
-                                    title="Buka Halaman Barcode E-Tiket"
+                                  {ord.buyer_phone && (
+                                    <span
+                                      className="text-[10px] text-slate-400 font-mono block max-w-[130px] truncate"
+                                      title={ord.buyer_phone}
+                                    >
+                                      {ord.buyer_phone}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-3 text-center whitespace-nowrap">
+                                  <span
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 font-black text-xs shadow-2xs"
+                                    title={itemsTooltip}
                                   >
-                                    <QrCode className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                    <span>Lihat QR</span>
-                                  </button>
+                                    <Ticket className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                    <span>{ticketQty}</span>
+                                    <span className="text-[10px] font-bold text-blue-500">Tiket</span>
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 font-extrabold uppercase text-[10px] text-slate-500 whitespace-nowrap">
+                                  {ord.payment_method || 'QRIS'}
+                                </td>
+                                <td className="py-3 px-3 font-black text-slate-900 whitespace-nowrap">
+                                  Rp {Number(ord.grand_total || ord.total_amount || 0).toLocaleString('id-ID')}
+                                </td>
+                                <td className="py-3 px-3 text-center whitespace-nowrap">
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <CheckCircle2 className="w-3 h-3 shrink-0" /> Paid
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 text-right whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-1.5 shrink-0">
+                                    {/* Button 1: Detail QR / Buka E-Tiket */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenTicketView(ord.order_number)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 font-bold text-[11px] whitespace-nowrap shrink-0 transition-all cursor-pointer shadow-2xs"
+                                      title="Buka Halaman Barcode E-Tiket"
+                                    >
+                                      <QrCode className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                      <span>Lihat QR</span>
+                                    </button>
 
-                                  {/* Button 2: Kirim WhatsApp */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSendWhatsAppForOrder(ord)}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[11px] whitespace-nowrap shrink-0 transition-all cursor-pointer shadow-2xs"
-                                    title="Kirim E-Tiket ke WhatsApp Pembeli"
-                                  >
-                                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                    <span>Kirim WA</span>
-                                  </button>
+                                    {/* Button 2: Kirim WhatsApp */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSendWhatsAppForOrder(ord)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[11px] whitespace-nowrap shrink-0 transition-all cursor-pointer shadow-2xs"
+                                      title="Kirim E-Tiket ke WhatsApp Pembeli"
+                                    >
+                                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      <span>Kirim WA</span>
+                                    </button>
 
-                                  {/* Button 3: Salin Link (Jika WA bermasalah) */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCopyTicketLink(ord.order_number)}
-                                    className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 shrink-0 transition-all cursor-pointer"
-                                    title="Salin Tautan E-Tiket ke Clipboard"
-                                  >
-                                    <Copy className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                                    {/* Button 3: Salin Link (Jika WA bermasalah) */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyTicketLink(ord.order_number)}
+                                      className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 shrink-0 transition-all cursor-pointer"
+                                      title="Salin Tautan E-Tiket ke Clipboard"
+                                    >
+                                      <Copy className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
@@ -1387,6 +1443,71 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                         className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
                       />
                     </div>
+
+                    {/* Tanggal Lahir (date_of_birth) & Gender (gender = FEMALE | MALE) untuk Analisa Demografi */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      <div>
+                        <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1">
+                          Tanggal Lahir (Demografi)
+                        </label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors shadow-2xs h-[34px]"
+                            >
+                              <span className="flex items-center gap-1.5 truncate">
+                                <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                {buyerDateOfBirth ? (
+                                  <span className="font-bold text-slate-800">{format(new Date(buyerDateOfBirth), 'dd MMM yyyy')}</span>
+                                ) : (
+                                  <span className="text-slate-400 font-medium">Pilih Tanggal Lahir</span>
+                                )}
+                              </span>
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-2" align="start">
+                            <CalendarPicker
+                              mode="single"
+                              selected={buyerDateOfBirth ? new Date(buyerDateOfBirth) : undefined}
+                              defaultMonth={buyerDateOfBirth ? new Date(buyerDateOfBirth) : new Date(2000, 0, 1)}
+                              onSelect={(d) => {
+                                if (!d) return;
+                                setBuyerDateOfBirth(format(d, 'yyyy-MM-dd'));
+                              }}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1">
+                          Jenis Kelamin (Gender)
+                        </label>
+                        <div className="grid grid-cols-2 gap-1.5 h-[34px]">
+                          <button
+                            type="button"
+                            onClick={() => setBuyerGender('MALE')}
+                            className={`px-2.5 py-1 rounded-xl border text-[11px] font-black flex items-center justify-center gap-1 transition-all cursor-pointer ${buyerGender === 'MALE'
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                              }`}
+                          >
+                            <span>Laki-laki</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setBuyerGender('FEMALE')}
+                            className={`px-2.5 py-1 rounded-xl border text-[11px] font-black flex items-center justify-center gap-1 transition-all cursor-pointer ${buyerGender === 'FEMALE'
+                              ? 'bg-pink-600 text-white border-pink-600 shadow-2xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                              }`}
+                          >
+                            <span>Perempuan</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1427,7 +1548,9 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                     </div>
                   ) : (
                     <div className="p-4 text-center text-xs text-slate-400 font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-300">
-                      Keranjang kasir masih kosong. Klik "+ Tambah Ke Kasir" pada katalog tiket di sebelah kiri.
+                      {!selectedEvent
+                        ? 'Pilih event terlebih dahulu untuk mulai memilih tiket kasir.'
+                        : 'Keranjang kasir masih kosong. Klik "+ Tambah Ke Kasir" pada katalog tiket di sebelah kiri.'}
                     </div>
                   )}
                 </div>

@@ -37,10 +37,12 @@ import {
   CreditCard,
   Building2,
   PieChart,
-  ArrowUpRight,
-  ShieldCheck,
-  UserCheck,
   Sparkles,
+  Receipt,
+  Coins,
+  Percent,
+  Wallet,
+  ShieldCheck,
 } from 'lucide-react';
 
 export default function ReportsPage() {
@@ -65,6 +67,14 @@ export default function ReportsPage() {
     setIsLoading(true);
     const storedUser = getStoredUser();
     setUser(storedUser);
+
+    if (selectedEventId === 'all') {
+      const evData = await fetchMyEvents();
+      setEvents(evData.events || []);
+      setOrders([]);
+      setIsLoading(false);
+      return;
+    }
 
     const [repData, evData] = await Promise.all([
       fetchSalesReportData({
@@ -143,7 +153,20 @@ export default function ReportsPage() {
 
   // Filtered Orders strictly matching logged-in EO's created events, Payment Method & Search Query
   const filteredOrders = useMemo(() => {
+    // Jika belum pilih event / opsi "Semua Event", table tetap kosong (null)
+    if (!selectedEventId || selectedEventId === 'all') {
+      return [];
+    }
+
     let result = orders;
+
+    // Strict filter by selected event ID or title
+    const selectedEv = events.find((e) => String(e.id) === String(selectedEventId));
+    result = result.filter(
+      (ord) =>
+        String(ord.event_id) === String(selectedEventId) ||
+        (selectedEv && ord.event_title && ord.event_title.toLowerCase() === selectedEv.title.toLowerCase())
+    );
 
     // Filter by EO created events list if role is EO
     if (currentRole === ROLES.EO && publishedEvents.length > 0) {
@@ -218,9 +241,27 @@ export default function ReportsPage() {
     });
   }, [filteredOrders]);
 
-  // Computed Report Aggregations (Paid Orders Only - Pure Ticket Price without Fee & Tax)
+  // 1. Subtotal Penjualan Tiket (Harga Pokok Murni)
+  const totalSubtotal = useMemo(
+    () => paidOrders.reduce((sum, item) => sum + (item.subtotal || 0), 0),
+    [paidOrders]
+  );
+
+  // 2. Pajak Daerah (5%)
+  const totalTaxAmount = useMemo(
+    () => paidOrders.reduce((sum, item) => sum + (item.tax_amount ?? Math.round((item.subtotal || 0) * 0.05)), 0),
+    [paidOrders]
+  );
+
+  // 3. Fee Platform Metix (7%)
+  const totalPlatformFee = useMemo(
+    () => paidOrders.reduce((sum, item) => sum + (item.platform_fee ?? Math.round((item.subtotal || 0) * 0.07)), 0),
+    [paidOrders]
+  );
+
+  // 4. Total Tagihan / Omzet Bruto (Subtotal + Pajak + Fee Platform)
   const totalGrossRevenue = useMemo(
-    () => paidOrders.reduce((sum, item) => sum + (item.subtotal || item.total_amount || 0), 0),
+    () => paidOrders.reduce((sum, item) => sum + (item.total_amount || ((item.subtotal || 0) + (item.tax_amount || 0) + (item.platform_fee || 0))), 0),
     [paidOrders]
   );
 
@@ -243,8 +284,12 @@ export default function ReportsPage() {
 
   // Export CSV Function with Executive Corporate Header
   const handleExportCSV = () => {
+    if (!selectedEventId || selectedEventId === 'all') {
+      toast.warning('Silakan pilih salah satu event terlebih dahulu untuk mengekspor laporan');
+      return;
+    }
     if (filteredOrders.length === 0) {
-      toast.error('Tidak ada data laporan untuk di-export');
+      toast.error('Tidak ada data transaksi penjualan pada event ini');
       return;
     }
 
@@ -322,7 +367,7 @@ export default function ReportsPage() {
       lines.push('');
 
       // 3. Executive KPI Summary Block
-      lines.push([escapeCsv('RINGKASAN EKSEKUTIF KEUANGAN (EXECUTIVE FINANCIAL SUMMARY)'), '', '', ''].join(','));
+      lines.push([escapeCsv('RINGKASAN EKSEKUTIF KEUANGAN (EXECUTIVE FINANCIAL SUMMARY)'), '', '', '', ''].join(','));
       lines.push([
         escapeCsv('Total Tiket Terjual:'),
         escapeCsv(`${totalTicketsSold} Tiket`),
@@ -330,10 +375,22 @@ export default function ReportsPage() {
         escapeCsv(`Rp ${averageOrderValue.toLocaleString('id-ID')}`),
       ].join(','));
       lines.push([
-        escapeCsv('Total Transaksi:'),
-        escapeCsv(`${filteredOrders.length} Pesanan`),
-        escapeCsv('Total Omzet Bruto:'),
+        escapeCsv('Total Transaksi Selesai:'),
+        escapeCsv(`${paidOrders.length} Pesanan Lunas`),
+        escapeCsv('Subtotal Harga Tiket (Murni):'),
+        escapeCsv(`Rp ${totalSubtotal.toLocaleString('id-ID')}`),
+      ].join(','));
+      lines.push([
+        escapeCsv('Total Pajak Daerah (5%):'),
+        escapeCsv(`Rp ${totalTaxAmount.toLocaleString('id-ID')}`),
+        escapeCsv('Total Fee Platform (7%):'),
+        escapeCsv(`Rp ${totalPlatformFee.toLocaleString('id-ID')}`),
+      ].join(','));
+      lines.push([
+        escapeCsv('Total Omzet Bruto (Tagihan Masuk):'),
         escapeCsv(`Rp ${totalGrossRevenue.toLocaleString('id-ID')}`),
+        escapeCsv('Catatan Akuntansi:'),
+        escapeCsv('Pemisahan: Subtotal Tiket + Pajak 5% + Komisi Platform 7%'),
       ].join(','));
       lines.push('');
 
@@ -348,9 +405,11 @@ export default function ReportsPage() {
         'Nama Event',
         'Kategori Tiket',
         'Jumlah Tiket (Qty)',
-        'Subtotal (Rp)',
-        'Metode Pembayaran',
+        'Subtotal Tiket (Rp)',
+        'Pajak Daerah 5% (Rp)',
+        'Fee Platform 7% (Rp)',
         'Total Tagihan (Rp)',
+        'Metode Pembayaran',
         'Status Transaksi',
         'Tanggal Transaksi',
         'Waktu Transaksi (WIB)',
@@ -379,6 +438,11 @@ export default function ReportsPage() {
           })
           : '-';
 
+        const rowSubtotal = ord.subtotal || 0;
+        const rowTax = ord.tax_amount ?? Math.round(rowSubtotal * 0.05);
+        const rowFee = ord.platform_fee ?? Math.round(rowSubtotal * 0.07);
+        const rowTotal = ord.total_amount || (rowSubtotal + rowTax + rowFee);
+
         lines.push([
           rowNumber++,
           escapeCsv(ord.order_number),
@@ -395,9 +459,11 @@ export default function ReportsPage() {
           escapeCsv(ord.event_title || '-'),
           escapeCsv(ord.ticket_type_name || '-'),
           ord.quantity || 1,
-          ord.subtotal || ord.total_amount,
+          rowSubtotal,
+          rowTax,
+          rowFee,
+          rowTotal,
           escapeCsv(ord.payment_method || '-'),
-          ord.total_amount,
           escapeCsv(statusText),
           escapeCsv(dateStr),
           escapeCsv(timeStr),
@@ -416,9 +482,11 @@ export default function ReportsPage() {
         escapeCsv(''),
         escapeCsv(''),
         totalTicketsSold,
-        '',
-        escapeCsv(''),
+        totalSubtotal,
+        totalTaxAmount,
+        totalPlatformFee,
         totalGrossRevenue,
+        escapeCsv(''),
         escapeCsv(`${filteredOrders.length} Pesanan`),
         escapeCsv(''),
         escapeCsv(''),
@@ -566,71 +634,132 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* 4 Stat Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Separated 5 Stat Metric Cards (Omzet Tiket, Pajak 5%, Fee Platform 7%, Total Bruto, Tiket Terjual) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
 
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
+          {/* 1. Subtotal Omzet Tiket */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-blue-600" />
             <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
-              {currentRole === ROLES.OWNER ? 'Omzet Platform Nasional' : 'Total Omzet Penjualan'}
+              {currentRole === ROLES.OWNER ? 'Omzet Tiket Pokok' : 'Subtotal Penjualan Tiket'}
             </span>
             <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-slate-900">
-                Rp {totalGrossRevenue.toLocaleString('id-ID')}
+              <h4 className="text-lg sm:text-xl font-black text-slate-900 truncate">
+                Rp {totalSubtotal.toLocaleString('id-ID')}
               </h4>
-              <div className="p-2 rounded-xl bg-blue-50 text-blue-700 border border-blue-100">
-                <DollarSign className="w-4 h-4" />
-              </div>
-            </div>
-            <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1">
-              <TrendingUp className="w-3 h-3" /> Transaksi Terverifikasi
-            </span>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Tiket Terjual (Pcs)</span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-indigo-600">
-                {totalTicketsSold.toLocaleString('id-ID')} <span className="text-[11px] font-extrabold text-slate-400">Tiket</span>
-              </h4>
-              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-100">
+              <div className="p-2 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 shrink-0">
                 <Ticket className="w-4 h-4" />
               </div>
             </div>
-            <span className="text-[10px] font-extrabold text-indigo-600 flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> Kapasitas Terisi
+            <span className="text-[10px] font-extrabold text-blue-700 flex items-center gap-1">
+              <TrendingUp className="w-3 h-3" /> Harga Pokok Tiket
             </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Rata-Rata Order (AOV)</span>
+          {/* 2. Pajak 5% */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+              Pajak Daerah (5%)
+            </span>
             <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-emerald-600">
-                Rp {averageOrderValue.toLocaleString('id-ID')}
+              <h4 className="text-lg sm:text-xl font-black text-amber-700 truncate">
+                Rp {totalTaxAmount.toLocaleString('id-ID')}
               </h4>
-              <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100">
+              <div className="p-2 rounded-xl bg-amber-50 text-amber-700 border border-amber-100 shrink-0">
+                <Receipt className="w-4 h-4" />
+              </div>
+            </div>
+            <span className="text-[10px] font-extrabold text-amber-700 flex items-center gap-1">
+              <Percent className="w-3 h-3" /> Tarif Konser / Pemda
+            </span>
+          </div>
+
+          {/* 3. Fee Platform 7% */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-purple-600" />
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+              {currentRole === ROLES.OWNER ? 'Komisi Platform (7%)' : 'Fee Platform (7%)'}
+            </span>
+            <div className="flex items-center justify-between">
+              <h4 className="text-lg sm:text-xl font-black text-purple-700 truncate">
+                Rp {totalPlatformFee.toLocaleString('id-ID')}
+              </h4>
+              <div className="p-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-100 shrink-0">
+                <Coins className="w-4 h-4" />
+              </div>
+            </div>
+            <span className="text-[10px] font-extrabold text-purple-700 flex items-center gap-1">
+              <Sparkles className="w-3 h-3" /> Komisi Layanan Metix
+            </span>
+          </div>
+
+          {/* 4. Total Omzet Bruto */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-600" />
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+              {currentRole === ROLES.OWNER ? 'Total Bruto Platform' : 'Total Tagihan Masuk'}
+            </span>
+            <div className="flex items-center justify-between">
+              <h4 className="text-lg sm:text-xl font-black text-emerald-700 truncate">
+                Rp {totalGrossRevenue.toLocaleString('id-ID')}
+              </h4>
+              <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 shrink-0">
+                <DollarSign className="w-4 h-4" />
+              </div>
+            </div>
+            <span className="text-[10px] font-extrabold text-emerald-700 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> Tiket + Pajak + Fee
+            </span>
+          </div>
+
+          {/* 5. Tiket Terjual */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-600" />
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Tiket Terjual (Pcs)</span>
+            <div className="flex items-center justify-between">
+              <h4 className="text-lg sm:text-xl font-black text-indigo-600 truncate">
+                {totalTicketsSold.toLocaleString('id-ID')} <span className="text-[11px] font-extrabold text-slate-400">Pcs</span>
+              </h4>
+              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0">
                 <BarChart3 className="w-4 h-4" />
               </div>
             </div>
-            <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> Nilai Rata-Rata
+            <span className="text-[10px] font-extrabold text-indigo-600 flex items-center gap-1">
+              <Sparkles className="w-3 h-3" /> AOV Rp {averageOrderValue.toLocaleString('id-ID')}
             </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Metode Pembayaran Utama</span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-black text-slate-900 truncate">
-                {channelStats.primaryChannel}
-              </h4>
-              <div className="p-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-100">
-                <CreditCard className="w-4 h-4" />
-              </div>
-            </div>
-            <span className="text-[10px] font-extrabold text-purple-600 flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3" /> Settlement Instant
+        </div>
+
+        {/* Visual Financial Revenue Breakdown Formula Banner */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-900 text-white shadow-xs flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-md bg-blue-600 text-white font-black text-[10px] uppercase tracking-wider">
+              Formula Akuntansi
+            </span>
+            <span className="text-slate-300 font-medium">
+              Rincian Pemisahan Finansial Penjualan Tiket Metix:
             </span>
           </div>
 
+          <div className="flex flex-wrap items-center justify-center gap-2 font-mono text-[11px]">
+            <span className="px-2.5 py-1 rounded-lg bg-blue-500/20 border border-blue-400/30 text-blue-200 font-bold">
+              Subtotal: Rp {totalSubtotal.toLocaleString('id-ID')}
+            </span>
+            <span className="text-slate-400 font-bold">+</span>
+            <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/30 text-amber-200 font-bold">
+              Pajak 5%: Rp {totalTaxAmount.toLocaleString('id-ID')}
+            </span>
+            <span className="text-slate-400 font-bold">+</span>
+            <span className="px-2.5 py-1 rounded-lg bg-purple-500/20 border border-purple-400/30 text-purple-200 font-bold">
+              Fee Platform 7%: Rp {totalPlatformFee.toLocaleString('id-ID')}
+            </span>
+            <span className="text-slate-400 font-bold">=</span>
+            <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 font-black">
+              Total Bruto: Rp {totalGrossRevenue.toLocaleString('id-ID')}
+            </span>
+          </div>
         </div>
 
         {/* Visual Sales Channel Distribution Progress Bars */}
@@ -711,8 +840,14 @@ export default function ReportsPage() {
             <div className="flex flex-wrap items-center gap-2.5">
 
               {/* Event Filter (Published Only) */}
-              <div className="w-48 sm:w-56">
-                <Select value={selectedEventId} onValueChange={setSelectedEventId}>
+              <div className="w-52 sm:w-60">
+                <Select
+                  value={selectedEventId}
+                  onValueChange={(val) => {
+                    setSelectedEventId(val);
+                    setSelectedCategory('all');
+                  }}
+                >
                   <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
                     <SelectValue placeholder="Semua Event Published" />
                   </SelectTrigger>
@@ -779,121 +914,184 @@ export default function ReportsPage() {
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-                <FileText className="w-4 h-4 text-blue-700" /> Rincian Transaksi Penjualan ({filteredOrders.length})
+                <FileText className="w-4 h-4 text-blue-700" /> Rincian Transaksi Penjualan {selectedEventId !== 'all' ? `(${filteredOrders.length})` : ''}
               </h3>
               <p className="text-[11px] text-slate-500 font-medium">
-                Daftar lengkap transaksi tiket yang terverifikasi pada periode terpilih.
+                {selectedEventId !== 'all'
+                  ? 'Daftar lengkap transaksi tiket yang terverifikasi pada event terpilih.'
+                  : 'Pilih event pada dropdown filter di atas untuk memuat rincian transaksi.'}
               </p>
             </div>
           </div>
 
           {isLoading ? (
             <Skeleton className="h-56 w-full rounded-xl" />
+          ) : selectedEventId === 'all' ? (
+            <div className="py-14 px-4 text-center bg-slate-50/80 rounded-2xl border-2 border-dashed border-slate-200 space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-xs">
+                <Ticket className="w-6 h-6" />
+              </div>
+              <div className="space-y-1 max-w-md mx-auto">
+                <h4 className="text-sm font-black text-slate-800">
+                  Pilih Event Terlebih Dahulu
+                </h4>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                  Tabel saat ini kosong karena Anda berada pada opsi <strong>&ldquo;Semua Event Published&rdquo;</strong>. Silakan pilih salah satu event pada dropdown di atas untuk memuat rincian transaksi tiket, omzet, pajak, dan komisi platform.
+                </p>
+              </div>
+            </div>
           ) : filteredOrders.length > 0 ? (
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-left text-xs text-slate-700 min-w-[700px]">
+              <table className="w-full text-left text-xs text-slate-700 min-w-[950px]">
                 <thead className="bg-slate-50 text-slate-500 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200">
                   <tr>
                     <th className="py-2.5 px-3">No. Order & Pembeli</th>
                     <th className="py-2.5 px-3">Event & Kategori</th>
-                    <th className="py-2.5 px-3">Pembayaran</th>
-                    <th className="py-2.5 px-3">Qty</th>
-                    <th className="py-2.5 px-3">Total Tiket (Rp)</th>
-                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3 text-center">Qty</th>
+                    <th className="py-2.5 px-3 text-right">Subtotal Tiket</th>
+                    <th className="py-2.5 px-3 text-right">Pajak (5%)</th>
+                    <th className="py-2.5 px-3 text-right">Fee Platform (7%)</th>
+                    <th className="py-2.5 px-3 text-right">Total Tagihan</th>
+                    <th className="py-2.5 px-3 text-center">Pembayaran</th>
+                    <th className="py-2.5 px-3 text-center">Status</th>
                     <th className="py-2.5 px-3 text-right">Tanggal & Waktu</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredOrders.map((ord) => (
-                    <tr key={ord.id} className="hover:bg-slate-50 transition-colors group">
+                  {filteredOrders.map((ord) => {
+                    const rowSubtotal = ord.subtotal || 0;
+                    const rowTax = ord.tax_amount ?? Math.round(rowSubtotal * 0.05);
+                    const rowFee = ord.platform_fee ?? Math.round(rowSubtotal * 0.07);
+                    const rowTotal = ord.total_amount || (rowSubtotal + rowTax + rowFee);
 
-                      <td className="py-2.5 px-3">
-                        <div className="flex flex-col">
-                          <span className="font-mono font-black text-slate-900 group-hover:text-blue-700 transition-colors text-xs">
-                            {ord.order_number}
-                          </span>
-                          <span className="text-[11px] font-bold text-slate-800">
-                            {ord.buyer_name}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-medium">
-                            {ord.buyer_email}
-                          </span>
-                        </div>
-                      </td>
+                    return (
+                      <tr key={ord.id} className="hover:bg-slate-50 transition-colors group">
 
-                      <td className="py-2.5 px-3">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-bold text-slate-900 max-w-[180px] truncate text-xs">
-                            {ord.event_title}
-                          </span>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] text-blue-700 font-black">
-                              {ord.ticket_type_name}
+                        <td className="py-2.5 px-3">
+                          <div className="flex flex-col">
+                            <span className="font-mono font-black text-slate-900 group-hover:text-blue-700 transition-colors text-xs">
+                              {ord.order_number}
                             </span>
-                            {(ord as any).category || (ord as any).ticket_category ? (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-black">
-                                🏷️ {(ord as any).category || (ord as any).ticket_category}
-                              </span>
-                            ) : null}
+                            <span className="text-[11px] font-bold text-slate-800">
+                              {ord.buyer_name}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {ord.buyer_email}
+                            </span>
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="py-2.5 px-3 font-extrabold text-slate-800">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-[10px]">
-                          <CreditCard className="w-3 h-3 text-slate-500" /> {ord.payment_method}
-                        </span>
-                      </td>
-
-                      <td className="py-2.5 px-3 font-black text-slate-900 text-xs">
-                        {ord.quantity} Pcs
-                      </td>
-
-                      <td className="py-2.5 px-3 font-black text-slate-900 text-xs">
-                        Rp {(ord.subtotal || ord.total_amount).toLocaleString('id-ID')}
-                      </td>
-
-                      <td className="py-2.5 px-3">
-                        {(() => {
-                          const status = (ord.status || '').toLowerCase();
-                          const isPaid = status === 'paid' || status === 'completed';
-                          const isPending = status === 'pending' || status === 'unpaid' || status === 'waiting_payment';
-
-                          if (isPaid) {
-                            return (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Paid
-                              </span>
-                            );
-                          }
-                          if (isPending) {
-                            return (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                                <Clock className="w-2.5 h-2.5 text-amber-600" /> Pending
-                              </span>
-                            );
-                          }
-                          return (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 uppercase">
-                              <XCircle className="w-2.5 h-2.5 text-rose-600" /> {ord.status}
+                        <td className="py-2.5 px-3">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-bold text-slate-900 max-w-[180px] truncate text-xs">
+                              {ord.event_title}
                             </span>
-                          );
-                        })()}
-                      </td>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] text-blue-700 font-black">
+                                {ord.ticket_type_name}
+                              </span>
+                              {(ord as any).category || (ord as any).ticket_category ? (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-black">
+                                  🏷️ {(ord as any).category || (ord as any).ticket_category}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </td>
 
-                      <td className="py-2.5 px-3 text-right text-slate-400 font-medium text-[10px] whitespace-nowrap">
-                        {new Date(ord.created_at).toLocaleString('id-ID', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </td>
+                        <td className="py-2.5 px-3 text-center font-black text-slate-900 text-xs">
+                          {ord.quantity} Pcs
+                        </td>
 
-                    </tr>
-                  ))}
+                        <td className="py-2.5 px-3 text-right font-bold text-slate-800 text-xs">
+                          Rp {rowSubtotal.toLocaleString('id-ID')}
+                        </td>
+
+                        <td className="py-2.5 px-3 text-right font-medium text-amber-700 text-xs">
+                          Rp {rowTax.toLocaleString('id-ID')}
+                        </td>
+
+                        <td className="py-2.5 px-3 text-right font-medium text-purple-700 text-xs">
+                          Rp {rowFee.toLocaleString('id-ID')}
+                        </td>
+
+                        <td className="py-2.5 px-3 text-right font-black text-blue-700 text-xs">
+                          Rp {rowTotal.toLocaleString('id-ID')}
+                        </td>
+
+                        <td className="py-2.5 px-3 text-center font-extrabold text-slate-800">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-[10px]">
+                            <CreditCard className="w-3 h-3 text-slate-500" /> {ord.payment_method}
+                          </span>
+                        </td>
+
+                        <td className="py-2.5 px-3 text-center">
+                          {(() => {
+                            const status = (ord.status || '').toLowerCase();
+                            const isPaid = status === 'paid' || status === 'completed';
+                            const isPending = status === 'pending' || status === 'unpaid' || status === 'waiting_payment';
+
+                            if (isPaid) {
+                              return (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Paid
+                                </span>
+                              );
+                            }
+                            if (isPending) {
+                              return (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                  <Clock className="w-2.5 h-2.5 text-amber-600" /> Pending
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 uppercase">
+                                <XCircle className="w-2.5 h-2.5 text-rose-600" /> {ord.status}
+                              </span>
+                            );
+                          })()}
+                        </td>
+
+                        <td className="py-2.5 px-3 text-right text-slate-400 font-medium text-[10px] whitespace-nowrap">
+                          {new Date(ord.created_at).toLocaleString('id-ID', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+
+                      </tr>
+                    );
+                  })}
                 </tbody>
+                <tfoot className="bg-slate-100/80 font-black text-slate-900 border-t-2 border-slate-300 text-xs">
+                  <tr>
+                    <td colSpan={2} className="py-3 px-3 uppercase tracking-wider text-[11px] text-slate-600">
+                      Total Akumulasi Terpilih
+                    </td>
+                    <td className="py-3 px-3 text-center font-black">
+                      {totalTicketsSold} Pcs
+                    </td>
+                    <td className="py-3 px-3 text-right text-blue-800">
+                      Rp {totalSubtotal.toLocaleString('id-ID')}
+                    </td>
+                    <td className="py-3 px-3 text-right text-amber-800">
+                      Rp {totalTaxAmount.toLocaleString('id-ID')}
+                    </td>
+                    <td className="py-3 px-3 text-right text-purple-800">
+                      Rp {totalPlatformFee.toLocaleString('id-ID')}
+                    </td>
+                    <td className="py-3 px-3 text-right text-emerald-800 text-sm">
+                      Rp {totalGrossRevenue.toLocaleString('id-ID')}
+                    </td>
+                    <td colSpan={3} className="py-3 px-3 text-right text-[10px] font-bold text-slate-500">
+                      {paidOrders.length} Pesanan Berhasil
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           ) : (

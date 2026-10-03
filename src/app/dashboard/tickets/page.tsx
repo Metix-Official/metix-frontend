@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useRouter } from 'next/navigation';
-import { fetchUserTickets, fetchUserOrders, fetchPublicEvents, fetchPaymentStatus, initiateOrderPayment, ApiTicketDetail, getStoredUser, getTicketPdfUrl, getTicketQrUrl } from '@/lib/api';
+import { fetchUserTickets, fetchUserOrders, fetchPublicEvents, fetchPaymentStatus, initiateOrderPayment, ApiTicketDetail, getStoredUser, getTicketPdfUrl, getTicketQrUrl, getPhotoUrl } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
 import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw, Clock, AlertTriangle, CreditCard, Lock, Copy, ChevronDown, ChevronUp, HelpCircle, Check, Building2, Wallet, Store, Zap, User, ExternalLink, ShieldCheck, Sparkles, Bell, BellRing } from 'lucide-react';
@@ -545,40 +545,40 @@ export default function TicketsPage() {
         import('@/lib/echo').then(({ initEcho }) => {
           echoInstance = initEcho(token);
           if (echoInstance) {
-          echoInstance
-            .private(`user.${user.id}`)
-            .listen('.TicketScanned', (data: { ticket_id: number; ticket_code: string; status: string }) => {
-              toast.success(`Tiket #${data.ticket_code || data.ticket_id} berhasil di-scan di gate venue! 🎉`, {
-                duration: 5000,
+            echoInstance
+              .private(`user.${user.id}`)
+              .listen('.TicketScanned', (data: { ticket_id: number; ticket_code: string; status: string }) => {
+                toast.success(`Tiket #${data.ticket_code || data.ticket_id} berhasil di-scan di gate venue! 🎉`, {
+                  duration: 5000,
+                });
+                setTickets((prev) =>
+                  prev.map((t) => {
+                    const matchId = t.id === data.ticket_id;
+                    const matchCode = data.ticket_code && (t.ticket_code === data.ticket_code || (t as any).qr_token === data.ticket_code);
+                    return (matchId || matchCode) ? { ...t, status: 'used' } : t;
+                  })
+                );
+                loadTickets();
+              })
+              .listen('.PaymentConfirmed', (data: { order_number: string }) => {
+                toast.success(`Pembayaran untuk pesanan ${data.order_number || ''} BERHASIL LUNAS! Tiket Anda telah diterbitkan 🎉`, {
+                  duration: 6000,
+                });
+                loadTickets();
+              })
+              .listen('.TicketReset', (data: { ticket_id: number; ticket_code: string }) => {
+                toast.info(`Status tiket #${data.ticket_code || data.ticket_id} dikembalikan menjadi Siap Check-In (ACTIVE).`, {
+                  duration: 5000,
+                });
+                setTickets((prev) =>
+                  prev.map((t) => {
+                    const matchId = t.id === data.ticket_id;
+                    const matchCode = data.ticket_code && (t.ticket_code === data.ticket_code || (t as any).qr_token === data.ticket_code);
+                    return (matchId || matchCode) ? { ...t, status: 'active' } : t;
+                  })
+                );
+                loadTickets();
               });
-              setTickets((prev) =>
-                prev.map((t) => {
-                  const matchId = t.id === data.ticket_id;
-                  const matchCode = data.ticket_code && (t.ticket_code === data.ticket_code || (t as any).qr_token === data.ticket_code);
-                  return (matchId || matchCode) ? { ...t, status: 'used' } : t;
-                })
-              );
-              loadTickets();
-            })
-            .listen('.PaymentConfirmed', (data: { order_number: string }) => {
-              toast.success(`Pembayaran untuk pesanan ${data.order_number || ''} BERHASIL LUNAS! Tiket Anda telah diterbitkan 🎉`, {
-                duration: 6000,
-              });
-              loadTickets();
-            })
-            .listen('.TicketReset', (data: { ticket_id: number; ticket_code: string }) => {
-              toast.info(`Status tiket #${data.ticket_code || data.ticket_id} dikembalikan menjadi Siap Check-In (ACTIVE).`, {
-                duration: 5000,
-              });
-              setTickets((prev) =>
-                prev.map((t) => {
-                  const matchId = t.id === data.ticket_id;
-                  const matchCode = data.ticket_code && (t.ticket_code === data.ticket_code || (t as any).qr_token === data.ticket_code);
-                  return (matchId || matchCode) ? { ...t, status: 'active' } : t;
-                })
-              );
-              loadTickets();
-            });
           }
         });
       }
@@ -671,6 +671,70 @@ export default function TicketsPage() {
     }
   };
 
+  // Reliable image to JPEG base64 converter (handles CORS, WebP, PNG, Next.js Proxy)
+  const urlToJpegBase64 = async (url: string): Promise<string | null> => {
+    try {
+      let blob: Blob | null = null;
+
+      // 1. Try direct fetch first
+      try {
+        const res = await fetch(url, { mode: 'cors' });
+        if (res.ok) {
+          blob = await res.blob();
+        }
+      } catch {
+        // Direct fetch failed (likely CORS), try proxy
+      }
+
+      // 2. If direct fetch failed or CORS blocked, use Next.js server-side proxy
+      if (!blob) {
+        try {
+          const proxyRes = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+          if (proxyRes.ok) {
+            blob = await proxyRes.blob();
+          }
+        } catch {
+          // Proxy fetch failed
+        }
+      }
+
+      if (!blob) return null;
+
+      // 3. Convert blob into standard JPEG via HTML5 Canvas (ensures 100% jsPDF compatibility)
+      return await new Promise<string | null>((resolve) => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(blob);
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || img.width || 400;
+            canvas.height = img.naturalHeight || img.height || 600;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              const jpegData = canvas.toDataURL('image/jpeg', 0.9);
+              URL.revokeObjectURL(objectUrl);
+              resolve(jpegData);
+              return;
+            }
+          } catch (canvasErr) {
+            console.warn('Canvas conversion error:', canvasErr);
+          }
+          URL.revokeObjectURL(objectUrl);
+          resolve(null);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          resolve(null);
+        };
+        img.src = objectUrl;
+      });
+    } catch (err) {
+      console.warn('urlToJpegBase64 failed:', err);
+      return null;
+    }
+  };
+
   // PDF Generation & Direct Download Handler (No _blank popup)
   const handlePrintTicketPdf = async (ticket: ApiTicketDetail) => {
     if (ticket.status === 'used') {
@@ -714,14 +778,17 @@ export default function TicketsPage() {
         format: 'a4',
       });
 
-      const eventTitle = ticket.event?.title || '-';
+      const eventTitle = ticket.event?.title || (ticket as any).event_title || (ticket as any).title || 'Event Metix Pass';
       const venue = resolveVenueName(ticket.event);
       const ticketType = ticket.ticket_type?.name || (ticket as any).ticket_type_name || (ticket as any).type_name || 'Tiket';
       const category = (ticket.ticket_type as any)?.category || (ticket as any).category || '';
       const buyerName = ticket.holder_name || (ticket.attendee as any)?.full_name || ticket.order?.buyer_name || (ticket as any).user?.name || getStoredUser()?.name || 'Pelanggan Metix';
-      const ticketCode = ticket.ticket_code || '-';
+      const rawPrice = ticket.ticket_type?.price ?? (ticket.order as any)?.grand_total ?? (ticket.order as any)?.total_amount ?? 0;
+      const numPrice = Number(rawPrice);
+      const priceDisplay = numPrice > 0 ? `Rp ${numPrice.toLocaleString('id-ID')}` : 'FREE PASS';
 
       let dateStr = '-';
+      let timeStr = '';
       const dateCandidate = ticket.event?.start_at || ticket.event?.event_start_at || (ticket.event as any)?.date;
       if (dateCandidate) {
         try {
@@ -731,173 +798,286 @@ export default function TicketsPage() {
             day: '2-digit',
             month: 'long',
             year: 'numeric',
-          }) + `, ${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`;
+          });
+          const hrs = d.getHours();
+          const mins = d.getMinutes();
+          if (hrs !== 0 || mins !== 0) {
+            timeStr = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')} WIB`;
+          }
         } catch { }
       }
 
-      // Card Dimensions: 180mm x 140mm (Perfect proportion, zero excessive white space)
-      const cardX = 15;
-      const cardY = 25;
-      const cardWidth = 180;
-
-      // 1. Draw Outer Card Container Shadow & Border
-      doc.setDrawColor(203, 213, 225); // Slate 300
-      doc.setFillColor(255, 255, 255);
-      doc.roundedRect(cardX, cardY, cardWidth, 138, 5, 5, 'FD');
-
-      // 2. Top Banner Header (Height: 38mm)
-      doc.setFillColor(30, 58, 138); // Deep Navy Blue #1e3a8a
-      doc.roundedRect(cardX, cardY, cardWidth, 38, 5, 5, 'F');
-      // Cover bottom rounded corners of header banner to fit body container
-      doc.rect(cardX, cardY + 30, cardWidth, 8, 'F');
-
-      // Gold Badge (Displays Category & Ticket Type)
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(253, 224, 71); // Gold #fde047
-      const bannerBadge = category && category.toLowerCase() !== ticketType.toLowerCase()
-        ? `OFFICIAL E-TICKET PASS • ${category.toUpperCase()} • ${ticketType.toUpperCase()}`
-        : `OFFICIAL E-TICKET PASS • ${ticketType.toUpperCase()}`;
-      doc.text(bannerBadge.substring(0, 48), cardX + 8, cardY + 11);
-
-      // Event Title
-      doc.setFontSize(14);
-      doc.setTextColor(255, 255, 255);
-      doc.text(eventTitle.substring(0, 42), cardX + 8, cardY + 21);
-
-      // Ticket Code Tag
-      doc.setFont('courier', 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(147, 197, 253); // Light Blue #93c5fd
-      doc.text(`CODE: ${ticketCode}`, cardX + 8, cardY + 31);
-
-      // 3. QR Code Section (Left Side)
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
-        ticketCode
-      )}`;
-
-      try {
-        const imgRes = await fetch(qrUrl);
-        const blob = await imgRes.blob();
-        const reader = new FileReader();
-        const qrBase64 = await new Promise<string>((resolve) => {
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(blob);
-        });
-
-        // Draw QR Code Frame
-        doc.setDrawColor(37, 99, 235);
-        doc.setLineWidth(0.4);
-        doc.roundedRect(cardX + 8, cardY + 45, 54, 54, 3, 3, 'D');
-
-        doc.addImage(qrBase64, 'PNG', cardX + 10, cardY + 47, 50, 50);
-      } catch {
-        doc.setFont('courier', 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(37, 99, 235);
-        doc.text(`[ QR: ${ticketCode} ]`, cardX + 10, cardY + 70);
+      // Fetch event banner image for left cover art
+      const rawBanner = (ticket as any).event_banner_url || ticket.event?.banner || (ticket.event as any)?.banner_url || (ticket.event as any)?.image || (ticket.event as any)?.poster || (ticket.event as any)?.venue_photo;
+      const eventBannerUrl = rawBanner ? (getPhotoUrl(rawBanner, ticket.event?.id) || rawBanner) : null;
+      let posterBase64: string | null = null;
+      if (eventBannerUrl) {
+        posterBase64 = await urlToJpegBase64(eventBannerUrl);
       }
 
+      // Fetch QR Code base64
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(
+        ticketCode
+      )}`;
+      let qrBase64: string | null = null;
+      try {
+        qrBase64 = await urlToJpegBase64(qrUrl);
+      } catch {
+        // Fallback
+      }
+
+      const cardX = 12;
+      const cardY = 28;
+      const cardWidth = 186;
+      const cardHeight = 84;
+
+      // =========================================================================
+      // 1. TOP DOCUMENT HEADER (METIX OFFICIAL CLEARANCE)
+      // =========================================================================
+      doc.setFont('helvetica', 'black');
+      doc.setFontSize(16);
+      doc.setTextColor(30, 58, 138); // Deep Navy
+      doc.text('METIX', cardX, 16);
+
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7);
-      doc.setTextColor(37, 99, 235);
-      doc.text('SCAN DI GATE CHECK-IN', cardX + 10, cardY + 105);
+      doc.setFontSize(7.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text('OFFICIAL E-TICKET PASS & VENUE CLEARANCE', cardX + 24, 15.5);
 
-      // 4. Information Rows (Right Side)
-      let startY = cardY + 46;
-      const leftCol = cardX + 72;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text('Platform Ticketing Resmi Indonesia • Valid & Verified by Metix System', cardX + 24, 19.5);
 
-      const drawRow = (label: string, value: string, isHighlight = false) => {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
-        doc.setTextColor(100, 116, 139); // Slate 500
-        doc.text(label.toUpperCase(), leftCol, startY);
+      // Order info on right
+      doc.setFont('courier', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`ORDER: #${orderNum || ticket.id}`, cardX + cardWidth, 15.5, { align: 'right' });
 
-        doc.setFontSize(isHighlight ? 11 : 9.5);
-        doc.setTextColor(isHighlight ? 29 : 15, isHighlight ? 78 : 23, isHighlight ? 216 : 42);
-        doc.text(value.substring(0, 42), leftCol, startY + 4.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(100, 116, 139);
+      const nowStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+      doc.text(`Diterbitkan: ${nowStr}`, cardX + cardWidth, 19.5, { align: 'right' });
 
-        // Divider Line
-        doc.setDrawColor(241, 245, 249);
-        doc.line(leftCol, startY + 8, cardX + cardWidth - 8, startY + 8);
-        startY += 12.5;
-      };
-
-      const categoryLabel = category && category.toLowerCase() !== ticketType.toLowerCase()
-        ? 'Kategori & Jenis Tiket'
-        : 'Kategori Tiket';
-      const categoryValue = category && category.toLowerCase() !== ticketType.toLowerCase()
-        ? `${category} • ${ticketType}`
-        : ticketType;
-
-      drawRow(categoryLabel, categoryValue, true);
-      drawRow('Pemilik Tiket (Holder)', `${buyerName}`);
-      drawRow('Waktu & Tanggal Event', dateStr);
-      drawRow('Lokasi Venue', venue);
-
-      // 5. Bottom Ticket Stub Footer Section (Separated by Dashed Line)
-      const footerY = cardY + 114;
-      doc.setDrawColor(203, 213, 225);
+      doc.setDrawColor(226, 232, 240);
       doc.setLineWidth(0.3);
+      doc.line(cardX, 23, cardX + cardWidth, 23);
 
-      // Footer Background Box
-      doc.setFillColor(248, 250, 252); // Slate 50
-      doc.roundedRect(cardX, footerY, cardWidth, 24, 0, 0, 'F');
-      // Re-draw rounded bottom corners for card container
-      doc.roundedRect(cardX, cardY, cardWidth, 138, 5, 5, 'D');
+      // =========================================================================
+      // 2. HORIZONTAL VIP PASS (Exact Replica of On-Screen Ticket - Premium Edition)
+      // =========================================================================
+      // Outer Card Background & Border
+      doc.setDrawColor(203, 213, 225);
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 4, 4, 'FD');
+
+      // 2A. Left Cover Art (Width = 46mm, Height = 84mm)
+      if (posterBase64) {
+        try {
+          doc.addImage(posterBase64, 'JPEG', cardX, cardY, 46, cardHeight, undefined, 'FAST');
+        } catch {
+          doc.setFillColor(241, 245, 249);
+          doc.rect(cardX, cardY, 46, cardHeight, 'F');
+        }
+      } else {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(cardX, cardY, 46, cardHeight, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(37, 99, 235);
+        doc.text('METIX PASS', cardX + 23, cardY + 42, { align: 'center' });
+      }
+
+      // Left Cover Art Bottom Badge Strip
+      doc.setFillColor(15, 23, 42);
+      doc.rect(cardX, cardY + 74, 46, 10, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text('LIVE PASS ★ VIP', cardX + 23, cardY + 80.5, { align: 'center' });
+
+      // Border between Cover Art and Body
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.line(cardX + 46, cardY, cardX + 46, cardY + cardHeight);
+
+      // 2B. Middle Ticket Body (Typography & Details, Width = 88mm)
+      const bodyX = cardX + 50;
+
+      // Line 1: Category & Authentic Ticket Code (Blue Mono)
+      doc.setFont('courier', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(37, 99, 235);
+      const catText = (category ? category.toUpperCase() : 'CONCERT PASS') + ' • ' + ticketCode;
+      doc.text(catText.substring(0, 38), bodyX, cardY + 9);
+
+      // Line 2: Headline Event Title (Large, Bold, Dark Slate)
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(15);
+      doc.setTextColor(15, 23, 42);
+      doc.text(eventTitle.substring(0, 24).toUpperCase(), bodyX, cardY + 18);
+
+      // Line 3: Ticket Access Type
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`${ticketType.toUpperCase()} ACCESS`, bodyX, cardY + 24);
+
+      // Line 4: Date, Time & Venue Bar
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(bodyX, cardY + 27, 82, 17, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`WAKTU  :  ${dateStr}${timeStr ? ' • ' + timeStr : ''}`, bodyX + 3, cardY + 33.5);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`LOKASI :  ${venue.substring(0, 44)}`, bodyX + 3, cardY + 40);
+
+      // Line 5: 4 Bottom Info Capsules (ENTRANCE | TIPE | ROW/SEAT | PEMEGANG)
+      const pillars = [
+        { label: 'ENTRANCE', val: 'GATE 01' },
+        { label: 'TIPE', val: ticketType.substring(0, 9) },
+        { label: 'ROW / SEAT', val: 'FESTIVAL' },
+        { label: 'PEMEGANG', val: buyerName.substring(0, 14) },
+      ];
+
+      const pWidth = 19.5;
+      const pHeight = 28;
+      const pGap = 1.3;
+
+      pillars.forEach((p, idx) => {
+        const px = bodyX + idx * (pWidth + pGap);
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(px, cardY + 48, pWidth, pHeight, 1.5, 1.5, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(5);
+        doc.setTextColor(148, 163, 184);
+        doc.text(p.label, px + (pWidth / 2), cardY + 55, { align: 'center' });
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text(p.val, px + (pWidth / 2), cardY + 65, { align: 'center' });
+      });
+
+      // 2C. Perforation Tear-Off Divider
+      const perfX = cardX + 135;
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(203, 213, 225);
+      doc.circle(perfX, cardY, 3, 'FD'); // Top cutout notch
+
+      doc.setLineDashPattern([1.5, 1.5], 0);
+      doc.line(perfX, cardY + 3, perfX, cardY + cardHeight - 3);
+      doc.setLineDashPattern([], 0);
+
+      doc.circle(perfX, cardY + cardHeight, 3, 'FD'); // Bottom cutout notch
+
+      // 2D. Right Ticket Stub (Width = 51mm)
+      doc.setFillColor(248, 250, 252);
+      doc.rect(perfX, cardY, 51, cardHeight, 'F');
+
+      // Status Badge
+      doc.setFillColor(236, 253, 245);
+      doc.setDrawColor(167, 243, 208);
+      doc.roundedRect(cardX + 139, cardY + 5, 43, 6, 2, 2, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(5, 150, 105);
+      doc.text('SIAP CHECK-IN', cardX + 160.5, cardY + 9.2, { align: 'center' });
+
+      // QR Code
+      const qrBoxX = cardX + 144.5;
+      const qrBoxY = cardY + 13;
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(qrBoxX - 1, qrBoxY - 1, 34, 34, 2, 2, 'FD');
+
+      if (qrBase64) {
+        doc.addImage(qrBase64, 'PNG', qrBoxX, qrBoxY, 32, 32);
+      } else {
+        doc.setFont('courier', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(37, 99, 235);
+        doc.text(ticketCode, cardX + 160.5, cardY + 30, { align: 'center' });
+      }
+
+      // QR Instruction
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.5);
       doc.setTextColor(100, 116, 139);
-      doc.text('Petunjuk Check-in: Tunjukkan PDF E-Ticket Pass ini kepada petugas gate venue event.', cardX + 8, footerY + 9);
-      doc.text('QR Code hanya berlaku untuk 1x scan check-in di venue event.', cardX + 8, footerY + 15);
+      doc.text('Scan di gerbang masuk venue', cardX + 160.5, cardY + 51, { align: 'center' });
 
-      // Brand Logo Watermark - METIX
+      // Ticket Code (Mono)
+      doc.setFont('courier', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(ticketCode, cardX + 160.5, cardY + 57, { align: 'center' });
+
+      // Price Display
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(37, 99, 235);
+      doc.text(priceDisplay, cardX + 160.5, cardY + 64, { align: 'center' });
+
+      // Metix Watermark Logo
       doc.setFont('helvetica', 'black');
-      doc.setFontSize(12);
-      doc.setTextColor(30, 58, 138); // Navy #1e3a8a
-      doc.text('METIX', cardX + cardWidth - 28, footerY + 13);
+      doc.setFontSize(9.5);
+      doc.setTextColor(30, 58, 138);
+      doc.text('METIX', cardX + 160.5, cardY + 75, { align: 'center' });
+
+      // Re-stroke outer card border cleanly
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.35);
+      doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 4, 4, 'D');
 
       // =========================================================================
-      // 6. TEAR / FOLD DIVIDER LINE
+      // 3. FOLD & CUT PERFORATION INDICATOR
       // =========================================================================
-      const dividerY = 168;
+      const foldY = 120;
       doc.setDrawColor(203, 213, 225);
       doc.setLineWidth(0.3);
       doc.setLineDashPattern([2, 2], 0);
-      doc.line(cardX, dividerY, cardX + cardWidth, dividerY);
-      doc.setLineDashPattern([], 0); // Reset dash
+      doc.line(cardX, foldY, cardX + cardWidth, foldY);
+      doc.setLineDashPattern([], 0);
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(6.5);
-      doc.setTextColor(148, 163, 184); // Slate 400
-      doc.text('- - - GUNTING ATAU LIPAT DI SINI (TEAR OR FOLD HERE) - - -', cardX + (cardWidth / 2), dividerY - 1, { align: 'center' });
+      doc.setTextColor(148, 163, 184);
+      doc.text('- - - GUNTING ATAU LIPAT DI SINI (TEAR OR FOLD HERE TO CARRY PASS) - - -', cardX + (cardWidth / 2), foldY - 1, { align: 'center' });
 
       // =========================================================================
-      // 7. TERMS & CONDITIONS SECTION (SYARAT & KETENTUAN MASUK EVENT)
+      // 4. TERMS & CONDITIONS SECTION (SYARAT & KETENTUAN RESMI)
       // =========================================================================
-      const tcY = 173;
-      const tcHeight = 108;
+      const tcY = 126;
+      const tcHeight = 156;
 
-      // Outer T&C Container Box
-      doc.setDrawColor(226, 232, 240); // Slate 200
-      doc.setFillColor(250, 250, 252); // Slate 50
+      doc.setDrawColor(226, 232, 240);
+      doc.setFillColor(250, 250, 252);
       doc.roundedRect(cardX, tcY, cardWidth, tcHeight, 4, 4, 'FD');
 
       // T&C Header Strip
-      doc.setFillColor(30, 41, 59); // Slate 800
-      doc.roundedRect(cardX, tcY, cardWidth, 13, 4, 4, 'F');
-      doc.rect(cardX, tcY + 8, cardWidth, 5, 'F'); // Cover bottom curve of header
+      doc.setFillColor(30, 41, 59);
+      doc.roundedRect(cardX, tcY, cardWidth, 12, 4, 4, 'F');
+      doc.rect(cardX, tcY + 7, cardWidth, 5, 'F');
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
+      doc.setFontSize(8);
       doc.setTextColor(255, 255, 255);
-      doc.text('TERMS & CONDITIONS  *  SYARAT & KETENTUAN MASUK ACARA', cardX + 8, tcY + 8.5);
+      doc.text('TERMS & CONDITIONS  *  SYARAT & KETENTUAN MASUK ACARA', cardX + 8, tcY + 8);
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7);
-      doc.setTextColor(253, 224, 71); // Gold accent
-      doc.text('METIX OFFICIAL POLICY', cardX + cardWidth - 8, tcY + 8.5, { align: 'right' });
+      doc.setFontSize(6.5);
+      doc.setTextColor(253, 224, 71);
+      doc.text('METIX OFFICIAL POLICY', cardX + cardWidth - 8, tcY + 8, { align: 'right' });
 
       // Two-Column T&C Grid
       const colWidth = 80;
@@ -905,30 +1085,27 @@ export default function TicketsPage() {
       const rightColX = cardX + 96;
 
       const drawTcItem = (x: number, y: number, num: string, title: string, desc: string) => {
-        // Number badge
-        doc.setFillColor(30, 58, 138); // Navy
+        doc.setFillColor(30, 58, 138);
         doc.roundedRect(x, y - 2.5, 4, 4, 1, 1, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(6);
         doc.setTextColor(255, 255, 255);
         doc.text(num, x + 2, y + 0.5, { align: 'center' });
 
-        // Title
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7.5);
-        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.setTextColor(15, 23, 42);
         doc.text(title, x + 6.5, y + 0.5);
 
-        // Description (Multi-line wrap)
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(6.5);
-        doc.setTextColor(100, 116, 139); // Slate 500
+        doc.setTextColor(100, 116, 139);
         const splitDesc = doc.splitTextToSize(desc, colWidth);
         doc.text(splitDesc, x, y + 5);
       };
 
-      // Column 1 (Left Side)
-      let itemY = tcY + 19;
+      // Column 1
+      let itemY = tcY + 18;
       drawTcItem(
         leftColX,
         itemY,
@@ -937,7 +1114,7 @@ export default function TicketsPage() {
         'QR Code e-tiket hanya berlaku untuk 1 (satu) kali pemindaian masuk. Tiket yang sudah di-scan tidak dapat digunakan kembali atau dipindahtangankan.'
       );
 
-      itemY += 16;
+      itemY += 21;
       drawTcItem(
         leftColX,
         itemY,
@@ -946,7 +1123,7 @@ export default function TicketsPage() {
         'Pemegang tiket wajib menunjukkan kartu identitas resmi asli (KTP/SIM/Paspor) yang sah dan masih berlaku sesuai nama yang terdaftar pada pesanan tiket.'
       );
 
-      itemY += 16;
+      itemY += 21;
       drawTcItem(
         leftColX,
         itemY,
@@ -955,8 +1132,8 @@ export default function TicketsPage() {
         'Dilarang membawa senjata tajam, obat terlarang, minuman keras, flare/kembang api, laser pointer, dan kamera profesional (DSLR/Mirrorless tanpa ID pers).'
       );
 
-      // Column 2 (Right Side)
-      itemY = tcY + 19;
+      // Column 2
+      itemY = tcY + 18;
       drawTcItem(
         rightColX,
         itemY,
@@ -965,7 +1142,7 @@ export default function TicketsPage() {
         'Tiket yang telah dibeli tidak dapat ditukar, dibatalkan, atau diuangkan kembali dengan alasan apapun, kecuali apabila acara resmi dibatalkan oleh penyelenggara.'
       );
 
-      itemY += 16;
+      itemY += 21;
       drawTcItem(
         rightColX,
         itemY,
@@ -974,7 +1151,7 @@ export default function TicketsPage() {
         'Penyelenggara berhak memeriksa barang bawaan serta menolak masuk atau mengeluarkan pengunjung yang tidak mematuhi norma ketertiban dan keamanan venue.'
       );
 
-      itemY += 16;
+      itemY += 21;
       drawTcItem(
         rightColX,
         itemY,
@@ -983,20 +1160,20 @@ export default function TicketsPage() {
         'Pengunjung memberikan izin kepada penyelenggara untuk mengambil foto atau rekaman video selama acara untuk keperluan dokumentasi dan publikasi resmi.'
       );
 
-      // Bottom Support Banner inside T&C Box
-      const helpY = tcY + 92;
-      doc.setFillColor(238, 242, 255); // Indigo 50
-      doc.setDrawColor(199, 210, 254); // Indigo 200
+      // Support & Verification Banner
+      const helpY = tcY + 138;
+      doc.setFillColor(238, 242, 255);
+      doc.setDrawColor(199, 210, 254);
       doc.roundedRect(cardX + 4, helpY, cardWidth - 8, 12, 2, 2, 'FD');
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(7);
-      doc.setTextColor(30, 58, 138); // Indigo 900
+      doc.setTextColor(30, 58, 138);
       doc.text('BUTUH BANTUAN TIKET? Hubungi Layanan Metix: support@metix.id | partnership.metix.id', cardX + 8, helpY + 7.5);
 
       doc.setFont('helvetica', 'black');
       doc.setFontSize(7);
-      doc.setTextColor(16, 185, 129); // Emerald 600
+      doc.setTextColor(16, 185, 129);
       doc.text('* VERIFIED AUTHENTIC PASS', cardX + cardWidth - 8, helpY + 7.5, { align: 'right' });
 
       // =========================================================================
@@ -1141,19 +1318,17 @@ export default function TicketsPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab('all')}
-                className={`flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-xl text-xs font-black transition-all cursor-pointer select-none active:scale-[0.98] ${
-                  activeTab === 'all'
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-xl text-xs font-black transition-all cursor-pointer select-none active:scale-[0.98] ${activeTab === 'all'
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
+                  }`}
               >
                 <span>Semua</span>
                 <span
-                  className={`text-[10px] font-black px-1.5 py-0.5 rounded-full transition-colors ${
-                    activeTab === 'all'
+                  className={`text-[10px] font-black px-1.5 py-0.5 rounded-full transition-colors ${activeTab === 'all'
                       ? 'bg-white/25 text-white'
                       : 'bg-slate-200/90 text-slate-600'
-                  }`}
+                    }`}
                 >
                   {ticketCounts.all}
                 </span>
@@ -1162,19 +1337,17 @@ export default function TicketsPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab('active')}
-                className={`flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-xl text-xs font-black transition-all cursor-pointer select-none active:scale-[0.98] ${
-                  activeTab === 'active'
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-xl text-xs font-black transition-all cursor-pointer select-none active:scale-[0.98] ${activeTab === 'active'
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
+                  }`}
               >
                 <span>Check-In</span>
                 <span
-                  className={`text-[10px] font-black px-1.5 py-0.5 rounded-full transition-colors ${
-                    activeTab === 'active'
+                  className={`text-[10px] font-black px-1.5 py-0.5 rounded-full transition-colors ${activeTab === 'active'
                       ? 'bg-white/25 text-white'
                       : 'bg-slate-200/90 text-slate-600'
-                  }`}
+                    }`}
                 >
                   {ticketCounts.active}
                 </span>
@@ -1183,20 +1356,18 @@ export default function TicketsPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab('used')}
-                className={`flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-xl text-xs font-black transition-all cursor-pointer select-none active:scale-[0.98] ${
-                  activeTab === 'used'
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-xl text-xs font-black transition-all cursor-pointer select-none active:scale-[0.98] ${activeTab === 'used'
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
+                  }`}
               >
                 <span className="hidden sm:inline">Sudah Digunakan</span>
                 <span className="sm:hidden inline">Digunakan</span>
                 <span
-                  className={`text-[10px] font-black px-1.5 py-0.5 rounded-full transition-colors ${
-                    activeTab === 'used'
+                  className={`text-[10px] font-black px-1.5 py-0.5 rounded-full transition-colors ${activeTab === 'used'
                       ? 'bg-white/25 text-white'
                       : 'bg-slate-200/90 text-slate-600'
-                  }`}
+                    }`}
                 >
                   {ticketCounts.used}
                 </span>
@@ -1232,13 +1403,13 @@ export default function TicketsPage() {
 
           {/* Ticket Grid */}
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-64 w-full rounded-3xl" />
+            <div className="grid grid-cols-1 gap-6 pt-2">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <Skeleton key={i} className="h-64 sm:h-72 w-full rounded-3xl" />
               ))}
             </div>
           ) : filteredTickets.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
+            <div className="grid grid-cols-1 gap-6 pt-2">
               {filteredTickets.map((item) => {
                 const rawStatus = (item.status || 'active').toLowerCase();
                 const isUsed = rawStatus === 'used' || rawStatus === 'checked_in' || rawStatus === 'checked-in';
@@ -1255,15 +1426,29 @@ export default function TicketsPage() {
                   ? rawCode
                   : (rawCode || (orderNum ? `TKT-${orderNum}-1` : `TKT-${item.id}`));
 
+                const rawBanner = item.event?.banner || (item.event as any)?.banner_url || (item.event as any)?.image || (item.event as any)?.poster || (item.event as any)?.venue_photo;
+                const eventBannerUrl = rawBanner ? (getPhotoUrl(rawBanner, item.event?.id) || rawBanner) : null;
+                const holderName = item.holder_name || item.attendee?.full_name || item.order?.buyer_name || (item as any).user?.name || getStoredUser()?.name || 'Pelanggan Metix';
+                const rawPrice = item.ticket_type?.price ?? (item.order as any)?.grand_total ?? (item.order as any)?.total_amount ?? 0;
+                const numPrice = Number(rawPrice);
+                const priceDisplay = numPrice > 0 ? `Rp ${numPrice.toLocaleString('id-ID')}` : 'FREE PASS';
+
                 let dateStr = '15 Sep 2026';
+                let timeStr = '';
                 const dateCandidate = item.event?.event_start_at || item.event?.start_at || (item as any).event_date || item.created_at;
                 if (dateCandidate) {
                   try {
-                    dateStr = new Date(dateCandidate).toLocaleDateString('id-ID', {
+                    const d = new Date(dateCandidate);
+                    dateStr = d.toLocaleDateString('id-ID', {
                       day: '2-digit',
                       month: 'short',
                       year: 'numeric',
                     });
+                    const hrs = d.getHours();
+                    const mins = d.getMinutes();
+                    if (hrs !== 0 || mins !== 0) {
+                      timeStr = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+                    }
                   } catch {
                     // Fallback
                   }
@@ -1272,174 +1457,260 @@ export default function TicketsPage() {
                 return (
                   <div
                     key={item.id}
-                    className="relative overflow-hidden rounded-3xl bg-white border border-slate-200/90 shadow-xs hover:shadow-lg transition-all duration-300 flex flex-col justify-between group"
+                    className="relative overflow-hidden rounded-3xl bg-white border border-slate-200/90 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col md:flex-row group text-slate-900"
                   >
-                    {/* Top Decorative Header */}
-                    <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 p-5 text-white space-y-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                          {category && category.toLowerCase() !== ticketType.toLowerCase() && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 border border-amber-300 shadow-2xs">
-                              <Sparkles className="w-2.5 h-2.5 text-slate-950 shrink-0" />
-                              <span className="truncate max-w-[130px]">{category}</span>
-                            </span>
-                          )}
-                          <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-white/20 border border-white/30 backdrop-blur-xs text-white">
-                            {ticketType}
-                          </span>
-                        </div>
-                        <span
-                          className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border shrink-0 ${isUsed
-                            ? 'bg-slate-900/40 text-slate-200 border-white/20'
-                            : isCancelled
-                              ? 'bg-rose-500/40 text-rose-100 border-rose-300/30'
-                              : 'bg-emerald-500/40 text-emerald-100 border-emerald-300/30'
-                            }`}
-                        >
-                          {isUsed ? 'Sudah Digunakan' : isCancelled ? 'Dibatalkan' : 'Siap Check-In'}
-                        </span>
-                      </div>
+                    {/* Status Scanned (Sudah Di-Scan): Blur Card Effect & Garis Panjang dari Kiri ke Kanan */}
+                    {isUsed && (
+                      <>
+                        {/* 1. Frosted Blur Backdrop Overlay */}
+                        <div className="absolute inset-0 bg-white/50 backdrop-blur-[2.5px] z-30 pointer-events-none transition-all duration-500" />
 
-                      <div>
-                        <h3 className="text-base font-extrabold tracking-tight leading-snug line-clamp-1">
-                          {eventTitle}
-                        </h3>
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
-                          <p className="text-xs text-white font-mono font-black tracking-wider bg-white/20 px-2 py-0.5 rounded-md border border-white/30">
-                            {displayTicketCode}
-                          </p>
-                          {orderNum && orderNum !== displayTicketCode && (
-                            <span className="text-[10px] text-blue-200 font-mono">
-                              (Order: {orderNum})
+                        {/* 2. Long Horizontal Ribbon Banner from Left to Right */}
+                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-40 pointer-events-none">
+                          <div className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-xl py-2.5 sm:py-3.5 px-4 border-y-2 border-emerald-400/60 flex items-center justify-center gap-2.5 sm:gap-3.5 select-none">
+                            <CheckCircle2 className="w-5 h-5 text-white shrink-0 drop-shadow-sm animate-pulse" />
+                            <span className="text-xs sm:text-sm md:text-base font-black uppercase tracking-widest text-white drop-shadow-sm font-mono whitespace-nowrap">
+                              SUDAH DI SCAN
                             </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Middle Card Details */}
-                    <div className="p-5 space-y-3 bg-white">
-                      <div className="space-y-2 text-xs text-slate-600 font-medium">
-                        <div className="flex items-center gap-2">
-                          <Ticket className="w-4 h-4 text-blue-600 shrink-0" />
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-slate-500 font-normal">Kategori:</span>
-                            {category && category.toLowerCase() !== ticketType.toLowerCase() && (
-                              <span className="font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 text-[11px]">
-                                {category}
-                              </span>
-                            )}
-                            <span className="font-extrabold text-slate-900">{ticketType}</span>
+                            <span className="hidden sm:inline-block text-emerald-200 font-mono">•</span>
+                            <span className="hidden sm:inline-block text-[11px] font-black uppercase tracking-wider text-emerald-100 bg-emerald-950/40 px-3 py-0.5 rounded-full border border-emerald-300/30 whitespace-nowrap">
+                              GATE CHECKED-IN
+                            </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <User className="w-4 h-4 text-blue-600 shrink-0" />
-                          <span className="font-extrabold text-slate-900 truncate">
-                            {item.holder_name || item.attendee?.full_name || item.order?.buyer_name || (item as any).user?.name || getStoredUser()?.name || 'Pelanggan Metix'}
+                      </>
+                    )}
+
+                    {/* 1. Left Edge Cover Art / Poster (Spanning full ticket height like a VIP Pass) */}
+                    {eventBannerUrl ? (
+                      <div className="relative w-full h-44 md:h-auto md:w-44 lg:w-48 shrink-0 overflow-hidden border-b md:border-b-0 md:border-r border-slate-200/80 group/poster">
+                        <img
+                          src={eventBannerUrl}
+                          alt={eventTitle}
+                          className="w-full h-full object-cover group-hover/poster:scale-105 transition-transform duration-700 ease-out"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-black/40 via-transparent to-transparent pointer-events-none" />
+                        <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-white font-mono bg-black/60 backdrop-blur-md px-2 py-0.5 rounded border border-white/20 shadow-xs">
+                            LIVE PASS
+                          </span>
+                          <span className="text-[9px] font-bold text-white/90 font-mono drop-shadow-sm">
+                            ★ VIP
                           </span>
                         </div>
-                        <div className="flex items-center gap-2">
+                      </div>
+                    ) : (
+                      <div className="relative w-full h-40 md:h-auto md:w-40 lg:w-44 shrink-0 bg-slate-50 flex flex-col items-center justify-center p-4 border-b md:border-b-0 md:border-r border-slate-200/80 text-slate-400">
+                        <Ticket className="w-10 h-10 text-slate-400 mb-2" />
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-mono text-center">
+                          METIX PASS
+                        </span>
+                      </div>
+                    )}
+
+                    {/* 2. Main Ticket Typography Body - Clean & Plain White ("Putih Polos & Simpel") */}
+                    <div className="relative p-5 sm:p-6 flex-1 min-w-0 flex flex-col justify-between space-y-4 bg-white z-10">
+                      {/* Top Section: Category, Ticket Code, Title, and Access Subtitle */}
+                      <div className="space-y-2">
+                        {/* Line 1: Category & Authentic Ticket Code (Satu Baris Rata) */}
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-blue-600 font-mono">
+                            {category || 'METIX CONCERT PASS'}
+                          </span>
+                          <span className="text-slate-300 font-mono">•</span>
+                          <span className="text-[11px] sm:text-xs font-mono font-bold tracking-wider text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200 whitespace-nowrap">
+                            {displayTicketCode}
+                          </span>
+                        </div>
+
+                        {/* Line 2: Headline Concert Title (UNGU) */}
+                        <h3 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 uppercase tracking-tight leading-tight group-hover:text-blue-600 transition-colors">
+                          {eventTitle}
+                        </h3>
+
+                        {/* Line 3: Ticket Type Subtitle */}
+                        <p className="text-xs sm:text-sm font-black tracking-widest uppercase text-slate-500">
+                          {ticketType} ACCESS
+                        </p>
+                      </div>
+
+                      {/* Line 4: Date, Time & Venue Bar (Sama Rata, Simple & Bersih) */}
+                      <div className="bg-slate-50 border border-slate-200/80 rounded-2xl px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs sm:text-sm">
+                        <div className="flex items-center gap-2 font-bold text-slate-800 shrink-0">
                           <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
                           <span>{dateStr}</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        {timeStr && (
+                          <div className="flex items-center gap-2 font-bold text-slate-700 shrink-0">
+                            <span className="text-slate-300">•</span>
+                            <Clock className="w-4 h-4 text-blue-600 shrink-0" />
+                            <span>{timeStr} WIB</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 font-semibold text-slate-600 text-xs sm:text-sm min-w-0">
+                          <span className="text-slate-300 hidden sm:inline">•</span>
                           <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
                           <span className="truncate">{venue}</span>
                         </div>
                       </div>
+
+                      {/* Line 5: 4 Bottom Info Pillars (ENTRANCE | TIPE | ROW/SEAT | PEMEGANG) */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pt-3 border-t border-slate-100">
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2 text-center">
+                          <span className="block text-[9px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
+                            ENTRANCE
+                          </span>
+                          <span className="block text-xs font-black text-slate-800 truncate mt-0.5">
+                            GATE 01
+                          </span>
+                        </div>
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2 text-center">
+                          <span className="block text-[9px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
+                            TIPE
+                          </span>
+                          <span className="block text-xs font-black text-blue-600 truncate mt-0.5">
+                            {ticketType}
+                          </span>
+                        </div>
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2 text-center">
+                          <span className="block text-[9px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
+                            ROW / SEAT
+                          </span>
+                          <span className="block text-xs font-black text-slate-800 truncate mt-0.5">
+                            FESTIVAL
+                          </span>
+                        </div>
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2 text-center">
+                          <span className="block text-[9px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
+                            PEMEGANG
+                          </span>
+                          <span className="block text-xs font-black text-slate-800 truncate mt-0.5" title={holderName}>
+                            {holderName}
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Ticket Stub Perforation Divider */}
-                    <div className="relative flex items-center justify-between bg-slate-50/50 py-1">
-                      <div className="w-4 h-6 bg-slate-100/90 rounded-r-full -ml-2 border-y border-r border-slate-200" />
-                      <div className="flex-1 border-b-2 border-dashed border-slate-200 mx-3" />
-                      <div className="w-4 h-6 bg-slate-100/90 rounded-l-full -mr-2 border-y border-l border-slate-200" />
+                    {/* 2. Vertical Tear-Off Perforation Divider (Garis Sobekan Tiket ke Samping) */}
+                    <div className="relative hidden md:flex flex-col items-center justify-between select-none shrink-0 w-6 z-20">
+                      {/* Top Notch Cutout */}
+                      <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200/60 -mt-3 shadow-inner" />
+                      {/* Vertical Dashed Perforation Line */}
+                      <div className="w-0 flex-1 border-r-2 border-dashed border-slate-200 my-1" />
+                      {/* Bottom Notch Cutout */}
+                      <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200/60 -mb-3 shadow-inner" />
                     </div>
 
-                    {/* QR Code Section (from Laravel Backend) */}
-                    <div className="px-5 py-3.5 bg-slate-50/50 flex flex-col items-center justify-center text-center">
-                      <div className="relative p-2 bg-white rounded-2xl border border-slate-200/90 shadow-2xs group-hover:border-blue-300/80 transition-all">
-                        {/* QR Code Image from Laravel API / Storage */}
-                        <img
-                          src={item.qr_code_url || getTicketQrUrl(item.id)}
-                          alt={`QR Code ${displayTicketCode}`}
-                          className={`w-28 h-28 object-contain transition-all duration-300 ${isUsed
-                            ? 'filter blur-[3.5px] opacity-25 grayscale'
-                            : isCancelled
-                              ? 'filter blur-[3px] opacity-25 grayscale'
-                              : 'hover:scale-105'
+                    {/* Horizontal Divider Fallback for Small Mobile Screens */}
+                    <div className="relative flex md:hidden items-center justify-between py-1 select-none z-20">
+                      <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200/60 -ml-3 shadow-inner" />
+                      <div className="flex-1 border-b-2 border-dashed border-slate-200 mx-2" />
+                      <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200/60 -mr-3 shadow-inner" />
+                    </div>
+
+                    {/* 3. Right Ticket Stub (QR Code & Action Section) - Simple & Clean */}
+                    <div className="relative p-5 sm:p-6 w-full md:w-56 lg:w-60 flex flex-col items-center justify-between bg-slate-50/70 border-t md:border-t-0 md:border-l border-slate-200/70 space-y-4 shrink-0 z-10">
+                      {/* Stub Header: Status & Price */}
+                      <div className="w-full flex items-center justify-between gap-2">
+                        <span
+                          className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border shadow-2xs ${isUsed
+                              ? 'bg-slate-100 text-slate-600 border-slate-300'
+                              : isCancelled
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             }`}
-                          onError={(e) => {
-                            // Safe fallback in case Laravel QR endpoint is not yet configured on server
-                            const qrData = item.qr_token || item.ticket_code || displayTicketCode || String(item.id);
-                            (e.target as HTMLImageElement).src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                              qrData
-                            )}`;
-                          }}
-                        />
+                        >
+                          {isUsed ? 'Sudah Digunakan' : isCancelled ? 'Dibatalkan' : 'Siap Check-In'}
+                        </span>
 
-                        {/* Watermark / Badge if Used (Sudah Di-scan) */}
-                        {isUsed && (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center p-2 rounded-2xl bg-slate-950/40 backdrop-blur-[1px] select-none animate-in fade-in zoom-in-95 duration-200">
-                            <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30 mb-1 border-2 border-white">
-                              <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
-                            </div>
-                            <span className="text-[10px] font-black uppercase tracking-wider text-white px-2 py-0.5 rounded-md bg-slate-900/90 border border-white/20 shadow-xs">
-                              Sudah Digunakan
-                            </span>
-                            <span className="text-[9px] font-bold text-emerald-300 mt-0.5">
-                              Checked-In
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Watermark / Badge if Cancelled */}
-                        {isCancelled && (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center p-2 rounded-2xl bg-slate-950/40 backdrop-blur-[1px] select-none">
-                            <div className="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-md mb-1 border-2 border-white">
-                              <XCircle className="w-5 h-5 stroke-[2.5]" />
-                            </div>
-                            <span className="text-[10px] font-black uppercase tracking-wider text-white px-2 py-0.5 rounded-md bg-rose-950/90 border border-rose-300/30 shadow-xs">
-                              Dibatalkan
-                            </span>
-                          </div>
-                        )}
+                        <span className="text-xs font-mono font-black text-slate-800">
+                          {priceDisplay}
+                        </span>
                       </div>
 
-                      {/* QR helper text */}
-                      <p className="text-[11px] text-slate-500 font-medium mt-2 flex items-center gap-1.5">
-                        <QrCode className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                        <span>{isUsed ? 'Tiket telah diverifikasi di gerbang' : 'Scan QR code di gerbang masuk'}</span>
-                      </p>
-                    </div>
+                      {/* Official QR Code with Clean Frame */}
+                      <div className="flex flex-col items-center space-y-2">
+                        <div className="relative p-2.5 bg-white rounded-2xl border border-slate-200 shadow-xs group-hover:scale-105 transition-all">
+                          <img
+                            src={item.qr_code_url || getTicketQrUrl(item.id)}
+                            alt={`QR Code ${displayTicketCode}`}
+                            className={`w-28 h-28 sm:w-32 sm:h-32 object-contain transition-all duration-300 ${isUsed
+                                ? 'filter blur-[3.5px] opacity-25 grayscale'
+                                : isCancelled
+                                  ? 'filter blur-[3px] opacity-25 grayscale'
+                                  : ''
+                              }`}
+                            onError={(e) => {
+                              const qrData = item.qr_token || item.ticket_code || displayTicketCode || String(item.id);
+                              (e.target as HTMLImageElement).src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                                qrData
+                              )}`;
+                            }}
+                          />
 
-                    {/* Bottom Action Button */}
-                    <div className="p-4 bg-slate-50 border-t border-slate-100">
-                      {isUsed ? (
-                        <button
-                          type="button"
-                          disabled
-                          className="w-full py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black flex items-center justify-center gap-2 cursor-not-allowed opacity-90 shadow-2xs"
-                        >
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Sudah Di-Scan (Checked-In)
-                        </button>
-                      ) : isCancelled ? (
-                        <button
-                          type="button"
-                          disabled
-                          className="w-full py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-black flex items-center justify-center gap-2 cursor-not-allowed shadow-2xs"
-                        >
-                          <XCircle className="w-4 h-4 text-rose-500" /> Tiket Dibatalkan
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handlePrintTicketPdf({ ...item, ticket_code: displayTicketCode })}
-                          className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold flex items-center justify-center gap-2 shadow-md shadow-blue-600/20 hover:shadow-lg transition-all cursor-pointer"
-                        >
-                          <Download className="w-4 h-4" /> Download E-Tiket PDF
-                        </button>
-                      )}
+                          {/* Watermark / Badge if Used (Sudah Di-scan) */}
+                          {isUsed && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-2 rounded-2xl bg-slate-900/40 backdrop-blur-[1px] select-none">
+                              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg mb-1 border-2 border-white">
+                                <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
+                              </div>
+                              <span className="text-[9px] font-black uppercase tracking-wider text-white px-2 py-0.5 rounded-md bg-slate-900/90 border border-white/20">
+                                Checked-In
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Watermark / Badge if Cancelled */}
+                          {isCancelled && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-2 rounded-2xl bg-slate-900/40 backdrop-blur-[1px] select-none">
+                              <div className="w-8 h-8 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-md mb-1 border-2 border-white">
+                                <XCircle className="w-5 h-5 stroke-[2.5]" />
+                              </div>
+                              <span className="text-[9px] font-black uppercase tracking-wider text-white px-2 py-0.5 rounded-md bg-rose-950/90 border border-rose-300/30">
+                                Dibatalkan
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* QR helper text */}
+                        <p className="text-[10px] text-slate-500 font-medium text-center flex items-center justify-center gap-1.5">
+                          <QrCode className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span>{isUsed ? 'Tiket terverifikasi' : 'Scan di gerbang masuk'}</span>
+                        </p>
+                      </div>
+
+                      {/* Download Button */}
+                      <div className="w-full pt-1">
+                        {isUsed ? (
+                          <button
+                            type="button"
+                            disabled
+                            className="w-full py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 text-xs font-black flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Checked-In
+                          </button>
+                        ) : isCancelled ? (
+                          <button
+                            type="button"
+                            disabled
+                            className="w-full py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-500 text-xs font-black flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80"
+                          >
+                            <XCircle className="w-3.5 h-3.5 text-rose-500" /> Dibatalkan
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handlePrintTicketPdf({ ...item, ticket_code: displayTicketCode, event_banner_url: eventBannerUrl } as any)}
+                            className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all cursor-pointer"
+                          >
+                            <Download className="w-3.5 h-3.5" /> Unduh PDF
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

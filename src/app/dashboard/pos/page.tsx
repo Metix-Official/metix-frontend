@@ -1867,21 +1867,6 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
 
             {/* Sticky Actions Footer */}
             <div className="shrink-0 p-3.5 sm:p-4 bg-slate-50 border-t border-slate-200 space-y-2">
-              {/* Sandbox / Testing Simulator Button */}
-              <button
-                type="button"
-                disabled={isSimulatingPayment}
-                onClick={handleSimulatePayment}
-                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 disabled:opacity-50"
-              >
-                {isSimulatingPayment ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Sparkles className="w-4 h-4" />
-                )}
-                Simulasikan Pembayaran Berhasil (Testing Mode)
-              </button>
-
               <div className="flex items-center gap-2">
                 {activeQrisOrder.payment?.payment_url && (
                   <a

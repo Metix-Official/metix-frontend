@@ -41,6 +41,7 @@ import {
   Link2,
   ListOrdered,
   List,
+  X,
 } from 'lucide-react';
 import {
   fetchPublicEventDetail,
@@ -1490,27 +1491,84 @@ export default function EventCheckoutClient() {
               </div>
 
               {isUsePromoChecked ? (
-                <div className="space-y-3 pt-1 animate-in fade-in-0">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={promoCodeInput}
-                      onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
-                      placeholder="Masukkan Kode Voucher (e.g. METIXHEMAT)"
-                      className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 font-mono placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none uppercase"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleApplyPromo}
-                      disabled={isApplyingPromo || !promoCodeInput.trim()}
-                      className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      {isApplyingPromo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Gunakan'}
-                    </button>
-                  </div>
+                <div className="space-y-3 pt-1 animate-in fade-in-0 duration-200">
+                  {appliedPromo ? (
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-50 to-teal-50 border border-emerald-300 p-4 shadow-xs transition-all animate-in zoom-in-95 duration-200">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                            <Sparkles className="w-5 h-5 animate-pulse" />
+                          </div>
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded-lg bg-emerald-600 text-white font-mono text-[11px] font-extrabold tracking-wider uppercase shadow-2xs">
+                                {appliedPromo.code}
+                              </span>
+                              <span className="text-xs font-black text-emerald-950">
+                                Hemat Rp {appliedPromo.discountAmount.toLocaleString('id-ID')}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-emerald-700 font-bold">
+                              Voucher promo berhasil terpasang pada transaksi ini!
+                            </p>
+                          </div>
+                        </div>
 
-                  {promoError && <p className="text-xs text-rose-600 font-bold">{promoError}</p>}
-                  {promoSuccess && <p className="text-xs text-emerald-600 font-bold">{promoSuccess}</p>}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAppliedPromo(null);
+                            setPromoCodeInput('');
+                            setPromoSuccess(null);
+                            setPromoError(null);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 text-xs font-extrabold transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs hover:border-rose-300 active:scale-95"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Hapus</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            value={promoCodeInput}
+                            onChange={(e) => {
+                              setPromoCodeInput(e.target.value.toUpperCase());
+                              if (promoError) setPromoError(null);
+                            }}
+                            placeholder="Masukkan Kode Voucher (e.g. GET_DAY)"
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 font-mono font-extrabold uppercase placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 focus:outline-none transition-all"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleApplyPromo}
+                          disabled={isApplyingPromo || !promoCodeInput.trim()}
+                          className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-blue-600/20 active:scale-95 shrink-0"
+                        >
+                          {isApplyingPromo ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Memeriksa...</span>
+                            </>
+                          ) : (
+                            'Gunakan'
+                          )}
+                        </button>
+                      </div>
+
+                      {promoError && (
+                        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2 animate-in fade-in-0 duration-150">
+                          <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                          <span>{promoError}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="text-xs text-slate-400 font-medium italic">

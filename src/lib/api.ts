@@ -1123,6 +1123,7 @@ export async function applyPromoCode(payload: {
   promo_code: string;
   event_id: number;
   subtotal: number;
+  reservation_id?: number;
 }): Promise<{ valid: boolean; discount_amount: number; message: string }> {
   const token = getStoredToken();
   const response = await fetch(`${API_BASE_URL}/promos/apply`, {
@@ -1140,9 +1141,17 @@ export async function applyPromoCode(payload: {
     throw new Error(data?.message || 'Kode promo tidak valid atau telah kadaluarsa.');
   }
 
+  const discountVal = Number(
+    data?.discount_amount ??
+    data?.data?.discount_amount ??
+    data?.data?.discount ??
+    data?.discount ??
+    0
+  );
+
   return {
     valid: true,
-    discount_amount: Number(data?.discount_amount || data?.data?.discount_amount || 0),
+    discount_amount: discountVal,
     message: data?.message || 'Kode promo berhasil diterapkan!',
   };
 }

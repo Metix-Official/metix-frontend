@@ -24,6 +24,7 @@ import {
   deleteTicketType,
   fetchPromos,
   createPromo,
+  updatePromo,
   deletePromo,
   fetchEventSetting,
   updateEventSetting,
@@ -57,6 +58,7 @@ import {
   Clock,
   XCircle,
   Copy,
+  Check,
   Archive,
   RefreshCw,
   RotateCw,
@@ -807,6 +809,47 @@ export function EoEventsView() {
   const [promoError, setPromoError] = useState<string | null>(null);
   const [deletingPromoTarget, setDeletingPromoTarget] = useState<{ id: number; code: string } | null>(null);
   const [isDeletingPromo, setIsDeletingPromo] = useState(false);
+  const [copiedPromoCode, setCopiedPromoCode] = useState<string | null>(null);
+
+  // EDIT PROMO MODAL STATES
+  const [editingPromoTarget, setEditingPromoTarget] = useState<ApiPromo | null>(null);
+  const [isEditingPromo, setIsEditingPromo] = useState(false);
+  const [editPromoError, setEditPromoError] = useState<string | null>(null);
+
+  const [editPromoCode, setEditPromoCode] = useState('');
+  const [editPromoName, setEditPromoName] = useState('');
+  const [editPromoDescription, setEditPromoDescription] = useState('');
+  const [editPromoDiscountType, setEditPromoDiscountType] = useState<'FIXED' | 'PERCENTAGE'>('FIXED');
+  const [editPromoDiscountValueDisplay, setEditPromoDiscountValueDisplay] = useState('');
+  const [rawEditPromoDiscountValue, setRawEditPromoDiscountValue] = useState(0);
+  const [editPromoMinPurchaseDisplay, setEditPromoMinPurchaseDisplay] = useState('');
+  const [rawEditPromoMinPurchase, setRawEditPromoMinPurchase] = useState(0);
+  const [editPromoQuota, setEditPromoQuota] = useState('100');
+  const [editPromoMaxPerUser, setEditPromoMaxPerUser] = useState('1');
+  const [editPromoStartAt, setEditPromoStartAt] = useState('');
+  const [editPromoEndAt, setEditPromoEndAt] = useState('');
+  const [editPromoStatus, setEditPromoStatus] = useState<'ACTIVE' | 'INACTIVE' | 'EXPIRED'>('ACTIVE');
+
+  const handleCopyPromo = (code: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(code);
+    }
+    setCopiedPromoCode(code);
+    toast.success(`Kode promo "${code}" berhasil disalin!`);
+    setTimeout(() => {
+      setCopiedPromoCode((prev) => (prev === code ? null : prev));
+    }, 2000);
+  };
+
+  // PROMO SCOPE & TICKET TYPES
+  const [promoModalTicketTypes, setPromoModalTicketTypes] = useState<ApiTicketType[]>([]);
+  const [promoScopeType, setPromoScopeType] = useState<'ALL' | 'SPECIFIC'>('ALL');
+  const [selectedPromoCategory, setSelectedPromoCategory] = useState<string>('');
+  const [selectedPromoTicketTypeId, setSelectedPromoTicketTypeId] = useState<number | null>(null);
+
+  const [editPromoScopeType, setEditPromoScopeType] = useState<'ALL' | 'SPECIFIC'>('ALL');
+  const [editPromoCategory, setEditPromoCategory] = useState<string>('');
+  const [editPromoTicketTypeId, setEditPromoTicketTypeId] = useState<number | null>(null);
 
   const [promoDiscountType, setPromoDiscountType] = useState<'FIXED' | 'PERCENTAGE'>('FIXED');
   const [promoDiscountValueDisplay, setPromoDiscountValueDisplay] = useState('');
@@ -862,14 +905,35 @@ export function EoEventsView() {
     setPromoStartAt(format(new Date(), "yyyy-MM-dd'T'00:00"));
     setPromoEndAt(format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), "yyyy-MM-dd'T'23:59"));
 
-    const promoList = await fetchPromos(evt.id);
-    setPromos(promoList);
-    setIsPromoLoading(false);
+    // Reset scope & cascading ticket selection
+    setPromoScopeType('ALL');
+    setSelectedPromoCategory('');
+    setSelectedPromoTicketTypeId(null);
+
+    try {
+      const [promoList, tTypes] = await Promise.all([
+        fetchPromos(evt.id),
+        fetchTicketTypes(evt.id).catch(() => evt.ticket_types || []),
+      ]);
+      setPromos(promoList);
+      setPromoModalTicketTypes(tTypes || []);
+    } catch {
+      const promoList = await fetchPromos(evt.id);
+      setPromos(promoList);
+      setPromoModalTicketTypes(evt.ticket_types || []);
+    } finally {
+      setIsPromoLoading(false);
+    }
   };
 
   const handleCreatePromoSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedEventForPromo) return;
+
+    if (promoScopeType === 'SPECIFIC' && !selectedPromoTicketTypeId) {
+      setPromoError('Silakan pilih kategori dan nama tipe tiket yang ditargetkan untuk promo ini.');
+      return;
+    }
 
     setIsAddingPromo(true);
     setPromoError(null);
@@ -896,6 +960,7 @@ export function EoEventsView() {
         code,
         name,
         description,
+        ticket_type_id: promoScopeType === 'SPECIFIC' && selectedPromoTicketTypeId ? selectedPromoTicketTypeId : null,
         discount_type,
         discount_value,
         min_purchase,
@@ -914,6 +979,9 @@ export function EoEventsView() {
       setRawPromoDiscountValue(0);
       setPromoMinPurchaseDisplay('');
       setRawPromoMinPurchase(0);
+      setPromoScopeType('ALL');
+      setSelectedPromoCategory('');
+      setSelectedPromoTicketTypeId(null);
 
       // Refresh promo list
       const updatedList = await fetchPromos(selectedEventForPromo.id);
@@ -951,6 +1019,164 @@ export function EoEventsView() {
     } finally {
       setIsDeletingPromo(false);
       setDeletingPromoTarget(null);
+    }
+  };
+
+  const handleOpenEditPromo = (p: ApiPromo) => {
+    setEditingPromoTarget(p);
+    setEditPromoCode(p.code || '');
+    setEditPromoName(p.name || '');
+    setEditPromoDescription(p.description || '');
+    setEditPromoDiscountType(p.discount_type || 'FIXED');
+    const dVal = Number(p.discount_value || 0);
+    setRawEditPromoDiscountValue(dVal);
+    setEditPromoDiscountValueDisplay(
+      p.discount_type === 'PERCENTAGE' ? String(dVal) : dVal.toLocaleString('id-ID')
+    );
+    const minP = Number(p.min_purchase || 0);
+    setRawEditPromoMinPurchase(minP);
+    setEditPromoMinPurchaseDisplay(minP > 0 ? minP.toLocaleString('id-ID') : '');
+    setEditPromoQuota(p.quota !== null && p.quota !== undefined ? String(p.quota) : '100');
+    setEditPromoMaxPerUser(p.max_usage_per_user !== null && p.max_usage_per_user !== undefined ? String(p.max_usage_per_user) : '1');
+    setEditPromoStartAt(
+      p.start_at
+        ? format(new Date(p.start_at), "yyyy-MM-dd'T'HH:mm")
+        : format(new Date(), "yyyy-MM-dd'T'00:00")
+    );
+    setEditPromoEndAt(
+      p.end_at
+        ? format(new Date(p.end_at), "yyyy-MM-dd'T'HH:mm")
+        : format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), "yyyy-MM-dd'T'23:59")
+    );
+
+    const st = (p.status || '').toUpperCase();
+    if (st === 'INACTIVE' || st === 'NONAKTIF') {
+      setEditPromoStatus('INACTIVE');
+    } else if (st === 'EXPIRED' || st === 'KADALUARSA') {
+      setEditPromoStatus('EXPIRED');
+    } else if (st === 'ACTIVE' || st === 'AKTIF') {
+      setEditPromoStatus('ACTIVE');
+    } else {
+      if (p.end_at && new Date(p.end_at) < new Date()) {
+        setEditPromoStatus('EXPIRED');
+      } else {
+        setEditPromoStatus('ACTIVE');
+      }
+    }
+
+    if (p.ticket_type_id) {
+      setEditPromoScopeType('SPECIFIC');
+      setEditPromoTicketTypeId(p.ticket_type_id);
+      const matched = promoModalTicketTypes.find((t) => t.id === p.ticket_type_id);
+      setEditPromoCategory(matched?.category || (p.ticket_type as any)?.category || 'Umum');
+    } else {
+      setEditPromoScopeType('ALL');
+      setEditPromoTicketTypeId(null);
+      setEditPromoCategory('');
+    }
+
+    setEditPromoError(null);
+  };
+
+  const handleEditPromoDiscountValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, '');
+    if (!rawValue) {
+      setEditPromoDiscountValueDisplay('');
+      setRawEditPromoDiscountValue(0);
+      return;
+    }
+    const num = parseInt(rawValue, 10);
+    setRawEditPromoDiscountValue(num);
+    if (editPromoDiscountType === 'PERCENTAGE') {
+      const clamped = Math.min(100, num);
+      setRawEditPromoDiscountValue(clamped);
+      setEditPromoDiscountValueDisplay(String(clamped));
+    } else {
+      setEditPromoDiscountValueDisplay(num.toLocaleString('id-ID'));
+    }
+  };
+
+  const handleEditPromoMinPurchaseChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/\D/g, '');
+    if (!rawValue) {
+      setEditPromoMinPurchaseDisplay('');
+      setRawEditPromoMinPurchase(0);
+      return;
+    }
+    const num = parseInt(rawValue, 10);
+    setRawEditPromoMinPurchase(num);
+    setEditPromoMinPurchaseDisplay(num.toLocaleString('id-ID'));
+  };
+
+  const handleSaveEditPromoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEventForPromo || !editingPromoTarget) return;
+
+    if (!editPromoCode.trim()) {
+      setEditPromoError('Kode promo tidak boleh kosong.');
+      return;
+    }
+    if (!editPromoName.trim()) {
+      setEditPromoError('Nama promo tidak boleh kosong.');
+      return;
+    }
+    if (rawEditPromoDiscountValue <= 0) {
+      setEditPromoError('Nilai diskon harus lebih dari 0.');
+      return;
+    }
+    if (!editPromoStartAt || !editPromoEndAt) {
+      setEditPromoError('Waktu mulai dan berakhir harus diisi.');
+      return;
+    }
+    if (new Date(editPromoEndAt) <= new Date(editPromoStartAt)) {
+      setEditPromoError('Waktu berakhir promo harus setelah waktu mulai.');
+      return;
+    }
+
+    if (editPromoScopeType === 'SPECIFIC' && !editPromoTicketTypeId) {
+      setEditPromoError('Silakan pilih kategori dan nama tipe tiket yang ditargetkan untuk promo ini.');
+      return;
+    }
+
+    setIsEditingPromo(true);
+    setEditPromoError(null);
+
+    const start_at = editPromoStartAt.includes('T')
+      ? editPromoStartAt.replace('T', ' ') + (editPromoStartAt.length === 16 ? ':00' : '')
+      : editPromoStartAt;
+    const end_at = editPromoEndAt.includes('T')
+      ? editPromoEndAt.replace('T', ' ') + (editPromoEndAt.length === 16 ? ':00' : '')
+      : editPromoEndAt;
+
+    try {
+      await updatePromo(selectedEventForPromo.id, editingPromoTarget.id, {
+        code: editPromoCode.trim().toUpperCase(),
+        name: editPromoName.trim(),
+        description: editPromoDescription.trim() || undefined,
+        ticket_type_id: editPromoScopeType === 'SPECIFIC' && editPromoTicketTypeId ? editPromoTicketTypeId : null,
+        discount_type: editPromoDiscountType,
+        discount_value: rawEditPromoDiscountValue,
+        min_purchase: rawEditPromoMinPurchase || 0,
+        quota: editPromoQuota ? parseInt(editPromoQuota, 10) : 100,
+        max_usage_per_user: editPromoMaxPerUser ? parseInt(editPromoMaxPerUser, 10) : 1,
+        start_at,
+        end_at,
+        status: editPromoStatus,
+      });
+
+      toast.success('Kode Promo Berhasil Diperbarui! 🎉', {
+        description: `Promo "${editPromoCode.toUpperCase()}" sekarang berstatus: ${editPromoStatus.toUpperCase()}`,
+      });
+
+      const updatedList = await fetchPromos(selectedEventForPromo.id);
+      setPromos(updatedList);
+      setEditingPromoTarget(null);
+    } catch (err: any) {
+      const msg = err?.message || 'Gagal memperbarui kode promo.';
+      setEditPromoError(msg);
+      toast.error('Gagal Memperbarui Promo', { description: msg });
+    } finally {
+      setIsEditingPromo(false);
     }
   };
 
@@ -3756,6 +3982,98 @@ export function EoEventsView() {
                   />
                 </div>
 
+                {/* Pilihan Cakupan Tiket & Cascading Selector */}
+                <div className="p-3.5 rounded-xl bg-white border border-indigo-100/90 shadow-2xs space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <label className="text-[11px] font-extrabold text-slate-800 flex items-center gap-1.5">
+                      <Ticket className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Target / Cakupan Tiket</span>
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPromoScopeType('ALL');
+                          setSelectedPromoCategory('');
+                          setSelectedPromoTicketTypeId(null);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                          promoScopeType === 'ALL'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        Semua Tiket Event
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPromoScopeType('SPECIFIC')}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                          promoScopeType === 'SPECIFIC'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        Khusus Tipe Tiket Tertentu
+                      </button>
+                    </div>
+                  </div>
+
+                  {promoScopeType === 'SPECIFIC' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100 animate-in fade-in-0 duration-200">
+                      {/* Step 1: Pilih Kategori */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-extrabold text-slate-700 flex items-center justify-between">
+                          <span>1. Pilih Kategori Tiket</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Kategori Event</span>
+                        </label>
+                        <select
+                          value={selectedPromoCategory}
+                          onChange={(e) => {
+                            setSelectedPromoCategory(e.target.value);
+                            setSelectedPromoTicketTypeId(null);
+                          }}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none cursor-pointer"
+                        >
+                          <option value="">-- Pilih Kategori Tiket --</option>
+                          {Array.from(new Set(promoModalTicketTypes.map((t) => t.category || 'Umum'))).map((cat) => (
+                            <option key={cat} value={cat}>
+                              {cat}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Step 2: Pilih Nama Tipe Tiket */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-extrabold text-slate-700 flex items-center justify-between">
+                          <span>2. Pilih Nama Tipe Tiket</span>
+                          <span className="text-[10px] text-indigo-600 font-semibold">
+                            {selectedPromoCategory ? 'Kategori: ' + selectedPromoCategory : 'Pilih kategori dulu'}
+                          </span>
+                        </label>
+                        <select
+                          disabled={!selectedPromoCategory}
+                          value={selectedPromoTicketTypeId || ''}
+                          onChange={(e) => setSelectedPromoTicketTypeId(e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none disabled:bg-slate-100 disabled:text-slate-400 cursor-pointer"
+                        >
+                          <option value="">
+                            {selectedPromoCategory ? '-- Pilih Nama Tipe Tiket --' : '(Pilih kategori di sebelah kiri)'}
+                          </option>
+                          {promoModalTicketTypes
+                            .filter((t) => (t.category || 'Umum') === selectedPromoCategory)
+                            .map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name} (Rp {Number(t.price || 0).toLocaleString('id-ID')})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[11px] font-extrabold text-slate-700">Tipe Diskon</label>
@@ -3951,67 +4269,272 @@ export function EoEventsView() {
               </form>
 
               {/* Table Daftar Promo Existing */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
-                  Daftar Kode Promo Terdaftar ({promos.length})
-                </h4>
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
+                      <Tag className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                          Daftar Kode Promo Terdaftar
+                        </h4>
+                        <span className="px-2 py-0.5 text-[10px] font-black bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200/80">
+                          {promos.length}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-medium hidden sm:inline-block">
+                    Kelola voucher & kuota diskon event
+                  </span>
+                </div>
 
                 {isPromoLoading ? (
-                  <Skeleton className="h-40 w-full rounded-2xl" />
+                  <Skeleton className="h-44 w-full rounded-2xl" />
                 ) : promos.length > 0 ? (
-                  <div className="overflow-x-auto border border-slate-200 rounded-2xl">
-                    <table className="w-full text-left text-xs text-slate-700 min-w-[600px]">
-                      <thead className="bg-slate-50 text-slate-500 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-200">
+                  <div className="overflow-x-auto border border-slate-200/90 rounded-2xl bg-white shadow-2xs">
+                    <table className="w-full text-left text-xs text-slate-700 min-w-[680px]">
+                      <thead className="bg-slate-50/80 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200/80 select-none">
                         <tr>
                           <th className="py-3 px-4">Kode Promo</th>
                           <th className="py-3 px-4">Diskon / Potongan</th>
                           <th className="py-3 px-4">Syarat & Kuota</th>
                           <th className="py-3 px-4">Masa Berlaku</th>
-                          <th className="py-3 px-4 text-right">Aksi</th>
+                          <th className="py-3 px-4 text-center">Aksi</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {promos.map((p) => (
-                          <tr key={p.id} className="hover:bg-slate-50">
-                            <td className="py-3 px-4">
-                              <div className="inline-block px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-black uppercase text-xs tracking-wider">
-                                {p.code}
-                              </div>
-                              <div className="font-extrabold text-slate-900 text-xs mt-1">{p.name}</div>
-                              {p.description && (
-                                <div className="text-[10px] text-slate-500 line-clamp-1">{p.description}</div>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 font-black text-emerald-700 text-xs">
-                              {p.discount_type === 'FIXED'
-                                ? `Rp. ${Number(p.discount_value || 0).toLocaleString('id-ID')}`
-                                : `${p.discount_value}%`}
-                            </td>
-                            <td className="py-3 px-4 text-[11px] font-semibold text-slate-700 space-y-0.5">
-                              <div className="text-slate-900 font-extrabold">Kuota: {p.quota || 0} Tiket</div>
-                              <div className="text-slate-500">Terpakai: {p.used_count || 0}</div>
-                            </td>
-                            <td className="py-3 px-4 text-[10px] text-slate-600 font-medium space-y-0.5">
-                              <div>Mulai: {p.start_at ? format(new Date(p.start_at), 'dd MMM yyyy HH:mm') : '-'}</div>
-                              <div>End: {p.end_at ? format(new Date(p.end_at), 'dd MMM yyyy HH:mm') : '-'}</div>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <button
-                                onClick={() => setDeletingPromoTarget({ id: p.id, code: p.code })}
-                                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors cursor-pointer"
-                                title="Hapus Promo"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                      <tbody className="divide-y divide-slate-100/90">
+                        {promos.map((p) => {
+                          const now = new Date();
+                          const startDate = p.start_at ? new Date(p.start_at) : null;
+                          const endDate = p.end_at ? new Date(p.end_at) : null;
+                          const isExpired = endDate ? endDate < now : false;
+                          const isUpcoming = startDate ? startDate > now : false;
+                          const quota = Number(p.quota || 0);
+                          const usedCount = Number(p.used_count || 0);
+                          const isQuotaExhausted = quota > 0 && usedCount >= quota;
+                          const usagePct = quota > 0 ? Math.min(100, Math.round((usedCount / quota) * 100)) : 0;
+                          const isCopied = copiedPromoCode === p.code;
+
+                          return (
+                            <tr key={p.id} className="hover:bg-indigo-50/20 transition-colors group">
+                              {/* Kolom 1: Kode Promo & Voucher */}
+                              <td className="py-3 px-4 align-top">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyPromo(p.code)}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50/90 hover:bg-indigo-100 border border-dashed border-indigo-300 text-indigo-700 font-mono font-black text-xs tracking-wider transition-all cursor-pointer shadow-2xs group/btn active:scale-95"
+                                      title="Klik untuk salin kode voucher"
+                                    >
+                                      <Tag className="w-3 h-3 text-indigo-600 shrink-0" />
+                                      <span>{p.code}</span>
+                                      {isCopied ? (
+                                        <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                                      ) : (
+                                        <Copy className="w-2.5 h-2.5 text-indigo-400 group-hover/btn:text-indigo-700 transition-colors" />
+                                      )}
+                                    </button>
+                                  </div>
+                                  <div className="font-extrabold text-slate-900 text-xs pt-0.5">
+                                    {p.name}
+                                  </div>
+                                  {p.description && (
+                                    <div className="text-[10px] text-slate-500 line-clamp-1">
+                                      {p.description}
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-1 pt-1">
+                                    {p.ticket_type ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                        <Ticket className="w-2.5 h-2.5 text-purple-600 shrink-0" />
+                                        <span>Khusus: {p.ticket_type.category || 'Umum'} • {p.ticket_type.name}</span>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200/80">
+                                        <Ticket className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                                        <span>Semua Tiket Event</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                  {p.min_purchase && Number(p.min_purchase) > 0 ? (
+                                    <div className="text-[10px] text-slate-400 font-medium">
+                                      Min. beli: Rp {Number(p.min_purchase).toLocaleString('id-ID')}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </td>
+
+                              {/* Kolom 2: Diskon / Potongan */}
+                              <td className="py-3 px-4 align-top">
+                                <div className="space-y-1">
+                                  <div
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-black text-xs shadow-2xs ${
+                                      p.discount_type === 'FIXED'
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+                                        : 'bg-blue-50 text-blue-700 border border-blue-200/80'
+                                    }`}
+                                  >
+                                    {p.discount_type === 'FIXED' ? (
+                                      <span className="text-[10px] font-extrabold">Rp</span>
+                                    ) : (
+                                      <Percent className="w-3 h-3 text-blue-600 stroke-[2.5]" />
+                                    )}
+                                    <span>
+                                      {p.discount_type === 'FIXED'
+                                        ? Number(p.discount_value || 0).toLocaleString('id-ID')
+                                        : `${p.discount_value}%`}
+                                    </span>
+                                  </div>
+                                  <div className="text-[10px] font-semibold text-slate-400">
+                                    {p.discount_type === 'FIXED' ? 'Potongan Tetap' : 'Potongan Persen'}
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Kolom 3: Syarat & Kuota */}
+                              <td className="py-3 px-4 align-top">
+                                <div className="space-y-1.5 min-w-[130px] max-w-[160px]">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-extrabold text-slate-900">
+                                      {usedCount}{' '}
+                                      <span className="text-slate-400 font-normal">
+                                        / {quota > 0 ? `${quota} Tiket` : '∞'}
+                                      </span>
+                                    </span>
+                                    {quota > 0 && (
+                                      <span
+                                        className={`text-[10px] font-black px-1.5 py-0.2 rounded ${
+                                          isQuotaExhausted
+                                            ? 'bg-rose-50 text-rose-600'
+                                            : usagePct > 80
+                                              ? 'bg-amber-50 text-amber-700'
+                                              : 'text-slate-500'
+                                        }`}
+                                      >
+                                        {isQuotaExhausted ? 'Habis' : `${usagePct}%`}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {quota > 0 && (
+                                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full transition-all duration-300 ${
+                                          isQuotaExhausted
+                                            ? 'bg-rose-500'
+                                            : usagePct > 80
+                                              ? 'bg-amber-500'
+                                              : 'bg-indigo-600'
+                                        }`}
+                                        style={{ width: `${usagePct}%` }}
+                                      />
+                                    </div>
+                                  )}
+
+                                  <div className="text-[10px] text-slate-400 font-medium">
+                                    Maks. {p.max_usage_per_user || 1}x / user
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Kolom 4: Masa Berlaku & Status */}
+                              <td className="py-3 px-4 align-top">
+                                <div className="space-y-1.5">
+                                  <div>
+                                    {isQuotaExhausted ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200/80">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                        Kuota Habis
+                                      </span>
+                                    ) : (p.status || '').toLowerCase() === 'inactive' ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200/80">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                        Nonaktif
+                                      </span>
+                                    ) : (p.status || '').toLowerCase() === 'expired' || isExpired ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-600 border border-slate-200">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                        Kadaluarsa
+                                      </span>
+                                    ) : isUpcoming ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-50 text-sky-700 border border-sky-200/80">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                                        Mendatang
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        Aktif
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="text-[10px] text-slate-600 font-medium space-y-0.5">
+                                    <div className="flex items-center gap-1">
+                                      <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                                      <span>
+                                        {p.start_at ? format(new Date(p.start_at), 'dd MMM yyyy') : '-'}
+                                      </span>
+                                      <span className="text-slate-300">→</span>
+                                      <span>
+                                        {p.end_at ? format(new Date(p.end_at), 'dd MMM yyyy') : '-'}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-[9px] text-slate-400 pl-4">
+                                      <Clock className="w-2.5 h-2.5 shrink-0" />
+                                      <span>
+                                        {p.start_at ? format(new Date(p.start_at), 'HH:mm') : '00:00'} -{' '}
+                                        {p.end_at ? format(new Date(p.end_at), 'HH:mm') : '23:59'} WIB
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Kolom 5: Aksi */}
+                              <td className="py-3 px-4 align-middle text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditPromo(p)}
+                                    className="p-2 rounded-xl bg-white hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 shadow-2xs hover:shadow-xs transition-all duration-150 cursor-pointer active:scale-95"
+                                    title="Edit Promo & Status"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeletingPromoTarget({ id: p.id, code: p.code })}
+                                    className="p-2 rounded-xl bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 shadow-2xs hover:shadow-xs transition-all duration-150 cursor-pointer active:scale-95"
+                                    title="Hapus Promo"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
                 ) : (
-                  <div className="p-6 text-center text-xs text-slate-400 font-medium bg-slate-50 rounded-2xl border border-slate-200">
-                    Belum ada kode promo yang dibuat untuk event ini. Gunakan form di atas untuk membuat diskon event.
+                  <div className="py-8 px-4 text-center space-y-2.5 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center mx-auto shadow-2xs">
+                      <Tag className="w-5 h-5 stroke-[1.75]" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <h5 className="text-xs font-black text-slate-800">
+                        Belum Ada Kode Promo Dibuat
+                      </h5>
+                      <p className="text-[11px] text-slate-500 font-medium max-w-sm mx-auto">
+                        Gunakan formulir di atas untuk membuat kode promo diskon menarik dan dorong penjualan tiket event Anda.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -4061,6 +4584,517 @@ export function EoEventsView() {
                 <span>Hapus</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL EDIT KODE PROMO & STATUS ================= */}
+      {editingPromoTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/75 backdrop-blur-sm animate-in fade-in-0 overflow-y-auto">
+          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
+            {/* Header Modal */}
+            <div className="bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 p-5 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center">
+                  <Pencil className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black tracking-tight">Edit Kode Promo & Status</h3>
+                  <p className="text-xs text-indigo-200">
+                    Perbarui rincian voucher, nilai diskon, kuota, masa berlaku, dan status promosi.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingPromoTarget(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors cursor-pointer text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form Edit */}
+            <form onSubmit={handleSaveEditPromoSubmit} className="p-5 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {editPromoError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>{editPromoError}</span>
+                </div>
+              )}
+
+              {/* Status Promo Radio Selector (Active, Inactive, Expired) */}
+              <div className="space-y-2 pt-1">
+                <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                  <span>Status Promo (Pilih Salah Satu)</span>
+                  <span className="text-[10px] text-slate-400 font-medium normal-case">
+                    Status terpilih:{' '}
+                    <strong className="uppercase font-extrabold text-indigo-600">
+                      {editPromoStatus}
+                    </strong>
+                  </span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {/* Option 1: ACTIVE */}
+                  <label
+                    onClick={() => setEditPromoStatus('ACTIVE')}
+                    className={`relative flex items-start gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                      editPromoStatus === 'ACTIVE'
+                        ? 'bg-emerald-50/80 border-emerald-500 shadow-xs ring-2 ring-emerald-500/15'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="pt-0.5">
+                      <input
+                        type="radio"
+                        name="editPromoStatusRadio"
+                        value="ACTIVE"
+                        checked={editPromoStatus === 'ACTIVE'}
+                        onChange={() => setEditPromoStatus('ACTIVE')}
+                        className="w-4 h-4 text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-0.5 select-none">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-xs font-black text-slate-900">Active</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
+                        Promo aktif & bisa langsung digunakan pembeli.
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* Option 2: INACTIVE */}
+                  <label
+                    onClick={() => setEditPromoStatus('INACTIVE')}
+                    className={`relative flex items-start gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                      editPromoStatus === 'INACTIVE'
+                        ? 'bg-amber-50/80 border-amber-500 shadow-xs ring-2 ring-amber-500/15'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="pt-0.5">
+                      <input
+                        type="radio"
+                        name="editPromoStatusRadio"
+                        value="INACTIVE"
+                        checked={editPromoStatus === 'INACTIVE'}
+                        onChange={() => setEditPromoStatus('INACTIVE')}
+                        className="w-4 h-4 text-amber-600 border-slate-300 focus:ring-amber-500 cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-0.5 select-none">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-500" />
+                        <span className="text-xs font-black text-slate-900">Inactive</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
+                        Promo dinonaktifkan sementara (dijeda).
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* Option 3: EXPIRED */}
+                  <label
+                    onClick={() => setEditPromoStatus('EXPIRED')}
+                    className={`relative flex items-start gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                      editPromoStatus === 'EXPIRED'
+                        ? 'bg-rose-50/80 border-rose-500 shadow-xs ring-2 ring-rose-500/15'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="pt-0.5">
+                      <input
+                        type="radio"
+                        name="editPromoStatusRadio"
+                        value="EXPIRED"
+                        checked={editPromoStatus === 'EXPIRED'}
+                        onChange={() => setEditPromoStatus('EXPIRED')}
+                        className="w-4 h-4 text-rose-600 border-slate-300 focus:ring-rose-500 cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-0.5 select-none">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-500" />
+                        <span className="text-xs font-black text-slate-900">Expired</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">
+                        Promo telah berakhir & tidak dapat dipakai lagi.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Kode Promo & Nama Promo */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700">
+                    Kode Promo (Voucher) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={editPromoCode}
+                      onChange={(e) => setEditPromoCode(e.target.value.toUpperCase().replace(/\s+/g, '_'))}
+                      placeholder="CONTOH: PROMO_HEMAT"
+                      className="w-full px-3.5 py-2 uppercase bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:border-indigo-600 focus:outline-none"
+                    />
+                    <div className="absolute right-3 top-2.5 text-slate-400">
+                      <Tag className="w-3.5 h-3.5" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700">
+                    Nama / Label Promo <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editPromoName}
+                    onChange={(e) => setEditPromoName(e.target.value)}
+                    placeholder="Contoh: Diskon Pembukaan Festival"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Deskripsi Promo */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-extrabold text-slate-700">
+                  Deskripsi / Keterangan (Opsional)
+                </label>
+                <input
+                  type="text"
+                  value={editPromoDescription}
+                  onChange={(e) => setEditPromoDescription(e.target.value)}
+                  placeholder="Keterangan singkat promo bagi pembeli tiket"
+                  className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none"
+                />
+              </div>
+
+              {/* Pilihan Cakupan Tiket & Cascading Selector untuk Edit */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 shadow-2xs space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="text-[11px] font-extrabold text-slate-800 flex items-center gap-1.5">
+                    <Ticket className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Target / Cakupan Tiket</span>
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditPromoScopeType('ALL');
+                        setEditPromoCategory('');
+                        setEditPromoTicketTypeId(null);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                        editPromoScopeType === 'ALL'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
+                      }`}
+                    >
+                      Semua Tiket Event
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditPromoScopeType('SPECIFIC')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                        editPromoScopeType === 'SPECIFIC'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
+                      }`}
+                    >
+                      Khusus Tipe Tiket Tertentu
+                    </button>
+                  </div>
+                </div>
+
+                {editPromoScopeType === 'SPECIFIC' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200 animate-in fade-in-0 duration-200">
+                    {/* Step 1: Pilih Kategori */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-extrabold text-slate-700 flex items-center justify-between">
+                        <span>1. Pilih Kategori Tiket</span>
+                        <span className="text-[10px] text-slate-400 font-normal">Kategori Event</span>
+                      </label>
+                      <select
+                        value={editPromoCategory}
+                        onChange={(e) => {
+                          setEditPromoCategory(e.target.value);
+                          setEditPromoTicketTypeId(null);
+                        }}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none cursor-pointer"
+                      >
+                        <option value="">-- Pilih Kategori Tiket --</option>
+                        {Array.from(new Set(promoModalTicketTypes.map((t) => t.category || 'Umum'))).map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Step 2: Pilih Nama Tipe Tiket */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-extrabold text-slate-700 flex items-center justify-between">
+                        <span>2. Pilih Nama Tipe Tiket</span>
+                        <span className="text-[10px] text-indigo-600 font-semibold">
+                          {editPromoCategory ? 'Kategori: ' + editPromoCategory : 'Pilih kategori dulu'}
+                        </span>
+                      </label>
+                      <select
+                        disabled={!editPromoCategory}
+                        value={editPromoTicketTypeId || ''}
+                        onChange={(e) => setEditPromoTicketTypeId(e.target.value ? Number(e.target.value) : null)}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400 cursor-pointer"
+                      >
+                        <option value="">
+                          {editPromoCategory ? '-- Pilih Nama Tipe Tiket --' : '(Pilih kategori di sebelah kiri)'}
+                        </option>
+                        {promoModalTicketTypes
+                          .filter((t) => (t.category || 'Umum') === editPromoCategory)
+                          .map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name} (Rp {Number(t.price || 0).toLocaleString('id-ID')})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Tipe & Nilai Diskon */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700">Tipe Potongan Diskon</label>
+                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditPromoDiscountType('FIXED');
+                        setRawEditPromoDiscountValue(0);
+                        setEditPromoDiscountValueDisplay('');
+                      }}
+                      className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        editPromoDiscountType === 'FIXED'
+                          ? 'bg-white text-indigo-700 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Nominal (Rp)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditPromoDiscountType('PERCENTAGE');
+                        setRawEditPromoDiscountValue(0);
+                        setEditPromoDiscountValueDisplay('');
+                      }}
+                      className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        editPromoDiscountType === 'PERCENTAGE'
+                          ? 'bg-white text-indigo-700 shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Persen (%)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700">
+                    Nilai Diskon <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    {editPromoDiscountType === 'FIXED' ? (
+                      <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-400">Rp</span>
+                    ) : (
+                      <span className="absolute right-3.5 top-2.5 text-xs font-bold text-slate-400">%</span>
+                    )}
+                    <input
+                      type="text"
+                      required
+                      value={editPromoDiscountValueDisplay}
+                      onChange={handleEditPromoDiscountValueChange}
+                      placeholder={editPromoDiscountType === 'FIXED' ? 'Contoh: 50.000' : 'Contoh: 15'}
+                      className={`w-full py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-indigo-600 focus:outline-none ${
+                        editPromoDiscountType === 'FIXED' ? 'pl-9 pr-3.5' : 'pl-3.5 pr-8'
+                      }`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Min Pembelian, Kuota, Max Per User */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700">Min. Pembelian (Rp)</label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-400">Rp</span>
+                    <input
+                      type="text"
+                      value={editPromoMinPurchaseDisplay}
+                      onChange={handleEditPromoMinPurchaseChange}
+                      placeholder="0"
+                      className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700">Total Kuota Tiket</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    value={editPromoQuota}
+                    onChange={(e) => setEditPromoQuota(e.target.value)}
+                    placeholder="100"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700">Max / User</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    value={editPromoMaxPerUser}
+                    onChange={(e) => setEditPromoMaxPerUser(e.target.value)}
+                    placeholder="1"
+                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Periode Promo (Start & End) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700">Waktu Mulai Promo</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
+                      >
+                        <span className="flex items-center gap-1.5 truncate">
+                          <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          {editPromoStartAt ? (
+                            format(new Date(editPromoStartAt), 'dd MMM yyyy, HH:mm')
+                          ) : (
+                            <span className="text-slate-400">Pilih waktu mulai</span>
+                          )}
+                        </span>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-3" align="start">
+                      <CalendarPicker
+                        mode="single"
+                        selected={editPromoStartAt ? new Date(editPromoStartAt) : undefined}
+                        onSelect={(d) => {
+                          if (!d) return;
+                          const currentTime = editPromoStartAt ? editPromoStartAt.split('T')[1] || '00:00' : '00:00';
+                          const dateStr = format(d, 'yyyy-MM-dd');
+                          setEditPromoStartAt(`${dateStr}T${currentTime}`);
+                        }}
+                      />
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
+                        <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-slate-400" /> Jam:
+                        </span>
+                        <input
+                          type="time"
+                          value={editPromoStartAt ? editPromoStartAt.split('T')[1] || '00:00' : '00:00'}
+                          onChange={(e) => {
+                            const currentDate = editPromoStartAt ? editPromoStartAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                            setEditPromoStartAt(`${currentDate}T${e.target.value}`);
+                          }}
+                          className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-extrabold text-slate-700">Waktu Berakhir Promo</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
+                      >
+                        <span className="flex items-center gap-1.5 truncate">
+                          <Calendar className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          {editPromoEndAt ? (
+                            format(new Date(editPromoEndAt), 'dd MMM yyyy, HH:mm')
+                          ) : (
+                            <span className="text-slate-400">Pilih waktu berakhir</span>
+                          )}
+                        </span>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-3" align="start">
+                      <CalendarPicker
+                        mode="single"
+                        selected={editPromoEndAt ? new Date(editPromoEndAt) : undefined}
+                        onSelect={(d) => {
+                          if (!d) return;
+                          const currentTime = editPromoEndAt ? editPromoEndAt.split('T')[1] || '23:59' : '23:59';
+                          const dateStr = format(d, 'yyyy-MM-dd');
+                          setEditPromoEndAt(`${dateStr}T${currentTime}`);
+                        }}
+                      />
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
+                        <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-slate-400" /> Jam:
+                        </span>
+                        <input
+                          type="time"
+                          value={editPromoEndAt ? editPromoEndAt.split('T')[1] || '23:59' : '23:59'}
+                          onChange={(e) => {
+                            const currentDate = editPromoEndAt ? editPromoEndAt.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                            setEditPromoEndAt(`${currentDate}T${e.target.value}`);
+                          }}
+                          className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 text-slate-800 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              {/* Modal Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={isEditingPromo}
+                  onClick={() => setEditingPromoTarget(null)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isEditingPromo}
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-sm transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isEditingPromo ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  <span>Simpan Perubahan</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -427,6 +427,14 @@ export default function PosPage() {
       setAppliedPromo(null);
       return;
     }
+    if (found.ticket_type_id) {
+      const hasMatchingTicket = cart.some((c) => c.ticketType.id === found.ticket_type_id);
+      if (!hasMatchingTicket) {
+        setPromoError(`Kode promo "${found.code}" hanya berlaku untuk tiket: ${found.ticket_type?.name || 'tertentu'}.`);
+        setAppliedPromo(null);
+        return;
+      }
+    }
     if (found.min_purchase && subtotal < Number(found.min_purchase)) {
       setPromoError(`Kode promo mensyaratkan minimal pembelian Rp ${Number(found.min_purchase).toLocaleString('id-ID')}.`);
       setAppliedPromo(null);

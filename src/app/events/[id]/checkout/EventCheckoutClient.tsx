@@ -175,7 +175,12 @@ export default function EventCheckoutClient() {
   // Promo Code State
   const [isUsePromoChecked, setIsUsePromoChecked] = useState(false);
   const [promoCodeInput, setPromoCodeInput] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountAmount: number } | null>(null);
+  const [appliedPromo, setAppliedPromo] = useState<{
+    code: string;
+    discountAmount: number;
+    ticket_type_id?: number | null;
+    ticket_type_name?: string | null;
+  } | null>(null);
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
@@ -543,8 +548,31 @@ export default function EventCheckoutClient() {
     });
   };
 
+  // Auto-invalidate applied promo if targeted ticket is removed or changed
+  useEffect(() => {
+    if (!appliedPromo) return;
+
+    if (appliedPromo.ticket_type_id) {
+      const stillHasTarget = selectedTickets.some(
+        (t) => t.ticket_type_id === appliedPromo.ticket_type_id && t.quantity > 0
+      );
+      if (!stillHasTarget) {
+        setAppliedPromo(null);
+        setPromoSuccess(null);
+        setPromoError(
+          `Voucher '${appliedPromo.code}' dilepas otomatis karena tiket khusus (${appliedPromo.ticket_type_name || 'yang disyaratkan'}) tidak lagi dipilih.`
+        );
+      }
+    }
+  }, [selectedTickets, appliedPromo]);
+
   const handleApplyPromo = async () => {
     if (!promoCodeInput.trim() || !event) return;
+    if (selectedTickets.length === 0 || totalTicketCount <= 0) {
+      setPromoError('Silakan pilih minimal 1 tiket sebelum menerapkan voucher promo.');
+      return;
+    }
+
     setIsApplyingPromo(true);
     setPromoError(null);
     setPromoSuccess(null);
@@ -554,11 +582,18 @@ export default function EventCheckoutClient() {
         promo_code: promoCodeInput.trim(),
         event_id: event.id,
         subtotal: totalPrice,
+        ticket_type_ids: selectedTickets.map((t) => t.ticket_type_id),
+        items: selectedTickets.map((t) => ({
+          ticket_type_id: t.ticket_type_id,
+          quantity: t.quantity,
+        })),
       });
       if (res.valid) {
         setAppliedPromo({
           code: promoCodeInput.trim().toUpperCase(),
           discountAmount: res.discount_amount,
+          ticket_type_id: res.promo?.ticket_type_id,
+          ticket_type_name: res.promo?.ticket_type_name,
         });
         setPromoSuccess(`Voucher '${promoCodeInput.trim().toUpperCase()}' berhasil dipasang! Hemat Rp ${res.discount_amount.toLocaleString('id-ID')}`);
       } else {

@@ -129,6 +129,8 @@ export interface ApiTicketType {
 export interface ApiPromo {
   id: number;
   event_id: number;
+  ticket_type_id?: number | null;
+  ticket_type?: ApiTicketType | { id: number; name: string; category?: string; price?: number } | null;
   code: string;
   name: string;
   description?: string | null;
@@ -1124,7 +1126,22 @@ export async function applyPromoCode(payload: {
   event_id: number;
   subtotal: number;
   reservation_id?: number;
-}): Promise<{ valid: boolean; discount_amount: number; message: string }> {
+  ticket_type_id?: number;
+  ticket_type_ids?: number[];
+  items?: { ticket_type_id: number; quantity: number }[];
+}): Promise<{
+  valid: boolean;
+  discount_amount: number;
+  message: string;
+  promo?: {
+    code: string;
+    name: string;
+    ticket_type_id?: number | null;
+    ticket_type_name?: string | null;
+    discount_type: 'PERCENTAGE' | 'FIXED';
+    discount_value: number;
+  };
+}> {
   const token = getStoredToken();
   const response = await fetch(`${API_BASE_URL}/promos/apply`, {
     method: 'POST',
@@ -1138,14 +1155,17 @@ export async function applyPromoCode(payload: {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data?.message || 'Kode promo tidak valid atau telah kadaluarsa.');
+    const errorMsg =
+      data?.errors?.promo_code?.[0] ||
+      data?.message ||
+      'Kode promo tidak valid atau telah kadaluarsa.';
+    throw new Error(errorMsg);
   }
 
+  const resData = data?.data || data;
   const discountVal = Number(
-    data?.discount_amount ??
-    data?.data?.discount_amount ??
-    data?.data?.discount ??
-    data?.discount ??
+    resData?.discount_amount ??
+    resData?.discount ??
     0
   );
 
@@ -1153,6 +1173,7 @@ export async function applyPromoCode(payload: {
     valid: true,
     discount_amount: discountVal,
     message: data?.message || 'Kode promo berhasil diterapkan!',
+    promo: resData?.promo,
   };
 }
 
@@ -3220,6 +3241,7 @@ export async function createPromo(
     code: string;
     name: string;
     description?: string;
+    ticket_type_id?: number | null;
     discount_type: 'PERCENTAGE' | 'FIXED';
     discount_value: number;
     min_purchase?: number;
@@ -3251,6 +3273,87 @@ export async function createPromo(
   }
 
   return true;
+}
+
+export async function updatePromo(
+  eventId: number,
+  promoId: number,
+  payload: {
+    code?: string;
+    name?: string;
+    description?: string;
+    ticket_type_id?: number | null;
+    discount_type?: 'PERCENTAGE' | 'FIXED';
+    discount_value?: number;
+    min_purchase?: number;
+    quota?: number;
+    max_usage_per_user?: number;
+    start_at?: string;
+    end_at?: string;
+    status?: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | string;
+  }
+): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Silakan login terlebih dahulu (Unauthenticated).');
+
+  const formattedPayload = {
+    ...payload,
+    status: payload.status ? payload.status.toUpperCase() : undefined,
+  };
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/promos/${promoId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getHeaders(token),
+      },
+      body: JSON.stringify({
+        ...formattedPayload,
+        _method: 'PUT',
+      }),
+    });
+
+    if (response.ok) return true;
+
+    if (response.status === 405) {
+      const putRes = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/promos/${promoId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getHeaders(token),
+        },
+        body: JSON.stringify(payload),
+      });
+      if (putRes.ok) return true;
+      const data = await putRes.json().catch(() => ({}));
+      throw new Error(data?.message || 'Gagal memperbarui kode promo.');
+    }
+
+    const data = await response.json().catch(() => ({}));
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal memperbarui kode promo.';
+    throw new Error(errorMsg);
+  } catch (error: any) {
+    if (error?.message && error.message !== 'Failed to fetch') {
+      throw error;
+    }
+    const putRes = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/promos/${promoId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getHeaders(token),
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!putRes.ok) {
+      const data = await putRes.json().catch(() => ({}));
+      throw new Error(data?.message || 'Gagal memperbarui kode promo.');
+    }
+    return true;
+  }
 }
 
 export async function deletePromo(eventId: number, promoId: number): Promise<boolean> {

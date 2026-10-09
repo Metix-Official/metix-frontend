@@ -23,6 +23,7 @@ import {
   Send,
   Settings,
   Printer,
+  KeyRound,
 } from 'lucide-react';
 import { CURRENT_USER } from '@/data/mockData';
 import { UserProfile, logoutApi, getPhotoUrl } from '@/lib/api';
@@ -245,6 +246,8 @@ export const Header: React.FC<HeaderProps> = ({
         { title: 'Kelola Semua Akun (Users)', desc: 'Manajemen akun user, EO & pembeli', href: '/dashboard/users', icon: Users },
         { title: 'Persetujuan Dana (Withdrawals)', desc: 'Verifikasi pengajuan pencairan dana mitra', href: '/dashboard/withdrawals', icon: CreditCard },
         { title: 'Event Platform', desc: 'Daftar semua event terdaftar di platform', href: '/dashboard/events', icon: Calendar },
+        { title: 'Payment Webhook', desc: 'Log notifikasi webhook payment gateway', href: '/dashboard/payment-webhooks', icon: CreditCard },
+        { title: 'OTP Verifikasi', desc: 'Monitoring log kode OTP verifikasi pengguna', href: '/dashboard/otp', icon: KeyRound },
         { title: 'Laporan Analisis', desc: 'Laporan omzet & analitik platform', href: '/dashboard/reports', icon: Send },
         { title: 'Audit Logs', desc: 'Log aktivitas & jejak audit keamanan', href: '/dashboard/audit-logs', icon: Printer },
         { title: 'Pengaturan Platform', desc: 'Konfigurasi & preferensi sistem', href: '/dashboard/settings', icon: Settings },

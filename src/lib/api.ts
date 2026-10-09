@@ -5475,6 +5475,82 @@ export async function fetchMasterPaymentWebhooks(params?: {
   };
 }
 
+export interface OtpVerificationItem {
+  id: number;
+  user_id: number | null;
+  destination: string;
+  type: 'EMAIL' | 'WHATSAPP' | string;
+  code_hash: string;
+  plain_code?: string | null;
+  expires_at: string | null;
+  verified_at: string | null;
+  attempts: number;
+  status: 'VERIFIED' | 'ACTIVE' | 'EXPIRED' | string;
+  is_verified: boolean;
+  is_expired: boolean;
+  created_at: string | null;
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+    phone?: string;
+  } | null;
+}
+
+export interface OtpVerificationsResponse {
+  success: boolean;
+  message?: string;
+  data: OtpVerificationItem[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
+export async function fetchOtpVerifications(params?: {
+  search?: string;
+  type?: string;
+  status?: string;
+  page?: number;
+  per_page?: number;
+}): Promise<OtpVerificationsResponse> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const queryParams = new URLSearchParams();
+  if (params?.search) queryParams.set('search', params.search);
+  if (params?.type && params.type !== 'all') queryParams.set('type', params.type);
+  if (params?.status && params.status !== 'all') queryParams.set('status', params.status);
+  if (params?.page) queryParams.set('page', String(params.page));
+  if (params?.per_page) queryParams.set('per_page', String(params.per_page));
+
+  const url = `${API_BASE_URL}/owner/otp-verifications${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: getHeaders(token),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(json?.message || 'Gagal memuat data OTP verifications.');
+  }
+
+  return {
+    success: true,
+    message: json.message || 'Berhasil',
+    data: json.data || [],
+    meta: json.meta || {
+      current_page: params?.page || 1,
+      last_page: 1,
+      per_page: params?.per_page || 20,
+      total: (json.data || []).length,
+    },
+  };
+}
+
+
 
 
 

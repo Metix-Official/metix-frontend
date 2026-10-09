@@ -17,6 +17,7 @@ import {
   Building2,
   ShoppingBag,
   Webhook,
+  KeyRound,
 } from 'lucide-react';
 import { UserProfile, getPhotoUrl } from '@/lib/api';
 import { getUserRole, ROLES } from '@/lib/roles';
@@ -43,6 +44,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Building2,
   ShoppingBag,
   Webhook,
+  KeyRound,
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -135,6 +137,7 @@ interface SidebarNavItem {
         { name: 'Order', href: '/dashboard/orders', iconName: 'ShoppingBag' },
         { name: 'Payment', href: '/dashboard/payments', iconName: 'CreditCard' },
         { name: 'Payment Webhook', href: '/dashboard/payment-webhooks', iconName: 'Webhook' },
+        { name: 'OTP Verifikasi', href: '/dashboard/otp', iconName: 'KeyRound' },
         { section: 'Manajemen', name: 'Organisasi EO', href: '/dashboard/organizers', iconName: 'Building2' },
         { name: 'Persetujuan Dana', href: '/dashboard/withdrawals', iconName: 'CreditCard' },
         { name: 'Laporan Analisis', href: '/dashboard/reports', iconName: 'Send' },

@@ -142,6 +142,7 @@ export function canAccessRoute(
       '/dashboard/orders',
       '/dashboard/payments',
       '/dashboard/payment-webhooks',
+      '/dashboard/otp',
       '/dashboard/reports',
       '/dashboard/audit-logs',
       '/dashboard/settings',

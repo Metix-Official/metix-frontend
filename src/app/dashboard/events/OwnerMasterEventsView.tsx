@@ -370,16 +370,17 @@ export function OwnerMasterEventsView() {
           ) : events.length > 0 ? (
             <div className="space-y-4">
               <div className="overflow-x-auto rounded-2xl border border-slate-200/80">
-                <table className="w-full text-left text-xs text-slate-700 min-w-[1050px]">
+                <table className="w-full text-left text-xs text-slate-700 min-w-[1280px]">
                   <thead className="bg-slate-50 text-slate-600 text-[11px] font-black uppercase tracking-wider border-b border-slate-200/80">
                     <tr>
                       <th className="py-3.5 px-4 w-12 text-center">#</th>
                       <th className="py-3.5 px-4 min-w-[240px]">Event</th>
-                      <th className="py-3.5 px-4">Penyelenggara (EO)</th>
-                      <th className="py-3.5 px-4">Lokasi</th>
-                      <th className="py-3.5 px-4">Jadwal Pelaksanaan</th>
-                      <th className="py-3.5 px-4 text-center">Status</th>
-                      <th className="py-3.5 px-4 text-center w-28">Opsi</th>
+                      <th className="py-3.5 px-4 min-w-[160px]">Penyelenggara (EO)</th>
+                      <th className="py-3.5 px-4 min-w-[130px]">Lokasi</th>
+                      <th className="py-3.5 px-4 min-w-[140px]">Jadwal Pelaksanaan</th>
+                      <th className="py-3.5 px-4 text-center min-w-[130px]">Status</th>
+                      <th className="py-3.5 px-4 text-center min-w-[200px]">Refund</th>
+                      <th className="py-3.5 px-4 text-center min-w-[120px]">Opsi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -472,7 +473,7 @@ export function OwnerMasterEventsView() {
 
                           {/* Status (Dropdown Select Interaktif) */}
                           <td className="py-4 px-4 text-center">
-                            <div className="inline-flex items-center justify-center">
+                            <div className="flex flex-col items-center gap-2">
                               {updatingStatusId === evt.id ? (
                                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200 shadow-2xs">
                                   <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
@@ -532,95 +533,109 @@ export function OwnerMasterEventsView() {
                                   </SelectContent>
                                 </Select>
                               )}
-
-                              {/* Refund Status Indicator for Owner */}
-                              {(() => {
-                                const refStatus = (evt.refund_status || 'NONE').toUpperCase();
-                                if (refStatus === 'REQUESTED') {
-                                  return (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setRefundReviewTarget(evt);
-                                        setRejectNote('');
-                                      }}
-                                      className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition-all cursor-pointer animate-pulse shadow-2xs"
-                                      title="EO mengajukan refund. Klik untuk tinjau & approve/reject"
-                                    >
-                                      <Clock className="w-3 h-3 text-amber-700 shrink-0" />
-                                      <span>Pengajuan Refund</span>
-                                    </button>
-                                  );
-                                }
-                                if (refStatus === 'APPROVED') {
-                                  return (
-                                    <div className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs" title="Refund telah disetujui (Approved) & tombol refund aktif di tiket buyer">
-                                      <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                                      <span>Refund Disetujui</span>
-                                    </div>
-                                  );
-                                }
-                                if (refStatus === 'REJECTED') {
-                                  return (
-                                    <div className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs" title="Refund ditolak oleh Owner">
-                                      <XCircle className="w-3 h-3 text-rose-600 shrink-0" />
-                                      <span>Refund Ditolak</span>
-                                    </div>
-                                  );
-                                }
-                                return null;
-                              })()}
                             </div>
                           </td>
 
-                          {/* OPSI / AKSI: BUTTON EDIT, APPROVE/REJECT REFUND & TITIK TIGA RELASI */}
+                          {/* Kolom Refund */}
                           <td className="py-4 px-4 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              {/* Quick Approve / Reject Refund Buttons if Pending EO Request */}
-                              {(evt.refund_status || '').toUpperCase() === 'REQUESTED' && (
-                                <div className="flex items-center gap-1 mr-0.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleApproveRefund(evt)}
-                                    disabled={isProcessingRefundAction}
-                                    className="h-8 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs inline-flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95 disabled:opacity-50"
-                                    title="Setujui (Approve) Refund Event agar tombol refund muncul di tiket buyer"
-                                  >
-                                    <Check className="w-3.5 h-3.5" />
-                                    <span className="hidden xl:inline">Approve</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setRefundReviewTarget(evt);
-                                      setRejectNote('');
-                                    }}
-                                    disabled={isProcessingRefundAction}
-                                    className="h-8 px-2 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-700 font-black text-xs inline-flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95 disabled:opacity-50"
-                                    title="Tolak (Reject) atau Tinjau Pengajuan Refund"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                    <span className="hidden xl:inline">Reject</span>
-                                  </button>
-                                </div>
-                              )}
+                            {(() => {
+                              const refStatus = (evt.refund_status || 'NONE').toUpperCase();
 
-                              {/* 1 Button Edit Lempar ke Halaman Edit Event */}
+                              if (refStatus === 'NONE') {
+                                return (
+                                  <span className="text-[11px] text-slate-300 font-medium">—</span>
+                                );
+                              }
+
+                              if (refStatus === 'REQUESTED') {
+                                return (
+                                  <div className="flex flex-col items-center gap-2">
+                                    {/* Status badge pulsing */}
+                                    <button
+                                      type="button"
+                                      onClick={() => { setRefundReviewTarget(evt); setRejectNote(''); }}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-black bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition-all cursor-pointer animate-pulse shadow-sm"
+                                      title="EO mengajukan refund — klik untuk tinjau"
+                                    >
+                                      <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                      <span>Pengajuan Masuk</span>
+                                    </button>
+                                    {/* Action buttons */}
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApproveRefund(evt)}
+                                        disabled={isProcessingRefundAction}
+                                        className="h-7 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] inline-flex items-center gap-1 shadow-sm cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                                        title="Approve Refund"
+                                      >
+                                        <Check className="w-3 h-3" />
+                                        <span>Approve</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => { setRefundReviewTarget(evt); setRejectNote(''); }}
+                                        disabled={isProcessingRefundAction}
+                                        className="h-7 px-3 rounded-lg bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 hover:border-rose-400 font-black text-[11px] inline-flex items-center gap-1 shadow-sm cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                                        title="Reject Refund"
+                                      >
+                                        <X className="w-3 h-3" />
+                                        <span>Reject</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              if (refStatus === 'APPROVED') {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs"
+                                    title="Refund disetujui — tombol refund aktif di tiket buyer"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    Disetujui
+                                  </span>
+                                );
+                              }
+
+                              if (refStatus === 'REJECTED') {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-black bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs"
+                                    title="Refund ditolak oleh Owner"
+                                  >
+                                    <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                    Ditolak
+                                  </span>
+                                );
+                              }
+
+                              return (
+                                <span className="text-[11px] text-slate-400 font-mono">{refStatus}</span>
+                              );
+                            })()}
+                          </td>
+
+                          {/* OPSI / AKSI */}
+                          <td className="py-4 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {/* Edit Button */}
                               <Link
                                 href={`/dashboard/events/${evt.id}/edit`}
-                                className="h-8 px-2.5 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 hover:border-blue-600 transition-all inline-flex items-center gap-1 font-bold text-xs cursor-pointer shadow-2xs group/btn"
+                                className="h-8 px-3 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 hover:border-blue-600 transition-all inline-flex items-center gap-1.5 font-bold text-xs cursor-pointer shadow-2xs group/btn"
                                 title="Edit Event"
                               >
                                 <Pencil className="w-3.5 h-3.5 group-hover/btn:rotate-12 transition-transform" />
                                 <span>Edit</span>
                               </Link>
 
-                              {/* Menu Opsi Relasi Event (Fasilitas, Lineup, Sosmed, Scanners, Settings) */}
+                              {/* Menu Opsi Relasi */}
                               <Popover>
                                 <PopoverTrigger asChild>
                                   <button
                                     type="button"
-                                    className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-200 transition-all inline-flex items-center justify-center cursor-pointer shadow-2xs focus:outline-none"
+                                    className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 border border-slate-200 transition-all inline-flex items-center justify-center cursor-pointer shadow-2xs focus:outline-none"
                                     title="Opsi Relasi Event"
                                   >
                                     <MoreVertical className="w-4 h-4" />
@@ -633,7 +648,6 @@ export function OwnerMasterEventsView() {
                                     </span>
                                   </div>
                                   <div className="flex flex-col space-y-0.5">
-                                    {/* Edit Event */}
                                     <Link
                                       href={`/dashboard/events/${evt.id}/edit`}
                                       className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors"
@@ -641,8 +655,6 @@ export function OwnerMasterEventsView() {
                                       <Pencil className="w-4 h-4 text-blue-600 shrink-0" />
                                       <span>Edit Event</span>
                                     </Link>
-
-                                    {/* Venue & Lokasi */}
                                     <Link
                                       href={`/dashboard/events/${evt.id}/venue`}
                                       className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-teal-700 hover:bg-teal-50 transition-colors"
@@ -650,8 +662,6 @@ export function OwnerMasterEventsView() {
                                       <MapPin className="w-4 h-4 text-teal-600 shrink-0" />
                                       <span>Venue & Lokasi</span>
                                     </Link>
-
-                                    {/* Tiket & Kuota */}
                                     <Link
                                       href={`/dashboard/events/${evt.id}/tickets`}
                                       className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-amber-700 hover:bg-amber-50 transition-colors"
@@ -659,8 +669,6 @@ export function OwnerMasterEventsView() {
                                       <Ticket className="w-4 h-4 text-amber-600 shrink-0" />
                                       <span>Tiket & Kuota</span>
                                     </Link>
-
-                                    {/* 1. Fasilitas */}
                                     <Link
                                       href={`/dashboard/events/${evt.id}/facilities`}
                                       className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors"
@@ -668,8 +676,6 @@ export function OwnerMasterEventsView() {
                                       <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
                                       <span>Fasilitas</span>
                                     </Link>
-
-                                    {/* 2. Lineups */}
                                     <Link
                                       href={`/dashboard/events/${evt.id}/lineups`}
                                       className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-purple-700 hover:bg-purple-50 transition-colors"
@@ -677,8 +683,6 @@ export function OwnerMasterEventsView() {
                                       <Music className="w-4 h-4 text-purple-600 shrink-0" />
                                       <span>Lineups</span>
                                     </Link>
-
-                                    {/* 3. Event Social Media */}
                                     <Link
                                       href={`/dashboard/events/${evt.id}/social-media`}
                                       className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
@@ -686,8 +690,6 @@ export function OwnerMasterEventsView() {
                                       <Share2 className="w-4 h-4 text-emerald-600 shrink-0" />
                                       <span>Social Media</span>
                                     </Link>
-
-                                    {/* 4. Event Scanners */}
                                     <Link
                                       href={`/dashboard/events/${evt.id}/scanners`}
                                       className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-amber-700 hover:bg-amber-50 transition-colors"
@@ -695,8 +697,6 @@ export function OwnerMasterEventsView() {
                                       <QrCode className="w-4 h-4 text-amber-600 shrink-0" />
                                       <span>Scanners</span>
                                     </Link>
-
-                                    {/* 5. Event Settings */}
                                     <Link
                                       href={`/dashboard/events/${evt.id}/settings`}
                                       className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-indigo-700 hover:bg-indigo-50 transition-colors"

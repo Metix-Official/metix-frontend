@@ -67,8 +67,11 @@ export default function RefundsPage() {
   }, []);
 
   const loadRefundRequests = useCallback(async (page = 1, showRefreshState = false) => {
-    if (showRefreshState) setIsRefreshing(true);
-    else setIsLoading(true);
+    if (showRefreshState) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
 
     try {
       const res = await fetchOrganizerRefundRequestsApi({
@@ -86,6 +89,9 @@ export default function RefundsPage() {
             last_page: res.meta.last_page || 1,
             total: res.meta.total || res.data.length,
           });
+        }
+        if (showRefreshState) {
+          toast.success('Data berhasil diperbarui!');
         }
       } else {
         setRefunds([]);
@@ -197,99 +203,95 @@ export default function RefundsPage() {
       activeNav="/dashboard/refunds"
     >
       <div className="space-y-6 max-w-7xl mx-auto pb-12">
-        {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="p-2 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400">
-                <RotateCcw className="w-6 h-6" />
-              </span>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+
+        {/* Top Header - Premium gradient card */}
+        <div
+          className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5 p-6 rounded-2xl overflow-hidden shadow-lg"
+          style={{ background: 'linear-gradient(135deg, #3730a3 0%, #4f46e5 45%, #6d28d9 100%)' }}
+        >
+          {/* Decorative background circles */}
+          <div className="absolute -top-6 -right-6 w-40 h-40 rounded-full opacity-10" style={{ background: 'white' }} />
+          <div className="absolute bottom-0 right-24 w-24 h-24 rounded-full opacity-10" style={{ background: 'white' }} />
+
+          <div className="relative flex items-center gap-4">
+            <span className="p-2.5 rounded-xl bg-white/20 text-white">
+              <RotateCcw className="w-5 h-5" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-bold tracking-widest uppercase text-indigo-200 bg-white/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <RotateCcw className="w-3 h-3" />
+                  Refund Management
+                </span>
+              </div>
+              <h1 className="text-xl font-bold text-white tracking-tight">
                 Permohonan Refund Pembeli
               </h1>
+              <p className="text-sm text-indigo-200 mt-0.5">
+                Daftar pengembalian dana tiket dari event yang Anda batalkan.
+              </p>
             </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Daftar pembeli yang mengajukan pengembalian dana tiket untuk event yang Anda batalkan/refund.
-            </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => loadRefundRequests(currentPage, true)}
-              disabled={isRefreshing || isLoading}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span>Segarkan</span>
-            </button>
-          </div>
+          <button
+            onClick={() => loadRefundRequests(currentPage, true)}
+            disabled={isRefreshing || isLoading}
+            className="relative inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-sm font-semibold text-indigo-700 hover:bg-indigo-50 transition shadow-md disabled:opacity-50 whitespace-nowrap"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>Segarkan</span>
+          </button>
         </div>
 
         {/* Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Total Pengajuan
-              </span>
-              <span className="p-2 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <span className="p-2 rounded-lg bg-blue-50 text-blue-600">
                 <Receipt className="w-4 h-4" />
               </span>
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Total</span>
             </div>
-            <p className="text-2xl font-black text-slate-900 dark:text-white mt-2">
-              {metrics.totalCount}
-            </p>
-            <p className="text-xs text-slate-400 mt-1">Permohonan refund terdaftar</p>
+            <p className="text-2xl font-black text-slate-900">{metrics.totalCount}</p>
+            <p className="text-xs text-slate-400 mt-1">Permohonan refund</p>
           </div>
 
-          <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Menunggu Transfer
-              </span>
-              <span className="p-2 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
+          <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <span className="p-2 rounded-lg bg-amber-50 text-amber-600">
                 <Clock className="w-4 h-4" />
               </span>
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Pending</span>
             </div>
-            <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-2">
-              {metrics.pendingCount}
-            </p>
-            <p className="text-xs text-slate-400 mt-1">Perlu ditransfer ke rekening pembeli</p>
+            <p className="text-2xl font-black text-amber-600">{metrics.pendingCount}</p>
+            <p className="text-xs text-slate-400 mt-1">Menunggu transfer</p>
           </div>
 
-          <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Selesai Ditransfer
-              </span>
-              <span className="p-2 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+          <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <span className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
                 <CheckCircle2 className="w-4 h-4" />
               </span>
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Selesai</span>
             </div>
-            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-2">
-              {metrics.completedCount}
-            </p>
-            <p className="text-xs text-slate-400 mt-1">Dana telah berhasil dikembalikan</p>
+            <p className="text-2xl font-black text-emerald-600">{metrics.completedCount}</p>
+            <p className="text-xs text-slate-400 mt-1">Dana dikembalikan</p>
           </div>
 
-          <div className="p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Estimasi Dana (Halaman ini)
-              </span>
-              <span className="p-2 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400">
+          <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <span className="p-2 rounded-lg bg-purple-50 text-purple-600">
                 <DollarSign className="w-4 h-4" />
               </span>
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Dana</span>
             </div>
-            <p className="text-xl font-black text-purple-600 dark:text-purple-400 mt-2">
-              {formatRupiah(metrics.totalNominal)}
-            </p>
-            <p className="text-xs text-slate-400 mt-1">Total pengembalian dana</p>
+            <p className="text-base font-black text-purple-600 leading-tight">{formatRupiah(metrics.totalNominal)}</p>
+            <p className="text-xs text-slate-400 mt-1">Total pengembalian</p>
           </div>
         </div>
 
         {/* Filters & Search */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
           <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
             {[
               { id: 'all', label: 'Semua Status' },
@@ -302,8 +304,8 @@ export default function RefundsPage() {
                 onClick={() => setStatusFilter(tab.id)}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold transition whitespace-nowrap ${
                   statusFilter === tab.id
-                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    ? 'bg-orange-500 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 {tab.label}
@@ -317,14 +319,14 @@ export default function RefundsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari order, nama pembeli, bank..."
-              className="w-full pl-10 pr-4 py-2 text-xs md:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
+              placeholder="Cari order, nama pembeli..."
+              className="w-full pl-10 pr-4 py-2 text-xs md:text-sm rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
             />
           </div>
         </div>
 
         {/* Data Table */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
           {isLoading ? (
             <div className="p-12 text-center space-y-4">
               <RefreshCw className="w-8 h-8 animate-spin text-orange-500 mx-auto" />
@@ -332,10 +334,10 @@ export default function RefundsPage() {
             </div>
           ) : refunds.length === 0 ? (
             <div className="p-16 text-center space-y-3">
-              <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
+              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
                 <RotateCcw className="w-8 h-8" />
               </div>
-              <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
+              <h3 className="text-base font-bold text-slate-800">
                 Belum Ada Permohonan Refund
               </h3>
               <p className="text-xs md:text-sm text-slate-500 max-w-md mx-auto">
@@ -347,18 +349,16 @@ export default function RefundsPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs md:text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase text-[11px] tracking-wider">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[11px] tracking-wider">
                   <tr>
                     <th className="px-5 py-4">Pesanan & Event</th>
                     <th className="px-5 py-4">Pembeli</th>
-                    <th className="px-5 py-4">Rekening Tujuan</th>
                     <th className="px-5 py-4">Nominal</th>
-                    <th className="px-5 py-4">Alasan</th>
                     <th className="px-5 py-4">Status</th>
                     <th className="px-5 py-4 text-right">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-normal">
+                <tbody className="divide-y divide-slate-100 font-normal">
                   {refunds.map((item) => {
                     const buyerName =
                       item.user?.name ||
@@ -377,14 +377,14 @@ export default function RefundsPage() {
                     return (
                       <tr
                         key={item.id}
-                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition group"
+                        className="hover:bg-orange-50/40 transition group"
                       >
                         {/* Pesanan & Event */}
                         <td className="px-5 py-4 align-top">
-                          <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <div className="font-semibold text-slate-900 flex items-center gap-1.5">
                             <span>{orderNumber}</span>
                           </div>
-                          <div className="text-xs text-orange-600 dark:text-orange-400 font-medium mt-1 line-clamp-1 max-w-[200px]" title={eventTitle}>
+                          <div className="text-xs text-orange-600 font-medium mt-1 line-clamp-1 max-w-[200px]" title={eventTitle}>
                             {eventTitle}
                           </div>
                           <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
@@ -395,10 +395,10 @@ export default function RefundsPage() {
 
                         {/* Pembeli */}
                         <td className="px-5 py-4 align-top">
-                          <div className="font-semibold text-slate-900 dark:text-white">
+                          <div className="font-semibold text-slate-900">
                             {buyerName}
                           </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          <div className="text-xs text-slate-500 mt-0.5">
                             {buyerEmail}
                           </div>
                           {buyerPhone !== '-' && (
@@ -408,77 +408,29 @@ export default function RefundsPage() {
                           )}
                         </td>
 
-                        {/* Rekening Tujuan */}
-                        <td className="px-5 py-4 align-top">
-                          {item.bank_name || item.account_number ? (
-                            <div className="space-y-1">
-                              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                                {item.bank_name || 'BANK'}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">
-                                  {item.account_number}
-                                </span>
-                                {item.account_number && (
-                                  <button
-                                    onClick={() => handleCopyAccount(item.account_number!, `acc-${item.id}`)}
-                                    title="Salin Nomor Rekening"
-                                    className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition"
-                                  >
-                                    {copiedId === `acc-${item.id}` ? (
-                                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                    ) : (
-                                      <Copy className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                )}
-                              </div>
-                              <div className="text-xs text-slate-500 dark:text-slate-400">
-                                a.n {item.account_name || '-'}
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-400 italic">
-                              Rekening belum diisi
-                            </span>
-                          )}
-                        </td>
-
                         {/* Nominal */}
                         <td className="px-5 py-4 align-top">
-                          <div className="font-bold text-slate-900 dark:text-white">
+                          <div className="font-bold text-slate-900">
                             {formatRupiah(item.amount)}
                           </div>
-                        </td>
-
-                        {/* Alasan */}
-                        <td className="px-5 py-4 align-top max-w-[220px]">
-                          <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2" title={item.reason}>
-                            {item.reason || '-'}
-                          </p>
-                          {item.admin_note && (
-                            <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 line-clamp-1 italic">
-                              Ket: {item.admin_note}
-                            </p>
-                          )}
                         </td>
 
                         {/* Status */}
                         <td className="px-5 py-4 align-top whitespace-nowrap">
                           {isPending && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
                               <Clock className="w-3.5 h-3.5" />
                               Menunggu Transfer
                             </span>
                           )}
                           {isCompleted && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              Selesai Ditransfer
+                              Selesai
                             </span>
                           )}
                           {!isPending && !isCompleted && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
                               {item.status}
                             </span>
                           )}
@@ -494,15 +446,15 @@ export default function RefundsPage() {
                           {isPending ? (
                             <button
                               onClick={() => handleOpenCompleteModal(item)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs transition shadow-sm"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs transition shadow-sm"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Konfirmasi Selesai</span>
+                              <span>Konfirmasi</span>
                             </button>
                           ) : (
                             <button
                               onClick={() => setDetailRefund(item)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 text-xs font-medium transition"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-medium transition"
                             >
                               <span>Rincian</span>
                             </button>
@@ -518,7 +470,7 @@ export default function RefundsPage() {
 
           {/* Pagination */}
           {meta.last_page > 1 && (
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
+            <div className="p-4 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
               <div>
                 Halaman {meta.current_page} dari {meta.last_page} ({meta.total} data)
               </div>
@@ -530,7 +482,7 @@ export default function RefundsPage() {
                     setCurrentPage(prev);
                     loadRefundRequests(prev);
                   }}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 transition text-slate-600 font-medium"
                 >
                   Sebelumnya
                 </button>
@@ -541,7 +493,7 @@ export default function RefundsPage() {
                     setCurrentPage(next);
                     loadRefundRequests(next);
                   }}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 transition text-slate-600 font-medium"
                 >
                   Selanjutnya
                 </button>
@@ -553,43 +505,43 @@ export default function RefundsPage() {
 
       {/* Modal Konfirmasi Selesai Transfer */}
       {isCompleteModalOpen && selectedRefund && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative space-y-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative space-y-5">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                <span className="p-2 rounded-xl bg-emerald-500/10">
+              <div className="flex items-center gap-2 text-emerald-600">
+                <span className="p-2 rounded-xl bg-emerald-50">
                   <CheckCircle2 className="w-5 h-5" />
                 </span>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                <h3 className="text-lg font-bold text-slate-900">
                   Konfirmasi Selesai Transfer
                 </h3>
               </div>
               <button
                 onClick={() => setIsCompleteModalOpen(false)}
-                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400"
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition"
               >
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
 
             {/* Target Transfer Card */}
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-3">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span>Penerima Refund</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-300">
+                <span className="font-semibold text-slate-700">
                   {selectedRefund.user?.name || (selectedRefund as any).requester?.name || 'Pembeli'}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span>Bank Tujuan</span>
-                <span className="font-bold text-slate-900 dark:text-white">
+                <span className="font-bold text-slate-900">
                   {selectedRefund.bank_name || '-'}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span>Nomor Rekening</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-slate-900 dark:text-white">
+                  <span className="font-mono font-bold text-slate-900">
                     {selectedRefund.account_number || '-'}
                   </span>
                   {selectedRefund.account_number && (
@@ -605,15 +557,15 @@ export default function RefundsPage() {
               </div>
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span>Atas Nama (A/N)</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                <span className="font-semibold text-slate-800">
                   {selectedRefund.account_name || '-'}
                 </span>
               </div>
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+              <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-600">
                   Nominal yang Ditransfer
                 </span>
-                <span className="text-base font-extrabold text-orange-600 dark:text-orange-400">
+                <span className="text-base font-extrabold text-orange-600">
                   {formatRupiah(selectedRefund.amount)}
                 </span>
               </div>
@@ -621,7 +573,7 @@ export default function RefundsPage() {
 
             <form onSubmit={handleSubmitComplete} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Nomor Referensi Transfer / Ref Bank (Opsional)
                 </label>
                 <input
@@ -629,12 +581,12 @@ export default function RefundsPage() {
                   value={gatewayRef}
                   onChange={(e) => setGatewayRef(e.target.value)}
                   placeholder="Contoh: TRX-20261014-99812 / No Bukti Transfer"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs md:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs md:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Catatan untuk Pembeli / Admin (Opsional)
                 </label>
                 <textarea
@@ -642,7 +594,7 @@ export default function RefundsPage() {
                   value={adminNote}
                   onChange={(e) => setAdminNote(e.target.value)}
                   placeholder="Contoh: Dana telah ditransfer via Bank Mandiri ke rekening BCA pembeli."
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs md:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs md:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
 
@@ -650,7 +602,7 @@ export default function RefundsPage() {
                 <button
                   type="button"
                   onClick={() => setIsCompleteModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition"
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
                 >
                   Batal
                 </button>
@@ -674,54 +626,54 @@ export default function RefundsPage() {
 
       {/* Detail Modal */}
       {detailRefund && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-lg w-full p-6 shadow-2xl relative space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">
                 Rincian Refund #{detailRefund.id}
               </h3>
               <button
                 onClick={() => setDetailRefund(null)}
-                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400"
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition"
               >
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-400">Status</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                <span className="font-bold text-emerald-600">
                   {detailRefund.status}
                 </span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-400">Nominal</span>
-                <span className="font-extrabold text-slate-900 dark:text-white">
+                <span className="font-extrabold text-slate-900">
                   {formatRupiah(detailRefund.amount)}
                 </span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-400">Rekening</span>
-                <span className="font-mono text-slate-900 dark:text-white">
+                <span className="font-mono text-slate-900">
                   {detailRefund.bank_name} - {detailRefund.account_number} ({detailRefund.account_name})
                 </span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-400">Ref Transaksi</span>
-                <span className="font-mono text-slate-900 dark:text-white">
+                <span className="font-mono text-slate-900">
                   {detailRefund.gateway_reference || '-'}
                 </span>
               </div>
-              <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex justify-between py-1 border-b border-slate-100">
                 <span className="text-slate-400">Catatan Admin</span>
-                <span className="text-slate-700 dark:text-slate-300 text-right">
+                <span className="text-slate-700 text-right">
                   {detailRefund.admin_note || '-'}
                 </span>
               </div>
               <div className="flex justify-between py-1">
                 <span className="text-slate-400">Alasan Pembeli</span>
-                <span className="text-slate-700 dark:text-slate-300 text-right">
+                <span className="text-slate-700 text-right">
                   {detailRefund.reason || '-'}
                 </span>
               </div>
@@ -730,7 +682,7 @@ export default function RefundsPage() {
             <div className="pt-2 text-right">
               <button
                 onClick={() => setDetailRefund(null)}
-                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition"
+                className="px-4 py-2 rounded-xl bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition"
               >
                 Tutup
               </button>

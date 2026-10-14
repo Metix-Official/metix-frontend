@@ -6,6 +6,8 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import {
   fetchMasterEvents,
   updateOwnerEventStatusApi,
+  approveEventRefundByOwnerApi,
+  rejectEventRefundByOwnerApi,
   ApiEvent,
   getPhotoUrl,
 } from '@/lib/api';
@@ -48,6 +50,8 @@ import {
   Pencil,
   Loader2,
   Ticket,
+  Check,
+  RotateCcw,
 } from 'lucide-react';
 
 export function OwnerMasterEventsView() {
@@ -75,6 +79,11 @@ export function OwnerMasterEventsView() {
 
   // Events State
   const [events, setEvents] = useState<ApiEvent[]>([]);
+
+  // Refund Review State (Owner approve / reject)
+  const [refundReviewTarget, setRefundReviewTarget] = useState<ApiEvent | null>(null);
+  const [rejectNote, setRejectNote] = useState<string>('');
+  const [isProcessingRefundAction, setIsProcessingRefundAction] = useState<boolean>(false);
 
   // Debounce search input
   useEffect(() => {
@@ -140,6 +149,37 @@ export function OwnerMasterEventsView() {
       });
     } finally {
       setUpdatingStatusId(null);
+    }
+  };
+
+  const handleApproveRefund = async (event: ApiEvent) => {
+    setIsProcessingRefundAction(true);
+    try {
+      const res = await approveEventRefundByOwnerApi(event.id);
+      toast.success(res.message || 'Refund event berhasil disetujui (Approved). Tombol refund sekarang aktif di tiket buyer.');
+      setRefundReviewTarget(null);
+      await loadEvents();
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal menyetujui pengajuan refund event.');
+    } finally {
+      setIsProcessingRefundAction(false);
+    }
+  };
+
+  const handleRejectRefund = async (event: ApiEvent) => {
+    setIsProcessingRefundAction(true);
+    try {
+      const res = await rejectEventRefundByOwnerApi(event.id, {
+        note: rejectNote.trim() || undefined,
+      });
+      toast.success(res.message || 'Pengajuan refund event telah ditolak.');
+      setRefundReviewTarget(null);
+      setRejectNote('');
+      await loadEvents();
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal menolak pengajuan refund event.');
+    } finally {
+      setIsProcessingRefundAction(false);
     }
   };
 
@@ -492,12 +532,79 @@ export function OwnerMasterEventsView() {
                                   </SelectContent>
                                 </Select>
                               )}
+
+                              {/* Refund Status Indicator for Owner */}
+                              {(() => {
+                                const refStatus = (evt.refund_status || 'NONE').toUpperCase();
+                                if (refStatus === 'REQUESTED') {
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setRefundReviewTarget(evt);
+                                        setRejectNote('');
+                                      }}
+                                      className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition-all cursor-pointer animate-pulse shadow-2xs"
+                                      title="EO mengajukan refund. Klik untuk tinjau & approve/reject"
+                                    >
+                                      <Clock className="w-3 h-3 text-amber-700 shrink-0" />
+                                      <span>Pengajuan Refund</span>
+                                    </button>
+                                  );
+                                }
+                                if (refStatus === 'APPROVED') {
+                                  return (
+                                    <div className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs" title="Refund telah disetujui (Approved) & tombol refund aktif di tiket buyer">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                      <span>Refund Disetujui</span>
+                                    </div>
+                                  );
+                                }
+                                if (refStatus === 'REJECTED') {
+                                  return (
+                                    <div className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs" title="Refund ditolak oleh Owner">
+                                      <XCircle className="w-3 h-3 text-rose-600 shrink-0" />
+                                      <span>Refund Ditolak</span>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </div>
                           </td>
 
-                          {/* OPSI / AKSI: BUTTON EDIT & TITIK TIGA RELASI */}
+                          {/* OPSI / AKSI: BUTTON EDIT, APPROVE/REJECT REFUND & TITIK TIGA RELASI */}
                           <td className="py-4 px-4 text-center">
                             <div className="flex items-center justify-center gap-1.5">
+                              {/* Quick Approve / Reject Refund Buttons if Pending EO Request */}
+                              {(evt.refund_status || '').toUpperCase() === 'REQUESTED' && (
+                                <div className="flex items-center gap-1 mr-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApproveRefund(evt)}
+                                    disabled={isProcessingRefundAction}
+                                    className="h-8 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs inline-flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                                    title="Setujui (Approve) Refund Event agar tombol refund muncul di tiket buyer"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span className="hidden xl:inline">Approve</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRefundReviewTarget(evt);
+                                      setRejectNote('');
+                                    }}
+                                    disabled={isProcessingRefundAction}
+                                    className="h-8 px-2 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-700 font-black text-xs inline-flex items-center gap-1 shadow-2xs cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                                    title="Tolak (Reject) atau Tinjau Pengajuan Refund"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                    <span className="hidden xl:inline">Reject</span>
+                                  </button>
+                                </div>
+                              )}
+
                               {/* 1 Button Edit Lempar ke Halaman Edit Event */}
                               <Link
                                 href={`/dashboard/events/${evt.id}/edit`}
@@ -700,6 +807,116 @@ export function OwnerMasterEventsView() {
           )}
         </div>
       </div>
+
+      {/* ================= MODAL TINJAU / APPROVE / REJECT REFUND OWNER ================= */}
+      {refundReviewTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6 sm:p-7 border border-slate-200 space-y-5 animate-in zoom-in-95">
+            {/* Header */}
+            <div className="flex items-center gap-3.5 pb-4 border-b border-slate-100">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center border border-amber-200 shrink-0">
+                <RotateCcw className="w-6 h-6" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md">
+                    Owner Approval
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">#{refundReviewTarget.id}</span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 truncate">
+                  Tinjau Pengajuan Refund Event
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRefundReviewTarget(null)}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Event Summary Card */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500 font-bold">Nama Acara</span>
+                <span className="text-xs font-black text-slate-900 text-right">{refundReviewTarget.title}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500 font-bold">Penyelenggara (EO)</span>
+                <span className="text-xs font-black text-blue-700 text-right">
+                  {refundReviewTarget.organizer?.organization_name || 'Event Organizer'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500 font-bold">Status Refund Saat Ini</span>
+                <span className="text-xs font-mono font-black uppercase text-amber-700">
+                  {refundReviewTarget.refund_status || 'REQUESTED'}
+                </span>
+              </div>
+            </div>
+
+            {/* EO Stated Reason */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-black uppercase tracking-wider text-slate-700">
+                Alasan Pengajuan dari EO:
+              </label>
+              <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 text-xs font-medium text-amber-950 leading-relaxed">
+                {refundReviewTarget.refund_reason || 'Tidak ada alasan khusus yang disertakan oleh EO.'}
+              </div>
+            </div>
+
+            {/* Note on Approval */}
+            <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200 text-blue-900 text-[11px] leading-relaxed">
+              <strong>💡 Catatan:</strong> Jika Anda menekan tombol <strong>"Approve Refund"</strong>, sistem akan otomatis mengubah status event menjadi <em>CANCELLED</em> dan tombol refund tiket akan <strong>aktif / muncul</strong> pada E-Tiket seluruh pembeli di event ini.
+            </div>
+
+            {/* Form Input Rejection Note (Optional) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 flex items-center justify-between">
+                <span>Catatan Penolakan (Opsional jika menolak):</span>
+              </label>
+              <textarea
+                rows={2}
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                placeholder="Alasan penolakan jika permohonan tidak disetujui..."
+                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:border-rose-500 outline-none text-xs text-slate-900 resize-none"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2.5">
+              <button
+                type="button"
+                disabled={isProcessingRefundAction}
+                onClick={() => handleRejectRefund(refundReviewTarget)}
+                className="px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <X className="w-4 h-4" /> Tolak Pengajuan
+              </button>
+
+              <button
+                type="button"
+                disabled={isProcessingRefundAction}
+                onClick={() => handleApproveRefund(refundReviewTarget)}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-emerald-600/20 disabled:opacity-50"
+              >
+                {isProcessingRefundAction ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Memproses...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" /> Approve & Buka Refund Buyer
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

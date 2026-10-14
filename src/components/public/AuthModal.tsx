@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, ArrowLeft, UserCheck, Eye, EyeOff, Loader2, AlertCircle, Ticket, Building2, Sparkles, Mail, Lock, Info } from 'lucide-react';
+import { X, ArrowLeft, UserCheck, Eye, EyeOff, Loader2, AlertCircle, Ticket, Building2, Sparkles, Mail, Lock, Info, KeyRound, CheckCircle2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   Select,
@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { loginUser, registerUser, requestOtpApi, loginOtpApi, registerOtpApi, UserProfile, getStoredUser } from '@/lib/api';
+import { loginUser, registerUser, requestOtpApi, loginOtpApi, registerOtpApi, resetPasswordOtpApi, UserProfile, getStoredUser } from '@/lib/api';
 import { getDefaultRoleDashboard } from '@/lib/roles';
 import { OtpModal } from './OtpModal';
 import Link from 'next/link';
@@ -28,7 +28,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   initialMode = 'login',
   onSuccess,
 }) => {
-  const [mode, setMode] = useState<'login' | 'register'>(initialMode);
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot_password'>(initialMode);
   const router = useRouter();
 
   // Login Form API State
@@ -47,6 +47,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // Registration Form State based on User Schema
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [emailTouched, setEmailTouched] = useState(false);
   const [gender, setGender] = useState<'male' | 'female'>('male');
   const [birthDay, setBirthDay] = useState('1');
   const [birthMonth, setBirthMonth] = useState('Januari');
@@ -62,18 +63,55 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [agreeDataProcessing, setAgreeDataProcessing] = useState(false);
   const [agreeMarketing, setAgreeMarketing] = useState(false);
 
+  // Forgot Password Flow State
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
+  const [showForgotConfirmPassword, setShowForgotConfirmPassword] = useState(false);
+  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
+  const [isSubmittingForgot, setIsSubmittingForgot] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
+  const [forgotResendTimer, setForgotResendTimer] = useState<number>(60);
+  const [forgotCanResend, setForgotCanResend] = useState<boolean>(false);
+
   // Synchronize mode whenever initialMode or isOpen changes
   useEffect(() => {
     if (isOpen) {
       setMode(initialMode === 'register' ? 'register' : 'login');
       setLoginError(null);
       setRegisterError(null);
+      setEmailTouched(false);
       setAgreeTerms(false);
       setAgreeDataProcessing(false);
       setAgreeMarketing(false);
       setIsOtpModalOpen(false);
+      setForgotStep(1);
+      setForgotError(null);
+      setForgotSuccess(null);
+      setForgotOtp('');
+      setForgotNewPassword('');
+      setForgotConfirmPassword('');
+      setForgotResendTimer(60);
+      setForgotCanResend(false);
     }
   }, [isOpen, initialMode]);
+
+  // Resend Countdown Timer for Forgot Password OTP
+  useEffect(() => {
+    if (mode !== 'forgot_password' || forgotStep !== 2 || forgotCanResend) return;
+
+    if (forgotResendTimer > 0) {
+      const interval = setInterval(() => {
+        setForgotResendTimer((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setForgotCanResend(true);
+    }
+  }, [mode, forgotStep, forgotResendTimer, forgotCanResend]);
 
   if (!isOpen && !isOtpModalOpen) return null;
 
@@ -153,8 +191,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    if (!email.trim() || !email.includes('@')) {
-      setRegisterError('Format email tidak valid.');
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!email.trim() || !emailRegex.test(email.trim())) {
+      setEmailTouched(true);
+      setRegisterError('Format email tidak valid. Masukkan email yang benar (contoh: nama@email.com).');
       return;
     }
 
@@ -212,6 +252,94 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     });
   };
 
+  // Forgot Password: Step 1 Request OTP
+  const handleRequestForgotOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError(null);
+    setForgotSuccess(null);
+
+    const emailTrimmed = forgotEmail.trim();
+    if (!emailTrimmed || !emailRegex.test(emailTrimmed)) {
+      setForgotError('Format email tidak valid. Masukkan format email yang benar.');
+      return;
+    }
+
+    setIsSubmittingForgot(true);
+    try {
+      await requestOtpApi({
+        email: emailTrimmed,
+        purpose: 'RESET_PASSWORD',
+      });
+      setForgotStep(2);
+      setForgotResendTimer(60);
+      setForgotCanResend(false);
+      setForgotSuccess('Kode OTP reset password telah dikirim ke email Anda.');
+    } catch (err: any) {
+      setForgotError(err.message || 'Gagal mengirim kode OTP reset password.');
+    } finally {
+      setIsSubmittingForgot(false);
+    }
+  };
+
+  // Forgot Password: Step 2 Resend OTP
+  const handleResendForgotOtp = async () => {
+    if (!forgotCanResend || isSubmittingForgot) return;
+    setForgotError(null);
+    setForgotSuccess(null);
+    setIsSubmittingForgot(true);
+
+    try {
+      await requestOtpApi({
+        email: forgotEmail.trim(),
+        purpose: 'RESET_PASSWORD',
+      });
+      setForgotResendTimer(60);
+      setForgotCanResend(false);
+      setForgotSuccess('Kode OTP baru telah berhasil dikirimkan ke email Anda.');
+    } catch (err: any) {
+      setForgotError(err.message || 'Gagal mengirim ulang kode OTP.');
+    } finally {
+      setIsSubmittingForgot(false);
+    }
+  };
+
+  // Forgot Password: Step 2 Verify OTP & Save New Password
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError(null);
+
+    const cleanOtp = forgotOtp.trim().replace(/\D/g, '');
+    if (!cleanOtp || cleanOtp.length !== 6) {
+      setForgotError('Masukkan 6 digit kode OTP verifikasi yang dikirim ke email Anda.');
+      return;
+    }
+
+    if (!forgotNewPassword || forgotNewPassword.length < 8) {
+      setForgotError('Kata sandi baru wajib minimal 8 karakter.');
+      return;
+    }
+
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      setForgotError('Konfirmasi kata sandi baru tidak cocok.');
+      return;
+    }
+
+    setIsSubmittingForgot(true);
+    try {
+      const res = await resetPasswordOtpApi({
+        email: forgotEmail.trim(),
+        otp: cleanOtp,
+        password: forgotNewPassword,
+        password_confirmation: forgotConfirmPassword,
+      });
+      handleAuthCompletion(res.user);
+    } catch (err: any) {
+      setForgotError(err.message || 'Gagal mereset kata sandi. Pastikan kode OTP yang dimasukkan benar.');
+    } finally {
+      setIsSubmittingForgot(false);
+    }
+  };
+
   // Automatic Guest Login with guest@gmail.com / password
   const handleGuestLogin = async () => {
     setLoginError(null);
@@ -238,13 +366,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const daysList = Array.from({ length: 31 }, (_, i) => (i + 1).toString());
   const yearsList = Array.from({ length: 70 }, (_, i) => (2015 - i).toString());
 
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  const isEmailFormatValid = email.trim().length > 0 && emailRegex.test(email.trim());
+  const isEmailFormatInvalid = emailTouched && email.trim().length > 0 && !emailRegex.test(email.trim());
+
   const isEmailError = Boolean(
-    registerError &&
-    (registerError.toLowerCase().includes('email') ||
-      (registerError.toLowerCase().includes('terdaftar') &&
-        !registerError.toLowerCase().includes('telepon') &&
-        !registerError.toLowerCase().includes('phone') &&
-        !registerError.toLowerCase().includes('nomor')))
+    isEmailFormatInvalid ||
+    (registerError &&
+      (registerError.toLowerCase().includes('email') ||
+        (registerError.toLowerCase().includes('terdaftar') &&
+          !registerError.toLowerCase().includes('telepon') &&
+          !registerError.toLowerCase().includes('phone') &&
+          !registerError.toLowerCase().includes('nomor'))))
   );
 
   const isPhoneError = Boolean(
@@ -266,11 +399,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       {/* Modal Dialog Card Container with scrollable max height */}
       <div className="relative bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh] z-10">
 
-        {/* Fixed Top Header Bar: Back Arrow (if register mode) & Close X */}
+        {/* Fixed Top Header Bar: Back Arrow (if register or forgot password mode) & Close X */}
         <div className="flex items-center justify-between p-4 sm:p-5 pb-0 shrink-0 relative z-20">
-          {mode === 'register' ? (
+          {mode === 'register' || mode === 'forgot_password' ? (
             <button
-              onClick={() => setMode('login')}
+              onClick={() => {
+                if (mode === 'forgot_password' && forgotStep === 2) {
+                  setForgotStep(1);
+                  setForgotError(null);
+                  setForgotSuccess(null);
+                } else {
+                  setMode('login');
+                }
+              }}
               className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
               aria-label="Kembali"
             >
@@ -364,6 +505,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       <label className="text-xs font-bold text-slate-800">
                         Kata Sandi
                       </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotEmail(loginEmail || '');
+                          setForgotStep(1);
+                          setForgotError(null);
+                          setForgotSuccess(null);
+                          setForgotOtp('');
+                          setForgotNewPassword('');
+                          setForgotConfirmPassword('');
+                          setMode('forgot_password');
+                        }}
+                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                      >
+                        Lupa Password?
+                      </button>
                     </div>
                     <div className="relative">
                       <input
@@ -413,6 +570,209 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     className="font-bold text-blue-600 hover:underline"
                   >
                     Daftar Sekarang
+                  </button>
+                </p>
+              </div>
+            </div>
+          ) : mode === 'forgot_password' ? (
+            /* ================= FORGOT PASSWORD MODE (RESET WITH OTP) ================= */
+            <div className="space-y-5">
+              {/* Header Title */}
+              <div className="text-center space-y-1.5">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 mx-auto mb-2 shadow-2xs">
+                  <KeyRound className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                  {forgotStep === 1 ? 'Atur Ulang Kata Sandi' : 'Buat Kata Sandi Baru'}
+                </h3>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed px-2">
+                  {forgotStep === 1
+                    ? 'Masukkan alamat email Anda untuk menerima kode OTP verifikasi reset password.'
+                    : `Kode OTP verifikasi telah dikirim ke ${forgotEmail}. Silakan masukkan kode dan buat password baru.`}
+                </p>
+              </div>
+
+              {/* Error Alert */}
+              {forgotError && (
+                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2 animate-in fade-in-0">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>{forgotError}</span>
+                </div>
+              )}
+
+              {/* Success Alert */}
+              {forgotSuccess && (
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in-0">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span>{forgotSuccess}</span>
+                </div>
+              )}
+
+              {forgotStep === 1 ? (
+                /* Step 1: Request OTP by Email */
+                <form onSubmit={handleRequestForgotOtp} className="space-y-4">
+                  <div className="space-y-1.5 text-left">
+                    <label className="text-xs font-bold text-slate-800">
+                      Alamat Email Akun
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={forgotEmail}
+                      onChange={(e) => {
+                        setForgotEmail(e.target.value);
+                        if (forgotError) setForgotError(null);
+                      }}
+                      placeholder="Masukkan email Anda (contoh: nama@email.com)"
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                    />
+                  </div>
+
+                  {/* Spam Folder Note */}
+                  <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/60 text-amber-900 text-xs font-medium flex items-start gap-2.5 shadow-2xs">
+                    <div className="p-1 rounded-lg bg-amber-100 text-amber-600 shrink-0 mt-0.5">
+                      <Info className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="text-[11px] leading-relaxed">
+                      <span className="font-bold text-amber-950">Catatan:</span> Pastikan email yang dimasukkan sudah pernah terdaftar. Kode OTP akan dikirimkan ke kotak masuk atau folder <strong className="font-bold underline decoration-amber-400">Spam/Junk</strong>.
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={isSubmittingForgot || !forgotEmail.trim()}
+                      className="w-full py-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold shadow-md shadow-blue-700/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {isSubmittingForgot ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" /> Mengirimkan OTP...
+                        </>
+                      ) : (
+                        'Kirim Kode OTP Reset Password'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* Step 2: Input OTP & New Password */
+                <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+                  {/* Kode OTP */}
+                  <div className="space-y-1.5 text-left">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800">
+                        Kode OTP (6 Digit)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleResendForgotOtp}
+                        disabled={!forgotCanResend || isSubmittingForgot}
+                        className={`text-[11px] font-bold ${
+                          forgotCanResend ? 'text-blue-600 hover:underline cursor-pointer' : 'text-slate-400 cursor-not-allowed'
+                        }`}
+                      >
+                        {forgotCanResend ? 'Kirim Ulang Kode' : `Kirim Ulang (${forgotResendTimer}s)`}
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      required
+                      value={forgotOtp}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        setForgotOtp(val);
+                        if (forgotError) setForgotError(null);
+                      }}
+                      placeholder="Contoh: 123456"
+                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold tracking-widest text-center text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                    />
+                  </div>
+
+                  {/* Password Baru */}
+                  <div className="space-y-1.5 text-left">
+                    <label className="text-xs font-bold text-slate-800">
+                      Kata Sandi Baru
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showForgotNewPassword ? 'text' : 'password'}
+                        required
+                        minLength={8}
+                        value={forgotNewPassword}
+                        onChange={(e) => {
+                          setForgotNewPassword(e.target.value);
+                          if (forgotError) setForgotError(null);
+                        }}
+                        placeholder="Minimal 8 karakter"
+                        className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotNewPassword(!showForgotNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showForgotNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Konfirmasi Password Baru */}
+                  <div className="space-y-1.5 text-left">
+                    <label className="text-xs font-bold text-slate-800">
+                      Ulangi Kata Sandi Baru
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showForgotConfirmPassword ? 'text' : 'password'}
+                        required
+                        minLength={8}
+                        value={forgotConfirmPassword}
+                        onChange={(e) => {
+                          setForgotConfirmPassword(e.target.value);
+                          if (forgotError) setForgotError(null);
+                        }}
+                        placeholder="Masukkan kembali kata sandi baru"
+                        className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotConfirmPassword(!showForgotConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showForgotConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={isSubmittingForgot || forgotOtp.length !== 6 || forgotNewPassword.length < 8 || forgotNewPassword !== forgotConfirmPassword}
+                      className="w-full py-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold shadow-md shadow-blue-700/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {isSubmittingForgot ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" /> Menyimpan Password...
+                        </>
+                      ) : (
+                        'Simpan Kata Sandi & Masuk'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Back to Login Footer */}
+              <div className="text-center pt-2 border-t border-slate-100">
+                <p className="text-xs text-slate-600 font-medium">
+                  Sudah ingat kata sandi Anda?{' '}
+                  <button
+                    onClick={() => setMode('login')}
+                    className="font-bold text-blue-600 hover:underline"
+                  >
+                    Masuk ke Akun
                   </button>
                 </p>
               </div>
@@ -518,9 +878,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
                 {/* Email */}
                 <div className="space-y-1.5 text-left">
-                  <label className="text-xs font-bold text-slate-800">
-                    Email
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800">
+                      Email
+                    </label>
+                    {isEmailFormatValid && (
+                      <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 animate-in fade-in-50">
+                        ✓ Format email valid
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="email"
                     required
@@ -529,16 +896,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       setEmail(e.target.value);
                       if (registerError) setRegisterError(null);
                     }}
-                    placeholder="Masukkan email"
-                    className={`w-full px-4 py-2.5 bg-white border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all ${isEmailError
-                      ? 'border-rose-500 focus:border-rose-600 focus:ring-2 focus:ring-rose-600/20 bg-rose-50/20'
-                      : 'border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20'
-                      }`}
+                    onBlur={() => setEmailTouched(true)}
+                    placeholder="Masukkan email (contoh: nama@email.com)"
+                    className={`w-full px-4 py-2.5 bg-white border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all ${
+                      isEmailError || isEmailFormatInvalid
+                        ? 'border-rose-500 focus:border-rose-600 focus:ring-2 focus:ring-rose-600/20 bg-rose-50/20'
+                        : isEmailFormatValid
+                        ? 'border-emerald-500 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20'
+                        : 'border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20'
+                    }`}
                   />
-                  {isEmailError && (
-                    <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1">
+                  {(isEmailError || isEmailFormatInvalid) && (
+                    <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 animate-in fade-in-50">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
-                      <span>{registerError}</span>
+                      <span>
+                        {isEmailFormatInvalid
+                          ? 'Format email tidak valid. Masukkan format email yang benar (contoh: nama@email.com).'
+                          : registerError}
+                      </span>
                     </p>
                   )}
                 </div>
@@ -755,8 +1130,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <div className="pt-2">
                   <button
                     type="submit"
-                    disabled={isSubmittingRegister || !agreeTerms || !agreeDataProcessing}
-                    className={`w-full py-3.5 rounded-2xl text-xs font-extrabold shadow-md transition-all flex items-center justify-center gap-2 ${agreeTerms && agreeDataProcessing && !isSubmittingRegister
+                    disabled={isSubmittingRegister || !agreeTerms || !agreeDataProcessing || !isEmailFormatValid}
+                    className={`w-full py-3.5 rounded-2xl text-xs font-extrabold shadow-md transition-all flex items-center justify-center gap-2 ${agreeTerms && agreeDataProcessing && isEmailFormatValid && !isSubmittingRegister
                       ? 'bg-blue-700 hover:bg-blue-800 text-white shadow-blue-700/20 cursor-pointer hover:scale-[1.01] active:scale-95'
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300/60 shadow-none'
                       }`}

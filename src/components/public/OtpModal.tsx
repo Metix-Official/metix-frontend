@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, X, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, X, Loader2, AlertCircle, Info, Sparkles, Mail, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import Link from 'next/link';
 
 interface OtpModalProps {
@@ -31,6 +31,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [isResending, setIsResending] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSpamGuide, setShowSpamGuide] = useState<boolean>(false);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -41,6 +42,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
       setTimer(60);
       setCanResend(false);
       setError(null);
+      setShowSpamGuide(false);
       setTimeout(() => {
         inputRefs.current[0]?.focus();
       }, 150);
@@ -65,7 +67,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
 
   const handleChange = (index: number, value: string) => {
     const cleanValue = value.replace(/[^0-9]/g, '');
-    
+
     if (!cleanValue) {
       const newDigits = [...digits];
       newDigits[index] = '';
@@ -155,9 +157,9 @@ export const OtpModal: React.FC<OtpModalProps> = ({
         aria-hidden="true"
       />
 
-      {/* Modal Dialog Box matching screenshot */}
-      <div className="relative bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100 p-6 sm:p-8 z-10 animate-in zoom-in-95 duration-200">
-        
+      {/* Modal Dialog Box matching screenshot with max-height and scrolling */}
+      <div className="relative bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100 p-6 sm:p-8 z-10 animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto scrollbar-thin">
+
         {/* Top Bar: Back Arrow & Close Button */}
         <div className="flex items-center justify-between mb-4">
           {onBack ? (
@@ -184,14 +186,19 @@ export const OtpModal: React.FC<OtpModalProps> = ({
         </div>
 
         {/* Content Header */}
-        <div className="text-center space-y-2 mb-6">
-          <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">
+        <div className="text-center space-y-2.5 mb-5">
+          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
             {title}
           </h2>
-          <p className="text-sm text-slate-500 font-medium leading-relaxed px-2">
-            Kode verifikasi telah dikirim melalui email ke{' '}
-            <strong className="text-slate-700 font-bold break-all">{email}</strong>
-          </p>
+          <div className="space-y-1.5 px-1">
+            <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed">
+              Kode verifikasi telah dikirim ke:
+            </p>
+            <div className="inline-flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100/90 border border-slate-200/80 text-slate-800 text-xs font-bold max-w-full shadow-2xs">
+              <Mail className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <span className="break-all">{email}</span>
+            </div>
+          </div>
         </div>
 
         {/* Error Alert Banner */}
@@ -201,6 +208,84 @@ export const OtpModal: React.FC<OtpModalProps> = ({
             <span>{error}</span>
           </div>
         )}
+
+        {/* Edukasi Folder Spam & Junk Alert Card */}
+        <div className="mb-5 p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200/80 text-amber-950 text-xs text-left shadow-xs transition-all animate-in fade-in-50 duration-200">
+          <div className="flex items-start gap-2.5">
+            <div className="p-1.5 rounded-xl bg-amber-100 text-amber-700 shrink-0 mt-0.5 shadow-2xs">
+              <Info className="w-4 h-4" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-extrabold text-[12px] text-amber-950">
+                  Catatan Penting OTP
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowSpamGuide((prev) => !prev)}
+                  className="text-[11px] font-bold text-amber-800 hover:text-amber-950 underline decoration-amber-400 hover:decoration-amber-600 transition-colors inline-flex items-center gap-1 shrink-0 cursor-pointer"
+                >
+                  <span>{showSpamGuide ? 'Tutup Contoh' : 'Lihat Contoh'}</span>
+                  {showSpamGuide ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-900/90 font-medium">
+                Kode OTP tidak muncul di <strong className="font-bold text-amber-950">Inbox</strong>? Cek folder <strong className="font-bold text-amber-950 underline decoration-amber-400">Spam</strong> atau <strong className="font-bold text-amber-950">Junk</strong> email Anda.
+              </p>
+
+              {/* Panduan & Contoh Interaktif */}
+              {showSpamGuide && (
+                <div className="mt-3 pt-3 border-t border-amber-200/70 space-y-2.5 text-[11px] text-amber-950 animate-in fade-in-50 slide-in-from-top-1 duration-200">
+                  <p className="font-bold text-amber-950 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    Contoh langkah menemukan kode OTP di Email:
+                  </p>
+
+                  <div className="space-y-1.5 pl-0.5 text-[11px] font-medium text-amber-900/90">
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-amber-200 text-amber-900 font-extrabold text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
+                      <span>Buka aplikasi Gmail atau aplikasi email yang Anda gunakan.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-amber-200 text-amber-900 font-extrabold text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
+                      <span>Buka menu folder di sebelah kiri (<strong className="font-bold">☰</strong>).</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-amber-200 text-amber-900 font-extrabold text-[10px] flex items-center justify-center shrink-0 mt-0.5">3</span>
+                      <span>Pilih folder <strong className="font-bold bg-amber-200/70 px-1 py-0.5 rounded text-amber-950">Spam</strong> atau <strong className="font-bold bg-amber-200/70 px-1 py-0.5 rounded text-amber-950">Junk</strong>.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-4 h-4 rounded-full bg-amber-200 text-amber-900 font-extrabold text-[10px] flex items-center justify-center shrink-0 mt-0.5">4</span>
+                      <span>Temukan email dengan subjek <strong className="font-bold text-amber-950">"Kode Verifikasi OTP METIX"</strong> lalu salin 6 digit kode tersebut.</span>
+                    </div>
+                  </div>
+
+                  {/* Quick Shortcut for Gmail Users */}
+                  {email.toLowerCase().includes('@gmail.com') && (
+                    <div className="pt-1">
+                      <a
+                        href="https://mail.google.com/mail/u/0/#spam"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-amber-300/80 text-amber-900 font-bold text-[11px] hover:bg-amber-100/60 transition-colors shadow-2xs"
+                      >
+                        <Mail className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Buka Folder Spam Gmail Sekarang</span>
+                        <ExternalLink className="w-3 h-3 text-amber-600" />
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Tips box */}
+                  <div className="p-2.5 rounded-xl bg-white/80 border border-amber-200/70 text-[10.5px] leading-relaxed text-amber-900 flex items-start gap-2 mt-1">
+                    <span className="font-extrabold text-amber-950 shrink-0">💡 Tips:</span>
+                    <span>Di dalam email, klik tombol <strong>"Laporkan bukan spam"</strong> atau pindahkan ke Inbox agar email tiket pembelian Anda selanjutnya selalu masuk ke kotak masuk utama.</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* OTP Input Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -218,11 +303,10 @@ export const OtpModal: React.FC<OtpModalProps> = ({
                 onChange={(e) => handleChange(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
                 onPaste={handlePaste}
-                className={`w-11 h-13 sm:w-12 sm:h-14 text-center text-xl font-extrabold rounded-2xl border transition-all outline-none ${
-                  digit
-                    ? 'border-blue-600 bg-blue-50/50 text-blue-900 shadow-sm'
-                    : 'border-slate-200 bg-slate-50/60 text-slate-900 hover:border-slate-300 focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-600/15'
-                }`}
+                className={`w-11 h-13 sm:w-12 sm:h-14 text-center text-xl font-extrabold rounded-2xl border transition-all outline-none ${digit
+                  ? 'border-blue-600 bg-blue-50/50 text-blue-900 shadow-sm'
+                  : 'border-slate-200 bg-slate-50/60 text-slate-900 hover:border-slate-300 focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-600/15'
+                  }`}
               />
             ))}
           </div>
@@ -251,6 +335,14 @@ export const OtpModal: React.FC<OtpModalProps> = ({
                   Kirim Ulang ({timer} detik)
                 </span>
               )}
+              <span className="mx-1.5 text-slate-300">•</span>
+              <button
+                type="button"
+                onClick={() => setShowSpamGuide((prev) => !prev)}
+                className="font-bold text-amber-600 hover:text-amber-700 hover:underline cursor-pointer"
+              >
+                Cek Spam
+              </button>
             </p>
           </div>
 
@@ -258,11 +350,10 @@ export const OtpModal: React.FC<OtpModalProps> = ({
           <button
             type="submit"
             disabled={!isComplete || isVerifying}
-            className={`w-full py-3.5 rounded-2xl text-xs sm:text-sm font-extrabold shadow-md transition-all flex items-center justify-center gap-2 ${
-              isComplete && !isVerifying
-                ? 'bg-blue-700 hover:bg-blue-800 text-white shadow-blue-700/20 cursor-pointer active:scale-98'
-                : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 shadow-none'
-            }`}
+            className={`w-full py-3.5 rounded-2xl text-xs sm:text-sm font-extrabold shadow-md transition-all flex items-center justify-center gap-2 ${isComplete && !isVerifying
+              ? 'bg-blue-700 hover:bg-blue-800 text-white shadow-blue-700/20 cursor-pointer active:scale-98'
+              : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 shadow-none'
+              }`}
           >
             {isVerifying ? (
               <>

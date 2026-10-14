@@ -263,10 +263,76 @@ export interface ApiEvent {
   lineups?: ApiLineupItem[];
   facilities?: string[];
   social_media?: ApiSocialMedia;
+  refund_status?: 'NONE' | 'REQUESTED' | 'APPROVED' | 'REJECTED' | string;
+  refund_reason?: string | null;
+  refund_requested_at?: string | null;
+  refund_approved_at?: string | null;
+  refund_approved_by?: number | null;
+}
+
+export interface RefundRequestItem {
+  id: number;
+  order_id: number;
+  payment_id?: number | null;
+  requested_by: number;
+  reason: string;
+  amount: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PROCESSING' | 'COMPLETED' | string;
+  approved_by?: number | null;
+  gateway_reference?: string | null;
+  processed_at?: string | null;
+  bank_name?: string | null;
+  account_number?: string | null;
+  account_name?: string | null;
+  admin_note?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  user?: {
+    id: number;
+    name?: string;
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    phone?: string;
+  };
+  requester?: {
+    id: number;
+    name?: string;
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    phone?: string;
+  };
+  order?: {
+    id: number;
+    order_number: string;
+    total_amount?: number;
+    status?: string;
+    user?: {
+      id: number;
+      name?: string;
+      email?: string;
+      phone?: string;
+    };
+    event?: {
+      id: number;
+      title: string;
+      banner_url?: string;
+    };
+  };
+  ticket?: {
+    id: number;
+    ticket_code?: string;
+    event?: {
+      id: number;
+      title: string;
+    };
+  };
 }
 
 export interface ApiTicketDetail {
   id: number;
+  order_id?: number;
   ticket_code: string;
   order_number?: string;
   qr_token?: string;
@@ -274,6 +340,7 @@ export interface ApiTicketDetail {
   pdf_url?: string;
   qr_code_url?: string;
   created_at?: string;
+  refund_request?: RefundRequestItem | null;
   event?: {
     id: number;
     title: string;
@@ -286,6 +353,10 @@ export interface ApiTicketDetail {
     event_end_at?: string;
     banner?: string;
     venue_photo?: string;
+    status?: string;
+    refund_status?: 'NONE' | 'REQUESTED' | 'APPROVED' | 'REJECTED' | string;
+    refund_reason?: string | null;
+    refund_approved_at?: string | null;
   };
   ticket_type?: {
     name: string;
@@ -678,7 +749,7 @@ export async function registerUser(payload: RegisterPayload): Promise<LoginRespo
   };
 }
 
-export async function requestOtpApi(payload: { email: string; purpose?: 'LOGIN' | 'REGISTER'; phone?: string }): Promise<{ success: boolean; message: string }> {
+export async function requestOtpApi(payload: { email: string; purpose?: 'LOGIN' | 'REGISTER' | 'RESET_PASSWORD'; phone?: string }): Promise<{ success: boolean; message: string }> {
   const response = await fetch(`${API_BASE_URL}/auth/otp/request`, {
     method: 'POST',
     headers: {
@@ -792,6 +863,55 @@ export async function registerOtpApi(payload: RegisterPayload & { otp: string })
   return {
     success: true,
     message: data.message || 'Registrasi OTP berhasil',
+    token,
+    user,
+  };
+}
+
+export async function resetPasswordOtpApi(payload: {
+  email: string;
+  otp: string;
+  password: string;
+  password_confirmation?: string;
+}): Promise<LoginResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/otp/reset-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: JSON.stringify({
+      email: payload.email,
+      otp: payload.otp,
+      password: payload.password,
+      password_confirmation: payload.password_confirmation || payload.password,
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      'Gagal mereset kata sandi. Silakan periksa kembali kode OTP atau data Anda.';
+    throw new Error(errorMsg);
+  }
+
+  const user = data.user || data.data?.user;
+  const token = data.token || data.data?.token;
+
+  if (typeof window !== 'undefined' && token) {
+    localStorage.setItem('metix_token', token);
+    if (user) {
+      localStorage.setItem('metix_user', JSON.stringify(user));
+    }
+  }
+
+  return {
+    success: true,
+    message: data.message || 'Password berhasil direset.',
     token,
     user,
   };
@@ -5550,7 +5670,222 @@ export async function fetchOtpVerifications(params?: {
   };
 }
 
+// -------------------------------------------------------------
+// EVENT REFUND & TICKET REFUND APIS
+// -------------------------------------------------------------
 
+/**
+ * 1. EO mengajukan permohonan refund event ke Owner
+ */
+export async function requestEventRefundByEoApi(
+  eventId: number,
+  payload: { reason: string }
+): Promise<{ success: boolean; message: string; data?: any }> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
 
+  const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/request-refund`, {
+    method: 'POST',
+    headers: { ...getHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorMsg = (json?.errors ? Object.values(json.errors).flat().join(', ') : null) || json?.message || 'Gagal mengajukan refund event.';
+    throw new Error(errorMsg);
+  }
 
+  return {
+    success: true,
+    message: json.message || 'Pengajuan refund event berhasil dikirim ke Owner.',
+    data: json.data,
+  };
+}
+
+/**
+ * 2. Owner menyetujui (Approve) pengajuan refund event dari EO
+ */
+export async function approveEventRefundByOwnerApi(
+  eventId: number
+): Promise<{ success: boolean; message: string; data?: any }> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/owner/events/${eventId}/approve-refund`, {
+    method: 'POST',
+    headers: getHeaders(token),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorMsg = (json?.errors ? Object.values(json.errors).flat().join(', ') : null) || json?.message || 'Gagal menyetujui pengajuan refund event.';
+    throw new Error(errorMsg);
+  }
+
+  return {
+    success: true,
+    message: json.message || 'Pengajuan refund event berhasil disetujui (Approved).',
+    data: json.data,
+  };
+}
+
+/**
+ * 3. Owner menolak (Reject) pengajuan refund event dari EO
+ */
+export async function rejectEventRefundByOwnerApi(
+  eventId: number,
+  payload?: { note?: string }
+): Promise<{ success: boolean; message: string; data?: any }> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/owner/events/${eventId}/reject-refund`, {
+    method: 'POST',
+    headers: { ...getHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {}),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorMsg = (json?.errors ? Object.values(json.errors).flat().join(', ') : null) || json?.message || 'Gagal menolak pengajuan refund event.';
+    throw new Error(errorMsg);
+  }
+
+  return {
+    success: true,
+    message: json.message || 'Pengajuan refund event telah ditolak.',
+    data: json.data,
+  };
+}
+
+/**
+ * 4. Buyer mengajukan refund tiket yang event-nya sudah di-approve oleh Owner
+ */
+export async function requestTicketRefundByBuyerApi(
+  ticketId: number,
+  payload: {
+    reason?: string;
+    bank_name?: string;
+    account_number?: string;
+    account_name?: string;
+  }
+): Promise<{ success: boolean; message: string; data?: any }> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/tickets/${ticketId}/refund-request`, {
+    method: 'POST',
+    headers: { ...getHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorMsg = (json?.errors ? Object.values(json.errors).flat().join(', ') : null) || json?.message || 'Gagal mengajukan refund tiket.';
+    throw new Error(errorMsg);
+  }
+
+  return {
+    success: true,
+    message: json.message || 'Pengajuan refund tiket berhasil dikirim.',
+    data: json.data,
+  };
+}
+
+/**
+ * 5. Fetch daftar permohonan refund untuk Owner
+ */
+export async function fetchOwnerRefundRequestsApi(params?: {
+  page?: number;
+  per_page?: number;
+}): Promise<{ success: boolean; message: string; data: RefundRequestItem[]; meta?: any }> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.per_page) query.set('per_page', String(params.per_page));
+
+  const response = await fetch(`${API_BASE_URL}/owner/refund-requests?${query.toString()}`, {
+    method: 'GET',
+    headers: getHeaders(token),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(json?.message || 'Gagal memuat data pengajuan refund.');
+  }
+
+  return {
+    success: true,
+    message: json.message || 'Berhasil',
+    data: json.data?.data || json.data || [],
+    meta: json.data?.meta || json.meta,
+  };
+}
+
+/**
+ * 6. Fetch daftar permohonan refund pembeli untuk EO (Organizer)
+ */
+export async function fetchOrganizerRefundRequestsApi(params?: {
+  page?: number;
+  per_page?: number;
+  status?: string;
+  search?: string;
+}): Promise<{ success: boolean; message: string; data: RefundRequestItem[]; meta?: any }> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.per_page) query.set('per_page', String(params.per_page));
+  if (params?.status && params.status !== 'all') query.set('status', params.status);
+  if (params?.search) query.set('search', params.search);
+
+  const response = await fetch(`${API_BASE_URL}/organizer/refund-requests?${query.toString()}`, {
+    method: 'GET',
+    headers: getHeaders(token),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(json?.message || 'Gagal memuat data refund pembeli.');
+  }
+
+  return {
+    success: true,
+    message: json.message || 'Berhasil',
+    data: json.data?.data || json.data || [],
+    meta: json.data?.meta || json.meta,
+  };
+}
+
+/**
+ * 7. Konfirmasi selesai transfer pengembalian dana refund (EO / Owner)
+ */
+export async function completeRefundRequestApi(
+  refundId: number,
+  payload?: { gateway_reference?: string; admin_note?: string }
+): Promise<{ success: boolean; message: string; data?: any }> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/organizer/refund-requests/${refundId}/complete`, {
+    method: 'POST',
+    headers: { ...getHeaders(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {}),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorMsg = (json?.errors ? Object.values(json.errors).flat().join(', ') : null) || json?.message || 'Gagal menyelesaikan refund.';
+    throw new Error(errorMsg);
+  }
+
+  return {
+    success: true,
+    message: json.message || 'Pengembalian dana berhasil dikonfirmasi selesai.',
+    data: json.data,
+  };
+}

@@ -3,10 +3,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useRouter } from 'next/navigation';
-import { fetchUserTickets, fetchUserOrders, fetchPublicEvents, fetchPaymentStatus, initiateOrderPayment, ApiTicketDetail, getStoredUser, getTicketPdfUrl, getTicketQrUrl, getPhotoUrl } from '@/lib/api';
+import { fetchUserTickets, fetchUserOrders, fetchPublicEvents, fetchPaymentStatus, initiateOrderPayment, requestTicketRefundByBuyerApi, ApiTicketDetail, getStoredUser, getTicketPdfUrl, getTicketQrUrl, getPhotoUrl } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
-import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw, Clock, AlertTriangle, CreditCard, Lock, Copy, ChevronDown, ChevronUp, HelpCircle, Check, Building2, Wallet, Store, Zap, User, ExternalLink, ShieldCheck, Sparkles, Bell, BellRing } from 'lucide-react';
+import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw, RotateCcw, Clock, AlertTriangle, CreditCard, Lock, Copy, ChevronDown, ChevronUp, HelpCircle, Check, Building2, Wallet, Store, Zap, User, ExternalLink, ShieldCheck, Sparkles, Bell, BellRing, Loader2, AlertCircle } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 import { getUserRole } from '@/lib/roles';
@@ -370,6 +370,14 @@ export default function TicketsPage() {
   const [readOrderIds, setReadOrderIds] = useState<string[]>([]);
   const [dismissedOrderIds, setDismissedOrderIds] = useState<string[]>([]);
 
+  // Buyer Ticket Refund Request State
+  const [selectedTicketForRefund, setSelectedTicketForRefund] = useState<ApiTicketDetail | null>(null);
+  const [refundBuyerReason, setRefundBuyerReason] = useState<string>('');
+  const [refundBankName, setRefundBankName] = useState<string>('BCA');
+  const [refundAccountNumber, setRefundAccountNumber] = useState<string>('');
+  const [refundAccountName, setRefundAccountName] = useState<string>('');
+  const [isSubmittingBuyerRefund, setIsSubmittingBuyerRefund] = useState<boolean>(false);
+
   // Load persistent
   //  read & dismissed states from localStorage on mount
   useEffect(() => {
@@ -445,6 +453,43 @@ export default function TicketsPage() {
       localStorage.setItem('metix_dismissed_order_ids', JSON.stringify(newDismissed));
     } catch { }
     toast.success('Notifikasi expired berhasil dibersihkan permanen!');
+  };
+
+  const handleOpenBuyerRefundModal = (ticket: ApiTicketDetail) => {
+    setSelectedTicketForRefund(ticket);
+    setRefundBuyerReason(ticket.event?.refund_reason || 'Event resmi dibatalkan oleh penyelenggara');
+    setRefundBankName('BCA');
+    setRefundAccountNumber('');
+    setRefundAccountName(ticket.attendee?.full_name || ticket.holder_name || getStoredUser()?.name || '');
+  };
+
+  const handleConfirmBuyerRefund = async () => {
+    if (!selectedTicketForRefund) return;
+    if (!refundAccountNumber.trim()) {
+      toast.error('Harap masukkan nomor rekening tujuan pengembalian dana.');
+      return;
+    }
+    if (!refundAccountName.trim()) {
+      toast.error('Harap masukkan nama pemilik rekening.');
+      return;
+    }
+
+    setIsSubmittingBuyerRefund(true);
+    try {
+      const res = await requestTicketRefundByBuyerApi(selectedTicketForRefund.id, {
+        reason: refundBuyerReason.trim(),
+        bank_name: refundBankName,
+        account_number: refundAccountNumber.trim(),
+        account_name: refundAccountName.trim(),
+      });
+      toast.success(res.message || 'Pengajuan refund tiket berhasil dikirim. Dana akan segera diproses.');
+      setSelectedTicketForRefund(null);
+      await loadTickets();
+    } catch (err: any) {
+      toast.error(err?.message || 'Gagal mengajukan refund tiket.');
+    } finally {
+      setIsSubmittingBuyerRefund(false);
+    }
   };
 
   const loadTickets = useCallback(async () => {
@@ -1319,15 +1364,15 @@ export default function TicketsPage() {
                 type="button"
                 onClick={() => setActiveTab('all')}
                 className={`flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-xl text-xs font-black transition-all cursor-pointer select-none active:scale-[0.98] ${activeTab === 'all'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
               >
                 <span>Semua</span>
                 <span
                   className={`text-[10px] font-black px-1.5 py-0.5 rounded-full transition-colors ${activeTab === 'all'
-                      ? 'bg-white/25 text-white'
-                      : 'bg-slate-200/90 text-slate-600'
+                    ? 'bg-white/25 text-white'
+                    : 'bg-slate-200/90 text-slate-600'
                     }`}
                 >
                   {ticketCounts.all}
@@ -1338,15 +1383,15 @@ export default function TicketsPage() {
                 type="button"
                 onClick={() => setActiveTab('active')}
                 className={`flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-xl text-xs font-black transition-all cursor-pointer select-none active:scale-[0.98] ${activeTab === 'active'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
               >
                 <span>Check-In</span>
                 <span
                   className={`text-[10px] font-black px-1.5 py-0.5 rounded-full transition-colors ${activeTab === 'active'
-                      ? 'bg-white/25 text-white'
-                      : 'bg-slate-200/90 text-slate-600'
+                    ? 'bg-white/25 text-white'
+                    : 'bg-slate-200/90 text-slate-600'
                     }`}
                 >
                   {ticketCounts.active}
@@ -1357,16 +1402,16 @@ export default function TicketsPage() {
                 type="button"
                 onClick={() => setActiveTab('used')}
                 className={`flex items-center justify-center gap-1.5 py-2 px-2 sm:px-4 rounded-xl text-xs font-black transition-all cursor-pointer select-none active:scale-[0.98] ${activeTab === 'used'
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/25'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
               >
                 <span className="hidden sm:inline">Sudah Digunakan</span>
                 <span className="sm:hidden inline">Digunakan</span>
                 <span
                   className={`text-[10px] font-black px-1.5 py-0.5 rounded-full transition-colors ${activeTab === 'used'
-                      ? 'bg-white/25 text-white'
-                      : 'bg-slate-200/90 text-slate-600'
+                    ? 'bg-white/25 text-white'
+                    : 'bg-slate-200/90 text-slate-600'
                     }`}
                 >
                   {ticketCounts.used}
@@ -1414,6 +1459,12 @@ export default function TicketsPage() {
                 const rawStatus = (item.status || 'active').toLowerCase();
                 const isUsed = rawStatus === 'used' || rawStatus === 'checked_in' || rawStatus === 'checked-in';
                 const isCancelled = rawStatus === 'cancelled' || rawStatus === 'canceled';
+
+                // Refund Eligibility (Only active if Owner has approved refund for this event!)
+                const eventRefundStatus = (item.event?.refund_status || '').toUpperCase();
+                const isRefundApproved = eventRefundStatus === 'APPROVED';
+                const refundReq = item.refund_request || (item.order as any)?.refund_request;
+
                 const eventTitle = item.event?.title || (item as any).event_title || (item as any).title || 'Event Metix Pass';
                 const venue = resolveVenueName(item.event);
                 const ticketType = item.ticket_type?.name || (item as any).ticket_type_name || (item as any).type_name || 'Tiket';
@@ -1616,14 +1667,22 @@ export default function TicketsPage() {
                       {/* Stub Header: Status & Price */}
                       <div className="w-full flex items-center justify-between gap-2">
                         <span
-                          className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border shadow-2xs ${isUsed
-                              ? 'bg-slate-100 text-slate-600 border-slate-300'
-                              : isCancelled
-                                ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border shadow-2xs ${isRefundApproved
+                              ? 'bg-rose-50 text-rose-700 border-rose-300'
+                              : isUsed
+                                ? 'bg-slate-100 text-slate-600 border-slate-300'
+                                : isCancelled
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             }`}
                         >
-                          {isUsed ? 'Sudah Digunakan' : isCancelled ? 'Dibatalkan' : 'Siap Check-In'}
+                          {isRefundApproved
+                            ? (refundReq ? (refundReq.status === 'COMPLETED' ? 'Refund Selesai' : 'Refund Diajukan') : 'Event Dibatalkan')
+                            : isUsed
+                              ? 'Sudah Digunakan'
+                              : isCancelled
+                                ? 'Dibatalkan'
+                                : 'Siap Check-In'}
                         </span>
 
                         <span className="text-xs font-mono font-black text-slate-800">
@@ -1638,10 +1697,10 @@ export default function TicketsPage() {
                             src={item.qr_code_url || getTicketQrUrl(item.id)}
                             alt={`QR Code ${displayTicketCode}`}
                             className={`w-28 h-28 sm:w-32 sm:h-32 object-contain transition-all duration-300 ${isUsed
-                                ? 'filter blur-[3.5px] opacity-25 grayscale'
-                                : isCancelled
-                                  ? 'filter blur-[3px] opacity-25 grayscale'
-                                  : ''
+                              ? 'filter blur-[3.5px] opacity-25 grayscale'
+                              : isCancelled
+                                ? 'filter blur-[3px] opacity-25 grayscale'
+                                : ''
                               }`}
                             onError={(e) => {
                               const qrData = item.qr_token || item.ticket_code || displayTicketCode || String(item.id);
@@ -1683,9 +1742,49 @@ export default function TicketsPage() {
                         </p>
                       </div>
 
-                      {/* Download Button */}
+                      {/* Download & Refund Action Buttons */}
                       <div className="w-full pt-1">
-                        {isUsed ? (
+                        {isRefundApproved ? (
+                          refundReq ? (
+                            <div className="space-y-1.5 w-full">
+                              <button
+                                type="button"
+                                disabled
+                                className="w-full py-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-black flex items-center justify-center gap-1.5 cursor-not-allowed shadow-2xs"
+                                title="Pengajuan refund telah dicatat dan sedang diproses"
+                              >
+                                <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse shrink-0" />
+                                <span className="truncate">Refund Diajukan ({refundReq.status || 'PENDING'})</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handlePrintTicketPdf({ ...item, ticket_code: displayTicketCode, event_banner_url: eventBannerUrl } as any)}
+                                className="w-full py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                              >
+                                <Download className="w-3 h-3" /> Unduh PDF
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5 w-full">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenBuyerRefundModal(item)}
+                                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-600 hover:from-rose-700 hover:to-amber-700 active:scale-[0.98] text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/30 transition-all cursor-pointer animate-pulse"
+                                title="Event resmi dibatalkan & disetujui Owner. Klik untuk mengajukan refund tiket Anda"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-white" />
+                                <span>Ajukan Refund Tiket</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handlePrintTicketPdf({ ...item, ticket_code: displayTicketCode, event_banner_url: eventBannerUrl } as any)}
+                                className="w-full py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                              >
+                                <Download className="w-3 h-3" /> Unduh PDF
+                              </button>
+                            </div>
+                          )
+                        ) : isUsed ? (
                           <button
                             type="button"
                             disabled
@@ -1734,6 +1833,163 @@ export default function TicketsPage() {
           )}
         </div>
       </div>
+
+      {/* ================= MODAL PENGAJUAN REFUND TIKET OLEH BUYER ================= */}
+      {selectedTicketForRefund && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6 sm:p-7 border border-slate-200 space-y-5 animate-in zoom-in-95">
+            {/* Header */}
+            <div className="flex items-center gap-3.5 pb-4 border-b border-slate-100">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center border border-rose-200 shrink-0">
+                <RotateCcw className="w-6 h-6" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-rose-800 bg-rose-100 px-2 py-0.5 rounded-md">
+                    Pengembalian Dana
+                  </span>
+                  <span className="text-xs text-slate-500 font-mono font-bold">
+                    {selectedTicketForRefund.ticket_code}
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 truncate">
+                  Ajukan Refund Tiket Anda
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedTicketForRefund(null)}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Ticket Info Card */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500 font-bold">Nama Acara</span>
+                <span className="text-xs font-black text-slate-900 text-right">
+                  {selectedTicketForRefund.event?.title || 'Event Metix'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500 font-bold">Kategori Tiket</span>
+                <span className="text-xs font-black text-blue-700 text-right">
+                  {selectedTicketForRefund.ticket_type?.name || 'Reguler Pass'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200/80">
+                <span className="text-xs text-slate-600 font-bold">Total Nominal Refund</span>
+                <span className="text-sm font-mono font-black text-rose-600 text-right">
+                  Rp {Number(selectedTicketForRefund.ticket_type?.price || (selectedTicketForRefund.order as any)?.total_amount || 0).toLocaleString('id-ID')}
+                </span>
+              </div>
+            </div>
+
+            {/* Event Cancellation Notice */}
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 text-xs font-medium space-y-1">
+              <div className="flex items-center gap-1.5 font-black text-amber-900">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Pemberitahuan Pembatalan Acara</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-900/90">
+                {selectedTicketForRefund.event?.refund_reason || 'Penyelenggara acara resmi membatalkan acara dan pihak Owner telah menyetujui pengembalian dana tiket.'}
+              </p>
+            </div>
+
+            {/* Form Rekening Pencairan */}
+            <div className="space-y-3 pt-1">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                Data Rekening Pengembalian Dana:
+              </h4>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-600">Pilih Bank / E-Wallet Tujuan</label>
+                <select
+                  value={refundBankName}
+                  onChange={(e) => setRefundBankName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-rose-500 outline-none text-xs font-bold text-slate-900 bg-white"
+                >
+                  <option value="BCA">BCA - Bank Central Asia</option>
+                  <option value="MANDIRI">Bank Mandiri</option>
+                  <option value="BNI">BNI - Bank Negara Indonesia</option>
+                  <option value="BRI">BRI - Bank Rakyat Indonesia</option>
+                  <option value="BSI">BSI - Bank Syariah Indonesia</option>
+                  <option value="CIMB">CIMB Niaga</option>
+                  <option value="PERMATA">Bank Permata</option>
+                  <option value="SEABANK">SeaBank</option>
+                  <option value="JAGO">Bank Jago</option>
+                  <option value="GOPAY">GoPay (E-Wallet)</option>
+                  <option value="OVO">OVO (E-Wallet)</option>
+                  <option value="DANA">DANA (E-Wallet)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-600">Nomor Rekening / No. HP</label>
+                  <input
+                    type="text"
+                    value={refundAccountNumber}
+                    onChange={(e) => setRefundAccountNumber(e.target.value)}
+                    placeholder="Contoh: 1234567890"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-rose-500 outline-none text-xs font-mono font-bold text-slate-900"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-600">Nama Pemilik Rekening</label>
+                  <input
+                    type="text"
+                    value={refundAccountName}
+                    onChange={(e) => setRefundAccountName(e.target.value)}
+                    placeholder="Nama sesuai buku tabungan"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-rose-500 outline-none text-xs font-bold text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-600">Catatan Pembeli (Opsional)</label>
+                <input
+                  type="text"
+                  value={refundBuyerReason}
+                  onChange={(e) => setRefundBuyerReason(e.target.value)}
+                  placeholder="Catatan tambahan untuk refund..."
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:border-rose-500 outline-none text-xs font-medium text-slate-900"
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setSelectedTicketForRefund(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingBuyerRefund || !refundAccountNumber.trim() || !refundAccountName.trim()}
+                onClick={handleConfirmBuyerRefund}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-[0.98] text-white text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-rose-600/20 disabled:opacity-50"
+              >
+                {isSubmittingBuyerRefund ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Mengirimkan...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-4 h-4" /> Kirim Pengajuan Refund
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

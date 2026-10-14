@@ -30,6 +30,7 @@ import {
   updateEventSetting,
   createVenue,
   parseSocialMediaObject,
+  requestEventRefundByEoApi,
   ApiEvent,
   ApiTicketType,
   ApiPromo,
@@ -62,6 +63,7 @@ import {
   Archive,
   RefreshCw,
   RotateCw,
+  RotateCcw,
   X,
   Loader2,
   Sparkles,
@@ -707,6 +709,11 @@ export function EoEventsView() {
   const [deletingEventTarget, setDeletingEventTarget] = useState<ApiEvent | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Refund Request State (EO -> Owner)
+  const [refundEventTarget, setRefundEventTarget] = useState<ApiEvent | null>(null);
+  const [refundReason, setRefundReason] = useState<string>('');
+  const [isSubmittingRefund, setIsSubmittingRefund] = useState(false);
+
   // Ticket Types Modal State (Harga & Kuota Tiket)
   const [selectedEventForTickets, setSelectedEventForTickets] = useState<ApiEvent | null>(null);
   const [ticketTypes, setTicketTypes] = useState<ApiTicketType[]>([]);
@@ -1333,6 +1340,35 @@ export function EoEventsView() {
       toast.error('Gagal Menghapus Event', {
         description: 'Terjadi kesalahan saat menghapus event.',
       });
+    }
+  };
+
+  const handleOpenRefundModal = (event: ApiEvent) => {
+    setRefundEventTarget(event);
+    setRefundReason(event.refund_reason || '');
+  };
+
+  const handleConfirmRefundRequest = async () => {
+    if (!refundEventTarget) return;
+    const reasonTrimmed = refundReason.trim();
+    if (!reasonTrimmed || reasonTrimmed.length < 5) {
+      toast.error('Harap masukkan alasan pembatalan/refund minimal 5 karakter.');
+      return;
+    }
+
+    setIsSubmittingRefund(true);
+    try {
+      const res = await requestEventRefundByEoApi(refundEventTarget.id, {
+        reason: reasonTrimmed,
+      });
+      toast.success(res.message || 'Pengajuan refund event berhasil dikirim ke Owner.');
+      setRefundEventTarget(null);
+      setRefundReason('');
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal mengajukan refund event.');
+    } finally {
+      setIsSubmittingRefund(false);
     }
   };
 
@@ -2239,6 +2275,44 @@ export function EoEventsView() {
                     <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-1.5">
                       {(() => {
                         const s = (item.status || '').toLowerCase();
+                        const refStatus = (item.refund_status || 'NONE').toUpperCase();
+
+                        // 1. Jika pengajuan refund sudah diajukan oleh EO
+                        if (refStatus === 'REQUESTED') {
+                          return (
+                            <div className="flex-1 py-2 px-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-800 text-[11px] font-black flex items-center justify-center gap-1 shadow-2xs" title="Menunggu persetujuan refund dari Owner">
+                              <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse shrink-0" />
+                              <span className="truncate">Menunggu Owner</span>
+                            </div>
+                          );
+                        }
+
+                        // 2. Jika pengajuan refund sudah disetujui Owner
+                        if (refStatus === 'APPROVED') {
+                          return (
+                            <div className="flex-1 py-2 px-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-[11px] font-black flex items-center justify-center gap-1 shadow-2xs" title="Refund telah di-approve Owner & aktif di tiket buyer">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span className="truncate">Refund Disetujui</span>
+                            </div>
+                          );
+                        }
+
+                        // 3. Jika pengajuan refund ditolak Owner
+                        if (refStatus === 'REJECTED') {
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenRefundModal(item)}
+                              className="flex-1 py-2 px-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-700 text-[11px] font-black flex items-center justify-center gap-1 shadow-2xs transition-all cursor-pointer"
+                              title="Pengajuan refund ditolak Owner. Klik untuk mengajukan ulang"
+                            >
+                              <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                              <span className="truncate">Refund Ditolak (Ulangi)</span>
+                            </button>
+                          );
+                        }
+
+                        // 4. Standar status
                         if (s === 'draft') {
                           return (
                             <button
@@ -2257,29 +2331,42 @@ export function EoEventsView() {
                           );
                         } else if (s === 'published' || s === 'active') {
                           return (
-                            <button
-                              disabled={actionEventId === item.id}
-                              onClick={() => handleArchive(item.id, item.title)}
-                              className="flex-1 py-2 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1 shadow-xs disabled:opacity-50"
-                              title="Arsipkan / Batalkan Event"
-                            >
-                              {actionEventId === item.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <Archive className="w-3.5 h-3.5" />
-                              )}
-                              <span>Archived</span>
-                            </button>
+                            <div className="flex-1 flex items-center gap-1">
+                              <button
+                                disabled={actionEventId === item.id}
+                                onClick={() => handleArchive(item.id, item.title)}
+                                className="flex-1 py-2 px-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1 shadow-xs disabled:opacity-50"
+                                title="Arsipkan / Batalkan Event"
+                              >
+                                {actionEventId === item.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Archive className="w-3.5 h-3.5" />
+                                )}
+                                <span>Archived</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenRefundModal(item)}
+                                className="py-2 px-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-[11px] font-black transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                                title="Ajukan Pembatalan Event & Refund Tiket ke Owner"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Refund</span>
+                              </button>
+                            </div>
                           );
                         } else {
+                          // Archived / Cancelled (seperti pada Gambar 1)
                           return (
                             <button
-                              disabled
-                              className="flex-1 py-2 px-2.5 rounded-xl bg-slate-100 text-slate-400 text-xs font-bold border border-slate-200 flex items-center justify-center gap-1 shadow-2xs cursor-not-allowed opacity-60"
-                              title="Event ini telah diarsipkan"
+                              type="button"
+                              onClick={() => handleOpenRefundModal(item)}
+                              className="flex-1 py-2 px-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs shadow-rose-600/20 active:scale-[0.98]"
+                              title="Ajukan Pembatalan Event & Refund Tiket ke Owner agar muncul tombol refund di buyer"
                             >
-                              <Archive className="w-3.5 h-3.5 text-slate-400" />
-                              <span>Archived</span>
+                              <RotateCcw className="w-3.5 h-3.5 text-white" />
+                              <span>Ajukan Refund Tiket</span>
                             </button>
                           );
                         }
@@ -2337,6 +2424,88 @@ export function EoEventsView() {
       </div>
 
       {/* ================= MODAL KONFIRMASI HAPUS EVENT (CUSTOM DIALOG) ================= */}
+      {/* Modal Pengajuan Refund Event oleh EO */}
+      {refundEventTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6 sm:p-7 border border-slate-200 space-y-5 animate-in zoom-in-95">
+            {/* Header */}
+            <div className="flex items-center gap-3.5 pb-4 border-b border-slate-100">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center border border-rose-200 shrink-0">
+                <RotateCcw className="w-6 h-6" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base sm:text-lg font-black text-slate-900 truncate">
+                  Ajukan Refund Tiket Event
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  {refundEventTarget.title}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRefundEventTarget(null)}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Explanation Note */}
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium space-y-1">
+              <div className="flex items-center gap-1.5 font-black text-amber-950">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Alur Verifikasi Bertingkat</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-900/90">
+                Pengajuan refund ini akan dikirimkan ke <strong>Owner (Super Admin)</strong> untuk ditinjau. Setelah disetujui (Approved), tombol <strong>"Refund Tiket"</strong> akan otomatis muncul pada E-Tiket milik pembeli acara ini.
+              </p>
+            </div>
+
+            {/* Form Input Reason */}
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center justify-between">
+                <span>Alasan Pembatalan / Refund</span>
+                <span className="text-[10px] text-slate-400 font-normal lowercase">minimal 5 karakter</span>
+              </label>
+              <textarea
+                rows={4}
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                placeholder="Contoh: Konser dibatalkan karena kendala teknis dari pihak artis. Seluruh tiket dimohon untuk dikembalikan..."
+                className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none text-xs font-medium text-slate-900 placeholder:text-slate-400 resize-none transition-all"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setRefundEventTarget(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingRefund || !refundReason.trim()}
+                onClick={handleConfirmRefundRequest}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-[0.98] text-white text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-rose-600/20 disabled:opacity-50"
+              >
+                {isSubmittingRefund ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Mengirim Pengajuan...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-4 h-4" /> Kirim ke Owner
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {deletingEventTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
           <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 border border-slate-200 text-center space-y-4">

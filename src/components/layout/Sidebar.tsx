@@ -18,6 +18,7 @@ import {
   ShoppingBag,
   Webhook,
   KeyRound,
+  RotateCcw,
 } from 'lucide-react';
 import { UserProfile, getPhotoUrl } from '@/lib/api';
 import { getUserRole, ROLES } from '@/lib/roles';
@@ -45,6 +46,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   ShoppingBag,
   Webhook,
   KeyRound,
+  RotateCcw,
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -140,6 +142,7 @@ interface SidebarNavItem {
         { name: 'OTP Verifikasi', href: '/dashboard/otp', iconName: 'KeyRound' },
         { section: 'Manajemen', name: 'Organisasi EO', href: '/dashboard/organizers', iconName: 'Building2' },
         { name: 'Persetujuan Dana', href: '/dashboard/withdrawals', iconName: 'CreditCard' },
+        { name: 'Refund Pembeli', href: '/dashboard/refunds', iconName: 'RotateCcw' },
         { name: 'Laporan Analisis', href: '/dashboard/reports', iconName: 'Send' },
         { name: 'Audit Logs', href: '/dashboard/audit-logs', iconName: 'Printer' },
         { name: 'Pengaturan Platform', href: '/dashboard/settings', iconName: 'Settings' },
@@ -151,6 +154,7 @@ interface SidebarNavItem {
         { name: 'Profil Organisasi', href: '/dashboard/organization', iconName: 'Building2', badge: 'EO' },
         { name: 'Penarikan Dana', href: '/dashboard/withdrawals', iconName: 'CreditCard', badge: 'Payout' },
         { name: 'Event Saya', href: '/dashboard/events', iconName: 'Calendar', badge: 'Aktif' },
+        { name: 'Refund Pembeli', href: '/dashboard/refunds', iconName: 'RotateCcw', badge: 'Refund' },
         { name: 'Kasir Offline (POS)', href: '/dashboard/pos', iconName: 'CreditCard' },
         { name: 'Kelola Admin Scan', href: '/dashboard/admins', iconName: 'Users' },
         { name: 'Laporan Scanner', href: '/dashboard/scanner-reports', iconName: 'QrCode', badge: 'Gate' },

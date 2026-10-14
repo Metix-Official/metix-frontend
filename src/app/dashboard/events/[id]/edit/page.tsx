@@ -59,6 +59,20 @@ export default function EditEventPage({ params }: EditEventPageProps) {
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Format tanggal ke format input datetime-local (YYYY-MM-DDTHH:mm)
+  // tanpa konversi UTC supaya jam tidak bergeser
+  const toLocalDatetimeInput = (dateString: string): string => {
+    const d = new Date(dateString);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return (
+      d.getFullYear() + '-' +
+      pad(d.getMonth() + 1) + '-' +
+      pad(d.getDate()) + 'T' +
+      pad(d.getHours()) + ':' +
+      pad(d.getMinutes())
+    );
+  };
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -69,14 +83,12 @@ export default function EditEventPage({ params }: EditEventPageProps) {
         setDescription(evtData.description || '');
         setStatus((evtData.status || 'DRAFT').toUpperCase());
 
-        // Format datetime-local string (YYYY-MM-DDTHH:mm)
+        // Format datetime-local string (YYYY-MM-DDTHH:mm) — gunakan local timezone
         if (evtData.start_at) {
-          const d = new Date(evtData.start_at);
-          setStartAt(d.toISOString().slice(0, 16));
+          setStartAt(toLocalDatetimeInput(evtData.start_at));
         }
         if (evtData.end_at) {
-          const d = new Date(evtData.end_at);
-          setEndAt(d.toISOString().slice(0, 16));
+          setEndAt(toLocalDatetimeInput(evtData.end_at));
         }
         if (evtData.banner) {
           setBannerPreview(getPhotoUrl(evtData.banner));
@@ -126,6 +138,7 @@ export default function EditEventPage({ params }: EditEventPageProps) {
       formData.append('status', status);
 
       if (startAt) {
+        // Kirim format: "YYYY-MM-DD HH:mm:00"
         formData.append('start_at', startAt.replace('T', ' ') + ':00');
       }
       if (endAt) {

@@ -40,6 +40,7 @@ import {
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VenueMapPicker } from '@/components/ui/VenueMapPicker';
 import { format } from 'date-fns';
+import { id } from 'date-fns/locale';
 import {
   Select,
   SelectContent,
@@ -2811,8 +2812,9 @@ export function EoEventsView() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Waktu Mulai — Edit */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Tanggal Mulai Event (Start At)</label>
+                    <label className="text-xs font-extrabold text-slate-700">Tanggal &amp; Jam Mulai Event</label>
                     <input type="hidden" name="start_at" value={editStartAt} />
                     <Popover>
                       <PopoverTrigger asChild>
@@ -2837,15 +2839,35 @@ export function EoEventsView() {
                           onSelect={(d) => {
                             if (!d) return;
                             const dateStr = format(d, 'yyyy-MM-dd');
-                            setEditStartAt(`${dateStr}T00:00`);
+                            const timePart = editStartAt?.split('T')[1] || '00:00';
+                            setEditStartAt(`${dateStr}T${timePart}`);
                           }}
                         />
                       </PopoverContent>
                     </Popover>
+                    {/* Time input */}
+                    <div className="relative flex items-center">
+                      <Clock className="absolute left-3 w-4 h-4 text-slate-400 shrink-0" />
+                      <input
+                        type="time"
+                        value={editStartAt?.split('T')[1] || '00:00'}
+                        onChange={(e) => {
+                          const datePart = editStartAt?.split('T')[0] || format(new Date(), 'yyyy-MM-dd');
+                          setEditStartAt(`${datePart}T${e.target.value}`);
+                        }}
+                        className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-colors cursor-pointer"
+                      />
+                    </div>
+                    {editStartAt && (
+                      <p className="text-[10px] text-blue-600 font-semibold">
+                        {format(new Date(editStartAt.replace('Z', '').replace(' ', 'T')), 'EEEE, dd MMM yyyy · HH:mm', { locale: id })}
+                      </p>
+                    )}
                   </div>
 
+                  {/* Waktu Selesai — Edit */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Tanggal Selesai Event (End At)</label>
+                    <label className="text-xs font-extrabold text-slate-700">Tanggal &amp; Jam Selesai Event</label>
                     <input type="hidden" name="end_at" value={editEndAt} />
                     <Popover>
                       <PopoverTrigger asChild>
@@ -2870,11 +2892,30 @@ export function EoEventsView() {
                           onSelect={(d) => {
                             if (!d) return;
                             const dateStr = format(d, 'yyyy-MM-dd');
-                            setEditEndAt(`${dateStr}T23:59`);
+                            const timePart = editEndAt?.split('T')[1] || '23:59';
+                            setEditEndAt(`${dateStr}T${timePart}`);
                           }}
                         />
                       </PopoverContent>
                     </Popover>
+                    {/* Time input */}
+                    <div className="relative flex items-center">
+                      <Clock className="absolute left-3 w-4 h-4 text-slate-400 shrink-0" />
+                      <input
+                        type="time"
+                        value={editEndAt?.split('T')[1] || '23:59'}
+                        onChange={(e) => {
+                          const datePart = editEndAt?.split('T')[0] || format(new Date(), 'yyyy-MM-dd');
+                          setEditEndAt(`${datePart}T${e.target.value}`);
+                        }}
+                        className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-colors cursor-pointer"
+                      />
+                    </div>
+                    {editEndAt && (
+                      <p className="text-[10px] text-blue-600 font-semibold">
+                        {format(new Date(editEndAt.replace('Z', '').replace(' ', 'T')), 'EEEE, dd MMM yyyy · HH:mm', { locale: id })}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
@@ -2889,7 +2930,7 @@ export function EoEventsView() {
                         step="0.1"
                         min="0"
                         max="100"
-                        defaultValue={editingEvent?.local_tax_percentage ?? 5.0}
+                        defaultValue={editingEvent?.local_tax_percentage ?? 5}
                         placeholder="5.0"
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none pr-8"
                       />
@@ -5502,8 +5543,9 @@ export function EoEventsView() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Waktu Mulai — Create */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Tanggal Mulai Event (Start At)</label>
+                    <label className="text-xs font-extrabold text-slate-700">Tanggal &amp; Jam Mulai Event</label>
                     <input type="hidden" name="start_at" value={createStartAt} />
                     <Popover>
                       <PopoverTrigger asChild>
@@ -5528,15 +5570,35 @@ export function EoEventsView() {
                           onSelect={(d) => {
                             if (!d) return;
                             const dateStr = format(d, 'yyyy-MM-dd');
-                            setCreateStartAt(`${dateStr}T00:00`);
+                            const timePart = createStartAt?.split('T')[1] || '00:00';
+                            setCreateStartAt(`${dateStr}T${timePart}`);
                           }}
                         />
                       </PopoverContent>
                     </Popover>
+                    {/* Time input */}
+                    <div className="relative flex items-center">
+                      <Clock className="absolute left-3 w-4 h-4 text-slate-400 shrink-0" />
+                      <input
+                        type="time"
+                        value={createStartAt?.split('T')[1] || '00:00'}
+                        onChange={(e) => {
+                          const datePart = createStartAt?.split('T')[0] || format(new Date(), 'yyyy-MM-dd');
+                          setCreateStartAt(`${datePart}T${e.target.value}`);
+                        }}
+                        className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-colors cursor-pointer"
+                      />
+                    </div>
+                    {createStartAt && (
+                      <p className="text-[10px] text-blue-600 font-semibold">
+                        {format(new Date(createStartAt.replace('Z', '').replace(' ', 'T')), 'EEEE, dd MMM yyyy · HH:mm', { locale: id })}
+                      </p>
+                    )}
                   </div>
 
+                  {/* Waktu Selesai — Create */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700">Tanggal Selesai Event (End At)</label>
+                    <label className="text-xs font-extrabold text-slate-700">Tanggal &amp; Jam Selesai Event</label>
                     <input type="hidden" name="end_at" value={createEndAt} />
                     <Popover>
                       <PopoverTrigger asChild>
@@ -5561,11 +5623,30 @@ export function EoEventsView() {
                           onSelect={(d) => {
                             if (!d) return;
                             const dateStr = format(d, 'yyyy-MM-dd');
-                            setCreateEndAt(`${dateStr}T23:59`);
+                            const timePart = createEndAt?.split('T')[1] || '23:59';
+                            setCreateEndAt(`${dateStr}T${timePart}`);
                           }}
                         />
                       </PopoverContent>
                     </Popover>
+                    {/* Time input */}
+                    <div className="relative flex items-center">
+                      <Clock className="absolute left-3 w-4 h-4 text-slate-400 shrink-0" />
+                      <input
+                        type="time"
+                        value={createEndAt?.split('T')[1] || '23:59'}
+                        onChange={(e) => {
+                          const datePart = createEndAt?.split('T')[0] || format(new Date(), 'yyyy-MM-dd');
+                          setCreateEndAt(`${datePart}T${e.target.value}`);
+                        }}
+                        className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-colors cursor-pointer"
+                      />
+                    </div>
+                    {createEndAt && (
+                      <p className="text-[10px] text-blue-600 font-semibold">
+                        {format(new Date(createEndAt.replace('Z', '').replace(' ', 'T')), 'EEEE, dd MMM yyyy · HH:mm', { locale: id })}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
@@ -5580,7 +5661,7 @@ export function EoEventsView() {
                         step="0.1"
                         min="0"
                         max="100"
-                        defaultValue="5.0"
+                        defaultValue="5"
                         placeholder="5.0"
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none pr-8"
                       />

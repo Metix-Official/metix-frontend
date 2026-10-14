@@ -4150,9 +4150,10 @@ export async function fetchEoAdmins(): Promise<EoAdminUser[]> {
           const evtObj = item.event || (Array.isArray(item.events) ? item.events[0] : null) || item.assigned_event;
           const evtId = item.event_id || evtObj?.id || item.user?.event_id || (Array.isArray(item.event_ids) ? item.event_ids[0] : null);
           const evtTitle = item.event_title || evtObj?.title || evtObj?.name || item.user?.event_title;
+          const resolvedId = item.id || item.user_id || item.user?.id;
 
           return {
-            id: item.id || item.user_id || item.user?.id || Date.now(),
+            id: resolvedId,
             name: item.name || item.user?.name || item.full_name || 'Staff Scanner',
             email: item.email || item.user?.email || '',
             phone: item.phone || item.user?.phone || null,
@@ -4198,7 +4199,13 @@ export async function fetchEoAdmins(): Promise<EoAdminUser[]> {
     }
   }
 
-  return staffList;
+  // Deduplicate by ID to prevent duplicate React keys
+  const seen = new Set<number>();
+  return staffList.filter((staff) => {
+    if (!staff.id || seen.has(staff.id)) return false;
+    seen.add(staff.id);
+    return true;
+  });
 }
 
 export async function createEoAdmin(payload: CreateEoAdminPayload): Promise<EoAdminUser> {
@@ -4260,9 +4267,8 @@ export async function createEoAdmin(payload: CreateEoAdminPayload): Promise<EoAd
           ...getHeaders(token),
         },
         body: JSON.stringify({
-          user_id: createdUser.id,
-          scanner_id: createdUser.id,
-          email: payload.email,
+          scanner_user_id: createdUser.id,
+          status: 'ACTIVE',
         }),
       });
     } catch { }
@@ -4272,7 +4278,7 @@ export async function createEoAdmin(payload: CreateEoAdminPayload): Promise<EoAd
   const evtId = payload.event_id || createdUser?.event_id || evtObj?.id || null;
 
   return {
-    id: createdUser?.id || createdUser?.user_id || Date.now(),
+    id: createdUser?.id || createdUser?.user_id || createdUser?.user?.id,
     name: createdUser?.name || createdUser?.user?.name || payload.name,
     email: createdUser?.email || createdUser?.user?.email || payload.email,
     phone: createdUser?.phone || createdUser?.user?.phone || payload.phone || null,
@@ -4412,28 +4418,21 @@ export async function updateEoAdmin(adminId: number, payload: CreateEoAdminPaylo
 
 export async function deleteEoAdmin(adminId: number): Promise<boolean> {
   const token = getStoredToken();
-  const currentUser = getStoredUser();
-  const storageKey = currentUser?.email ? `metix_cached_scanners_${currentUser.email.toLowerCase()}` : 'metix_cached_scanners';
+  if (!token) throw new Error('Silakan login terlebih dahulu (Unauthenticated).');
 
-  if (token) {
-    try {
-      let response = await fetch(`${API_BASE_URL}/organizer/team/${adminId}`, {
-        method: 'DELETE',
-        headers: getHeaders(token),
-      });
+  const response = await fetch(`${API_BASE_URL}/organizer/team/${adminId}`, {
+    method: 'DELETE',
+    headers: getHeaders(token),
+  });
 
-      if (!response.ok && response.status === 404) {
-        await fetch(`${API_BASE_URL}/organizer/scanners/${adminId}`, {
-          method: 'DELETE',
-          headers: getHeaders(token),
-        });
-      }
-    } catch (e) {
-      console.warn('Backend API delete team staff warning:', e);
-    }
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const errorMsg =
+      data?.message ||
+      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
+      `Gagal menghapus staff scanner (ID: ${adminId}).`;
+    throw new Error(errorMsg);
   }
-
-
 
   return true;
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, X, Loader2, AlertCircle, Info, Sparkles, Mail, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, X, Loader2, AlertCircle, Info, Sparkles, Mail, ExternalLink, ChevronDown, ChevronUp, Inbox } from 'lucide-react';
 import Link from 'next/link';
 
 interface OtpModalProps {
@@ -34,6 +34,38 @@ export const OtpModal: React.FC<OtpModalProps> = ({
   const [showSpamGuide, setShowSpamGuide] = useState<boolean>(false);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const getEmailProviderInfo = (emailAddress: string) => {
+    const domain = emailAddress.split('@')[1]?.toLowerCase() || '';
+    if (domain.includes('gmail.com')) {
+      return {
+        name: 'Gmail',
+        inboxUrl: 'https://mail.google.com',
+        spamUrl: 'https://mail.google.com/mail/u/0/#spam',
+      };
+    }
+    if (domain.includes('yahoo.com') || domain.includes('ymail.com')) {
+      return {
+        name: 'Yahoo Mail',
+        inboxUrl: 'https://mail.yahoo.com',
+        spamUrl: 'https://mail.yahoo.com/d/folders/2',
+      };
+    }
+    if (domain.includes('outlook.com') || domain.includes('hotmail.com') || domain.includes('live.com')) {
+      return {
+        name: 'Outlook',
+        inboxUrl: 'https://outlook.live.com',
+        spamUrl: 'https://outlook.live.com/mail/0/junkemail',
+      };
+    }
+    return {
+      name: 'Email',
+      inboxUrl: 'mailto:',
+      spamUrl: undefined,
+    };
+  };
+
+  const provider = getEmailProviderInfo(email);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -161,7 +193,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
       <div className="relative bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100 p-6 sm:p-8 z-10 animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto scrollbar-thin">
 
         {/* Top Bar: Back Arrow & Close Button */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           {onBack ? (
             <button
               type="button"
@@ -186,18 +218,32 @@ export const OtpModal: React.FC<OtpModalProps> = ({
         </div>
 
         {/* Content Header */}
-        <div className="text-center space-y-2.5 mb-5">
+        <div className="text-center space-y-2 mb-6">
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
             {title}
           </h2>
-          <div className="space-y-1.5 px-1">
-            <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed">
-              Kode verifikasi telah dikirim ke:
-            </p>
-            <div className="inline-flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100/90 border border-slate-200/80 text-slate-800 text-xs font-bold max-w-full shadow-2xs">
+          <p className="text-xs sm:text-sm text-slate-500 font-medium">
+            Kode verifikasi 6 digit telah dikirimkan ke:
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100/90 border border-slate-200/80 text-slate-800 text-xs font-bold max-w-full shadow-2xs">
               <Mail className="w-3.5 h-3.5 text-blue-600 shrink-0" />
               <span className="break-all">{email}</span>
             </div>
+
+            {/* Direct Email App Opener Button */}
+            {provider.inboxUrl && (
+              <a
+                href={provider.inboxUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 text-xs font-extrabold transition-all hover:scale-105 active:scale-95 shadow-2xs"
+              >
+                <span>Buka {provider.name}</span>
+                <ExternalLink className="w-3 h-3 text-blue-600" />
+              </a>
+            )}
           </div>
         </div>
 
@@ -209,87 +255,9 @@ export const OtpModal: React.FC<OtpModalProps> = ({
           </div>
         )}
 
-        {/* Edukasi Folder Spam & Junk Alert Card */}
-        <div className="mb-5 p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200/80 text-amber-950 text-xs text-left shadow-xs transition-all animate-in fade-in-50 duration-200">
-          <div className="flex items-start gap-2.5">
-            <div className="p-1.5 rounded-xl bg-amber-100 text-amber-700 shrink-0 mt-0.5 shadow-2xs">
-              <Info className="w-4 h-4" />
-            </div>
-            <div className="flex-1 space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-extrabold text-[12px] text-amber-950">
-                  Catatan Penting OTP
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowSpamGuide((prev) => !prev)}
-                  className="text-[11px] font-bold text-amber-800 hover:text-amber-950 underline decoration-amber-400 hover:decoration-amber-600 transition-colors inline-flex items-center gap-1 shrink-0 cursor-pointer"
-                >
-                  <span>{showSpamGuide ? 'Tutup Contoh' : 'Lihat Contoh'}</span>
-                  {showSpamGuide ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
-              </div>
-              <p className="text-[11px] leading-relaxed text-amber-900/90 font-medium">
-                Kode OTP tidak muncul di <strong className="font-bold text-amber-950">Inbox</strong>? Cek folder <strong className="font-bold text-amber-950 underline decoration-amber-400">Spam</strong> atau <strong className="font-bold text-amber-950">Junk</strong> email Anda.
-              </p>
-
-              {/* Panduan & Contoh Interaktif */}
-              {showSpamGuide && (
-                <div className="mt-3 pt-3 border-t border-amber-200/70 space-y-2.5 text-[11px] text-amber-950 animate-in fade-in-50 slide-in-from-top-1 duration-200">
-                  <p className="font-bold text-amber-950 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                    Contoh langkah menemukan kode OTP di Email:
-                  </p>
-
-                  <div className="space-y-1.5 pl-0.5 text-[11px] font-medium text-amber-900/90">
-                    <div className="flex items-start gap-2">
-                      <span className="w-4 h-4 rounded-full bg-amber-200 text-amber-900 font-extrabold text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
-                      <span>Buka aplikasi Gmail atau aplikasi email yang Anda gunakan.</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="w-4 h-4 rounded-full bg-amber-200 text-amber-900 font-extrabold text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
-                      <span>Buka menu folder di sebelah kiri (<strong className="font-bold">☰</strong>).</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="w-4 h-4 rounded-full bg-amber-200 text-amber-900 font-extrabold text-[10px] flex items-center justify-center shrink-0 mt-0.5">3</span>
-                      <span>Pilih folder <strong className="font-bold bg-amber-200/70 px-1 py-0.5 rounded text-amber-950">Spam</strong> atau <strong className="font-bold bg-amber-200/70 px-1 py-0.5 rounded text-amber-950">Junk</strong>.</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="w-4 h-4 rounded-full bg-amber-200 text-amber-900 font-extrabold text-[10px] flex items-center justify-center shrink-0 mt-0.5">4</span>
-                      <span>Temukan email dengan subjek <strong className="font-bold text-amber-950">"Kode Verifikasi OTP METIX"</strong> lalu salin 6 digit kode tersebut.</span>
-                    </div>
-                  </div>
-
-                  {/* Quick Shortcut for Gmail Users */}
-                  {email.toLowerCase().includes('@gmail.com') && (
-                    <div className="pt-1">
-                      <a
-                        href="https://mail.google.com/mail/u/0/#spam"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-amber-300/80 text-amber-900 font-bold text-[11px] hover:bg-amber-100/60 transition-colors shadow-2xs"
-                      >
-                        <Mail className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Buka Folder Spam Gmail Sekarang</span>
-                        <ExternalLink className="w-3 h-3 text-amber-600" />
-                      </a>
-                    </div>
-                  )}
-
-                  {/* Tips box */}
-                  <div className="p-2.5 rounded-xl bg-white/80 border border-amber-200/70 text-[10.5px] leading-relaxed text-amber-900 flex items-start gap-2 mt-1">
-                    <span className="font-extrabold text-amber-950 shrink-0">💡 Tips:</span>
-                    <span>Di dalam email, klik tombol <strong>"Laporkan bukan spam"</strong> atau pindahkan ke Inbox agar email tiket pembelian Anda selanjutnya selalu masuk ke kotak masuk utama.</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
         {/* OTP Input Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* 6 Digit Individual Input Boxes */}
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* 6 Digit Individual Input Boxes (Front & Center) */}
           <div className="flex items-center justify-center gap-2 sm:gap-2.5">
             {digits.map((digit, index) => (
               <input
@@ -312,7 +280,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
           </div>
 
           {/* Resend OTP Timer / Link */}
-          <div className="text-center">
+          <div className="text-center pt-1">
             <p className="text-xs text-slate-500 font-medium">
               Tidak menerima kode?{' '}
               {canResend ? (
@@ -339,11 +307,104 @@ export const OtpModal: React.FC<OtpModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowSpamGuide((prev) => !prev)}
-                className="font-bold text-amber-600 hover:text-amber-700 hover:underline cursor-pointer"
+                className="font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
               >
                 Cek Spam
               </button>
             </p>
+          </div>
+
+          {/* Smart Email Helper (Clean, Spacious & Beautiful Typography) */}
+          <div className="rounded-2xl border transition-all duration-300 overflow-hidden bg-gradient-to-br from-slate-50/90 via-blue-50/20 to-indigo-50/40 border-slate-200/80 shadow-2xs">
+            {/* Collapsible Card Header Bar */}
+            <button
+              type="button"
+              onClick={() => setShowSpamGuide((prev) => !prev)}
+              className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-100/50 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <div className="w-8 h-8 rounded-xl bg-blue-600/10 border border-blue-600/20 text-blue-600 flex items-center justify-center shrink-0">
+                  <Inbox className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-extrabold text-slate-900 leading-none">
+                      Belum Menerima Kode?
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-extrabold whitespace-nowrap">
+                      Tips Cepat
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium leading-tight mt-1">
+                    Email sering masuk ke folder <strong className="text-slate-700">Spam</strong> atau <strong className="text-slate-700">Promosi</strong>.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 text-[11px] font-extrabold text-blue-600 shrink-0 ml-3 whitespace-nowrap">
+                <span>{showSpamGuide ? 'Tutup' : '3 Cara Cepat'}</span>
+                {showSpamGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </div>
+            </button>
+
+            {/* Expanded Visual 3-Step Cards with Full Horizontal Breathing Room */}
+            {showSpamGuide && (
+              <div className="p-3.5 pt-0 border-t border-slate-200/70 space-y-2.5 animate-in fade-in-50 slide-in-from-top-1 duration-200">
+                <div className="space-y-2 pt-2.5">
+                  {/* Step 1 */}
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
+                    <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                      1
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold text-slate-900 leading-tight">Cek Folder Spam atau Junk</div>
+                      <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                        Buka menu folder di aplikasi email Anda dan periksa folder <strong className="text-slate-700">Spam</strong> atau <strong className="text-slate-700">Junk</strong>.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
+                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                      2
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold text-slate-900 leading-tight">Gunakan Pencarian "METIX"</div>
+                      <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                        Ketik kata kunci <strong className="text-slate-700">"METIX OTP"</strong> pada kolom pencarian email Anda.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
+                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                      3
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold text-slate-900 leading-tight">Tandai "Bukan Spam"</div>
+                      <p className="text-[11px] text-slate-500 leading-relaxed mt-0.5">
+                        Klik <strong className="text-slate-700">"Laporkan bukan spam"</strong> agar email tiket selanjutnya selalu masuk ke kotak masuk utama.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Direct Shortcut to Open Spam Folder */}
+                {provider.spamUrl && (
+                  <a
+                    href={provider.spamUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-2xs hover:border-blue-400 group cursor-pointer mt-1"
+                  >
+                    <Mail className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
+                    <span>Buka Folder Spam {provider.name} Sekarang</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600" />
+                  </a>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Main Action Button */}
@@ -366,7 +427,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
         </form>
 
         {/* Security Footer Disclaimer */}
-        <div className="mt-6 pt-5 border-t border-slate-100 text-center text-xs text-slate-500 leading-relaxed font-medium">
+        <div className="mt-5 pt-4 border-t border-slate-100 text-center text-xs text-slate-500 leading-relaxed font-medium">
           Jika Anda tidak meminta perubahan ini atau akun Anda diretas, segera kunjungi{' '}
           <Link href="/terms" className="font-bold text-blue-600 hover:underline">
             Pusat Bantuan

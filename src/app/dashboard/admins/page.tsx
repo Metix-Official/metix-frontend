@@ -191,10 +191,15 @@ export default function EoAdminsPage() {
 
   const handleDelete = async () => {
     if (!deletingAdmin) return;
+    const targetId = deletingAdmin.id;
+    const targetName = deletingAdmin.name;
     try {
       setIsDeleting(true);
-      await deleteEoAdmin(deletingAdmin.id);
-      toast.success('Staff Admin Berhasil Dihapus! 🗑️');
+      await deleteEoAdmin(targetId);
+      setAdmins((prev) => prev.filter((a) => a.id !== targetId));
+      toast.success('Staff Admin Berhasil Dihapus! 🗑️', {
+        description: `Akun staff ${targetName} berhasil dihapus dari sistem.`,
+      });
       setDeletingAdmin(null);
       await loadAdmins();
     } catch (err: any) {

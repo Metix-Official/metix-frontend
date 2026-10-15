@@ -198,6 +198,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
+    const emailDomain = email.trim().split('@')[1]?.toLowerCase() || '';
+    const isDisposable = ['mailinator.com', 'tempmail.com', 'temp-mail.org', '10minutemail.com', 'guerrillamail.com', 'sharklasers.com', 'yopmail.com', 'trashmail.com'].includes(emailDomain);
+    if (isDisposable) {
+      setEmailTouched(true);
+      setRegisterError(`Domain email sementara (${emailDomain}) tidak diizinkan. Silakan gunakan email resmi.`);
+      return;
+    }
+
+    const cleanPhoneDigits = phone.trim().replace(/\D/g, '');
+    if (!cleanPhoneDigits) {
+      setRegisterError('Nomor telepon wajib diisi.');
+      return;
+    }
+
+    if (cleanPhoneDigits.length < 9 || cleanPhoneDigits.length > 12 || !cleanPhoneDigits.startsWith('8')) {
+      setRegisterError('Nomor telepon harus dimulai dari angka 8 dan terdiri dari 9-12 digit (contoh: 81234567890).');
+      return;
+    }
+
+    const fullPhoneNumber = `+62${cleanPhoneDigits}`;
+
     if (!password || password.length < 8) {
       setRegisterError('Kata sandi wajib diisi minimal 8 karakter.');
       return;
@@ -210,7 +231,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       await requestOtpApi({
         email: email.trim(),
         purpose: 'REGISTER',
-        phone: phone.trim() || undefined,
+        phone: fullPhoneNumber,
       });
       setOtpTargetEmail(email.trim());
       setOtpPurpose('REGISTER');
@@ -230,6 +251,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       });
       handleAuthCompletion(res.user);
     } else {
+      const cleanPhoneDigits = phone.trim().replace(/\D/g, '');
+      const fullPhoneNumber = `+62${cleanPhoneDigits}`;
       const res = await registerOtpApi({
         name,
         email: otpTargetEmail,
@@ -237,7 +260,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         password,
         password_confirmation: password,
         role: registerRole,
-        phone,
+        phone: fullPhoneNumber,
         gender: gender === 'male' ? 'MALE' : 'FEMALE',
         birth_date: getFormattedBirthDate(),
       });
@@ -367,8 +390,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const yearsList = Array.from({ length: 70 }, (_, i) => (2015 - i).toString());
 
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  const isEmailFormatValid = email.trim().length > 0 && emailRegex.test(email.trim());
-  const isEmailFormatInvalid = emailTouched && email.trim().length > 0 && !emailRegex.test(email.trim());
+  const currentEmailDomain = email.trim().split('@')[1]?.toLowerCase() || '';
+  const isDisposableDomain = ['mailinator.com', 'tempmail.com', 'temp-mail.org', '10minutemail.com', 'guerrillamail.com', 'sharklasers.com', 'yopmail.com', 'trashmail.com'].includes(currentEmailDomain);
+  const isEmailFormatValid = email.trim().length > 0 && emailRegex.test(email.trim()) && !isDisposableDomain;
+  const isEmailFormatInvalid = emailTouched && email.trim().length > 0 && (!emailRegex.test(email.trim()) || isDisposableDomain);
 
   const isEmailError = Boolean(
     isEmailFormatInvalid ||
@@ -379,6 +404,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           !registerError.toLowerCase().includes('phone') &&
           !registerError.toLowerCase().includes('nomor'))))
   );
+
+  const cleanPhoneDigits = phone.trim().replace(/\D/g, '');
+  const isPhoneFormatValid = cleanPhoneDigits.length >= 9 && cleanPhoneDigits.length <= 12 && cleanPhoneDigits.startsWith('8');
 
   const isPhoneError = Boolean(
     registerError &&
@@ -860,7 +888,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {/* Nama Lengkap */}
                 <div className="space-y-1.5 text-left">
                   <label className="text-xs font-bold text-slate-800">
-                    Nama Lengkap
+                    Nama Lengkap <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -880,7 +908,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <div className="space-y-1.5 text-left">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-800">
-                      Email
+                      Email <span className="text-rose-500">*</span>
                     </label>
                     {isEmailFormatValid && (
                       <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 animate-in fade-in-50">
@@ -910,7 +938,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 animate-in fade-in-50">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
                       <span>
-                        {isEmailFormatInvalid
+                        {isDisposableDomain
+                          ? `Domain email (${currentEmailDomain}) tidak diizinkan. Gunakan email pribadi resmi.`
+                          : isEmailFormatInvalid
                           ? 'Format email tidak valid. Masukkan format email yang benar (contoh: nama@email.com).'
                           : registerError}
                       </span>
@@ -921,7 +951,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {/* Jenis Kelamin Cards (Animated Segmented Control) */}
                 <div className="space-y-1.5 text-left">
                   <label className="text-xs font-bold text-slate-800">
-                    Jenis Kelamin
+                    Jenis Kelamin <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-inner grid grid-cols-2 gap-1 overflow-hidden">
                     <div
@@ -962,7 +992,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {/* Tanggal Lahir */}
                 <div className="space-y-1.5 text-left">
                   <label className="text-xs font-bold text-slate-800">
-                    Tanggal Lahir
+                    Tanggal Lahir <span className="text-rose-500">*</span>
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     <Select value={birthDay} onValueChange={setBirthDay}>
@@ -1010,32 +1040,41 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <div className="space-y-1.5 text-left">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-800">
-                      Nomor Telepon
+                      Nomor Telepon <span className="text-rose-500">*</span>
                     </label>
                     {phone.length > 0 && (
-                      <span className={`text-[11px] font-bold ${/^(08|628|\+628|8)\d{8,11}$/.test(phone.trim().replace(/\D/g, '')) ||
-                        (phone.trim().replace(/\D/g, '').length >= 10 && phone.trim().replace(/\D/g, '').length <= 13)
-                        ? 'text-emerald-600'
-                        : 'text-amber-600'
-                        }`}>
-                        {phone.trim().replace(/\D/g, '').length}/12 digit
+                      <span className={`text-[11px] font-bold ${isPhoneFormatValid ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {isPhoneFormatValid ? `✓ +62 ${phone}` : `+62 ${phone} (${phone.length}/11 digit)`}
                       </span>
                     )}
                   </div>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '').slice(0, 13);
-                      setPhone(val);
-                      if (registerError) setRegisterError(null);
-                    }}
-                    placeholder="08123456789"
-                    className={`w-full px-4 py-2.5 bg-white border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all ${isPhoneError
-                      ? 'border-rose-500 focus:border-rose-600 focus:ring-2 focus:ring-rose-600/20 bg-rose-50/20'
-                      : 'border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20'
+                  <div className="relative flex items-center">
+                    {/* Fixed +62 prefix badge with Indonesian Flag */}
+                    <div className="absolute left-1 top-1 bottom-1 px-3 bg-slate-100/90 rounded-lg flex items-center gap-1.5 border border-slate-200/80 text-slate-800 text-xs font-bold select-none pointer-events-none z-10 shadow-2xs">
+                      <span className="text-sm">🇮🇩</span>
+                      <span>+62</span>
+                    </div>
+                    <input
+                      type="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/\D/g, '');
+                        // If user pastes or types with leading 62 or 0
+                        if (val.startsWith('62')) val = val.slice(2);
+                        if (val.startsWith('0')) val = val.slice(1);
+                        val = val.slice(0, 12);
+                        setPhone(val);
+                        if (registerError) setRegisterError(null);
+                      }}
+                      placeholder="81234567890"
+                      className={`w-full pl-[5.25rem] pr-4 py-2.5 bg-white border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all ${
+                        isPhoneError
+                          ? 'border-rose-500 focus:border-rose-600 focus:ring-2 focus:ring-rose-600/20 bg-rose-50/20'
+                          : 'border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20'
                       }`}
-                  />
+                    />
+                  </div>
                   {isPhoneError ? (
                     <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
@@ -1043,7 +1082,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     </p>
                   ) : (
                     <p className="text-[10px] text-slate-400 font-medium">
-                      * Pastikan nomor telepon belum pernah terdaftar di sistem Metix.
+                      * Nomor diawali otomatis dengan kode negara +62. Masukkan mulai dari angka 8 (contoh: 81234567890).
                     </p>
                   )}
                 </div>
@@ -1051,7 +1090,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {/* Kata Sandi - User Custom Password Required */}
                 <div className="space-y-1.5 text-left">
                   <label className="text-xs font-bold text-slate-800">
-                    Buat Kata Sandi (Wajib)
+                    Buat Kata Sandi <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <input
@@ -1130,8 +1169,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <div className="pt-2">
                   <button
                     type="submit"
-                    disabled={isSubmittingRegister || !agreeTerms || !agreeDataProcessing || !isEmailFormatValid}
-                    className={`w-full py-3.5 rounded-2xl text-xs font-extrabold shadow-md transition-all flex items-center justify-center gap-2 ${agreeTerms && agreeDataProcessing && isEmailFormatValid && !isSubmittingRegister
+                    disabled={isSubmittingRegister || !agreeTerms || !agreeDataProcessing || !isEmailFormatValid || !isPhoneFormatValid}
+                    className={`w-full py-3.5 rounded-2xl text-xs font-extrabold shadow-md transition-all flex items-center justify-center gap-2 ${agreeTerms && agreeDataProcessing && isEmailFormatValid && isPhoneFormatValid && !isSubmittingRegister
                       ? 'bg-blue-700 hover:bg-blue-800 text-white shadow-blue-700/20 cursor-pointer hover:scale-[1.01] active:scale-95'
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300/60 shadow-none'
                       }`}

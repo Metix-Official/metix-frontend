@@ -4420,10 +4420,17 @@ export async function deleteEoAdmin(adminId: number): Promise<boolean> {
   const token = getStoredToken();
   if (!token) throw new Error('Silakan login terlebih dahulu (Unauthenticated).');
 
-  const response = await fetch(`${API_BASE_URL}/organizer/team/${adminId}`, {
+  let response = await fetch(`${API_BASE_URL}/organizer/team/${adminId}`, {
     method: 'DELETE',
     headers: getHeaders(token),
   });
+
+  if (!response.ok && response.status === 404) {
+    response = await fetch(`${API_BASE_URL}/organizer/scanners/${adminId}`, {
+      method: 'DELETE',
+      headers: getHeaders(token),
+    });
+  }
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));

@@ -5832,7 +5832,8 @@ export async function fetchOwnerRefundRequestsApi(params?: {
 }
 
 /**
- * 6. Fetch daftar permohonan refund pembeli untuk EO (Organizer)
+ * 6️⃣  Fetch daftar permohonan refund pembeli untuk EO (Organizer)
+ *    - Memastikan token Sanctum selalu ada pada header
  */
 export async function fetchOrganizerRefundRequestsApi(params?: {
   page?: number;

@@ -43,6 +43,7 @@ import {
   Percent,
   Wallet,
   ShieldCheck,
+  Tag,
 } from 'lucide-react';
 
 export default function ReportsPage() {
@@ -404,6 +405,8 @@ export default function ReportsPage() {
         'No. Telepon / WhatsApp',
         'Nama Event',
         'Kategori Tiket',
+        'Kode Promo',
+        'Potongan Diskon (Rp)',
         'Jumlah Tiket (Qty)',
         'Subtotal Tiket (Rp)',
         'Pajak Daerah 5% (Rp)',
@@ -458,6 +461,8 @@ export default function ReportsPage() {
           escapeCsv(ord.buyer_phone || '-'),
           escapeCsv(ord.event_title || '-'),
           escapeCsv(ord.ticket_type_name || '-'),
+          escapeCsv(ord.promo_code || '-'),
+          ord.discount_amount || 0,
           ord.quantity || 1,
           rowSubtotal,
           rowTax,
@@ -474,6 +479,8 @@ export default function ReportsPage() {
       lines.push('');
       lines.push([
         escapeCsv('TOTAL AKUMULASI'),
+        escapeCsv(''),
+        escapeCsv(''),
         escapeCsv(''),
         escapeCsv(''),
         escapeCsv(''),
@@ -964,6 +971,10 @@ export default function ReportsPage() {
                     const rowFee = ord.platform_fee ?? Math.round(rowSubtotal * 0.07);
                     const rowTotal = ord.total_amount || (rowSubtotal + rowTax + rowFee);
 
+                    const hasPromo = Boolean(ord.promo_code || (ord.discount_amount && ord.discount_amount > 0));
+                    const discountAmount = Number(ord.discount_amount || 0);
+                    const originalSubtotal = Number(ord.original_subtotal || (hasPromo && discountAmount > 0 ? (rowSubtotal + discountAmount) : rowSubtotal));
+
                     return (
                       <tr key={ord.id} className="hover:bg-slate-50 transition-colors group">
 
@@ -996,6 +1007,20 @@ export default function ReportsPage() {
                                 </span>
                               ) : null}
                             </div>
+                            {/* Promo Code Badge if Used */}
+                            {hasPromo && (
+                              <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[9.5px] font-extrabold shadow-2xs">
+                                  <Tag className="w-2.5 h-2.5 text-purple-600" />
+                                  <span>{ord.promo_code || 'PROMO'}</span>
+                                </span>
+                                {discountAmount > 0 && (
+                                  <span className="text-[9.5px] font-extrabold text-rose-700 bg-rose-50 px-1 py-0.2 rounded border border-rose-200/80">
+                                    Diskon -Rp {discountAmount.toLocaleString('id-ID')}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </td>
 
@@ -1003,8 +1028,28 @@ export default function ReportsPage() {
                           {ord.quantity} Pcs
                         </td>
 
-                        <td className="py-2.5 px-3 text-right font-bold text-slate-800 text-xs">
-                          Rp {rowSubtotal.toLocaleString('id-ID')}
+                        {/* Subtotal Column with IF Promo Breakdown */}
+                        <td className="py-2.5 px-3 text-right text-xs">
+                          {hasPromo && discountAmount > 0 ? (
+                            <div className="flex flex-col items-end gap-0.5">
+                              <div className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold">
+                                <span className="text-[9px]">Awal:</span>
+                                <span className="line-through decoration-rose-500 decoration-1.5">
+                                  Rp {originalSubtotal.toLocaleString('id-ID')}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-extrabold text-rose-600">
+                                - Rp {discountAmount.toLocaleString('id-ID')}
+                              </span>
+                              <span className="font-black text-slate-900 text-xs">
+                                Rp {rowSubtotal.toLocaleString('id-ID')}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="font-bold text-slate-800 text-xs">
+                              Rp {rowSubtotal.toLocaleString('id-ID')}
+                            </span>
+                          )}
                         </td>
 
                         <td className="py-2.5 px-3 text-right font-medium text-amber-700 text-xs">
@@ -1015,8 +1060,22 @@ export default function ReportsPage() {
                           Rp {rowFee.toLocaleString('id-ID')}
                         </td>
 
-                        <td className="py-2.5 px-3 text-right font-black text-blue-700 text-xs">
-                          Rp {rowTotal.toLocaleString('id-ID')}
+                        {/* Total Tagihan Column with IF Promo Note */}
+                        <td className="py-2.5 px-3 text-right text-xs">
+                          {hasPromo && discountAmount > 0 ? (
+                            <div className="flex flex-col items-end">
+                              <span className="font-black text-blue-700 text-xs">
+                                Rp {rowTotal.toLocaleString('id-ID')}
+                              </span>
+                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60 mt-0.5">
+                                Hemat Rp {discountAmount.toLocaleString('id-ID')}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="font-black text-blue-700 text-xs">
+                              Rp {rowTotal.toLocaleString('id-ID')}
+                            </span>
+                          )}
                         </td>
 
                         <td className="py-2.5 px-3 text-center font-extrabold text-slate-800">

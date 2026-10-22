@@ -3963,6 +3963,9 @@ export interface ReportOrderItem {
   status: 'paid' | 'completed' | 'pending' | 'unpaid' | 'waiting_payment' | 'expired' | 'cancelled' | 'canceled' | 'refunded' | string;
   created_at: string;
   tickets?: ReportTicketItem[];
+  promo_code?: string;
+  discount_amount?: number;
+  original_subtotal?: number;
 }
 
 export async function fetchSalesReportData(params?: {
@@ -4000,6 +4003,8 @@ export async function fetchSalesReportData(params?: {
         const rawTotal = Number(ord.total_amount ?? 0);
         const rawTax = Number(ord.local_tax_amount ?? ord.local_tax ?? ord.tax_amount ?? ord.tax ?? 0);
         const rawFee = Number(ord.platform_fee ?? ord.fee_platform ?? 0);
+        const rawDiscount = Number(ord.discount_amount ?? ord.discount ?? ord.promo_discount ?? 0);
+        const promoCode = ord.promo_code || ord.voucher_code || (ord.promo && typeof ord.promo === 'object' ? ord.promo.code : (typeof ord.promo === 'string' ? ord.promo : null)) || undefined;
 
         let subtotal = rawSubtotal;
         let tax = rawTax;
@@ -4021,6 +4026,7 @@ export async function fetchSalesReportData(params?: {
         }
 
         const totalAmount = rawTotal > 0 ? rawTotal : (subtotal + tax + fee);
+        const originalSubtotal = Number(ord.original_subtotal ?? (rawDiscount > 0 ? (subtotal + rawDiscount) : subtotal));
 
         return {
           id: ord.id,
@@ -4042,6 +4048,9 @@ export async function fetchSalesReportData(params?: {
           status: String(ord.status || 'pending').toLowerCase(),
           created_at: ord.created_at || new Date().toISOString(),
           tickets: ord.tickets || [],
+          promo_code: promoCode,
+          discount_amount: rawDiscount,
+          original_subtotal: originalSubtotal,
         };
       });
 

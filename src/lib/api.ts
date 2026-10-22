@@ -4000,27 +4000,11 @@ export async function fetchSalesReportData(params?: {
       const rawOrders = payload.orders || [];
       const formattedOrders: ReportOrderItem[] = rawOrders.map((ord: any) => {
         const rawSubtotal = Number(ord.subtotal ?? 0);
-        const rawTotal = Number(ord.total_amount ?? ord.grand_total ?? ord.total ?? 0);
+        const rawTotal = Number(ord.total_amount ?? 0);
         const rawTax = Number(ord.local_tax_amount ?? ord.local_tax ?? ord.tax_amount ?? ord.tax ?? 0);
         const rawFee = Number(ord.platform_fee ?? ord.fee_platform ?? 0);
-        let rawDiscount = Number(
-          ord.discount_amount ??
-          ord.discount ??
-          ord.promo_discount ??
-          ord.discount_total ??
-          (ord.applied_promo && ord.applied_promo.discountAmount) ??
-          (ord.promo && typeof ord.promo === 'object' && ord.promo.discount_amount) ??
-          0
-        );
-        let promoCode =
-          ord.promo_code ||
-          ord.voucher_code ||
-          ord.coupon_code ||
-          (ord.applied_promo && ord.applied_promo.code) ||
-          (ord.promo && typeof ord.promo === 'object' ? (ord.promo.code || ord.promo.promo_code || ord.promo.name) : (typeof ord.promo === 'string' ? ord.promo : null)) ||
-          (ord.voucher && typeof ord.voucher === 'object' ? (ord.voucher.code || ord.voucher.voucher_code) : (typeof ord.voucher === 'string' ? ord.voucher : null)) ||
-          (Array.isArray(ord.promos) && ord.promos[0]?.code) ||
-          undefined;
+        const rawDiscount = Number(ord.discount_amount ?? ord.discount ?? ord.promo_discount ?? 0);
+        const promoCode = ord.promo_code || ord.voucher_code || (ord.promo && typeof ord.promo === 'object' ? ord.promo.code : (typeof ord.promo === 'string' ? ord.promo : null)) || undefined;
 
         let subtotal = rawSubtotal;
         let tax = rawTax;
@@ -4041,42 +4025,8 @@ export async function fetchSalesReportData(params?: {
           fee = Math.round(subtotal * 0.07);
         }
 
-        // Implicit discount detection: If rawTotal is noticeably less than expected subtotal + tax + fee
-        const expectedGross = subtotal + tax + fee;
-        if (rawTotal > 0 && rawTotal < expectedGross && rawDiscount === 0) {
-          rawDiscount = expectedGross - rawTotal;
-        }
-
-        if (!promoCode && (rawDiscount > 0 || ord.promo_id || ord.voucher_id || (Array.isArray(ord.promos) && ord.promos.length > 0))) {
-          if (Array.isArray(ord.promos) && ord.promos[0]?.code) {
-            promoCode = ord.promos[0].code;
-          } else if (ord.promo && typeof ord.promo === 'object' && ord.promo.name) {
-            promoCode = ord.promo.name;
-          } else {
-            promoCode = 'PROMO';
-          }
-        }
-
-        const totalAmount = rawTotal > 0 ? rawTotal : (subtotal + tax + fee - rawDiscount);
-
-        // Determine original subtotal vs effective subtotal after discount
-        let originalSubtotal = Number(ord.original_subtotal || 0);
-        if (rawDiscount > 0) {
-          if (originalSubtotal > 0) {
-            if (subtotal === originalSubtotal) {
-              subtotal = Math.max(0, originalSubtotal - rawDiscount);
-            }
-          } else if (subtotal >= rawDiscount && totalAmount <= (subtotal - rawDiscount + tax + fee + 50)) {
-            // subtotal from backend was the original price, so actual paid subtotal is reduced
-            originalSubtotal = subtotal;
-            subtotal = Math.max(0, originalSubtotal - rawDiscount);
-          } else {
-            // subtotal was already discounted
-            originalSubtotal = subtotal + rawDiscount;
-          }
-        } else {
-          originalSubtotal = subtotal;
-        }
+        const totalAmount = rawTotal > 0 ? rawTotal : (subtotal + tax + fee);
+        const originalSubtotal = Number(ord.original_subtotal ?? (rawDiscount > 0 ? (subtotal + rawDiscount) : subtotal));
 
         return {
           id: ord.id,

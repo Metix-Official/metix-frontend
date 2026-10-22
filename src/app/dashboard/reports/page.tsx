@@ -230,9 +230,7 @@ export default function ReportsPage() {
         ord.buyer_email.toLowerCase().includes(q) ||
         (ord.event_title || '').toLowerCase().includes(q) ||
         (ord.ticket_type_name || '').toLowerCase().includes(q) ||
-        (ord.payment_method || '').toLowerCase().includes(q) ||
-        (ord.promo_code || '').toLowerCase().includes(q) ||
-        (q === 'promo' && Boolean(ord.promo_code || (ord.discount_amount && ord.discount_amount > 0)))
+        (ord.payment_method || '').toLowerCase().includes(q)
     );
   }, [orders, publishedEvents, currentRole, selectedPaymentMethod, searchQuery]);
 
@@ -968,28 +966,14 @@ export default function ReportsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredOrders.map((ord) => {
-                    const rowSubtotal = ord.subtotal ?? 0;
-                    const rowTax = ord.tax_amount ?? Math.round((ord.original_subtotal || rowSubtotal) * 0.05);
-                    const rowFee = ord.platform_fee ?? Math.round((ord.original_subtotal || rowSubtotal) * 0.07);
+                    const rowSubtotal = ord.subtotal || 0;
+                    const rowTax = ord.tax_amount ?? Math.round(rowSubtotal * 0.05);
+                    const rowFee = ord.platform_fee ?? Math.round(rowSubtotal * 0.07);
                     const rowTotal = ord.total_amount || (rowSubtotal + rowTax + rowFee);
 
-                    let discountAmount = Number(ord.discount_amount || 0);
-                    const promoCode = ord.promo_code;
-
-                    // Implicit promo detection if total is lower than expected
-                    const expectedTotalWithoutDiscount = (ord.original_subtotal || rowSubtotal) + rowTax + rowFee;
-                    if (rowTotal < expectedTotalWithoutDiscount && discountAmount === 0) {
-                      discountAmount = Math.max(0, expectedTotalWithoutDiscount - rowTotal);
-                    }
-
-                    const hasPromo = Boolean(promoCode || discountAmount > 0 || (ord.original_subtotal && ord.original_subtotal > rowSubtotal));
-                    const originalSubtotal = Number(
-                      ord.original_subtotal ||
-                      (hasPromo && discountAmount > 0 ? (rowSubtotal >= discountAmount ? rowSubtotal : rowSubtotal + discountAmount) : rowSubtotal)
-                    );
-                    const effectiveSubtotal = (hasPromo && originalSubtotal === rowSubtotal && discountAmount > 0)
-                      ? Math.max(0, originalSubtotal - discountAmount)
-                      : rowSubtotal;
+                    const hasPromo = Boolean(ord.promo_code || (ord.discount_amount && ord.discount_amount > 0));
+                    const discountAmount = Number(ord.discount_amount || 0);
+                    const originalSubtotal = Number(ord.original_subtotal || (hasPromo && discountAmount > 0 ? (rowSubtotal + discountAmount) : rowSubtotal));
 
                     return (
                       <tr key={ord.id} className="hover:bg-slate-50 transition-colors group">
@@ -1026,9 +1010,9 @@ export default function ReportsPage() {
                             {/* Promo Code Badge if Used */}
                             {hasPromo && (
                               <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[9.5px] font-extrabold shadow-2xs">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[9.5px] font-extrabold shadow-2xs">
                                   <Tag className="w-2.5 h-2.5 text-purple-600" />
-                                  <span>{promoCode || 'PROMO'}</span>
+                                  <span>{ord.promo_code || 'PROMO'}</span>
                                 </span>
                                 {discountAmount > 0 && (
                                   <span className="text-[9.5px] font-extrabold text-rose-700 bg-rose-50 px-1 py-0.2 rounded border border-rose-200/80">
@@ -1044,34 +1028,22 @@ export default function ReportsPage() {
                           {ord.quantity} Pcs
                         </td>
 
-                        {/* Subtotal Column with Strikethrough if Promo */}
+                        {/* Subtotal Column with IF Promo Breakdown */}
                         <td className="py-2.5 px-3 text-right text-xs">
-                          {hasPromo && (discountAmount > 0 || originalSubtotal > effectiveSubtotal) ? (
+                          {hasPromo && discountAmount > 0 ? (
                             <div className="flex flex-col items-end gap-0.5">
-                              {/* Harga Asli Dicoret (Strikethrough / Strip) */}
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-slate-400 font-medium">Awal:</span>
-                                <span className="line-through decoration-rose-500 decoration-[1.5px] font-bold text-slate-400 text-xs">
+                              <div className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold">
+                                <span className="text-[9px]">Awal:</span>
+                                <span className="line-through decoration-rose-500 decoration-1.5">
                                   Rp {originalSubtotal.toLocaleString('id-ID')}
                                 </span>
                               </div>
-                              {/* Subtotal Efektif setelah Promo */}
-                              <div className="flex items-center gap-1">
-                                <span className="font-black text-slate-900 text-xs">
-                                  Rp {effectiveSubtotal.toLocaleString('id-ID')}
-                                </span>
-                                {effectiveSubtotal === 0 && (
-                                  <span className="text-[8.5px] font-black text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
-                                    Promo 100%
-                                  </span>
-                                )}
-                              </div>
-                              {/* Label Diskon */}
-                              {discountAmount > 0 && (
-                                <span className="inline-flex items-center gap-0.5 text-[9px] font-extrabold text-rose-600 bg-rose-50 px-1 py-0.2 rounded border border-rose-200/80">
-                                  -Rp {discountAmount.toLocaleString('id-ID')}
-                                </span>
-                              )}
+                              <span className="text-[10px] font-extrabold text-rose-600">
+                                - Rp {discountAmount.toLocaleString('id-ID')}
+                              </span>
+                              <span className="font-black text-slate-900 text-xs">
+                                Rp {rowSubtotal.toLocaleString('id-ID')}
+                              </span>
                             </div>
                           ) : (
                             <span className="font-bold text-slate-800 text-xs">

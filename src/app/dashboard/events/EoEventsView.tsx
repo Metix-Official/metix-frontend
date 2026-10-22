@@ -3861,15 +3861,21 @@ export function EoEventsView() {
                                           <div className="text-[11px] text-slate-400 font-medium line-clamp-1">{tt.description}</div>
                                         )}
                                       </td>
-                                      <td className="py-2.5 px-4 font-black text-blue-700 whitespace-nowrap">
+                                      <td className={`py-2.5 px-4 font-black whitespace-nowrap ${rawStatus === 'SOLD_OUT' ? 'line-through text-slate-400 decoration-rose-500 decoration-2' : 'text-blue-700'}`}>
                                         Rp {Number(tt.price || 0).toLocaleString('id-ID')}
                                       </td>
                                       <td className="py-2.5 px-4 whitespace-nowrap">
                                         <div className="text-slate-800 font-bold">
                                           {totalQuota} Tiket <span className="text-slate-400 font-normal">({sold} terjual)</span>
                                         </div>
-                                        <div className={`text-[10px] font-extrabold ${available > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                          Sisa: {available}
+                                        <div className={`text-[10px] font-extrabold ${rawStatus === 'SOLD_OUT' || available <= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                          {rawStatus === 'SOLD_OUT' ? (
+                                            <span className="inline-flex items-center px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200 font-extrabold tracking-wide">
+                                              SOLD_OUT
+                                            </span>
+                                          ) : (
+                                            `Sisa: ${available}`
+                                          )}
                                         </div>
                                       </td>
                                       <td className="py-2.5 px-4 whitespace-nowrap">

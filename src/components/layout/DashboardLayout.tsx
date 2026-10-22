@@ -6,6 +6,7 @@ import { Header } from './Header';
 import { getStoredToken, getStoredUser, fetchUserProfile, UserProfile } from '@/lib/api';
 import { canAccessRoute, getDefaultRoleDashboard, getUserRole } from '@/lib/roles';
 import { useRouter, usePathname, notFound } from 'next/navigation';
+import { AccountStatusModal } from '@/components/public/AccountStatusModal';
 import { Loader2, ShieldAlert, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
@@ -77,6 +78,24 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         <p className="text-xs font-bold text-slate-600">
           Memeriksa Hak Akses Metix...
         </p>
+      </div>
+    );
+  }
+
+  // Intercept INACTIVE or BLOCKED account status immediately
+  const userStatus = (user?.status || '').toUpperCase();
+  if (userStatus === 'INACTIVE' || userStatus === 'BLOCKED') {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <AccountStatusModal
+          isOpen={true}
+          status={userStatus}
+          userName={user?.name}
+          userEmail={user?.email}
+          onClose={() => {
+            router.replace('/');
+          }}
+        />
       </div>
     );
   }

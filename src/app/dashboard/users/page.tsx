@@ -882,6 +882,23 @@ export default function MasterUserPage() {
                         <SelectItem value="BLOCKED">Blocked (Diblokir)</SelectItem>
                       </SelectContent>
                     </Select>
+                    
+                    {/* Status Impact Hint */}
+                    {editForm.status === 'INACTIVE' && (
+                      <p className="text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200/80 rounded-lg p-2 leading-relaxed">
+                        ⚠️ <strong>Inactive:</strong> Pengguna tidak dapat mengakses halaman buyer. Muncul alert untuk menghubungi pihak Metix agar akun bisa diaktifkan kembali.
+                      </p>
+                    )}
+                    {editForm.status === 'BLOCKED' && (
+                      <p className="text-[11px] font-medium text-rose-700 bg-rose-50 border border-rose-200/80 rounded-lg p-2 leading-relaxed">
+                        ⛔ <strong>Blocked:</strong> Pengguna diblokir total & permanen. Akun tidak dapat dikembalikan karena melanggar ketentuan Metix.
+                      </p>
+                    )}
+                    {editForm.status === 'ACTIVE' && (
+                      <p className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded-lg p-2 leading-relaxed">
+                        ✅ <strong>Active:</strong> Pengguna aktif normal dan dapat mengakses seluruh fitur pembeli tiket.
+                      </p>
+                    )}
                   </div>
 
                   {/* Kota Domisili */}

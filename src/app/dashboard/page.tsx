@@ -1841,29 +1841,43 @@ export default function DashboardPage() {
                                               const remaining = tt.remaining ?? Math.max(0, quota - soldCount);
                                               const pct = tt.percentage ?? (quota > 0 ? Math.round((soldCount / quota) * 100) : 0);
                                               const subtotalRev = tt.revenue ?? (soldCount * price);
-                                              const isSoldOut = quota > 0 && remaining === 0;
+                                              const rawStatus = String(tt.status || tt.ticket_status || tt.raw_status || '').toUpperCase();
+                                              const isSoldOut = rawStatus === 'SOLD_OUT' || (quota > 0 && remaining === 0);
+                                              const isInactive = rawStatus === 'INACTIVE';
 
                                               return (
                                                 <div
                                                   key={tt.id || tt.name}
-                                                  className="p-4 rounded-xl bg-slate-50/60 border border-slate-200/80 hover:bg-white hover:border-indigo-300 hover:shadow-xs transition-all space-y-3"
+                                                  className={`p-4 rounded-xl border transition-all space-y-3 ${isSoldOut
+                                                    ? 'bg-slate-50/80 border-slate-200/90'
+                                                    : 'bg-slate-50/60 border-slate-200/80 hover:bg-white hover:border-indigo-300 hover:shadow-xs'
+                                                    }`}
                                                 >
                                                   <div className="flex items-start justify-between gap-2">
                                                     <div>
-                                                      <h5 className="text-xs font-black text-slate-900 line-clamp-1">
+                                                      <h5 className={`text-xs font-black line-clamp-1 ${isSoldOut ? 'text-slate-500' : 'text-slate-900'}`}>
                                                         {tt.name}
                                                       </h5>
-                                                      <span className="text-xs font-black text-indigo-600">
+                                                      <span
+                                                        className={`text-xs font-black ${isSoldOut
+                                                          ? 'line-through text-slate-400 decoration-rose-500 decoration-2'
+                                                          : 'text-indigo-600'
+                                                          }`}
+                                                      >
                                                         Rp {price.toLocaleString('id-ID')}
                                                       </span>
                                                     </div>
 
                                                     {isSoldOut ? (
-                                                      <span className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-black uppercase">
-                                                        Sold Out
+                                                      <span className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-black uppercase tracking-wider shadow-2xs">
+                                                        SOLD_OUT
+                                                      </span>
+                                                    ) : isInactive ? (
+                                                      <span className="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-black uppercase tracking-wider shadow-2xs">
+                                                        INACTIVE
                                                       </span>
                                                     ) : (
-                                                      <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black uppercase">
+                                                      <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black uppercase tracking-wider shadow-2xs">
                                                         Sisa {remaining}
                                                       </span>
                                                     )}

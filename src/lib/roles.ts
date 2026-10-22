@@ -120,9 +120,16 @@ function isPathAllowed(allowedPaths: string[], pathname: string): boolean {
  * Returns true if the user with given role is allowed to view the pathname.
  */
 export function canAccessRoute(
-  user: { role?: string; roles?: Array<{ name: string }> } | null | undefined,
+  user: { role?: string; roles?: Array<{ name: string }>; status?: string | null } | null | undefined,
   pathname: string
 ): boolean {
+  if (user) {
+    const rawStatus = (user.status || '').toUpperCase();
+    if (rawStatus === 'INACTIVE' || rawStatus === 'BLOCKED') {
+      return false;
+    }
+  }
+
   const role = getUserRole(user);
   if (!role) return false;
 

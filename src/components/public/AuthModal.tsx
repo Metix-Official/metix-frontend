@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, ArrowLeft, UserCheck, Eye, EyeOff, Loader2, AlertCircle, Ticket, Building2, Sparkles, Mail, Lock, Info, KeyRound, CheckCircle2 } from 'lucide-react';
+import { X, ArrowLeft, User, UserCheck, Eye, EyeOff, Loader2, AlertCircle, AlertTriangle, Ban, Ticket, Building2, Sparkles, Mail, Lock, Info, KeyRound, CheckCircle2, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   Select,
@@ -10,9 +10,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { loginUser, registerUser, requestOtpApi, loginOtpApi, registerOtpApi, resetPasswordOtpApi, UserProfile, getStoredUser } from '@/lib/api';
+import { loginUser, registerUser, requestOtpApi, loginOtpApi, registerOtpApi, resetPasswordOtpApi, UserProfile, getStoredUser, logoutUser } from '@/lib/api';
 import { getDefaultRoleDashboard } from '@/lib/roles';
 import { OtpModal } from './OtpModal';
+import { AccountStatusModal } from './AccountStatusModal';
 import Link from 'next/link';
 
 interface AuthModalProps {
@@ -43,6 +44,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
   const [otpTargetEmail, setOtpTargetEmail] = useState('');
   const [otpPurpose, setOtpPurpose] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
+
+  // Account Status Modal (INACTIVE / BLOCKED)
+  const [statusModal, setStatusModal] = useState<{
+    isOpen: boolean;
+    status: 'INACTIVE' | 'BLOCKED' | string;
+    userName?: string;
+    userEmail?: string;
+  }>({
+    isOpen: false,
+    status: 'INACTIVE',
+  });
 
   // Registration Form State based on User Schema
   const [name, setName] = useState('');
@@ -164,8 +176,51 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         email: loginEmail,
         password: loginPassword,
       });
+
+      const userStatus = (res.user?.status || '').toUpperCase();
+      if (userStatus === 'INACTIVE' || userStatus === 'BLOCKED') {
+        logoutUser();
+        setStatusModal({
+          isOpen: true,
+          status: userStatus,
+          userName: res.user?.name || loginEmail,
+          userEmail: res.user?.email || loginEmail,
+        });
+        return;
+      }
+
       handleAuthCompletion(res.user);
     } catch (err: any) {
+      if (err.status === 'INACTIVE' || err.status === 'BLOCKED') {
+        setStatusModal({
+          isOpen: true,
+          status: err.status,
+          userName: err.user?.name || loginEmail,
+          userEmail: err.user?.email || loginEmail,
+        });
+        return;
+      }
+
+      const msg = (err.message || '').toLowerCase();
+      if (msg.includes('dinonaktifkan') || msg.includes('inactive')) {
+        setStatusModal({
+          isOpen: true,
+          status: 'INACTIVE',
+          userName: loginEmail,
+          userEmail: loginEmail,
+        });
+        return;
+      }
+      if (msg.includes('diblokir') || msg.includes('blocked')) {
+        setStatusModal({
+          isOpen: true,
+          status: 'BLOCKED',
+          userName: loginEmail,
+          userEmail: loginEmail,
+        });
+        return;
+      }
+
       setLoginError(err.message || 'Email atau password yang Anda masukkan salah.');
     } finally {
       setIsSubmittingLogin(false);
@@ -245,11 +300,62 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleVerifyOtpModal = async (otpCode: string) => {
     if (otpPurpose === 'LOGIN') {
-      const res = await loginOtpApi({
-        email: otpTargetEmail,
-        otp: otpCode,
-      });
-      handleAuthCompletion(res.user);
+      try {
+        const res = await loginOtpApi({
+          email: otpTargetEmail,
+          otp: otpCode,
+        });
+
+        const userStatus = (res.user?.status || '').toUpperCase();
+        if (userStatus === 'INACTIVE' || userStatus === 'BLOCKED') {
+          setIsOtpModalOpen(false);
+          logoutUser();
+          setStatusModal({
+            isOpen: true,
+            status: userStatus,
+            userName: res.user?.name || otpTargetEmail,
+            userEmail: res.user?.email || otpTargetEmail,
+          });
+          return;
+        }
+
+        handleAuthCompletion(res.user);
+      } catch (err: any) {
+        if (err.status === 'INACTIVE' || err.status === 'BLOCKED') {
+          setIsOtpModalOpen(false);
+          setStatusModal({
+            isOpen: true,
+            status: err.status,
+            userName: err.user?.name || otpTargetEmail,
+            userEmail: err.user?.email || otpTargetEmail,
+          });
+          return;
+        }
+
+        const msg = (err.message || '').toLowerCase();
+        if (msg.includes('dinonaktifkan') || msg.includes('inactive')) {
+          setIsOtpModalOpen(false);
+          setStatusModal({
+            isOpen: true,
+            status: 'INACTIVE',
+            userName: otpTargetEmail,
+            userEmail: otpTargetEmail,
+          });
+          return;
+        }
+        if (msg.includes('diblokir') || msg.includes('blocked')) {
+          setIsOtpModalOpen(false);
+          setStatusModal({
+            isOpen: true,
+            status: 'BLOCKED',
+            userName: otpTargetEmail,
+            userEmail: otpTargetEmail,
+          });
+          return;
+        }
+
+        throw err;
+      }
     } else {
       const cleanPhoneDigits = phone.trim().replace(/\D/g, '');
       const fullPhoneNumber = `+62${cleanPhoneDigits}`;
@@ -424,68 +530,72 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         aria-hidden="true"
       />
 
-      {/* Modal Dialog Card Container with scrollable max height */}
-      <div className="relative bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[90vh] z-10">
+      {/* Modal Dialog Card Container with sleek luxury styling */}
+      <div className="relative bg-white rounded-3xl sm:rounded-[28px] max-w-[420px] w-full shadow-[0_25px_60px_-15px_rgba(0,0,0,0.22)] border border-slate-100/80 flex flex-col max-h-[92vh] overflow-hidden z-10 transition-all">
 
-        {/* Fixed Top Header Bar: Back Arrow (if register or forgot password mode) & Close X */}
-        <div className="flex items-center justify-between p-4 sm:p-5 pb-0 shrink-0 relative z-20">
-          {mode === 'register' || mode === 'forgot_password' ? (
-            <button
-              onClick={() => {
-                if (mode === 'forgot_password' && forgotStep === 2) {
-                  setForgotStep(1);
-                  setForgotError(null);
-                  setForgotSuccess(null);
-                } else {
-                  setMode('login');
-                }
-              }}
-              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-              aria-label="Kembali"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-          ) : (
-            <div />
-          )}
+        {/* Ambient Top Glow Effect */}
+        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-72 h-28 bg-gradient-to-b from-blue-500/15 via-indigo-500/5 to-transparent blur-2xl pointer-events-none rounded-full" />
 
+        {/* Floating Back Button (for register / forgot_password) */}
+        {(mode === 'register' || mode === 'forgot_password') && (
           <button
-            onClick={onClose}
-            className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors ml-auto shrink-0"
-            aria-label="Tutup Modal"
+            type="button"
+            onClick={() => {
+              if (mode === 'forgot_password' && forgotStep === 2) {
+                setForgotStep(1);
+                setForgotError(null);
+                setForgotSuccess(null);
+              } else {
+                setMode('login');
+              }
+            }}
+            className="absolute top-4 left-4 z-30 p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100/80 transition-all cursor-pointer"
+            aria-label="Kembali"
           >
-            <X className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4" />
           </button>
-        </div>
+        )}
 
-        {/* Scrollable Body Container */}
-        <div className="p-6 sm:p-8 pt-2 overflow-y-auto space-y-5 flex-1 scrollbar-thin">
+        {/* Floating Close X Button */}
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-4 right-4 z-30 p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100/80 transition-all cursor-pointer"
+          aria-label="Tutup Modal"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        {/* Scrollable Body Container (clean scrollbar-free) */}
+        <div className="p-6 sm:p-7 pt-7 overflow-y-auto space-y-4 sm:space-y-5 flex-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
 
           {mode === 'login' ? (
             /* ================= LOGIN MODE (WITH REAL API /LOGIN INTEGRATION) ================= */
-            <div className="space-y-5">
-              {/* Header Title */}
-              <div className="text-center space-y-1.5">
-                <img src="/mitex.png" alt="METIX Logo" className="h-8 w-auto mx-auto object-contain mb-2" />
-                <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
+            <div className="space-y-4 sm:space-y-5">
+              {/* Header Title & Branding */}
+              <div className="text-center space-y-1">
+                <div className="inline-flex items-center justify-center mb-1">
+                  <img src="/mitex.png" alt="METIX Logo" className="h-8 w-auto object-contain transition-transform duration-300 hover:scale-105" />
+                </div>
+                <h3 className="text-xl sm:text-[22px] font-black text-slate-900 tracking-tight">
                   Masuk ke Akun Anda
                 </h3>
-                <p className="text-xs text-slate-500 font-medium">
-                  Selamat datang kembali! Silakan masuk dengan Password atau OTP Email.
+                <p className="text-xs text-slate-500 font-normal">
+                  Selamat datang kembali! Akses tiket dan event favorit Anda.
                 </p>
               </div>
 
-              {/* Login Method Segmented Control */}
-              <div className="relative p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-inner grid grid-cols-2 gap-1 overflow-hidden">
+              {/* Login Method Segmented Control (Apple-style pill toggle) */}
+              <div className="relative p-1 bg-slate-100/80 rounded-2xl border border-slate-200/70 shadow-inner grid grid-cols-2 gap-1 overflow-hidden">
                 <div
-                  className={`absolute top-1 bottom-1 w-[calc(50%-0.375rem)] rounded-xl bg-white shadow-md shadow-slate-900/10 border border-blue-600/30 transition-all duration-300 ease-out ${loginMethod === 'password' ? 'left-1' : 'left-[calc(50%+0.125rem)]'
+                  className={`absolute top-1 bottom-1 w-[calc(50%-0.375rem)] rounded-xl bg-white shadow-sm shadow-slate-900/10 border border-slate-200/60 transition-all duration-300 ease-out ${loginMethod === 'password' ? 'left-1' : 'left-[calc(50%+0.125rem)]'
                     }`}
                 />
 
                 <button
                   type="button"
                   onClick={() => setLoginMethod('password')}
-                  className={`relative z-10 py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${loginMethod === 'password' ? 'text-blue-700' : 'text-slate-600 hover:text-slate-900'
+                  className={`relative z-10 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${loginMethod === 'password' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
                     }`}
                 >
                   <Lock className="w-3.5 h-3.5" />
@@ -495,7 +605,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setLoginMethod('otp')}
-                  className={`relative z-10 py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${loginMethod === 'otp' ? 'text-blue-700' : 'text-slate-600 hover:text-slate-900'
+                  className={`relative z-10 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${loginMethod === 'otp' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
                     }`}
                 >
                   <Mail className="w-3.5 h-3.5" />
@@ -503,34 +613,112 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </button>
               </div>
 
-              {/* Login Error Notification */}
+              {/* Login Error Notification - Ultra-Soft & Premium Styling */}
               {loginError && (
-                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2 animate-in fade-in-0">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                  <span>{loginError}</span>
-                </div>
+                (() => {
+                  const errLower = loginError.toLowerCase();
+                  const isInactive =
+                    errLower.includes('belum aktif') ||
+                    errLower.includes('dinonaktifkan') ||
+                    errLower.includes('inactive') ||
+                    errLower.includes('tidak aktif');
+
+                  const isBlocked =
+                    errLower.includes('diblokir') ||
+                    errLower.includes('blocked');
+
+                  if (isInactive) {
+                    return (
+                      <div className="rounded-2xl bg-slate-50/90 border border-slate-200/90 p-3.5 sm:p-4 text-left shadow-2xs animate-in fade-in-50 duration-200">
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 flex items-center justify-center shrink-0 mt-0.5">
+                            <AlertTriangle className="w-4 h-4 stroke-[2.2]" />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-xs font-bold text-slate-900 tracking-tight">
+                              Akun Dinonaktifkan
+                            </h4>
+                            <p className="text-[11.5px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                              Akun Anda saat ini belum aktif. Silakan hubungi kami untuk bantuan pengaktifan kembali.
+                            </p>
+
+                            <div className="mt-2.5">
+                              <a
+                                href="https://www.instagram.com/metix.id/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11.5px] font-bold text-slate-700 bg-white border border-slate-200/90 hover:bg-slate-50 hover:border-slate-300 hover:text-slate-900 shadow-2xs transition-all cursor-pointer group"
+                              >
+                                <svg className="w-3.5 h-3.5 text-[#E1306C] fill-current shrink-0" viewBox="0 0 24 24">
+                                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                                </svg>
+                                <span>Hubungi Instagram @metix.id</span>
+                                <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (isBlocked) {
+                    return (
+                      <div className="rounded-2xl bg-slate-50/90 border border-slate-200/90 p-3.5 sm:p-4 text-left shadow-2xs animate-in fade-in-50 duration-200">
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 flex items-center justify-center shrink-0 mt-0.5">
+                            <Ban className="w-4 h-4 stroke-[2.2]" />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-xs font-bold text-slate-900 tracking-tight">
+                              Akun Diblokir Permanen
+                            </h4>
+                            <p className="text-[11.5px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                              Akun Anda tidak dapat diakses kembali karena melanggar ketentuan Metix.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Default error message
+                  return (
+                    <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2.5 animate-in fade-in-0 text-left">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                      <span>{loginError}</span>
+                    </div>
+                  );
+                })()
               )}
 
               {/* Real Login Form */}
               <form onSubmit={handleApiLoginSubmit} className="space-y-4">
                 <div className="space-y-1.5 text-left">
-                  <label className="text-xs font-bold text-slate-800">
+                  <label className="text-xs font-semibold text-slate-700">
                     Alamat Email
                   </label>
-                  <input
-                    type="email"
-                    required
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="nama@email.com"
-                    className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-                  />
+                  <div className="relative">
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="email"
+                      required
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      placeholder="nama@email.com"
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border border-slate-200 focus:border-blue-600 rounded-xl text-xs sm:text-[13px] text-slate-900 placeholder:text-slate-400 shadow-2xs focus:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-600/10 transition-all font-medium"
+                    />
+                  </div>
                 </div>
 
                 {loginMethod === 'password' && (
                   <div className="space-y-1.5 text-left">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-800">
+                      <label className="text-xs font-semibold text-slate-700">
                         Kata Sandi
                       </label>
                       <button
@@ -545,24 +733,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                           setForgotConfirmPassword('');
                           setMode('forgot_password');
                         }}
-                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                        className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
                       >
                         Lupa Password?
                       </button>
                     </div>
                     <div className="relative">
+                      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                        <Lock className="w-4 h-4" />
+                      </div>
                       <input
                         type={showLoginPassword ? 'text' : 'password'}
                         required
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
                         placeholder="Masukkan kata sandi"
-                        className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                        className="w-full pl-10 pr-10 py-2.5 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border border-slate-200 focus:border-blue-600 rounded-xl text-xs sm:text-[13px] text-slate-900 placeholder:text-slate-400 shadow-2xs focus:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-600/10 transition-all font-medium"
                       />
                       <button
                         type="button"
                         onClick={() => setShowLoginPassword(!showLoginPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors"
+                        aria-label={showLoginPassword ? 'Sembunyikan password' : 'Tampilkan password'}
                       >
                         {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -570,11 +762,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </div>
                 )}
 
-                <div className="pt-2 space-y-2">
+                <div className="pt-1.5">
                   <button
                     type="submit"
                     disabled={isSubmittingLogin}
-                    className="w-full py-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold shadow-md shadow-blue-700/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 hover:from-blue-700 hover:via-blue-700 hover:to-indigo-700 active:scale-[0.99] text-white text-xs sm:text-[13px] font-bold shadow-md shadow-blue-600/25 hover:shadow-lg hover:shadow-blue-600/30 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                   >
                     {isSubmittingLogin ? (
                       <>
@@ -590,17 +782,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </form>
 
               {/* Switch to Register */}
-              <div className="text-center pt-2 border-t border-slate-100">
+              <div className="text-center pt-2 border-t border-slate-100/80">
                 <p className="text-xs text-slate-600 font-medium">
                   Belum punya akun?{' '}
                   <button
+                    type="button"
                     onClick={() => setMode('register')}
-                    className="font-bold text-blue-600 hover:underline"
+                    className="font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
                   >
                     Daftar Sekarang
                   </button>
                 </p>
               </div>
+
+              {/* Soft inline terms */}
+              <p className="text-[11px] text-slate-400 text-center leading-relaxed">
+                Dengan masuk, Anda menyetujui{' '}
+                <Link href="/terms" onClick={onClose} className="text-slate-600 hover:text-blue-600 font-semibold underline underline-offset-2">
+                  Syarat Layanan & Kebijakan Privasi
+                </Link>{' '}
+                Metix.
+              </p>
             </div>
           ) : mode === 'forgot_password' ? (
             /* ================= FORGOT PASSWORD MODE (RESET WITH OTP) ================= */
@@ -640,20 +842,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 /* Step 1: Request OTP by Email */
                 <form onSubmit={handleRequestForgotOtp} className="space-y-4">
                   <div className="space-y-1.5 text-left">
-                    <label className="text-xs font-bold text-slate-800">
+                    <label className="text-xs font-semibold text-slate-700">
                       Alamat Email Akun
                     </label>
-                    <input
-                      type="email"
-                      required
-                      value={forgotEmail}
-                      onChange={(e) => {
-                        setForgotEmail(e.target.value);
-                        if (forgotError) setForgotError(null);
-                      }}
-                      placeholder="Masukkan email Anda (contoh: nama@email.com)"
-                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-                    />
+                    <div className="relative">
+                      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                        <Mail className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="email"
+                        required
+                        value={forgotEmail}
+                        onChange={(e) => {
+                          setForgotEmail(e.target.value);
+                          if (forgotError) setForgotError(null);
+                        }}
+                        placeholder="nama@email.com"
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border border-slate-200 focus:border-blue-600 rounded-xl text-xs sm:text-[13px] text-slate-900 placeholder:text-slate-400 shadow-2xs focus:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-600/10 transition-all font-medium"
+                      />
+                    </div>
                   </div>
 
                   {/* Spam Folder Note */}
@@ -666,11 +873,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="pt-2">
+                  <div className="pt-1.5">
                     <button
                       type="submit"
                       disabled={isSubmittingForgot || !forgotEmail.trim()}
-                      className="w-full py-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold shadow-md shadow-blue-700/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                      className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 hover:from-blue-700 hover:via-blue-700 hover:to-indigo-700 active:scale-[0.99] text-white text-xs sm:text-[13px] font-bold shadow-md shadow-blue-600/25 hover:shadow-lg hover:shadow-blue-600/30 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSubmittingForgot ? (
                         <>
@@ -688,16 +895,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   {/* Kode OTP */}
                   <div className="space-y-1.5 text-left">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-800">
+                      <label className="text-xs font-semibold text-slate-700">
                         Kode OTP (6 Digit)
                       </label>
                       <button
                         type="button"
                         onClick={handleResendForgotOtp}
                         disabled={!forgotCanResend || isSubmittingForgot}
-                        className={`text-[11px] font-bold ${
-                          forgotCanResend ? 'text-blue-600 hover:underline cursor-pointer' : 'text-slate-400 cursor-not-allowed'
-                        }`}
+                        className={`text-[11px] font-semibold ${forgotCanResend ? 'text-blue-600 hover:underline cursor-pointer' : 'text-slate-400 cursor-not-allowed'
+                          }`}
                       >
                         {forgotCanResend ? 'Kirim Ulang Kode' : `Kirim Ulang (${forgotResendTimer}s)`}
                       </button>
@@ -714,16 +920,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         if (forgotError) setForgotError(null);
                       }}
                       placeholder="Contoh: 123456"
-                      className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold tracking-widest text-center text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                      className="w-full px-4 py-2.5 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border border-slate-200 focus:border-blue-600 rounded-xl text-xs font-bold tracking-widest text-center text-slate-900 placeholder:text-slate-400 shadow-2xs focus:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-600/10 transition-all"
                     />
                   </div>
 
                   {/* Password Baru */}
                   <div className="space-y-1.5 text-left">
-                    <label className="text-xs font-bold text-slate-800">
+                    <label className="text-xs font-semibold text-slate-700">
                       Kata Sandi Baru
                     </label>
                     <div className="relative">
+                      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                        <Lock className="w-4 h-4" />
+                      </div>
                       <input
                         type={showForgotNewPassword ? 'text' : 'password'}
                         required
@@ -734,12 +943,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                           if (forgotError) setForgotError(null);
                         }}
                         placeholder="Minimal 8 karakter"
-                        className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                        className="w-full pl-10 pr-10 py-2.5 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border border-slate-200 focus:border-blue-600 rounded-xl text-xs sm:text-[13px] text-slate-900 placeholder:text-slate-400 shadow-2xs focus:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-600/10 transition-all font-medium"
                       />
                       <button
                         type="button"
                         onClick={() => setShowForgotNewPassword(!showForgotNewPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors"
                       >
                         {showForgotNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -748,10 +957,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
                   {/* Konfirmasi Password Baru */}
                   <div className="space-y-1.5 text-left">
-                    <label className="text-xs font-bold text-slate-800">
+                    <label className="text-xs font-semibold text-slate-700">
                       Ulangi Kata Sandi Baru
                     </label>
                     <div className="relative">
+                      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                        <Lock className="w-4 h-4" />
+                      </div>
                       <input
                         type={showForgotConfirmPassword ? 'text' : 'password'}
                         required
@@ -762,23 +974,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                           if (forgotError) setForgotError(null);
                         }}
                         placeholder="Masukkan kembali kata sandi baru"
-                        className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                        className="w-full pl-10 pr-10 py-2.5 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border border-slate-200 focus:border-blue-600 rounded-xl text-xs sm:text-[13px] text-slate-900 placeholder:text-slate-400 shadow-2xs focus:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-600/10 transition-all font-medium"
                       />
                       <button
                         type="button"
                         onClick={() => setShowForgotConfirmPassword(!showForgotConfirmPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors"
                       >
                         {showForgotConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
 
-                  <div className="pt-2">
+                  <div className="pt-1.5">
                     <button
                       type="submit"
                       disabled={isSubmittingForgot || forgotOtp.length !== 6 || forgotNewPassword.length < 8 || forgotNewPassword !== forgotConfirmPassword}
-                      className="w-full py-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold shadow-md shadow-blue-700/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                      className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 hover:from-blue-700 hover:via-blue-700 hover:to-indigo-700 active:scale-[0.99] text-white text-xs sm:text-[13px] font-bold shadow-md shadow-blue-600/25 hover:shadow-lg hover:shadow-blue-600/30 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSubmittingForgot ? (
                         <>
@@ -807,39 +1019,43 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           ) : (
             /* ================= REGISTER MODE (REAL API /REGISTER INTEGRATION) ================= */
-            <div className="space-y-5">
-              {/* Header Title */}
+            <div className="space-y-4 sm:space-y-5">
+              {/* Header Title & Branding */}
               <div className="text-center space-y-1">
-                <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                <div className="inline-flex items-center justify-center mb-1">
+                  <img src="/mitex.png" alt="METIX Logo" className="h-7 w-auto object-contain transition-transform duration-300 hover:scale-105" />
+                </div>
+                <h3 className="text-xl sm:text-[22px] font-black text-slate-900 tracking-tight">
                   Lengkapi Profil Anda
                 </h3>
-                <p className="text-xs text-slate-500 font-medium">
-                  Masukkan detail Anda di bawah ini untuk melanjutkan
+                <p className="text-xs text-slate-500 font-normal">
+                  Masukkan detail akun Anda di bawah ini untuk melanjutkan.
                 </p>
               </div>
 
               {/* Register Error Notification */}
               {registerError && (
-                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2 animate-in fade-in-0">
+                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2 animate-in fade-in-0 text-left">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                   <span>{registerError}</span>
                 </div>
               )}
 
               {/* Registration Form Fields */}
-              <form onSubmit={handleApiRegisterSubmit} className="space-y-4">
-                {/* Peran / Role Akun (Animated Segmented Tab Control) */}
-                <div className="space-y-2 text-left">
-                  <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
-                    <span>Daftar Sebagai</span>
-                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 animate-in fade-in-50 duration-200">
-                      {registerRole === 'BUYER' ? 'Akun Pembeli' : 'Akun Pengelenggara'}
+              <form onSubmit={handleApiRegisterSubmit} className="space-y-3.5">
+                {/* Peran / Role Akun (Animated Apple-Style Segmented Tab Control) */}
+                <div className="space-y-1.5 text-left">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700">
+                      Daftar Sebagai
+                    </label>
+                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                      {registerRole === 'BUYER' ? 'Akun Pembeli' : 'Akun EO'}
                     </span>
-                  </label>
-                  <div className="relative p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-inner grid grid-cols-2 gap-1 overflow-hidden">
-                    {/* Animated Sliding Background Indicator */}
+                  </div>
+                  <div className="relative p-1 bg-slate-100/80 rounded-2xl border border-slate-200/70 shadow-inner grid grid-cols-2 gap-1 overflow-hidden">
                     <div
-                      className={`absolute top-1 bottom-1 w-[calc(50%-0.375rem)] rounded-xl bg-white shadow-md shadow-slate-900/10 border border-blue-600/30 transition-all duration-300 ease-out ${registerRole === 'BUYER' ? 'left-1' : 'left-[calc(50%+0.125rem)]'
+                      className={`absolute top-1 bottom-1 w-[calc(50%-0.375rem)] rounded-xl bg-white shadow-sm shadow-slate-900/10 border border-slate-200/60 transition-all duration-300 ease-out ${registerRole === 'BUYER' ? 'left-1' : 'left-[calc(50%+0.125rem)]'
                         }`}
                     />
 
@@ -847,9 +1063,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setRegisterRole('BUYER')}
-                      className={`relative z-10 py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 ${registerRole === 'BUYER'
-                        ? 'text-blue-700'
-                        : 'text-slate-600 hover:text-slate-900'
+                      className={`relative z-10 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer active:scale-95 ${registerRole === 'BUYER'
+                        ? 'text-blue-600'
+                        : 'text-slate-500 hover:text-slate-800'
                         }`}
                     >
                       <Ticket className={`w-3.5 h-3.5 transition-transform duration-300 ${registerRole === 'BUYER' ? 'scale-110 text-blue-600' : 'text-slate-400'}`} />
@@ -860,115 +1076,114 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setRegisterRole('EO')}
-                      className={`relative z-10 py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 ${registerRole === 'EO'
-                        ? 'text-blue-700'
-                        : 'text-slate-600 hover:text-slate-900'
+                      className={`relative z-10 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer active:scale-95 ${registerRole === 'EO'
+                        ? 'text-blue-600'
+                        : 'text-slate-500 hover:text-slate-800'
                         }`}
                     >
                       <Building2 className={`w-3.5 h-3.5 transition-transform duration-300 ${registerRole === 'EO' ? 'scale-110 text-blue-600' : 'text-slate-400'}`} />
                       <span>Event Organizer (EO)</span>
                     </button>
                   </div>
-
-                  {/* Role Detail Description Banner & OTP Note */}
-                  <div className="space-y-2 overflow-hidden">
-
-                    {/* Notice Card for OTP Email */}
-                    <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/60 text-amber-900 text-xs font-medium flex items-start gap-2.5 animate-in fade-in-50 slide-in-from-top-1 duration-200 shadow-xs">
-                      <div className="p-1 rounded-lg bg-amber-100 text-amber-600 shrink-0 mt-0.5">
-                        <Info className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="text-[11px] leading-relaxed">
-                        <span className="font-bold text-amber-950">Catatan:</span> Kode OTP tidak muncul di <strong className="font-bold text-amber-900">Inbox</strong>? Cek folder <strong className="font-bold text-amber-900 underline decoration-amber-400">Spam</strong> atau <strong className="font-bold text-amber-900">Junk</strong> email Anda.
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Nama Lengkap */}
                 <div className="space-y-1.5 text-left">
-                  <label className="text-xs font-bold text-slate-800">
+                  <label className="text-xs font-semibold text-slate-700">
                     Nama Lengkap <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => {
-                      const sanitized = e.target.value.replace(/[^a-zA-Z\s'\.]/g, '');
-                      setName(sanitized);
-                      if (registerError) setRegisterError(null);
-                    }}
-                    placeholder="Masukkan nama lengkap"
-                    className="w-full px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-                  />
+                  <div className="relative">
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                      <User className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={name}
+                      onChange={(e) => {
+                        const sanitized = e.target.value.replace(/[^a-zA-Z\s'\.]/g, '');
+                        setName(sanitized);
+                        if (registerError) setRegisterError(null);
+                      }}
+                      placeholder="Masukkan nama lengkap"
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border border-slate-200 focus:border-blue-600 rounded-xl text-xs sm:text-[13px] text-slate-900 placeholder:text-slate-400 shadow-2xs focus:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-600/10 transition-all font-medium"
+                    />
+                  </div>
                 </div>
 
                 {/* Email */}
                 <div className="space-y-1.5 text-left">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-800">
-                      Email <span className="text-rose-500">*</span>
+                    <label className="text-xs font-semibold text-slate-700">
+                      Alamat Email <span className="text-rose-500">*</span>
                     </label>
                     {isEmailFormatValid && (
                       <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 animate-in fade-in-50">
-                        ✓ Format email valid
+                        ✓ Format valid
                       </span>
                     )}
                   </div>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (registerError) setRegisterError(null);
-                    }}
-                    onBlur={() => setEmailTouched(true)}
-                    placeholder="Masukkan email (contoh: nama@email.com)"
-                    className={`w-full px-4 py-2.5 bg-white border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all ${
-                      isEmailError || isEmailFormatInvalid
-                        ? 'border-rose-500 focus:border-rose-600 focus:ring-2 focus:ring-rose-600/20 bg-rose-50/20'
+                  <div className="relative">
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (registerError) setRegisterError(null);
+                      }}
+                      onBlur={() => setEmailTouched(true)}
+                      placeholder="nama@email.com"
+                      className={`w-full pl-10 pr-4 py-2.5 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border rounded-xl text-xs sm:text-[13px] text-slate-900 placeholder:text-slate-400 shadow-2xs focus:shadow-sm focus:outline-none focus:ring-4 transition-all font-medium ${isEmailError || isEmailFormatInvalid
+                        ? 'border-rose-500 focus:border-rose-600 focus:ring-rose-600/20 bg-rose-50/20'
                         : isEmailFormatValid
-                        ? 'border-emerald-500 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20'
-                        : 'border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20'
-                    }`}
-                  />
-                  {(isEmailError || isEmailFormatInvalid) && (
+                          ? 'border-emerald-500 focus:border-emerald-600 focus:ring-emerald-600/20'
+                          : 'border-slate-200 focus:border-blue-600 focus:ring-blue-600/10'
+                        }`}
+                    />
+                  </div>
+                  {(isEmailError || isEmailFormatInvalid) ? (
                     <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 animate-in fade-in-50">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
                       <span>
                         {isDisposableDomain
                           ? `Domain email (${currentEmailDomain}) tidak diizinkan. Gunakan email pribadi resmi.`
                           : isEmailFormatInvalid
-                          ? 'Format email tidak valid. Masukkan format email yang benar (contoh: nama@email.com).'
-                          : registerError}
+                            ? 'Format email tidak valid. Masukkan format email yang benar (contoh: nama@email.com).'
+                            : registerError}
                       </span>
+                    </p>
+                  ) : (
+                    <p className="text-[10.5px] text-slate-400 font-medium">
+                      Kode OTP verifikasi akan dikirim ke email ini (cek Inbox / folder Spam).
                     </p>
                   )}
                 </div>
 
                 {/* Jenis Kelamin Cards (Animated Segmented Control) */}
                 <div className="space-y-1.5 text-left">
-                  <label className="text-xs font-bold text-slate-800">
+                  <label className="text-xs font-semibold text-slate-700">
                     Jenis Kelamin <span className="text-rose-500">*</span>
                   </label>
-                  <div className="relative p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-inner grid grid-cols-2 gap-1 overflow-hidden">
+                  <div className="relative p-1 bg-slate-100/80 rounded-2xl border border-slate-200/70 shadow-inner grid grid-cols-2 gap-1 overflow-hidden">
                     <div
-                      className={`absolute top-1 bottom-1 w-[calc(50%-0.375rem)] rounded-xl bg-white shadow-md shadow-slate-900/10 border border-blue-600/30 transition-all duration-300 ease-out ${gender === 'male' ? 'left-1' : 'left-[calc(50%+0.125rem)]'
+                      className={`absolute top-1 bottom-1 w-[calc(50%-0.375rem)] rounded-xl bg-white shadow-sm shadow-slate-900/10 border border-slate-200/60 transition-all duration-300 ease-out ${gender === 'male' ? 'left-1' : 'left-[calc(50%+0.125rem)]'
                         }`}
                     />
 
                     <button
                       type="button"
                       onClick={() => setGender('male')}
-                      className={`relative z-10 py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 ${gender === 'male'
-                        ? 'text-blue-700'
-                        : 'text-slate-600 hover:text-slate-900'
+                      className={`relative z-10 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 ${gender === 'male'
+                        ? 'text-blue-600'
+                        : 'text-slate-500 hover:text-slate-800'
                         }`}
                     >
-                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all ${gender === 'male' ? 'border-blue-600 bg-blue-600 scale-110' : 'border-slate-400 bg-white'}`}>
-                        {gender === 'male' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-in zoom-in-50 duration-150" />}
+                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all ${gender === 'male' ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'}`}>
+                        {gender === 'male' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                       </span>
                       <span>Laki – Laki ♂</span>
                     </button>
@@ -976,13 +1191,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setGender('female')}
-                      className={`relative z-10 py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 ${gender === 'female'
-                        ? 'text-blue-700'
-                        : 'text-slate-600 hover:text-slate-900'
+                      className={`relative z-10 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer active:scale-95 ${gender === 'female'
+                        ? 'text-blue-600'
+                        : 'text-slate-500 hover:text-slate-800'
                         }`}
                     >
-                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all ${gender === 'female' ? 'border-blue-600 bg-blue-600 scale-110' : 'border-slate-400 bg-white'}`}>
-                        {gender === 'female' && <span className="w-1.5 h-1.5 rounded-full bg-white animate-in zoom-in-50 duration-150" />}
+                      <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all ${gender === 'female' ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'}`}>
+                        {gender === 'female' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                       </span>
                       <span>Perempuan ♀</span>
                     </button>
@@ -991,12 +1206,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
                 {/* Tanggal Lahir */}
                 <div className="space-y-1.5 text-left">
-                  <label className="text-xs font-bold text-slate-800">
+                  <label className="text-xs font-semibold text-slate-700">
                     Tanggal Lahir <span className="text-rose-500">*</span>
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     <Select value={birthDay} onValueChange={setBirthDay}>
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border-slate-200 focus:border-blue-600 rounded-xl text-xs sm:text-[13px] font-medium shadow-2xs">
                         <SelectValue placeholder="Tanggal" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1009,7 +1224,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     </Select>
 
                     <Select value={birthMonth} onValueChange={setBirthMonth}>
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border-slate-200 focus:border-blue-600 rounded-xl text-xs sm:text-[13px] font-medium shadow-2xs">
                         <SelectValue placeholder="Bulan" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1022,7 +1237,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     </Select>
 
                     <Select value={birthYear} onValueChange={setBirthYear}>
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border-slate-200 focus:border-blue-600 rounded-xl text-xs sm:text-[13px] font-medium shadow-2xs">
                         <SelectValue placeholder="Tahun" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1039,19 +1254,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {/* Nomor Telepon */}
                 <div className="space-y-1.5 text-left">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-800">
-                      Nomor Telepon <span className="text-rose-500">*</span>
+                    <label className="text-xs font-semibold text-slate-700">
+                      Nomor WhatsApp / Telepon <span className="text-rose-500">*</span>
                     </label>
                     {phone.length > 0 && (
-                      <span className={`text-[11px] font-bold ${isPhoneFormatValid ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      <span className={`text-[11px] font-semibold ${isPhoneFormatValid ? 'text-emerald-600' : 'text-amber-600'}`}>
                         {isPhoneFormatValid ? `✓ +62 ${phone}` : `+62 ${phone} (${phone.length}/11 digit)`}
                       </span>
                     )}
                   </div>
                   <div className="relative flex items-center">
                     {/* Fixed +62 prefix badge with Indonesian Flag */}
-                    <div className="absolute left-1 top-1 bottom-1 px-3 bg-slate-100/90 rounded-lg flex items-center gap-1.5 border border-slate-200/80 text-slate-800 text-xs font-bold select-none pointer-events-none z-10 shadow-2xs">
-                      <span className="text-sm">🇮🇩</span>
+                    <div className="absolute left-1.5 top-1.5 bottom-1.5 px-2.5 bg-slate-100/90 rounded-lg flex items-center gap-1.5 border border-slate-200/80 text-slate-700 text-xs font-bold select-none pointer-events-none z-10 shadow-2xs">
+                      <span className="text-xs">🇮🇩</span>
                       <span>+62</span>
                     </div>
                     <input
@@ -1060,7 +1275,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       value={phone}
                       onChange={(e) => {
                         let val = e.target.value.replace(/\D/g, '');
-                        // If user pastes or types with leading 62 or 0
                         if (val.startsWith('62')) val = val.slice(2);
                         if (val.startsWith('0')) val = val.slice(1);
                         val = val.slice(0, 12);
@@ -1068,11 +1282,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         if (registerError) setRegisterError(null);
                       }}
                       placeholder="81234567890"
-                      className={`w-full pl-[5.25rem] pr-4 py-2.5 bg-white border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all ${
-                        isPhoneError
-                          ? 'border-rose-500 focus:border-rose-600 focus:ring-2 focus:ring-rose-600/20 bg-rose-50/20'
-                          : 'border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20'
-                      }`}
+                      className={`w-full pl-[4.85rem] pr-4 py-2.5 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border rounded-xl text-xs sm:text-[13px] text-slate-900 placeholder:text-slate-400 shadow-2xs focus:shadow-sm focus:outline-none focus:ring-4 transition-all font-medium ${isPhoneError
+                        ? 'border-rose-500 focus:border-rose-600 focus:ring-rose-600/20 bg-rose-50/20'
+                        : 'border-slate-200 focus:border-blue-600 focus:ring-blue-600/10'
+                        }`}
                     />
                   </div>
                   {isPhoneError ? (
@@ -1082,30 +1295,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     </p>
                   ) : (
                     <p className="text-[10px] text-slate-400 font-medium">
-                      * Nomor diawali otomatis dengan kode negara +62. Masukkan mulai dari angka 8 (contoh: 81234567890).
+                      * Mulai dari angka 8 (contoh: 81234567890).
                     </p>
                   )}
                 </div>
 
                 {/* Kata Sandi - User Custom Password Required */}
                 <div className="space-y-1.5 text-left">
-                  <label className="text-xs font-bold text-slate-800">
+                  <label className="text-xs font-semibold text-slate-700">
                     Buat Kata Sandi <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                      <Lock className="w-4 h-4" />
+                    </div>
                     <input
                       type={showPassword ? 'text' : 'password'}
                       required
                       minLength={8}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Buat kata sandi akun Anda (Minimal 8 karakter)"
-                      className="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                      placeholder="Minimal 8 karakter"
+                      className="w-full pl-10 pr-10 py-2.5 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border border-slate-200 focus:border-blue-600 rounded-xl text-xs sm:text-[13px] text-slate-900 placeholder:text-slate-400 shadow-2xs focus:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-600/10 transition-all font-medium"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors"
+                      aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -1113,7 +1330,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
 
                 {/* Persetujuan & Syarat Ketentuan (Consent Checkboxes) */}
-                <div className="space-y-3 pt-3 text-left text-xs border-t border-slate-100">
+                <div className="space-y-2.5 p-3 rounded-2xl bg-slate-50/70 border border-slate-100 text-left text-xs">
                   {/* Checkbox 1 */}
                   <label className="flex items-start gap-2.5 cursor-pointer group">
                     <input
@@ -1123,15 +1340,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 accent-blue-600 focus:ring-blue-500 shrink-0 cursor-pointer"
                     />
                     <span className="text-slate-600 leading-relaxed text-[11px] font-medium group-hover:text-slate-900 transition-colors">
-                      Saya telah membaca dan menyetujui{' '}
-                      <Link href="/terms" target="_blank" onClick={(e) => e.stopPropagation()} className="font-bold text-blue-600 hover:underline">
-                        Syarat dan Ketentuan
+                      Saya telah membaca & menyetujui{' '}
+                      <Link href="/terms" target="_blank" onClick={(e) => e.stopPropagation()} className="font-semibold text-blue-600 hover:underline">
+                        Syarat & Ketentuan
                       </Link>{' '}
-                      dan{' '}
-                      <Link href="/terms" target="_blank" onClick={(e) => e.stopPropagation()} className="font-bold text-blue-600 hover:underline">
+                      serta{' '}
+                      <Link href="/terms" target="_blank" onClick={(e) => e.stopPropagation()} className="font-semibold text-blue-600 hover:underline">
                         Kebijakan Privasi
                       </Link>{' '}
-                      di METIX
+                      METIX.
                     </span>
                   </label>
 
@@ -1144,10 +1361,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 accent-blue-600 focus:ring-blue-500 shrink-0 cursor-pointer"
                     />
                     <span className="text-slate-600 leading-relaxed text-[11px] font-medium group-hover:text-slate-900 transition-colors">
-                      Saya telah membaca dan memberikan persetujuan kepada METIX untuk memproses data pribadi saya sesuai dengan{' '}
-                      <Link href="/terms" target="_blank" onClick={(e) => e.stopPropagation()} className="font-bold text-blue-600 hover:underline">
-                        Pemrosesan Data Pribadi
-                      </Link>
+                      Saya menyetujui METIX memproses data pribadi saya sesuai ketentuan{' '}
+                      <Link href="/terms" target="_blank" onClick={(e) => e.stopPropagation()} className="font-semibold text-blue-600 hover:underline">
+                        Pemrosesan Data
+                      </Link>.
                     </span>
                   </label>
 
@@ -1159,20 +1376,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       onChange={(e) => setAgreeMarketing(e.target.checked)}
                       className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 accent-blue-600 focus:ring-blue-500 shrink-0 cursor-pointer"
                     />
-                    <span className="text-slate-600 leading-relaxed text-[11px] font-medium group-hover:text-slate-900 transition-colors">
-                      Saya bersedia menerima informasi terkini terkait event dan promosi di METIX
+                    <span className="text-slate-500 leading-relaxed text-[11px] font-medium group-hover:text-slate-800 transition-colors">
+                      Bersedia menerima info event & promo menarik di METIX (opsional).
                     </span>
                   </label>
                 </div>
 
                 {/* Submit CTA Button */}
-                <div className="pt-2">
+                <div className="pt-1">
                   <button
                     type="submit"
                     disabled={isSubmittingRegister || !agreeTerms || !agreeDataProcessing || !isEmailFormatValid || !isPhoneFormatValid}
-                    className={`w-full py-3.5 rounded-2xl text-xs font-extrabold shadow-md transition-all flex items-center justify-center gap-2 ${agreeTerms && agreeDataProcessing && isEmailFormatValid && isPhoneFormatValid && !isSubmittingRegister
-                      ? 'bg-blue-700 hover:bg-blue-800 text-white shadow-blue-700/20 cursor-pointer hover:scale-[1.01] active:scale-95'
-                      : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300/60 shadow-none'
+                    className={`w-full py-3.5 rounded-xl text-xs sm:text-[13px] font-bold shadow-md transition-all flex items-center justify-center gap-2 ${agreeTerms && agreeDataProcessing && isEmailFormatValid && isPhoneFormatValid && !isSubmittingRegister
+                      ? 'bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 hover:from-blue-700 hover:via-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-600/25 cursor-pointer active:scale-[0.99]'
+                      : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200/80 shadow-none'
                       }`}
                   >
                     {isSubmittingRegister ? (
@@ -1187,28 +1404,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </form>
 
               {/* Switch to Login */}
-              <div className="text-center pt-1">
+              <div className="text-center pt-1 border-t border-slate-100/80">
                 <p className="text-xs text-slate-600 font-medium">
                   Sudah punya akun?{' '}
                   <button
+                    type="button"
                     onClick={() => setMode('login')}
-                    className="font-bold text-blue-600 hover:underline"
+                    className="font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
                   >
-                    Masuk
+                    Masuk ke Akun
                   </button>
                 </p>
               </div>
             </div>
           )}
 
-        </div>
-
-        {/* Modal Bottom Footer: Terms & Privacy Notice */}
-        <div className="bg-slate-50 border-t border-slate-100 p-4 sm:p-5 text-center text-[11px] text-slate-500 leading-relaxed font-medium rounded-b-3xl shrink-0">
-          Dengan menggunakan website ini, membeli tiket, atau membuat akun, Anda setuju dengan{' '}
-          <Link href="/terms" onClick={onClose} className="font-bold text-blue-600 hover:underline">
-            Syarat Layanan & Kebijakan Privasi
-          </Link>
         </div>
 
       </div>
@@ -1223,6 +1433,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         onResend={handleResendOtpModal}
         title="Masukkan Kode Verifikasi"
         submitButtonText={otpPurpose === 'REGISTER' ? 'Verifikasi & Buat Akun' : 'Verifikasi & Masuk'}
+      />
+
+      {/* Render Account Status Modal (INACTIVE / BLOCKED) */}
+      <AccountStatusModal
+        isOpen={statusModal.isOpen}
+        status={statusModal.status}
+        userName={statusModal.userName}
+        userEmail={statusModal.userEmail}
+        onClose={() => setStatusModal({ ...statusModal, isOpen: false })}
       />
     </div>
   );

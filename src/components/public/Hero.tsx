@@ -26,7 +26,7 @@ const FALLBACK_BANNERS = [
 ];
 
 export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(2);
   const [isPaused, setIsPaused] = useState(false);
 
   const totalSlides = 3;
@@ -173,52 +173,87 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
               </div>
             ) : (
               <div className="absolute inset-0 z-0 overflow-hidden bg-slate-950">
-                {/* Background Stage Image with deep dark purple overlay */}
+                {/* Background Concert Stage Image with soft deep ambiance */}
                 <img
-                  src="/hero/metix_mascot_concert.jpg"
-                  alt="Metix Concert Mascot"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = FALLBACK_BANNERS[0];
-                  }}
-                  className="w-full h-full object-cover object-right sm:object-center opacity-30 blur-[2px] scale-110"
+                  src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1400&q=80"
+                  alt="Metix Concert Atmosphere"
+                  className="w-full h-full object-cover object-center opacity-25 blur-xs scale-105"
                 />
 
-                {/* Animated Glowing Mesh Aurora in Instagram Colors */}
-                <div className="absolute -top-20 -right-20 w-96 h-96 bg-purple-600/35 rounded-full blur-3xl animate-pulse" />
-                <div className="absolute -bottom-24 left-1/4 w-80 h-80 bg-pink-500/25 rounded-full blur-3xl animate-pulse [animation-duration:5s]" />
-                <div className="absolute top-1/2 left-10 w-72 h-72 bg-amber-500/15 rounded-full blur-3xl animate-pulse [animation-duration:7s]" />
+                {/* Gentle Ambient Glows (Soft Rose, Violet, Warm Indigo) */}
+                <div className="absolute -top-20 -right-20 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-24 left-1/4 w-80 h-80 bg-rose-500/15 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute top-1/2 left-10 w-72 h-72 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
 
-                {/* Soft Cyber Grid */}
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff0a_1px,transparent_1px),linear-gradient(to_bottom,#ffffff0a_1px,transparent_1px)] bg-[size:32px_32px] opacity-50" />
+                {/* Subtle perspective grid */}
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:32px_32px] opacity-40 pointer-events-none" />
 
-                {/* Prominent 3D Cartoon Mascot Card on the Right (Tablet & Desktop) */}
-                <div className="hidden md:flex items-center justify-center absolute right-6 lg:right-12 top-1/2 -translate-y-1/2 z-10 pointer-events-none select-none">
+                {/* Right Side: Realistic Aesthetic Instagram Post Mockup Card */}
+                <div className="hidden md:flex items-center justify-center absolute right-6 lg:right-14 top-1/2 -translate-y-1/2 z-10 pointer-events-none select-none">
                   <div className="relative group">
-                    {/* Glowing Aura Behind Character */}
-                    <div className="absolute -inset-3 bg-gradient-to-r from-pink-500 via-purple-600 to-amber-400 rounded-3xl blur-xl opacity-60 animate-pulse [animation-duration:4s]" />
+                    {/* Soft Glow behind card */}
+                    <div className="absolute -inset-3 bg-gradient-to-tr from-pink-500/20 via-purple-500/20 to-amber-500/10 rounded-3xl blur-2xl opacity-60" />
 
-                    {/* Character Card Frame */}
-                    <div className="relative w-48 h-48 sm:w-56 sm:h-56 lg:w-64 lg:h-64 rounded-3xl overflow-hidden border-2 border-white/25 shadow-2xl bg-slate-900/60 backdrop-blur-xl animate-bounce [animation-duration:6s]">
-                      <img
-                        src="/hero/metix_mascot_concert.jpg"
-                        alt="Metix 3D Mascot Festival"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = FALLBACK_BANNERS[0];
-                        }}
-                        className="w-full h-full object-cover object-center transform hover:scale-105 transition-transform duration-500"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+                    {/* The Instagram Mockup Card */}
+                    <div className="relative w-64 sm:w-72 rounded-2xl overflow-hidden bg-slate-900/80 backdrop-blur-2xl border border-white/15 shadow-2xl space-y-3 p-3.5 text-white transition-all duration-500">
+                      {/* Header: Profile info */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          {/* Avatar with Instagram story gradient ring */}
+                          <div className="p-0.5 rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600">
+                            <img
+                              src="/icon_metix.jpeg"
+                              alt="Metix Logo"
+                              className="w-7 h-7 rounded-full object-cover bg-white"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs font-bold text-white tracking-tight">metix.id</span>
+                              <span className="w-3.5 h-3.5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[8px] font-black">✓</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-medium">Official Ticketing Platform</p>
+                          </div>
+                        </div>
+                        <span className="text-xs text-slate-400 font-bold">•••</span>
+                      </div>
 
-                      {/* Floating Mini Badge on Character */}
-                      <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between px-2.5 py-1 rounded-xl bg-slate-950/80 backdrop-blur-md border border-white/10 text-[10px] font-bold text-white">
-                        <span className="flex items-center gap-1 text-pink-300">
-                          <InstagramIcon className="w-3 h-3 text-pink-400" />
+                      {/* Post Image: Real concert stage with lighting */}
+                      <div className="relative rounded-xl overflow-hidden aspect-4/3 bg-slate-800 border border-white/10">
+                        <img
+                          src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80"
+                          alt="Concert Lineup Preview"
+                          className="w-full h-full object-cover object-center"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+                        
+                        {/* Floating Live Tag inside post */}
+                        <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-slate-950/70 backdrop-blur-md border border-white/10 text-[10px] font-semibold text-white flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                          <span>Live Concert Experience</span>
+                        </div>
+                      </div>
+
+                      {/* Action Bar (Heart, Comment, Share) */}
+                      <div className="flex items-center justify-between text-xs pt-0.5">
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center gap-1 text-rose-400 font-semibold text-[11px]">
+                            ❤️ <span>2.8k</span>
+                          </span>
+                          <span className="flex items-center gap-1 text-slate-400 font-medium text-[11px]">
+                            💬 <span>342</span>
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-pink-300 bg-pink-500/15 border border-pink-500/30 px-2 py-0.5 rounded-full">
                           @metix.id
                         </span>
-                        <span className="text-[9px] text-amber-300 bg-amber-400/20 px-1.5 py-0.5 rounded-md font-extrabold">
-                          VIP VIBE
-                        </span>
                       </div>
+
+                      {/* Post Caption Snippet */}
+                      <p className="text-[11px] text-slate-300 line-clamp-1 leading-relaxed">
+                        <span className="font-bold text-white mr-1">metix.id</span>
+                        Siap seru-seruan di konser berikutnya? Cek tiket sekarang! 🎟️✨
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -238,9 +273,9 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
                     <span>0% Komisi • Organizer Special</span>
                   </span>
                 ) : currentIndex === 2 ? (
-                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-gradient-to-r from-purple-500 via-pink-500 to-amber-400 text-white font-black text-xs shadow-md">
-                    <InstagramIcon className="w-3.5 h-3.5 text-white" />
-                    <span>Official Instagram Community</span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white font-medium text-xs shadow-sm">
+                    <InstagramIcon className="w-3.5 h-3.5 text-pink-400" />
+                    <span>Official Community</span>
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-slate-950 font-black text-xs shadow-md">
@@ -346,40 +381,41 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
                 </>
               ) : (
                 <>
-                  <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-amber-500/20 backdrop-blur-md border border-pink-400/30 text-pink-300 text-xs font-bold shadow-lg">
-                    <span className="flex h-2 w-2 relative">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
-                    </span>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-pink-200 text-xs font-medium shadow-sm">
                     <InstagramIcon className="w-3.5 h-3.5 text-pink-400" />
-                    <span>Komunitas Konser & Festival Musik</span>
+                    <span>Komunitas Musik & Festival</span>
                   </div>
 
                   <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight">
-                    Join the Vibe on{' '}
-                    <span className="bg-gradient-to-r from-amber-300 via-pink-400 to-purple-400 bg-clip-text text-transparent">
-                      Instagram @metix.id
+                    Dekat dengan Konser & Musik Favoritmu di{' '}
+                    <span className="bg-gradient-to-r from-pink-400 via-rose-300 to-amber-200 bg-clip-text text-transparent">
+                      @metix.id
                     </span>
                   </h2>
 
-                  <p className="text-xs sm:text-sm text-slate-200 max-w-xl font-normal leading-relaxed">
-                    Dapatkan update jadwal konser tercepat, bocoran lineup musisi eksklusif, dan giveaway tiket gratis setiap minggunya.
+                  <p className="text-xs sm:text-sm text-slate-300 max-w-lg font-normal leading-relaxed">
+                    Dapatkan bocoran lineup musisi, jadwal tur terkini, dan info giveaway tiket resmi setiap minggunya.
                   </p>
 
-                  <div className="pt-2 flex items-center">
-                    <div className="inline-flex items-center bg-white/10 backdrop-blur-xl p-1.5 rounded-full border border-white/20 shadow-2xl max-w-full">
-                      <a
-                        href="https://www.instagram.com/metix.id/"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white font-black text-xs sm:text-sm shadow-[0_0_20px_rgba(236,72,153,0.4)] hover:shadow-[0_0_30px_rgba(236,72,153,0.6)] hover:scale-105 transition-all cursor-pointer shrink-0 flex items-center gap-2 group"
-                      >
-                        <InstagramIcon className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" />
-                        <span>Follow @metix.id</span>
-                      </a>
-                      <span className="px-4 py-2 text-xs sm:text-sm font-bold text-white/90 tracking-wide truncate hidden sm:inline">
-                        Info Resmi Konser
-                      </span>
+                  <div className="pt-2 flex flex-wrap items-center gap-4">
+                    <a
+                      href="https://www.instagram.com/metix.id/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 hover:from-purple-500 hover:via-pink-500 hover:to-rose-400 text-white font-bold text-xs sm:text-sm shadow-md shadow-pink-600/25 hover:shadow-lg hover:shadow-pink-600/35 active:scale-95 transition-all cursor-pointer group"
+                    >
+                      <InstagramIcon className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" />
+                      <span>Ikuti @metix.id</span>
+                    </a>
+
+                    {/* Subtle Community Social Proof */}
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 backdrop-blur-md border border-white/10 text-xs text-slate-300">
+                      <div className="flex -space-x-1.5 overflow-hidden">
+                        <span className="inline-flex h-5 w-5 rounded-full ring-1 ring-slate-900 bg-purple-500 text-[8px] font-bold text-white items-center justify-center">🎧</span>
+                        <span className="inline-flex h-5 w-5 rounded-full ring-1 ring-slate-900 bg-pink-500 text-[8px] font-bold text-white items-center justify-center">🎤</span>
+                        <span className="inline-flex h-5 w-5 rounded-full ring-1 ring-slate-900 bg-rose-500 text-[8px] font-bold text-white items-center justify-center">🎸</span>
+                      </div>
+                      <span className="text-[11px] font-medium text-slate-200">15.000+ Penikmat Konser</span>
                     </div>
                   </div>
                 </>

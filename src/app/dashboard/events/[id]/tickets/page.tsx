@@ -919,7 +919,7 @@ export default function EventTicketsPage({ params }: TicketsPageProps) {
                                   </div>
                                 )}
                               </td>
-                              <td className="py-3.5 px-4 font-black text-blue-700 whitespace-nowrap text-xs">
+                              <td className={`py-3.5 px-4 font-black whitespace-nowrap text-xs ${rawStatus === 'SOLD_OUT' ? 'line-through text-slate-400 decoration-rose-500 decoration-2' : 'text-blue-700'}`}>
                                 Rp {Number(tt.price || 0).toLocaleString('id-ID')}
                               </td>
                               <td className="py-3.5 px-4 font-semibold text-slate-700 whitespace-nowrap">
@@ -932,10 +932,16 @@ export default function EventTicketsPage({ params }: TicketsPageProps) {
                                   </span>
                                 </div>
                                 <div
-                                  className={`text-[10px] font-bold mt-0.5 ${available > 0 ? 'text-emerald-600' : 'text-rose-600'
+                                  className={`text-[10px] font-bold mt-0.5 ${rawStatus === 'SOLD_OUT' || available <= 0 ? 'text-rose-600' : 'text-emerald-600'
                                     }`}
                                 >
-                                  Sisa Tersedia: {available} Tiket
+                                  {rawStatus === 'SOLD_OUT' ? (
+                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200 font-extrabold tracking-wide">
+                                      SOLD_OUT
+                                    </span>
+                                  ) : (
+                                    `Sisa Tersedia: ${available} Tiket`
+                                  )}
                                 </div>
                               </td>
                               <td className="py-3.5 px-4 font-bold text-slate-800 text-center whitespace-nowrap">

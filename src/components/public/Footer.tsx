@@ -1,131 +1,153 @@
-'use me';
 'use client';
 
 import React from 'react';
 import Link from 'next/link';
+import { ShieldCheck, Zap, Lock, ExternalLink } from 'lucide-react';
 
 interface FooterProps {
   lang?: 'id' | 'en';
 }
 
+const InstagramIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+  </svg>
+);
+
 export const Footer: React.FC<FooterProps> = ({ lang = 'id' }) => {
   return (
-    <footer className="bg-[#fcfcfd] border-t border-slate-200/80 text-slate-600 text-xs py-10 lg:py-14">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+    <footer className="relative bg-gradient-to-b from-slate-50/60 via-slate-50 to-slate-100/80 border-t border-slate-200/70 text-slate-600 text-xs overflow-hidden">
+      {/* Soft Ambient Glows */}
+      <div className="absolute top-0 left-1/4 w-96 h-32 bg-blue-500/5 blur-3xl pointer-events-none rounded-full" />
+      <div className="absolute top-0 right-1/4 w-96 h-32 bg-indigo-500/5 blur-3xl pointer-events-none rounded-full" />
 
-        {/* 5-Column Grid Layout */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-8 space-y-12 relative z-10">
+
+        {/* 1. Main Navigation Links (5 Columns) */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-8 lg:gap-6">
 
-          {/* Column 1: Metix */}
-          <div className="space-y-3">
-            <Link href="/" className="inline-block">
+          {/* Column 1: Brand & Bio */}
+          <div className="space-y-3 col-span-2 sm:col-span-1">
+            <Link href="/" className="inline-block transition-transform hover:scale-105 duration-200">
               <img src="/mitex.png" alt="METIX Logo" className="h-7 w-auto object-contain" />
             </Link>
+            <p className="text-[11.5px] text-slate-500 font-normal leading-relaxed pr-2">
+              Platform penjualan tiket konser, musik festival, dan event spesial terpercaya di Indonesia.
+            </p>
+            <div className="pt-1 flex items-center gap-1.5 text-[11px] text-slate-400 font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Semua Sistem Aktif & Terlindungi</span>
+            </div>
+          </div>
+
+          {/* Column 2: Jelajahi Event */}
+          <div className="space-y-3">
+            <h3 className="font-bold text-slate-900 text-xs tracking-wider uppercase">
+              {lang === 'en' ? 'Explore' : 'Jelajahi'}
+            </h3>
             <ul className="space-y-2 text-slate-600 font-medium text-xs">
               <li>
-                <Link href="/terms" className="hover:text-blue-600 transition-colors">
-                  {lang === 'en' ? 'About Us' : 'Tentang Kami'}
+                <Link href="#events" className="hover:text-blue-600 hover:translate-x-0.5 transition-all inline-block">
+                  {lang === 'en' ? 'Upcoming Concerts' : 'Jadwal Konser Musik'}
                 </Link>
               </li>
               <li>
-                <Link href="/terms" className="hover:text-blue-600 transition-colors">
-                  {lang === 'en' ? 'Terms & Conditions' : 'Syarat & Ketentuan'}
+                <Link href="#events" className="hover:text-blue-600 hover:translate-x-0.5 transition-all inline-block">
+                  {lang === 'en' ? 'Music Festivals' : 'Festival & Tour'}
                 </Link>
               </li>
               <li>
-                <Link href="/terms" className="hover:text-blue-600 transition-colors">
-                  {lang === 'en' ? 'Privacy Policy' : 'Kebijakan Privasi'}
+                <Link href="/terms" className="hover:text-blue-600 hover:translate-x-0.5 transition-all inline-block">
+                  {lang === 'en' ? 'How to Buy Tickets' : 'Cara Membeli Tiket'}
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Column 2: Layanan Kami */}
+          {/* Column 3: Penyelenggara (EO) */}
           <div className="space-y-3">
-            <h3 className="font-extrabold text-slate-900 text-sm tracking-tight">
-              {lang === 'en' ? 'Our Services' : 'Layanan Kami'}
+            <h3 className="font-bold text-slate-900 text-xs tracking-wider uppercase">
+              {lang === 'en' ? 'Promoters' : 'Penyelenggara'}
             </h3>
             <ul className="space-y-2 text-slate-600 font-medium text-xs">
               <li>
-                <a href="#" className="hover:text-blue-600 transition-colors">
+                <Link href="/dashboard/events" className="hover:text-blue-600 hover:translate-x-0.5 transition-all inline-flex items-center gap-1 text-slate-700 font-semibold">
+                  <span>Buat Event Baru</span>
+                  <span className="text-[9px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-1.5 py-0.2 rounded-full font-bold">0% Komisi</span>
+                </Link>
+              </li>
+              <li>
+                <a href="#events" className="hover:text-blue-600 hover:translate-x-0.5 transition-all inline-block">
                   Ticket Management System
                 </a>
               </li>
               <li>
-                <a href="#" className="hover:text-blue-600 transition-colors">
-                  Web Development
+                <a href="#events" className="hover:text-blue-600 hover:translate-x-0.5 transition-all inline-block">
+                  Scanner QR Check-in
                 </a>
               </li>
             </ul>
           </div>
 
-          {/* Column 3: Dukungan */}
+          {/* Column 4: Dukungan & Kebijakan */}
           <div className="space-y-3">
-            <h3 className="font-extrabold text-slate-900 text-sm tracking-tight">
-              {lang === 'en' ? 'Support' : 'Dukungan'}
+            <h3 className="font-bold text-slate-900 text-xs tracking-wider uppercase">
+              {lang === 'en' ? 'Support & Legal' : 'Bantuan & Legal'}
             </h3>
             <ul className="space-y-2 text-slate-600 font-medium text-xs">
               <li>
-                <a href="#" className="hover:text-blue-600 transition-colors">
-                  Customer Service
-                </a>
+                <Link href="/terms" className="hover:text-blue-600 hover:translate-x-0.5 transition-all inline-block">
+                  {lang === 'en' ? 'Terms & Conditions' : 'Syarat & Ketentuan'}
+                </Link>
               </li>
               <li>
-                <a href="#" className="hover:text-blue-600 transition-colors">
-                  Partnership
+                <Link href="/terms" className="hover:text-blue-600 hover:translate-x-0.5 transition-all inline-block">
+                  {lang === 'en' ? 'Privacy Policy' : 'Kebijakan Privasi'}
+                </Link>
+              </li>
+              <li>
+                <a href="https://www.instagram.com/metix.id/" target="_blank" rel="noreferrer" className="hover:text-blue-600 hover:translate-x-0.5 transition-all inline-block">
+                  {lang === 'en' ? 'Customer Care' : 'Layanan Bantuan CS'}
                 </a>
               </li>
             </ul>
           </div>
 
-          {/* Column 4: Lainnya */}
-          <div className="space-y-3">
-            <h3 className="font-extrabold text-slate-900 text-sm tracking-tight">
-              {lang === 'en' ? 'Others' : 'Lainnya'}
-            </h3>
-            <ul className="space-y-2 text-slate-600 font-medium text-xs">
-              <li>
-                <a href="#" className="hover:text-blue-600 transition-colors">
-                  {lang === 'en' ? 'How to Buy Tickets' : 'Cara Membeli Tiket'}
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-blue-600 transition-colors">
-                  Mini Apps
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          {/* Column 5: Ikuti Kami (Social Media Grid Buttons) */}
+          {/* Column 5: Official Social & Community */}
           <div className="space-y-3 col-span-2 sm:col-span-1">
-            <h3 className="font-extrabold text-slate-900 text-sm tracking-tight">
-              {lang === 'en' ? 'Follow Us' : 'Ikuti Kami'}
+            <h3 className="font-bold text-slate-900 text-xs tracking-wider uppercase">
+              {lang === 'en' ? 'Community' : 'Komunitas Resmi'}
             </h3>
+            <p className="text-[11.5px] text-slate-500 font-normal leading-relaxed">
+              Ikuti Instagram resmi kami untuk update jadwal konser dan giveaway tiket gratis.
+            </p>
 
-            <div className="flex items-center gap-2 max-w-xs">
-              {/* Instagram Button */}
-              <a
-                href="https://www.instagram.com/metix.id?stkn=MWZ1bjhjYmx2M3RxeA%3D%3D&utm_source=qr"
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#d62976] hover:bg-[#c13584] text-white font-extrabold text-[11px] shadow-sm transition-all hover:scale-[1.02]"
-              >
-                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
-                </svg>
-                <span>Instagram</span>
-              </a>
-            </div>
+            <a
+              href="https://www.instagram.com/metix.id/"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200/90 hover:border-pink-300 text-slate-700 hover:text-slate-900 font-bold text-[11.5px] shadow-2xs hover:shadow-xs transition-all group cursor-pointer"
+            >
+              <div className="w-5 h-5 rounded-lg bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 text-white flex items-center justify-center shrink-0">
+                <InstagramIcon className="w-3 h-3 text-white" />
+              </div>
+              <span className="truncate">@metix.id</span>
+              <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-slate-600 ml-auto shrink-0 transition-colors" />
+            </a>
           </div>
 
         </div>
 
-        {/* Horizontal Divider Line & Centered Copyright */}
-        <div className="pt-6 border-t border-slate-200/80 text-center">
-          <p className="text-[11px] sm:text-xs text-slate-500 font-extrabold tracking-tight">
-            Metix © 2026. All rights reserved
+        {/* 2. Bottom Bar: Copyright & Payment Security */}
+        <div className="pt-6 border-t border-slate-200/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-slate-500 text-[11px] font-medium">
+          <p>
+            © {new Date().getFullYear()} <strong className="text-slate-700 font-bold">METIX</strong> (PT Metix Solusi Digital). All rights reserved.
           </p>
+          <div className="flex items-center gap-4 text-slate-400 text-[11px]">
+            <span>Metode Pembayaran Resmi QRIS & Virtual Account</span>
+          </div>
         </div>
 
       </div>

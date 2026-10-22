@@ -64,6 +64,7 @@ export interface UserProfile {
   name: string;
   email: string;
   role?: 'OWNER' | 'EO' | 'BUYER' | 'SCANNER' | string;
+  status?: 'ACTIVE' | 'INACTIVE' | 'BLOCKED' | string | null;
   nik?: string | null;
   phone?: string | null;
   address?: string | null;
@@ -664,6 +665,20 @@ export async function loginUser(payload: LoginPayload): Promise<LoginResponse> {
 
       if (user) {
         user.phone = user.phone || (user as any).phone_number || (user as any).whatsapp || (user as any).no_hp || null;
+
+        const userStatus = (user.status || '').toUpperCase();
+        if (userStatus === 'INACTIVE') {
+          const err: any = new Error('Akun Anda dinonaktifkan. Silakan hubungi pihak Metix agar akun bisa dikembalikan.');
+          err.status = 'INACTIVE';
+          err.user = user;
+          throw err;
+        }
+        if (userStatus === 'BLOCKED') {
+          const err: any = new Error('Akun Anda telah diblokir secara permanen dan tidak dapat dikembalikan karena melanggar ketentuan yang berlaku di Aplikasi Web Metix.');
+          err.status = 'BLOCKED';
+          err.user = user;
+          throw err;
+        }
       }
 
       if (typeof window !== 'undefined' && token) {
@@ -799,6 +814,22 @@ export async function loginOtpApi(payload: { email: string; otp: string }): Prom
 
   const user = data.user || data.data?.user;
   const token = data.token || data.data?.token;
+
+  if (user) {
+    const userStatus = (user.status || '').toUpperCase();
+    if (userStatus === 'INACTIVE') {
+      const err: any = new Error('Akun Anda dinonaktifkan. Silakan hubungi pihak Metix agar akun bisa dikembalikan.');
+      err.status = 'INACTIVE';
+      err.user = user;
+      throw err;
+    }
+    if (userStatus === 'BLOCKED') {
+      const err: any = new Error('Akun Anda telah diblokir secara permanen dan tidak dapat dikembalikan karena melanggar ketentuan yang berlaku di Aplikasi Web Metix.');
+      err.status = 'BLOCKED';
+      err.user = user;
+      throw err;
+    }
+  }
 
   if (typeof window !== 'undefined' && token) {
     localStorage.setItem('metix_token', token);

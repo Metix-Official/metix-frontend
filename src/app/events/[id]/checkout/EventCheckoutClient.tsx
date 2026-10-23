@@ -42,6 +42,7 @@ import {
   ListOrdered,
   List,
   X,
+  Coffee,
 } from 'lucide-react';
 import {
   fetchPublicEventDetail,
@@ -180,6 +181,9 @@ export default function EventCheckoutClient() {
     discountAmount: number;
     ticket_type_id?: number | null;
     ticket_type_name?: string | null;
+    benefit_type?: string | null;
+    benefit_name?: string | null;
+    benefit_quantity?: number | null;
   } | null>(null);
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
@@ -594,8 +598,15 @@ export default function EventCheckoutClient() {
           discountAmount: res.discount_amount,
           ticket_type_id: res.promo?.ticket_type_id,
           ticket_type_name: res.promo?.ticket_type_name,
+          benefit_type: res.promo?.benefit_type,
+          benefit_name: res.promo?.benefit_name,
+          benefit_quantity: res.promo?.benefit_quantity,
         });
-        setPromoSuccess(`Voucher '${promoCodeInput.trim().toUpperCase()}' berhasil dipasang! Hemat Rp ${res.discount_amount.toLocaleString('id-ID')}`);
+        if (res.promo?.benefit_name) {
+          setPromoSuccess(`🎉 Promo '${promoCodeInput.trim().toUpperCase()}' aktif! Bonus: ${res.promo.benefit_name}!`);
+        } else {
+          setPromoSuccess(`Voucher '${promoCodeInput.trim().toUpperCase()}' berhasil dipasang! Hemat Rp ${res.discount_amount.toLocaleString('id-ID')}`);
+        }
       } else {
         setPromoError(res.message || 'Kode promo tidak berlaku.');
       }
@@ -1539,9 +1550,15 @@ export default function EventCheckoutClient() {
                               <span className="px-2 py-0.5 rounded-lg bg-emerald-600 text-white font-mono text-[11px] font-extrabold tracking-wider uppercase shadow-2xs">
                                 {appliedPromo.code}
                               </span>
-                              <span className="text-xs font-black text-emerald-950">
-                                Hemat Rp {appliedPromo.discountAmount.toLocaleString('id-ID')}
-                              </span>
+                              {appliedPromo.benefit_name ? (
+                                <span className="text-xs font-black text-amber-900 flex items-center gap-1">
+                                  <Coffee className="w-3.5 h-3.5 text-amber-600" /> Bonus: {appliedPromo.benefit_name}
+                                </span>
+                              ) : (
+                                <span className="text-xs font-black text-emerald-950">
+                                  Hemat Rp {appliedPromo.discountAmount.toLocaleString('id-ID')}
+                                </span>
+                              )}
                             </div>
                             <p className="text-[11px] text-emerald-700 font-bold">
                               Voucher promo berhasil terpasang pada transaksi ini!
@@ -2076,10 +2093,23 @@ export default function EventCheckoutClient() {
                 )}
 
                 {appliedPromo && (
-                  <div className="flex justify-between items-center text-emerald-600 font-bold">
-                    <span>Potongan Promo</span>
-                    <span>-Rp {appliedPromo.discountAmount.toLocaleString('id-ID')}</span>
-                  </div>
+                  <>
+                    {appliedPromo.discountAmount > 0 && (
+                      <div className="flex justify-between items-center text-emerald-600 font-bold">
+                        <span>Potongan Promo</span>
+                        <span>-Rp {appliedPromo.discountAmount.toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
+                    {appliedPromo.benefit_name && (
+                      <div className="flex justify-between items-center text-amber-700 font-bold text-xs bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                        <span className="flex items-center gap-1.5">
+                          <Coffee className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>Bonus Benefit:</span>
+                        </span>
+                        <span className="text-right">{appliedPromo.benefit_name}</span>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 <div className="pt-3 border-t border-slate-100 flex justify-between items-baseline">

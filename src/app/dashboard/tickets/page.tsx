@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { fetchUserTickets, fetchUserOrders, fetchPublicEvents, fetchPaymentStatus, initiateOrderPayment, requestTicketRefundByBuyerApi, ApiTicketDetail, getStoredUser, getTicketPdfUrl, getTicketQrUrl, getPhotoUrl } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
-import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw, RotateCcw, Clock, AlertTriangle, CreditCard, Lock, Copy, ChevronDown, ChevronUp, HelpCircle, Check, Building2, Wallet, Store, Zap, User, ExternalLink, ShieldCheck, Sparkles, Bell, BellRing, Loader2, AlertCircle } from 'lucide-react';
+import { Ticket, Search, Calendar, MapPin, QrCode, X, Printer, Download, CheckCircle2, XCircle, RotateCw, RotateCcw, Clock, AlertTriangle, CreditCard, Lock, Copy, ChevronDown, ChevronUp, HelpCircle, Check, Building2, Wallet, Store, Zap, User, ExternalLink, ShieldCheck, Sparkles, Bell, BellRing, Loader2, AlertCircle, Coffee } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 import { getUserRole } from '@/lib/roles';
@@ -513,6 +513,13 @@ export default function TicketsPage() {
       // Gabungkan relasi venue & category dari public event jika di ticket belum termuat
       const enriched = data.map((t) => {
         const evId = t.event?.id;
+        const orderMatch = (t as any).order_id
+          ? ordersData?.find((o: any) => o.id === (t as any).order_id)
+          : null;
+        const resolvedBenefits = (t as any).benefits
+          || (t as any).order?.benefits
+          || orderMatch?.benefits
+          || [];
         const matched = evId ? eventsMap.get(Number(evId)) : null;
 
         let resolvedCategory = (t.ticket_type as any)?.category || (t as any).category || '';
@@ -539,6 +546,7 @@ export default function TicketsPage() {
               category: resolvedCategory,
               price: t.ticket_type?.price ?? matchedTt?.price ?? 0,
             },
+            benefits: resolvedBenefits,
             status: t.status || 'active',
             event: {
               ...matched,
@@ -559,6 +567,7 @@ export default function TicketsPage() {
             category: resolvedCategory,
             price: t.ticket_type?.price ?? 0,
           },
+          benefits: resolvedBenefits,
           status: t.status || 'active',
         };
       });
@@ -970,6 +979,19 @@ export default function TicketsPage() {
       doc.setTextColor(100, 116, 139);
       doc.text(`${ticketType.toUpperCase()} ACCESS`, bodyX, cardY + 24);
 
+      const pdfPromoCode = (ticket as any).promo_code || (ticket as any).order?.promo_code || (ticket as any).order?.promo?.code;
+      const pdfBenefitName = (ticket as any).benefit_name || (ticket as any).order?.benefit_name || (ticket as any).order?.promo?.benefit_name;
+
+      if (pdfPromoCode) {
+        doc.setFillColor(254, 243, 199);
+        doc.setDrawColor(245, 158, 11);
+        doc.roundedRect(bodyX + 38, cardY + 19.5, 52, 5.5, 1, 1, 'FD');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(5);
+        doc.setTextColor(146, 64, 14);
+        doc.text(`PROMO: ${pdfPromoCode} (${String(pdfBenefitName || 'FREE COFFEE').toUpperCase()})`, bodyX + 64, cardY + 23.3, { align: 'center' });
+      }
+
       // Line 4: Date, Time & Venue Bar
       doc.setFillColor(248, 250, 252);
       doc.setDrawColor(226, 232, 240);
@@ -1072,6 +1094,16 @@ export default function TicketsPage() {
       doc.setFontSize(8);
       doc.setTextColor(37, 99, 235);
       doc.text(priceDisplay, cardX + 160.5, cardY + 64, { align: 'center' });
+
+      if (pdfPromoCode) {
+        doc.setFillColor(254, 243, 199);
+        doc.setDrawColor(245, 158, 11);
+        doc.roundedRect(cardX + 138, cardY + 68, 45, 4.5, 1, 1, 'FD');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(4.8);
+        doc.setTextColor(146, 64, 14);
+        doc.text(`KUPON: ${pdfPromoCode}`, cardX + 160.5, cardY + 71.2, { align: 'center' });
+      }
 
       // Metix Watermark Logo
       doc.setFont('helvetica', 'black');
@@ -1477,6 +1509,9 @@ export default function TicketsPage() {
                   ? rawCode
                   : (rawCode || (orderNum ? `TKT-${orderNum}-1` : `TKT-${item.id}`));
 
+                const promoCode = (item as any).promo_code || (item as any).order?.promo_code || (item as any).order?.promo?.code;
+                const benefitName = (item as any).benefit_name || (item as any).order?.benefit_name || (item as any).order?.promo?.benefit_name;
+
                 const rawBanner = item.event?.banner || (item.event as any)?.banner_url || (item.event as any)?.image || (item.event as any)?.poster || (item.event as any)?.venue_photo;
                 const eventBannerUrl = rawBanner ? (getPhotoUrl(rawBanner, item.event?.id) || rawBanner) : null;
                 const holderName = item.holder_name || item.attendee?.full_name || item.order?.buyer_name || (item as any).user?.name || getStoredUser()?.name || 'Pelanggan Metix';
@@ -1575,6 +1610,15 @@ export default function TicketsPage() {
                           <span className="text-[11px] sm:text-xs font-mono font-bold tracking-wider text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200 whitespace-nowrap">
                             {displayTicketCode}
                           </span>
+                          {promoCode && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-black bg-amber-50 text-amber-950 border border-amber-300 shadow-2xs">
+                              <Coffee className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span>Promo: {promoCode}</span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-amber-200/90 text-amber-900 border border-amber-300">
+                                {benefitName || "1 Cup Kopi"}
+                              </span>
+                            </span>
+                          )}
                         </div>
 
                         {/* Line 2: Headline Concert Title (UNGU) */}
@@ -1736,10 +1780,18 @@ export default function TicketsPage() {
                         </div>
 
                         {/* QR helper text */}
-                        <p className="text-[10px] text-slate-500 font-medium text-center flex items-center justify-center gap-1.5">
-                          <QrCode className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          <span>{isUsed ? 'Tiket terverifikasi' : 'Scan di gerbang masuk'}</span>
-                        </p>
+                        <div className="space-y-1 text-center">
+                          <p className="text-[10px] text-slate-500 font-medium flex items-center justify-center gap-1.5">
+                            <QrCode className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <span>{isUsed ? 'Tiket terverifikasi' : 'Scan di gerbang masuk'}</span>
+                          </p>
+                          {promoCode && (
+                            <p className="text-[9px] font-bold text-amber-900 bg-amber-50 py-0.5 px-2 rounded-md border border-amber-200/90 flex items-center justify-center gap-1">
+                              <Coffee className="w-3 h-3 text-amber-600 shrink-0" />
+                              <span>Kupon: {promoCode} ({benefitName || "1 Cup Kopi"})</span>
+                            </p>
+                          )}
+                        </div>
                       </div>
 
                       {/* Download & Refund Action Buttons */}

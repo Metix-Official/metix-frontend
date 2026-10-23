@@ -106,6 +106,7 @@ import {
   Link2,
   ListOrdered,
   List,
+  Coffee,
 } from 'lucide-react';
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -837,6 +838,9 @@ export function EoEventsView() {
   const [editPromoStartAt, setEditPromoStartAt] = useState('');
   const [editPromoEndAt, setEditPromoEndAt] = useState('');
   const [editPromoStatus, setEditPromoStatus] = useState<'ACTIVE' | 'INACTIVE' | 'EXPIRED'>('ACTIVE');
+  const [isEditPromoCoffeeBenefitChecked, setIsEditPromoCoffeeBenefitChecked] = useState(false);
+  const [editPromoBenefitName, setEditPromoBenefitName] = useState('Free Coffee');
+  const [editPromoBenefitQty, setEditPromoBenefitQty] = useState(1);
 
   const handleCopyPromo = (code: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -864,6 +868,9 @@ export function EoEventsView() {
   const [rawPromoDiscountValue, setRawPromoDiscountValue] = useState(0);
 
   const [promoMinPurchaseDisplay, setPromoMinPurchaseDisplay] = useState('');
+  const [isPromoCoffeeBenefitChecked, setIsPromoCoffeeBenefitChecked] = useState(false);
+  const [promoBenefitName, setPromoBenefitName] = useState('Free Coffee');
+  const [promoBenefitQty, setPromoBenefitQty] = useState(1);
   const [rawPromoMinPurchase, setRawPromoMinPurchase] = useState(0);
 
   const [promoStartAt, setPromoStartAt] = useState<string>(format(new Date(), "yyyy-MM-dd'T'00:00"));
@@ -974,6 +981,9 @@ export function EoEventsView() {
         min_purchase,
         quota,
         max_usage_per_user,
+        benefit_type: isPromoCoffeeBenefitChecked ? 'FREE_COFFEE' : null,
+        benefit_name: isPromoCoffeeBenefitChecked ? (promoBenefitName.trim() || 'Free Coffee') : null,
+        benefit_quantity: isPromoCoffeeBenefitChecked ? promoBenefitQty : null,
         start_at,
         end_at,
       });
@@ -987,6 +997,9 @@ export function EoEventsView() {
       setRawPromoDiscountValue(0);
       setPromoMinPurchaseDisplay('');
       setRawPromoMinPurchase(0);
+      setIsPromoCoffeeBenefitChecked(false);
+      setPromoBenefitName('Free Coffee');
+      setPromoBenefitQty(1);
       setPromoScopeType('ALL');
       setSelectedPromoCategory('');
       setSelectedPromoTicketTypeId(null);
@@ -1057,6 +1070,11 @@ export function EoEventsView() {
         : format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), "yyyy-MM-dd'T'23:59")
     );
 
+    const hasBenefit = Boolean(p.benefit_type || p.benefit_name);
+    setIsEditPromoCoffeeBenefitChecked(hasBenefit);
+    setEditPromoBenefitName(p.benefit_name || 'Free Coffee');
+    setEditPromoBenefitQty(p.benefit_quantity ? Number(p.benefit_quantity) : 1);
+
     const st = (p.status || '').toUpperCase();
     if (st === 'INACTIVE' || st === 'NONAKTIF') {
       setEditPromoStatus('INACTIVE');
@@ -1089,7 +1107,7 @@ export function EoEventsView() {
   const handleEditPromoDiscountValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/\D/g, '');
     if (!rawValue) {
-      setEditPromoDiscountValueDisplay('');
+      setEditPromoDiscountValueDisplay('0');
       setRawEditPromoDiscountValue(0);
       return;
     }
@@ -1128,8 +1146,12 @@ export function EoEventsView() {
       setEditPromoError('Nama promo tidak boleh kosong.');
       return;
     }
-    if (rawEditPromoDiscountValue <= 0) {
-      setEditPromoError('Nilai diskon harus lebih dari 0.');
+    if (rawEditPromoDiscountValue < 0) {
+      setEditPromoError('Nilai diskon tidak boleh bernilai negatif.');
+      return;
+    }
+    if (rawEditPromoDiscountValue === 0 && !isEditPromoCoffeeBenefitChecked) {
+      setEditPromoError('Nilai diskon harus lebih dari 0, atau centang opsi "Bonus Kopi Gratis" jika kupon hanya memberikan reward kopi.');
       return;
     }
     if (!editPromoStartAt || !editPromoEndAt) {
@@ -1167,6 +1189,9 @@ export function EoEventsView() {
         min_purchase: rawEditPromoMinPurchase || 0,
         quota: editPromoQuota ? parseInt(editPromoQuota, 10) : 100,
         max_usage_per_user: editPromoMaxPerUser ? parseInt(editPromoMaxPerUser, 10) : 1,
+        benefit_type: isEditPromoCoffeeBenefitChecked ? 'FREE_COFFEE' : null,
+        benefit_name: isEditPromoCoffeeBenefitChecked ? (editPromoBenefitName.trim() || 'Free Coffee') : null,
+        benefit_quantity: isEditPromoCoffeeBenefitChecked ? (editPromoBenefitQty || 1) : null,
         start_at,
         end_at,
         status: editPromoStatus,
@@ -4126,9 +4151,9 @@ export function EoEventsView() {
       {/* ================= MODAL KELOLA KODE PROMO DISKON ================= */}
       {isPromoModalOpen && selectedEventForPromo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in-0">
-          <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
+          <div className="relative w-full max-w-5xl 2xl:max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[92vh]">
             {/* Header Modal */}
-            <div className="bg-gradient-to-r from-indigo-700 via-purple-700 to-blue-800 p-6 text-white relative">
+            <div className="bg-gradient-to-r from-indigo-700 via-purple-700 to-blue-800 p-6 sm:px-8 text-white relative shrink-0">
               <button
                 type="button"
                 onClick={() => setIsPromoModalOpen(false)}
@@ -4150,7 +4175,7 @@ export function EoEventsView() {
               </p>
             </div>
 
-            <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+            <div className="p-6 sm:p-8 space-y-6 overflow-y-auto flex-1">
               {promoError && (
                 <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
@@ -4348,6 +4373,55 @@ export function EoEventsView() {
                   <input type="hidden" name="min_purchase" value="0" />
                 </div>
 
+                {/* Opsi Bonus Kopi Gratis (Free Coffee Benefit) */}
+                <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/90 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-amber-950 flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={isPromoCoffeeBenefitChecked}
+                        onChange={(e) => setIsPromoCoffeeBenefitChecked(e.target.checked)}
+                        className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+                      />
+                      <Coffee className="w-4 h-4 text-amber-600" />
+                      <span>Berikan Bonus Kopi Gratis (Free Coffee)</span>
+                    </label>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded-md border border-amber-300">
+                      Order Benefit
+                    </span>
+                  </div>
+
+                  {isPromoCoffeeBenefitChecked && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-amber-200/70 animate-in fade-in duration-200">
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="text-[11px] font-extrabold text-slate-700">Nama Tampilan Kopi / Booth</label>
+                        <input
+                          type="text"
+                          value={promoBenefitName}
+                          onChange={(e) => setPromoBenefitName(e.target.value)}
+                          placeholder="Contoh: Free Coffee - Di Nebe"
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-amber-600 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-extrabold text-slate-700">Jumlah Cup</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={10}
+                          value={promoBenefitQty}
+                          onChange={(e) => setPromoBenefitQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-amber-600 focus:outline-none"
+                        />
+                      </div>
+                      <p className="sm:col-span-3 text-[11px] text-amber-900 font-medium">
+                        💡 <em>Tips: Jika kupon <strong>HANYA memberikan kopi gratis tanpa potongan harga tiket</strong>, isi <strong>Nilai Potongan di atas dengan 0</strong>.</em>
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div className="space-y-1">
                     <label className="text-[11px] font-extrabold text-slate-700">Kuota Promo</label>
@@ -4511,14 +4585,14 @@ export function EoEventsView() {
                   <Skeleton className="h-44 w-full rounded-2xl" />
                 ) : promos.length > 0 ? (
                   <div className="overflow-x-auto border border-slate-200/90 rounded-2xl bg-white shadow-2xs">
-                    <table className="w-full text-left text-xs text-slate-700 min-w-[680px]">
-                      <thead className="bg-slate-50/80 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200/80 select-none">
+                    <table className="w-full text-left text-xs text-slate-700 min-w-[820px]">
+                      <thead className="bg-slate-50/90 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200/80 select-none">
                         <tr>
-                          <th className="py-3 px-4">Kode Promo</th>
-                          <th className="py-3 px-4">Diskon / Potongan</th>
-                          <th className="py-3 px-4">Syarat & Kuota</th>
-                          <th className="py-3 px-4">Masa Berlaku</th>
-                          <th className="py-3 px-4 text-center">Aksi</th>
+                          <th className="py-3.5 px-4 min-w-[240px]">Kode Promo</th>
+                          <th className="py-3.5 px-4 min-w-[130px] whitespace-nowrap">Diskon / Potongan</th>
+                          <th className="py-3.5 px-4 min-w-[140px] whitespace-nowrap">Syarat & Kuota</th>
+                          <th className="py-3.5 px-4 min-w-[210px] whitespace-nowrap">Masa Berlaku</th>
+                          <th className="py-3.5 px-4 text-center min-w-[80px] whitespace-nowrap">Aksi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100/90">
@@ -4537,8 +4611,8 @@ export function EoEventsView() {
                           return (
                             <tr key={p.id} className="hover:bg-indigo-50/20 transition-colors group">
                               {/* Kolom 1: Kode Promo & Voucher */}
-                              <td className="py-3 px-4 align-top">
-                                <div className="space-y-1">
+                              <td className="py-3.5 px-4 align-middle">
+                                <div className="space-y-1.5">
                                   <div className="flex items-center gap-1.5">
                                     <button
                                       type="button"
@@ -4576,6 +4650,14 @@ export function EoEventsView() {
                                       </span>
                                     )}
                                   </div>
+                                  {p.benefit_name && (
+                                    <div className="pt-1">
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">
+                                        <Coffee className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                                        <span>Bonus: {p.benefit_name} ({p.benefit_quantity || 1} Cup)</span>
+                                      </span>
+                                    </div>
+                                  )}
                                   {p.min_purchase && Number(p.min_purchase) > 0 ? (
                                     <div className="text-[10px] text-slate-400 font-medium">
                                       Min. beli: Rp {Number(p.min_purchase).toLocaleString('id-ID')}
@@ -4585,8 +4667,8 @@ export function EoEventsView() {
                               </td>
 
                               {/* Kolom 2: Diskon / Potongan */}
-                              <td className="py-3 px-4 align-top">
-                                <div className="space-y-1">
+                              <td className="py-3.5 px-4 align-middle">
+                                <div className="space-y-1.5">
                                   <div
                                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-black text-xs shadow-2xs ${
                                       p.discount_type === 'FIXED'
@@ -4612,7 +4694,7 @@ export function EoEventsView() {
                               </td>
 
                               {/* Kolom 3: Syarat & Kuota */}
-                              <td className="py-3 px-4 align-top">
+                              <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                                 <div className="space-y-1.5 min-w-[130px] max-w-[160px]">
                                   <div className="flex items-center justify-between text-[11px]">
                                     <span className="font-extrabold text-slate-900">
@@ -4658,51 +4740,51 @@ export function EoEventsView() {
                               </td>
 
                               {/* Kolom 4: Masa Berlaku & Status */}
-                              <td className="py-3 px-4 align-top">
-                                <div className="space-y-1.5">
+                              <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                                <div className="space-y-2 min-w-[200px]">
                                   <div>
                                     {isQuotaExhausted ? (
-                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200/80">
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200/80">
                                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                                         Kuota Habis
                                       </span>
                                     ) : (p.status || '').toLowerCase() === 'inactive' ? (
-                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200/80">
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-200/80">
                                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                                         Nonaktif
                                       </span>
                                     ) : (p.status || '').toLowerCase() === 'expired' || isExpired ? (
-                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-600 border border-slate-200">
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200">
                                         <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                                         Kadaluarsa
                                       </span>
                                     ) : isUpcoming ? (
-                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-50 text-sky-700 border border-sky-200/80">
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-50 text-sky-700 border border-sky-200/80">
                                         <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
                                         Mendatang
                                       </span>
                                     ) : (
-                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200/80">
                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                         Aktif
                                       </span>
                                     )}
                                   </div>
 
-                                  <div className="text-[10px] text-slate-600 font-medium space-y-0.5">
-                                    <div className="flex items-center gap-1">
-                                      <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
-                                      <span>
+                                  <div className="text-[11px] text-slate-600 font-medium space-y-1 whitespace-nowrap">
+                                    <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                      <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                      <span className="font-bold text-slate-700 whitespace-nowrap">
                                         {p.start_at ? format(new Date(p.start_at), 'dd MMM yyyy') : '-'}
                                       </span>
-                                      <span className="text-slate-300">→</span>
-                                      <span>
+                                      <span className="text-slate-400 font-semibold px-0.5">→</span>
+                                      <span className="font-bold text-slate-700 whitespace-nowrap">
                                         {p.end_at ? format(new Date(p.end_at), 'dd MMM yyyy') : '-'}
                                       </span>
                                     </div>
-                                    <div className="flex items-center gap-1 text-[9px] text-slate-400 pl-4">
-                                      <Clock className="w-2.5 h-2.5 shrink-0" />
-                                      <span>
+                                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 pl-5 whitespace-nowrap">
+                                      <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                                      <span className="whitespace-nowrap">
                                         {p.start_at ? format(new Date(p.start_at), 'HH:mm') : '00:00'} -{' '}
                                         {p.end_at ? format(new Date(p.end_at), 'HH:mm') : '23:59'} WIB
                                       </span>
@@ -4712,7 +4794,7 @@ export function EoEventsView() {
                               </td>
 
                               {/* Kolom 5: Aksi */}
-                              <td className="py-3 px-4 align-middle text-center">
+                              <td className="py-3.5 px-4 align-middle text-center whitespace-nowrap">
                                 <div className="flex items-center justify-center gap-1.5">
                                   <button
                                     type="button"
@@ -4757,7 +4839,7 @@ export function EoEventsView() {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+            <div className="p-4 sm:px-8 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
               <button
                 onClick={() => setIsPromoModalOpen(false)}
                 className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold cursor-pointer"
@@ -4807,7 +4889,7 @@ export function EoEventsView() {
       {/* ================= MODAL EDIT KODE PROMO & STATUS ================= */}
       {editingPromoTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/75 backdrop-blur-sm animate-in fade-in-0 overflow-y-auto">
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
+          <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
             {/* Header Modal */}
             <div className="bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 p-5 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -5145,6 +5227,55 @@ export function EoEventsView() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Opsi Bonus Kopi Gratis (Free Coffee Benefit) untuk Edit Promo */}
+              <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/90 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-amber-950 flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={isEditPromoCoffeeBenefitChecked}
+                      onChange={(e) => setIsEditPromoCoffeeBenefitChecked(e.target.checked)}
+                      className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+                    />
+                    <Coffee className="w-4 h-4 text-amber-600" />
+                    <span>Berikan Bonus Kopi Gratis (Free Coffee)</span>
+                  </label>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded-md border border-amber-300">
+                    Order Benefit
+                  </span>
+                </div>
+
+                {isEditPromoCoffeeBenefitChecked && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-amber-200/70 animate-in fade-in duration-200">
+                    <div className="sm:col-span-2 space-y-1">
+                      <label className="text-[11px] font-extrabold text-slate-700">Nama Tampilan Kopi / Booth</label>
+                      <input
+                        type="text"
+                        value={editPromoBenefitName}
+                        onChange={(e) => setEditPromoBenefitName(e.target.value)}
+                        placeholder="Contoh: Free Coffee - Di Nebe"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-amber-600 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-extrabold text-slate-700">Jumlah Cup</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={editPromoBenefitQty}
+                        onChange={(e) => setEditPromoBenefitQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-amber-600 focus:outline-none"
+                      />
+                    </div>
+                    <p className="sm:col-span-3 text-[11px] text-amber-900 font-medium">
+                      💡 <em>Tips: Jika kupon <strong>HANYA memberikan kopi gratis tanpa potongan harga tiket</strong>, isi <strong>Nilai Diskon di atas dengan 0</strong>.</em>
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Min Pembelian, Kuota, Max Per User */}

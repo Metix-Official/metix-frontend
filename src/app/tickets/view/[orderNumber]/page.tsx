@@ -24,6 +24,7 @@ import {
   ArrowLeft,
   Download,
   Tag,
+  Coffee,
 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 
@@ -756,6 +757,66 @@ export default function PublicTicketViewPage() {
             })}
           </div>
         </div>
+
+        {/* Promo Applied / Coffee Benefit Section */}
+        {data.promo_code && (
+          <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/30 text-white space-y-4 shadow-xl">
+            <div className="flex items-center justify-between gap-3 border-b border-amber-500/20 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0">
+                  <Coffee className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm sm:text-base text-amber-300 tracking-wide">
+                    {data.benefit_name || "Promo Voucher Kopi Gratis"}
+                  </h3>
+                  <p className="text-[11px] text-slate-300">
+                    Klaim kopi gratis Anda di booth acara venue
+                  </p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                Bonus Promo
+              </span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-900/90 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm text-white">{data.promo_name || "Beli Tiket Bonus Kopi"}</span>
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    1 Cup Free
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-slate-400">Kode Promo:</span>
+                  <span className="font-mono font-black text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded border border-amber-500/20 text-sm">
+                    {data.promo_code}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyCode(data.promo_code)}
+                    className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    title="Salin Kode Promo"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="shrink-0 flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  <Coffee className="w-3.5 h-3.5 text-amber-400" />
+                  Tunjukkan di Booth Kopi
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              💡 <em>Cukup tunjukkan lembar tiket atau kode promo <strong>{data.promo_code}</strong> di atas kepada barista booth kopi saat acara berlangsung untuk mengambil kopi Anda.</em>
+            </p>
+          </div>
+        )}
 
         {/* Gate Guidelines Notice */}
         <div className="p-4 sm:p-5 rounded-3xl bg-slate-900 border border-slate-800 text-xs space-y-2 text-slate-300">

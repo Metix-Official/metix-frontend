@@ -142,6 +142,9 @@ export interface ApiPromo {
   quota?: number | null;
   used_count?: number;
   max_usage_per_user?: number | null;
+  benefit_type?: string | null;
+  benefit_name?: string | null;
+  benefit_quantity?: number | null;
   start_at: string;
   end_at: string;
   status?: string;
@@ -383,7 +386,13 @@ export interface ApiTicketDetail {
     total_amount?: number | string;
     payment_method?: string;
     created_at?: string;
+    promo_code?: string;
+    promo_name?: string;
+    benefit_name?: string;
   };
+  promo_code?: string;
+    promo_name?: string;
+    benefit_name?: string;
 }
 
 export interface ApiReservation {
@@ -1291,6 +1300,9 @@ export async function applyPromoCode(payload: {
     ticket_type_name?: string | null;
     discount_type: 'PERCENTAGE' | 'FIXED';
     discount_value: number;
+    benefit_type?: string | null;
+    benefit_name?: string | null;
+    benefit_quantity?: number | null;
   };
 }> {
   const token = getStoredToken();
@@ -3398,6 +3410,9 @@ export async function createPromo(
     min_purchase?: number;
     quota?: number;
     max_usage_per_user?: number;
+    benefit_type?: string | null;
+    benefit_name?: string | null;
+    benefit_quantity?: number | null;
     start_at: string;
     end_at: string;
   }
@@ -3434,18 +3449,21 @@ export async function updatePromo(
     name?: string;
     description?: string;
     ticket_type_id?: number | null;
-    discount_type?: 'PERCENTAGE' | 'FIXED';
+    discount_type?: "PERCENTAGE" | "FIXED";
     discount_value?: number;
     min_purchase?: number;
     quota?: number;
     max_usage_per_user?: number;
+    benefit_type?: string | null;
+    benefit_name?: string | null;
+    benefit_quantity?: number | null;
     start_at?: string;
     end_at?: string;
-    status?: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | string;
+    status?: "ACTIVE" | "INACTIVE" | "EXPIRED" | string;
   }
 ): Promise<boolean> {
   const token = getStoredToken();
-  if (!token) throw new Error('Silakan login terlebih dahulu (Unauthenticated).');
+  if (!token) throw new Error("Silakan login terlebih dahulu (Unauthenticated).");
 
   const formattedPayload = {
     ...payload,
@@ -3454,56 +3472,27 @@ export async function updatePromo(
 
   try {
     const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/promos/${promoId}`, {
-      method: 'POST',
+      method: "PUT",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...getHeaders(token),
       },
-      body: JSON.stringify({
-        ...formattedPayload,
-        _method: 'PUT',
-      }),
+      body: JSON.stringify(formattedPayload),
     });
 
     if (response.ok) return true;
 
-    if (response.status === 405) {
-      const putRes = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/promos/${promoId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getHeaders(token),
-        },
-        body: JSON.stringify(payload),
-      });
-      if (putRes.ok) return true;
-      const data = await putRes.json().catch(() => ({}));
-      throw new Error(data?.message || 'Gagal memperbarui kode promo.');
-    }
-
     const data = await response.json().catch(() => ({}));
     const errorMsg =
       data?.message ||
-      (data?.errors ? Object.values(data.errors).flat().join(', ') : null) ||
-      'Gagal memperbarui kode promo.';
+      (data?.errors ? Object.values(data.errors).flat().join(", ") : null) ||
+      "Gagal memperbarui kode promo.";
     throw new Error(errorMsg);
   } catch (error: any) {
-    if (error?.message && error.message !== 'Failed to fetch') {
+    if (error?.message && error.message !== "Failed to fetch") {
       throw error;
     }
-    const putRes = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/promos/${promoId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getHeaders(token),
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!putRes.ok) {
-      const data = await putRes.json().catch(() => ({}));
-      throw new Error(data?.message || 'Gagal memperbarui kode promo.');
-    }
-    return true;
+    throw new Error("Gagal memperbarui kode promo karena kendala jaringan.");
   }
 }
 

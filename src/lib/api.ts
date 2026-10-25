@@ -3989,6 +3989,7 @@ export async function fetchSalesReportData(params?: {
     const url = `${API_BASE_URL}/organizer/reports?${query.toString()}`;
     const response = await fetch(url, {
       headers: getHeaders(token),
+      cache: 'no-store',
     });
 
     if (response.ok) {

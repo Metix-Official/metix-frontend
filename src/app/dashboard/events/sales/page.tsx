@@ -40,6 +40,8 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
+  Tag,
+  Coffee,
 } from 'lucide-react';
 
 export default function EventSalesDetailPage() {
@@ -707,6 +709,25 @@ export default function EventSalesDetailPage() {
                     const hasTickets = ord.tickets && ord.tickets.length > 0;
                     const isPaid = ord.status === 'paid' || ord.status === 'completed';
 
+                    const discountAmount = Number(ord.discount_amount || 0);
+                    const hasDiscount = discountAmount > 0;
+
+                    const rawBenefitName = ord.benefit_name || (ord as any).promo?.benefit_name || (ord.tickets && ord.tickets[0]?.benefit_name) || '';
+                    const rawBenefitType = ord.benefit_type || (ord as any).promo?.benefit_type || (ord.tickets && ord.tickets[0]?.benefit_type) || '';
+
+                    const isCoffeeBenefit =
+                      rawBenefitType === 'FREE_COFFEE' ||
+                      rawBenefitName.toLowerCase().includes('kopi') ||
+                      rawBenefitName.toLowerCase().includes('coffee') ||
+                      Boolean(rawBenefitName);
+
+                    const isDiscountPromo = hasDiscount;
+                    const isCoffeePromo = Boolean(isCoffeeBenefit || (ord.promo_code && !hasDiscount));
+                    const hasAnyPromo = Boolean(ord.promo_code || isDiscountPromo || isCoffeePromo);
+
+                    const originalSubtotal = Number(ord.original_subtotal || ord.subtotal || ord.total_amount);
+                    const netSubtotal = Math.max(0, originalSubtotal - discountAmount);
+
                     return (
                       <React.Fragment key={ord.id}>
                         <tr
@@ -782,12 +803,63 @@ export default function EventSalesDetailPage() {
                                   </span>
                                 ) : null;
                               })()}
+
+                              {/* Badges Pembeda Promo */}
+                              {hasAnyPromo && (
+                                <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                                  {isDiscountPromo && (
+                                    <>
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[9px] font-extrabold shadow-2xs">
+                                        <Tag className="w-2.5 h-2.5 text-purple-600" />
+                                        <span>{ord.promo_code || 'PROMO'}</span>
+                                      </span>
+                                      <span className="inline-flex items-center text-[9px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200/80">
+                                        -Rp {discountAmount.toLocaleString('id-ID')}
+                                      </span>
+                                    </>
+                                  )}
+
+                                  {isCoffeePromo && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 text-[9px] font-extrabold shadow-2xs">
+                                      <Coffee className="w-2.5 h-2.5 text-amber-700 shrink-0" />
+                                      <span>{ord.promo_code || 'KODE KOPI'}</span>
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </td>
 
                           {/* 5. Subtotal */}
                           <td className="py-2.5 px-3 font-extrabold text-slate-800 text-xs">
-                            Rp {(ord.subtotal || ord.total_amount).toLocaleString('id-ID')}
+                            {isDiscountPromo ? (
+                              <div className="flex flex-col items-start justify-center gap-0.5">
+                                <div className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold leading-tight font-mono">
+                                  <span className="text-[9px]">Awal:</span>
+                                  <span className="line-through decoration-rose-500 decoration-1.5">
+                                    Rp {originalSubtotal.toLocaleString('id-ID')}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] font-extrabold text-rose-600 leading-tight font-mono">
+                                  - Rp {discountAmount.toLocaleString('id-ID')}
+                                </span>
+                                <span className="font-black text-slate-900 text-xs font-mono mt-0.5">
+                                  Rp {netSubtotal.toLocaleString('id-ID')}
+                                </span>
+                              </div>
+                            ) : isCoffeePromo ? (
+                              <div className="flex flex-col items-start justify-center gap-0.5">
+                                <span className="font-black text-slate-900 text-xs font-mono">
+                                  Rp {(ord.subtotal || ord.total_amount).toLocaleString('id-ID')}
+                                </span>
+                                <span className="text-[9px] font-bold text-amber-800 bg-amber-50 px-1 py-0.5 rounded border border-amber-200/80 inline-flex items-center gap-1">
+                                  <Coffee className="w-2.5 h-2.5 text-amber-600" />
+                                  <span>Klaim Kopi</span>
+                                </span>
+                              </div>
+                            ) : (
+                              <span>Rp {(ord.subtotal || ord.total_amount).toLocaleString('id-ID')}</span>
+                            )}
                           </td>
 
                           {/* 6. Payment Method */}

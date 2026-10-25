@@ -949,23 +949,23 @@ export default function ReportsPage() {
               </div>
             </div>
           ) : filteredOrders.length > 0 ? (
-            <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-xs">
-              <table className="w-full text-left text-xs text-slate-700 min-w-[1000px] border-collapse">
-                <thead className="bg-slate-50 text-slate-600 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200">
+            <div className="relative overflow-auto max-h-[calc(100vh-230px)] min-h-[420px] border border-slate-200/90 rounded-2xl bg-white shadow-xs">
+              <table className="w-full text-left text-xs text-slate-700 min-w-[1000px] border-separate border-spacing-0">
+                <thead className="sticky top-0 z-20 text-slate-700 text-[10px] font-black uppercase tracking-wider">
                   <tr>
-                    <th className="py-3 px-3.5 align-middle min-w-[180px]">No. Order & Pembeli</th>
-                    <th className="py-3 px-3.5 align-middle min-w-[220px]">Event & Kategori</th>
-                    <th className="py-3 px-3.5 text-center align-middle w-[70px] min-w-[70px]">Qty</th>
-                    <th className="py-3 px-3.5 text-right align-middle min-w-[140px]">Subtotal Tiket</th>
-                    <th className="py-3 px-3.5 text-right align-middle min-w-[100px]">Pajak (5%)</th>
-                    <th className="py-3 px-3.5 text-right align-middle min-w-[110px]">Fee Platform (7%)</th>
-                    <th className="py-3 px-3.5 text-right align-middle min-w-[140px]">Total Tagihan</th>
-                    <th className="py-3 px-3.5 text-center align-middle min-w-[115px]">Pembayaran</th>
-                    <th className="py-3 px-3.5 text-center align-middle min-w-[100px]">Status</th>
-                    <th className="py-3 px-3.5 text-right align-middle min-w-[130px]">Tanggal & Waktu</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-3.5 align-middle min-w-[180px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">No. Order & Pembeli</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-3.5 align-middle min-w-[220px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Event & Kategori</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-3.5 text-center align-middle w-[70px] min-w-[70px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Qty</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-3.5 text-right align-middle min-w-[140px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Subtotal Tiket</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-3.5 text-right align-middle min-w-[100px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Pajak (5%)</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-3.5 text-right align-middle min-w-[110px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Fee Platform (7%)</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-3.5 text-right align-middle min-w-[140px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Total Tagihan</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-3.5 text-center align-middle min-w-[115px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Pembayaran</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-3.5 text-center align-middle min-w-[100px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Status</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-3.5 text-right align-middle min-w-[130px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Tanggal & Waktu</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {filteredOrders.map((ord) => {
                     const rowSubtotal = ord.subtotal || 0;
                     const rowTax = ord.tax_amount ?? Math.round(rowSubtotal * 0.05);
@@ -998,10 +998,10 @@ export default function ReportsPage() {
                     const coffeeLabel = rawBenefitName.trim() || 'Free Coffee';
 
                     return (
-                      <tr key={ord.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <tr key={ord.id} className="hover:bg-blue-50/40 transition-colors group">
 
                         {/* 1. No. Order & Pembeli */}
-                        <td className="py-3 px-3.5 align-middle">
+                        <td className="py-3 px-3.5 align-middle border-b border-slate-100">
                           <div className="flex flex-col gap-0.5 justify-center">
                             <span className="font-mono font-black text-slate-900 group-hover:text-blue-700 transition-colors text-xs tracking-tight">
                               {ord.order_number}
@@ -1016,7 +1016,7 @@ export default function ReportsPage() {
                         </td>
 
                         {/* 2. Event & Kategori (dengan Badges Promo & Kopi) */}
-                        <td className="py-3 px-3.5 align-middle">
+                        <td className="py-3 px-3.5 align-middle border-b border-slate-100">
                           <div className="flex flex-col gap-1 justify-center max-w-[230px]">
                             <span className="font-bold text-slate-900 truncate text-xs" title={ord.event_title}>
                               {ord.event_title}
@@ -1064,14 +1064,14 @@ export default function ReportsPage() {
                         </td>
 
                         {/* 3. Qty */}
-                        <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap">
+                        <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap border-b border-slate-100">
                           <span className="font-black text-slate-900 text-xs px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 inline-block font-mono">
                             {ord.quantity} Pcs
                           </span>
                         </td>
 
                         {/* 4. Subtotal Tiket */}
-                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
                           {isDiscountPromo ? (
                             <div className="flex flex-col items-end justify-center gap-0.5">
                               <div className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold leading-tight font-mono">
@@ -1107,21 +1107,21 @@ export default function ReportsPage() {
                         </td>
 
                         {/* 5. Pajak (5%) */}
-                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
                           <span className="font-semibold text-amber-700 text-xs font-mono">
                             Rp {rowTax.toLocaleString('id-ID')}
                           </span>
                         </td>
 
                         {/* 6. Fee Platform (7%) */}
-                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
                           <span className="font-semibold text-purple-700 text-xs font-mono">
                             Rp {rowFee.toLocaleString('id-ID')}
                           </span>
                         </td>
 
                         {/* 7. Total Tagihan */}
-                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
                           {isDiscountPromo ? (
                             <div className="flex flex-col items-end justify-center gap-0.5">
                               <span className="font-black text-blue-700 text-xs font-mono">
@@ -1151,14 +1151,14 @@ export default function ReportsPage() {
                         </td>
 
                         {/* 8. Pembayaran */}
-                        <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap">
+                        <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap border-b border-slate-100">
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-[10px] font-bold">
                             <CreditCard className="w-3 h-3 text-slate-500" /> {ord.payment_method}
                           </span>
                         </td>
 
                         {/* 9. Status */}
-                        <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap">
+                        <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap border-b border-slate-100">
                           {(() => {
                             const status = (ord.status || '').toLowerCase();
                             const isPaid = status === 'paid' || status === 'completed';
@@ -1187,7 +1187,7 @@ export default function ReportsPage() {
                         </td>
 
                         {/* 10. Tanggal & Waktu */}
-                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
                           <div className="flex flex-col items-end justify-center text-[10px]">
                             <span className="font-bold text-slate-700 font-mono">
                               {new Date(ord.created_at).toLocaleDateString('id-ID', {
@@ -1209,28 +1209,39 @@ export default function ReportsPage() {
                     );
                   })}
                 </tbody>
-                <tfoot className="bg-slate-100/90 font-black text-slate-900 border-t-2 border-slate-300 text-xs">
+                <tfoot className="sticky bottom-0 z-20 font-black text-slate-900 text-xs shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
                   <tr>
-                    <td colSpan={2} className="py-3.5 px-3.5 uppercase tracking-wider text-[11px] text-slate-700 align-middle">
-                      Total Akumulasi Terpilih
+                    <td colSpan={2} className="sticky bottom-0 z-20 py-3.5 px-3.5 uppercase tracking-wider text-[11px] text-slate-800 align-middle bg-slate-100/95 backdrop-blur-md border-t-2 border-slate-300">
+                      <div className="flex items-center gap-2">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
+                        </span>
+                        <span className="font-extrabold tracking-wide">TOTAL AKUMULASI TERPILIH</span>
+                      </div>
                     </td>
-                    <td className="py-3.5 px-3.5 text-center font-black align-middle whitespace-nowrap font-mono">
-                      {totalTicketsSold} Pcs
+                    <td className="sticky bottom-0 z-20 py-3.5 px-3.5 text-center font-black align-middle whitespace-nowrap font-mono bg-slate-100/95 backdrop-blur-md border-t-2 border-slate-300">
+                      <span className="px-2 py-0.5 rounded-md bg-white border border-slate-300 text-slate-900 shadow-2xs font-extrabold">
+                        {totalTicketsSold} Pcs
+                      </span>
                     </td>
-                    <td className="py-3.5 px-3.5 text-right text-blue-800 font-mono align-middle whitespace-nowrap">
+                    <td className="sticky bottom-0 z-20 py-3.5 px-3.5 text-right text-blue-800 font-mono align-middle whitespace-nowrap bg-slate-100/95 backdrop-blur-md border-t-2 border-slate-300 font-extrabold">
                       Rp {totalSubtotal.toLocaleString('id-ID')}
                     </td>
-                    <td className="py-3.5 px-3.5 text-right text-amber-800 font-mono align-middle whitespace-nowrap">
+                    <td className="sticky bottom-0 z-20 py-3.5 px-3.5 text-right text-amber-800 font-mono align-middle whitespace-nowrap bg-slate-100/95 backdrop-blur-md border-t-2 border-slate-300 font-extrabold">
                       Rp {totalTaxAmount.toLocaleString('id-ID')}
                     </td>
-                    <td className="py-3.5 px-3.5 text-right text-purple-800 font-mono align-middle whitespace-nowrap">
+                    <td className="sticky bottom-0 z-20 py-3.5 px-3.5 text-right text-purple-800 font-mono align-middle whitespace-nowrap bg-slate-100/95 backdrop-blur-md border-t-2 border-slate-300 font-extrabold">
                       Rp {totalPlatformFee.toLocaleString('id-ID')}
                     </td>
-                    <td className="py-3.5 px-3.5 text-right text-emerald-800 text-sm font-mono align-middle whitespace-nowrap">
+                    <td className="sticky bottom-0 z-20 py-3.5 px-3.5 text-right text-emerald-800 text-sm font-mono align-middle whitespace-nowrap bg-slate-100/95 backdrop-blur-md border-t-2 border-slate-300 font-black">
                       Rp {totalGrossRevenue.toLocaleString('id-ID')}
                     </td>
-                    <td colSpan={3} className="py-3.5 px-3.5 text-right text-[10px] font-bold text-slate-500 align-middle">
-                      {paidOrders.length} Pesanan Berhasil
+                    <td colSpan={3} className="sticky bottom-0 z-20 py-3.5 px-3.5 text-right text-[10px] font-bold text-slate-600 align-middle bg-slate-100/95 backdrop-blur-md border-t-2 border-slate-300">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-black shadow-2xs">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        {paidOrders.length} Pesanan Berhasil
+                      </span>
                     </td>
                   </tr>
                 </tfoot>

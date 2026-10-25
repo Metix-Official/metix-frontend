@@ -997,6 +997,17 @@ export default function ReportsPage() {
                     const netSubtotal = Math.max(0, originalSubtotal - discountAmount);
                     const coffeeLabel = rawBenefitName.trim() || 'Free Coffee';
 
+                    if (ord.order_number === 'MTX-20261017-5VRKAR') {
+                      console.log('[DEBUG_ORDER_MTX-20261017-5VRKAR]:', {
+                        subtotal: ord.subtotal,
+                        discount_amount: ord.discount_amount,
+                        promo_code: ord.promo_code,
+                        hasDiscount,
+                        isDiscountPromo,
+                        rawDiscountAmount: (ord as any).discount_amount,
+                      });
+                    }
+
                     return (
                       <tr key={ord.id} className="hover:bg-slate-50/80 transition-colors group">
 

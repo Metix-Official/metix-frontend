@@ -3963,6 +3963,7 @@ export interface ReportOrderItem {
   benefit_name?: string;
   benefit_type?: string;
   benefit_quantity?: number;
+  promo?: any;
 }
 
 export async function fetchSalesReportData(params?: {
@@ -3985,6 +3986,7 @@ export async function fetchSalesReportData(params?: {
     if (params?.month && params.month !== 'all') query.append('month', params.month);
     if (params?.year && params.year !== 'all') query.append('year', params.year);
     if (params?.status && params.status !== 'all') query.append('status', params.status);
+    query.append('_t', String(Date.now()));
 
     const url = `${API_BASE_URL}/organizer/reports?${query.toString()}`;
     const response = await fetch(url, {
@@ -4044,6 +4046,8 @@ export async function fetchSalesReportData(params?: {
           event_id: ord.event_id,
           event_title: ord.event_title || 'Event Metix',
           ticket_type_name: ord.ticket_type_name || 'Tiket Metix',
+          category: ord.category || ord.ticket_category,
+          ticket_category: ord.ticket_category || ord.category,
           quantity: ord.quantity || 1,
           total_amount: totalAmount,
           payment_method: ord.payment_method || 'Midtrans QRIS & VA',
@@ -4056,6 +4060,7 @@ export async function fetchSalesReportData(params?: {
           benefit_name: benefitName,
           benefit_type: benefitType,
           benefit_quantity: benefitQuantity,
+          promo: promoObj,
         };
       });
 

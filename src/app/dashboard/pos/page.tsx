@@ -300,14 +300,31 @@ export default function PosPage() {
     return Math.max(0, (type.quota || 100) - sold);
   };
 
+  const checkIsSaleEnded = (type: ApiTicketType) => {
+    if (!type.sale_end_at) return false;
+    try {
+      const cleanStr = String(type.sale_end_at).trim().replace(' ', 'T');
+      const endDate = new Date(cleanStr);
+      return !isNaN(endDate.getTime()) && new Date() > endDate;
+    } catch {
+      return false;
+    }
+  };
+
   // Cart operations
   const addToCart = (type: ApiTicketType) => {
     const isExplicitSoldOut = (type.status || '').toUpperCase() === 'SOLD_OUT';
     const isInactive = (type.status || '').toUpperCase() === 'INACTIVE';
     const availableStock = getAvailableStock(type);
+    const isSaleEnded = checkIsSaleEnded(type);
 
     if (isInactive) {
       toast.error(`Tiket "${type.name}" berstatus INACTIVE dan tidak dapat dijual.`);
+      return;
+    }
+
+    if (isSaleEnded) {
+      toast.error(`Jadwal penjualan tiket "${type.name}" sudah berakhir dan tidak dapat dijual lagi.`);
       return;
     }
 
@@ -345,8 +362,10 @@ export default function PosPage() {
         .map((item) => {
           if (item.ticketType.id === typeId) {
             const isExplicitSoldOut = (item.ticketType.status || '').toUpperCase() === 'SOLD_OUT';
-            if (delta > 0 && isExplicitSoldOut) {
-              toast.error(`Tiket "${item.ticketType.name}" berstatus SOLD OUT.`);
+            const isSaleEnded = checkIsSaleEnded(item.ticketType);
+
+            if (delta > 0 && (isExplicitSoldOut || isSaleEnded)) {
+              toast.error(isSaleEnded ? `Jadwal penjualan tiket "${item.ticketType.name}" sudah berakhir.` : `Tiket "${item.ticketType.name}" berstatus SOLD OUT.`);
               return item;
             }
 
@@ -1158,14 +1177,16 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                           {types.map((type) => {
                             const availableStock = getAvailableStock(type);
                             const isExplicitSoldOut = (type.status || '').toUpperCase() === 'SOLD_OUT';
-                            const isSoldOut = isExplicitSoldOut || availableStock <= 0;
+                            const isStockSoldOut = isExplicitSoldOut || availableStock <= 0;
+                            const isSaleEnded = checkIsSaleEnded(type);
+                            const isUnavailable = isStockSoldOut || isSaleEnded;
                             const inCart = cart.find((i) => i.ticketType.id === type.id);
 
                             return (
                               <div
                                 key={type.id}
-                                className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${isSoldOut
-                                  ? 'bg-slate-50/80 border-slate-200/90 shadow-2xs'
+                                className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${isUnavailable
+                                  ? 'bg-slate-50/80 border-slate-200/90 shadow-2xs opacity-80'
                                   : inCart
                                     ? 'bg-blue-50/40 border-blue-300 shadow-sm'
                                     : 'bg-white border-slate-200/80 hover:border-blue-300 hover:shadow-xs'
@@ -1173,47 +1194,54 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                               >
                                 <div className="space-y-1">
                                   <div className="flex items-center justify-between gap-2">
-                                    <h4 className={`font-extrabold text-sm leading-tight ${isSoldOut ? 'text-slate-500' : 'text-slate-900'}`}>
+                                    <h4 className={`font-extrabold text-sm leading-tight ${isUnavailable ? 'text-slate-500' : 'text-slate-900'}`}>
                                       {type.name}
                                     </h4>
                                     <span
-                                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold tracking-wide shrink-0 ${isSoldOut
+                                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold tracking-wide shrink-0 ${isStockSoldOut
                                         ? 'bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs'
-                                        : availableStock <= 10
-                                          ? 'bg-amber-100 text-amber-800'
-                                          : 'bg-emerald-100 text-emerald-800'
+                                        : isSaleEnded
+                                          ? 'bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs'
+                                          : availableStock <= 10
+                                            ? 'bg-amber-100 text-amber-800'
+                                            : 'bg-emerald-100 text-emerald-800'
                                         }`}
                                     >
-                                      {isSoldOut ? 'SOLD_OUT' : `Sisa ${availableStock}`}
+                                      {isStockSoldOut ? 'SOLD_OUT' : isSaleEnded ? 'SALE ENDED' : `Sisa ${availableStock}`}
                                     </span>
                                   </div>
 
-                                  {/* Price Display with Strikethrough & SOLD_OUT indicator */}
+                                  {/* Price Display with Strikethrough & SOLD_OUT / SALE_ENDED indicator */}
                                   <div className="flex items-center gap-2 flex-wrap pt-0.5">
                                     <p
-                                      className={`text-sm font-black transition-colors ${isSoldOut
+                                      className={`text-sm font-black transition-colors ${isUnavailable
                                         ? 'line-through text-slate-400 decoration-rose-500 decoration-2'
                                         : 'text-blue-700'
                                         }`}
                                     >
                                       Rp {Number(type.price || 0).toLocaleString('id-ID')}
                                     </p>
-                                    {isSoldOut && (
+                                    {isStockSoldOut && (
                                       <span className="text-[9.5px] font-extrabold text-rose-700 bg-rose-50/90 border border-rose-200 px-1.5 py-0.2 rounded-md">
                                         SOLD OUT
+                                      </span>
+                                    )}
+                                    {isSaleEnded && !isStockSoldOut && (
+                                      <span className="text-[9.5px] font-extrabold text-amber-800 bg-amber-50/90 border border-amber-300 px-1.5 py-0.2 rounded-md">
+                                        JADWAL BERAKHIR
                                       </span>
                                     )}
                                   </div>
 
                                   {type.description && (
-                                    <p className={`text-[11px] line-clamp-2 leading-relaxed ${isSoldOut ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    <p className={`text-[11px] line-clamp-2 leading-relaxed ${isUnavailable ? 'text-slate-400' : 'text-slate-500'}`}>
                                       {type.description}
                                     </p>
                                   )}
                                 </div>
 
                                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                                  {inCart && !isSoldOut ? (
+                                  {inCart && !isUnavailable ? (
                                     <div className="flex items-center gap-2 w-full justify-between">
                                       <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl p-1 shadow-2xs">
                                         <button
@@ -1241,12 +1269,14 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                                   ) : (
                                     <button
                                       type="button"
-                                      disabled={isSoldOut}
+                                      disabled={isUnavailable}
                                       onClick={() => addToCart(type)}
                                       className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-100 text-white disabled:text-slate-400 disabled:border disabled:border-slate-200 text-xs font-extrabold transition-all cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-1.5 shadow-2xs"
                                     >
-                                      {isSoldOut ? (
-                                        <span className="tracking-wide">Tiket Habis (SOLD OUT)</span>
+                                      {isStockSoldOut ? (
+                                        <span className="tracking-wide line-through decoration-rose-500">Tiket Habis (SOLD OUT)</span>
+                                      ) : isSaleEnded ? (
+                                        <span className="tracking-wide line-through decoration-amber-600">Penjualan Berakhir (SALE ENDED)</span>
                                       ) : (
                                         <>
                                           <Plus className="w-3.5 h-3.5" /> Tambah Ke Kasir

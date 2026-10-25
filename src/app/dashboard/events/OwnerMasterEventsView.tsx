@@ -52,6 +52,7 @@ import {
   Ticket,
   Check,
   RotateCcw,
+  Tag,
 } from 'lucide-react';
 
 export function OwnerMasterEventsView() {
@@ -668,6 +669,13 @@ export function OwnerMasterEventsView() {
                                     >
                                       <Ticket className="w-4 h-4 text-amber-600 shrink-0" />
                                       <span>Tiket & Kuota</span>
+                                    </Link>
+                                    <Link
+                                      href={`/dashboard/events/${evt.id}/promos`}
+                                      className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-indigo-700 hover:bg-indigo-50 transition-colors"
+                                    >
+                                      <Tag className="w-4 h-4 text-indigo-600 shrink-0" />
+                                      <span>Kode Promo</span>
                                     </Link>
                                     <Link
                                       href={`/dashboard/events/${evt.id}/facilities`}

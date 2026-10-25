@@ -488,6 +488,13 @@ export default function EventTicketsPage({ params }: TicketsPageProps) {
               <Share2 className="w-3.5 h-3.5" />
               <span>Social Media</span>
             </Link>
+            <Link
+              href={`/dashboard/events/${eventId}/promos`}
+              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>Kode Promo</span>
+            </Link>
           </div>
         </div>
 
@@ -854,9 +861,25 @@ export default function EventTicketsPage({ params }: TicketsPageProps) {
                           const available =
                             tt.available ?? tt.available_quota ?? Math.max(0, totalQuota - sold);
 
+                          const isSaleEnded = (() => {
+                            if (!tt.sale_end_at) return false;
+                            try {
+                              const cleanStr =
+                                tt.sale_end_at.includes('Z') || tt.sale_end_at.includes('+')
+                                  ? tt.sale_end_at
+                                  : tt.sale_end_at.replace(' ', 'T');
+                              const end = new Date(cleanStr);
+                              return !isNaN(end.getTime()) && end.getTime() < Date.now();
+                            } catch {
+                              return false;
+                            }
+                          })();
+
                           let rawStatus = (tt.status || 'ACTIVE').toUpperCase();
                           if (available <= 0 && totalQuota > 0) {
                             rawStatus = 'SOLD_OUT';
+                          } else if (isSaleEnded && rawStatus !== 'INACTIVE') {
+                            rawStatus = 'SALE_ENDED';
                           }
 
                           let statusBadge = (
@@ -874,6 +897,12 @@ export default function EventTicketsPage({ params }: TicketsPageProps) {
                             statusBadge = (
                               <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
                                 SOLD_OUT
+                              </span>
+                            );
+                          } else if (rawStatus === 'SALE_ENDED') {
+                            statusBadge = (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
+                                SALE_ENDED
                               </span>
                             );
                           }
@@ -909,6 +938,8 @@ export default function EventTicketsPage({ params }: TicketsPageProps) {
                             salePeriod = `${startStr} s/d ${endStr}`;
                           }
 
+                          const isUnavailable = rawStatus === 'SOLD_OUT' || rawStatus === 'SALE_ENDED';
+
                           return (
                             <tr key={tt.id} className="hover:bg-blue-50/30 transition-colors">
                               <td className="py-3.5 px-4">
@@ -919,7 +950,7 @@ export default function EventTicketsPage({ params }: TicketsPageProps) {
                                   </div>
                                 )}
                               </td>
-                              <td className={`py-3.5 px-4 font-black whitespace-nowrap text-xs ${rawStatus === 'SOLD_OUT' ? 'line-through text-slate-400 decoration-rose-500 decoration-2' : 'text-blue-700'}`}>
+                              <td className={`py-3.5 px-4 font-black whitespace-nowrap text-xs ${isUnavailable ? 'line-through text-slate-400 decoration-rose-500 decoration-2' : 'text-blue-700'}`}>
                                 Rp {Number(tt.price || 0).toLocaleString('id-ID')}
                               </td>
                               <td className="py-3.5 px-4 font-semibold text-slate-700 whitespace-nowrap">
@@ -932,12 +963,16 @@ export default function EventTicketsPage({ params }: TicketsPageProps) {
                                   </span>
                                 </div>
                                 <div
-                                  className={`text-[10px] font-bold mt-0.5 ${rawStatus === 'SOLD_OUT' || available <= 0 ? 'text-rose-600' : 'text-emerald-600'
+                                  className={`text-[10px] font-bold mt-0.5 ${isUnavailable || available <= 0 ? 'text-rose-600' : 'text-emerald-600'
                                     }`}
                                 >
                                   {rawStatus === 'SOLD_OUT' ? (
                                     <span className="inline-flex items-center px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200 font-extrabold tracking-wide">
                                       SOLD_OUT
+                                    </span>
+                                  ) : rawStatus === 'SALE_ENDED' ? (
+                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-300 font-extrabold tracking-wide">
+                                      JADWAL BERAKHIR
                                     </span>
                                   ) : (
                                     `Sisa Tersedia: ${available} Tiket`

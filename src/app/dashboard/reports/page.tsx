@@ -44,6 +44,7 @@ import {
   Wallet,
   ShieldCheck,
   Tag,
+  Coffee,
 } from 'lucide-react';
 
 export default function ReportsPage() {
@@ -948,20 +949,20 @@ export default function ReportsPage() {
               </div>
             </div>
           ) : filteredOrders.length > 0 ? (
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-left text-xs text-slate-700 min-w-[950px]">
-                <thead className="bg-slate-50 text-slate-500 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200">
+            <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-xs">
+              <table className="w-full text-left text-xs text-slate-700 min-w-[1000px] border-collapse">
+                <thead className="bg-slate-50 text-slate-600 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200">
                   <tr>
-                    <th className="py-2.5 px-3">No. Order & Pembeli</th>
-                    <th className="py-2.5 px-3">Event & Kategori</th>
-                    <th className="py-2.5 px-3 text-center">Qty</th>
-                    <th className="py-2.5 px-3 text-right">Subtotal Tiket</th>
-                    <th className="py-2.5 px-3 text-right">Pajak (5%)</th>
-                    <th className="py-2.5 px-3 text-right">Fee Platform (7%)</th>
-                    <th className="py-2.5 px-3 text-right">Total Tagihan</th>
-                    <th className="py-2.5 px-3 text-center">Pembayaran</th>
-                    <th className="py-2.5 px-3 text-center">Status</th>
-                    <th className="py-2.5 px-3 text-right">Tanggal & Waktu</th>
+                    <th className="py-3 px-3.5 align-middle min-w-[180px]">No. Order & Pembeli</th>
+                    <th className="py-3 px-3.5 align-middle min-w-[220px]">Event & Kategori</th>
+                    <th className="py-3 px-3.5 text-center align-middle w-[70px] min-w-[70px]">Qty</th>
+                    <th className="py-3 px-3.5 text-right align-middle min-w-[140px]">Subtotal Tiket</th>
+                    <th className="py-3 px-3.5 text-right align-middle min-w-[100px]">Pajak (5%)</th>
+                    <th className="py-3 px-3.5 text-right align-middle min-w-[110px]">Fee Platform (7%)</th>
+                    <th className="py-3 px-3.5 text-right align-middle min-w-[140px]">Total Tagihan</th>
+                    <th className="py-3 px-3.5 text-center align-middle min-w-[115px]">Pembayaran</th>
+                    <th className="py-3 px-3.5 text-center align-middle min-w-[100px]">Status</th>
+                    <th className="py-3 px-3.5 text-right align-middle min-w-[130px]">Tanggal & Waktu</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -971,30 +972,53 @@ export default function ReportsPage() {
                     const rowFee = ord.platform_fee ?? Math.round(rowSubtotal * 0.07);
                     const rowTotal = ord.total_amount || (rowSubtotal + rowTax + rowFee);
 
-                    const hasPromo = Boolean(ord.promo_code || (ord.discount_amount && ord.discount_amount > 0));
                     const discountAmount = Number(ord.discount_amount || 0);
-                    const originalSubtotal = Number(ord.original_subtotal || (hasPromo && discountAmount > 0 ? (rowSubtotal + discountAmount) : rowSubtotal));
+                    const hasDiscount = discountAmount > 0;
+
+                    // Benefit / Free Coffee detection
+                    const rawBenefitName = ord.benefit_name || (ord as any).promo?.benefit_name || (ord.tickets && ord.tickets[0]?.benefit_name) || '';
+                    const rawBenefitType = ord.benefit_type || (ord as any).promo?.benefit_type || (ord.tickets && ord.tickets[0]?.benefit_type) || '';
+
+                    const isCoffeeBenefit =
+                      rawBenefitType === 'FREE_COFFEE' ||
+                      rawBenefitName.toLowerCase().includes('kopi') ||
+                      rawBenefitName.toLowerCase().includes('coffee') ||
+                      Boolean(rawBenefitName);
+
+                    // Pembedaan Promo:
+                    // 1. Promo Diskon: Pemotongan nominal rupiah
+                    const isDiscountPromo = hasDiscount;
+
+                    // 2. Promo Free Kopi: Klaim bonus kopi gratis (non-diskon rupiah)
+                    const isCoffeePromo = Boolean(isCoffeeBenefit || (ord.promo_code && !hasDiscount));
+
+                    const hasAnyPromo = Boolean(ord.promo_code || isDiscountPromo || isCoffeePromo);
+                    const originalSubtotal = Number(ord.original_subtotal || rowSubtotal);
+                    const netSubtotal = Math.max(0, originalSubtotal - discountAmount);
+                    const coffeeLabel = rawBenefitName.trim() || 'Free Coffee';
 
                     return (
-                      <tr key={ord.id} className="hover:bg-slate-50 transition-colors group">
+                      <tr key={ord.id} className="hover:bg-slate-50/80 transition-colors group">
 
-                        <td className="py-2.5 px-3">
-                          <div className="flex flex-col">
-                            <span className="font-mono font-black text-slate-900 group-hover:text-blue-700 transition-colors text-xs">
+                        {/* 1. No. Order & Pembeli */}
+                        <td className="py-3 px-3.5 align-middle">
+                          <div className="flex flex-col gap-0.5 justify-center">
+                            <span className="font-mono font-black text-slate-900 group-hover:text-blue-700 transition-colors text-xs tracking-tight">
                               {ord.order_number}
                             </span>
-                            <span className="text-[11px] font-bold text-slate-800">
+                            <span className="text-[11px] font-bold text-slate-800 truncate max-w-[160px]">
                               {ord.buyer_name}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-medium">
+                            <span className="text-[10px] text-slate-400 font-medium truncate max-w-[160px]">
                               {ord.buyer_email}
                             </span>
                           </div>
                         </td>
 
-                        <td className="py-2.5 px-3">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-bold text-slate-900 max-w-[180px] truncate text-xs">
+                        {/* 2. Event & Kategori (dengan Badges Promo & Kopi) */}
+                        <td className="py-3 px-3.5 align-middle">
+                          <div className="flex flex-col gap-1 justify-center max-w-[230px]">
+                            <span className="font-bold text-slate-900 truncate text-xs" title={ord.event_title}>
                               {ord.event_title}
                             </span>
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -1002,21 +1026,36 @@ export default function ReportsPage() {
                                 {ord.ticket_type_name}
                               </span>
                               {(ord as any).category || (ord as any).ticket_category ? (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-black">
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 text-[9px] font-bold">
                                   🏷️ {(ord as any).category || (ord as any).ticket_category}
                                 </span>
                               ) : null}
                             </div>
-                            {/* Promo Code Badge if Used */}
-                            {hasPromo && (
+
+                            {/* Badges Pembeda Promo */}
+                            {hasAnyPromo && (
                               <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[9.5px] font-extrabold shadow-2xs">
-                                  <Tag className="w-2.5 h-2.5 text-purple-600" />
-                                  <span>{ord.promo_code || 'PROMO'}</span>
-                                </span>
-                                {discountAmount > 0 && (
-                                  <span className="text-[9.5px] font-extrabold text-rose-700 bg-rose-50 px-1 py-0.2 rounded border border-rose-200/80">
-                                    Diskon -Rp {discountAmount.toLocaleString('id-ID')}
+                                {/* Tipe 1: Promo Diskon Potongan Harga */}
+                                {isDiscountPromo && (
+                                  <>
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[9.5px] font-extrabold shadow-2xs">
+                                      <Tag className="w-2.5 h-2.5 text-purple-600" />
+                                      <span>{ord.promo_code || 'PROMO'}</span>
+                                    </span>
+                                    <span className="inline-flex items-center text-[9.5px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200/80">
+                                      Diskon -Rp {discountAmount.toLocaleString('id-ID')}
+                                    </span>
+                                  </>
+                                )}
+
+                                {/* Tipe 2: Promo Penanda Free Kopi */}
+                                {isCoffeePromo && (
+                                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 text-[9.5px] font-extrabold shadow-2xs">
+                                    <Coffee className="w-2.5 h-2.5 text-amber-700 shrink-0" />
+                                    <span>{ord.promo_code || 'KODE KOPI'}</span>
+                                    {rawBenefitName && rawBenefitName.trim().toLowerCase() !== String(ord.promo_code || '').trim().toLowerCase() && rawBenefitName.trim().toLowerCase() !== 'free coffee' && (
+                                      <span className="text-[9px] font-semibold text-amber-700/80">({rawBenefitName.trim()})</span>
+                                    )}
                                   </span>
                                 )}
                               </div>
@@ -1024,67 +1063,102 @@ export default function ReportsPage() {
                           </div>
                         </td>
 
-                        <td className="py-2.5 px-3 text-center font-black text-slate-900 text-xs">
-                          {ord.quantity} Pcs
+                        {/* 3. Qty */}
+                        <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap">
+                          <span className="font-black text-slate-900 text-xs px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 inline-block font-mono">
+                            {ord.quantity} Pcs
+                          </span>
                         </td>
 
-                        {/* Subtotal Column with IF Promo Breakdown */}
-                        <td className="py-2.5 px-3 text-right text-xs">
-                          {hasPromo && discountAmount > 0 ? (
-                            <div className="flex flex-col items-end gap-0.5">
-                              <div className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold">
+                        {/* 4. Subtotal Tiket */}
+                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                          {isDiscountPromo ? (
+                            <div className="flex flex-col items-end justify-center gap-0.5">
+                              <div className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold leading-tight font-mono">
                                 <span className="text-[9px]">Awal:</span>
                                 <span className="line-through decoration-rose-500 decoration-1.5">
                                   Rp {originalSubtotal.toLocaleString('id-ID')}
                                 </span>
                               </div>
-                              <span className="text-[10px] font-extrabold text-rose-600">
+                              <span className="text-[10px] font-extrabold text-rose-600 leading-tight font-mono">
                                 - Rp {discountAmount.toLocaleString('id-ID')}
                               </span>
-                              <span className="font-black text-slate-900 text-xs">
+                              <span className="font-black text-slate-900 text-xs font-mono mt-0.5">
+                                Rp {netSubtotal.toLocaleString('id-ID')}
+                              </span>
+                            </div>
+                          ) : isCoffeePromo ? (
+                            <div className="flex flex-col items-end justify-center gap-0.5">
+                              <span className="font-black text-slate-900 text-xs font-mono">
+                                Rp {rowSubtotal.toLocaleString('id-ID')}
+                              </span>
+                              <span className="text-[9.5px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/80 inline-flex items-center gap-1">
+                                <Coffee className="w-2.5 h-2.5 text-amber-600" />
+                                <span>Klaim Kopi</span>
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-end justify-center">
+                              <span className="font-bold text-slate-800 text-xs font-mono">
                                 Rp {rowSubtotal.toLocaleString('id-ID')}
                               </span>
                             </div>
-                          ) : (
-                            <span className="font-bold text-slate-800 text-xs">
-                              Rp {rowSubtotal.toLocaleString('id-ID')}
-                            </span>
                           )}
                         </td>
 
-                        <td className="py-2.5 px-3 text-right font-medium text-amber-700 text-xs">
-                          Rp {rowTax.toLocaleString('id-ID')}
+                        {/* 5. Pajak (5%) */}
+                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                          <span className="font-semibold text-amber-700 text-xs font-mono">
+                            Rp {rowTax.toLocaleString('id-ID')}
+                          </span>
                         </td>
 
-                        <td className="py-2.5 px-3 text-right font-medium text-purple-700 text-xs">
-                          Rp {rowFee.toLocaleString('id-ID')}
+                        {/* 6. Fee Platform (7%) */}
+                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                          <span className="font-semibold text-purple-700 text-xs font-mono">
+                            Rp {rowFee.toLocaleString('id-ID')}
+                          </span>
                         </td>
 
-                        {/* Total Tagihan Column with IF Promo Note */}
-                        <td className="py-2.5 px-3 text-right text-xs">
-                          {hasPromo && discountAmount > 0 ? (
-                            <div className="flex flex-col items-end">
-                              <span className="font-black text-blue-700 text-xs">
+                        {/* 7. Total Tagihan */}
+                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                          {isDiscountPromo ? (
+                            <div className="flex flex-col items-end justify-center gap-0.5">
+                              <span className="font-black text-blue-700 text-xs font-mono">
                                 Rp {rowTotal.toLocaleString('id-ID')}
                               </span>
-                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60 mt-0.5">
+                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 mt-0.5">
                                 Hemat Rp {discountAmount.toLocaleString('id-ID')}
                               </span>
                             </div>
+                          ) : isCoffeePromo ? (
+                            <div className="flex flex-col items-end justify-center gap-0.5">
+                              <span className="font-black text-blue-700 text-xs font-mono">
+                                Rp {rowTotal.toLocaleString('id-ID')}
+                              </span>
+                              <span className="text-[9px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/80 mt-0.5 inline-flex items-center gap-1">
+                                <Coffee className="w-2.5 h-2.5 text-amber-600" />
+                                <span>Bonus Kopi</span>
+                              </span>
+                            </div>
                           ) : (
-                            <span className="font-black text-blue-700 text-xs">
-                              Rp {rowTotal.toLocaleString('id-ID')}
-                            </span>
+                            <div className="flex flex-col items-end justify-center">
+                              <span className="font-black text-blue-700 text-xs font-mono">
+                                Rp {rowTotal.toLocaleString('id-ID')}
+                              </span>
+                            </div>
                           )}
                         </td>
 
-                        <td className="py-2.5 px-3 text-center font-extrabold text-slate-800">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-[10px]">
+                        {/* 8. Pembayaran */}
+                        <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-[10px] font-bold">
                             <CreditCard className="w-3 h-3 text-slate-500" /> {ord.payment_method}
                           </span>
                         </td>
 
-                        <td className="py-2.5 px-3 text-center">
+                        {/* 9. Status */}
+                        <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap">
                           {(() => {
                             const status = (ord.status || '').toLowerCase();
                             const isPaid = status === 'paid' || status === 'completed';
@@ -1092,61 +1166,70 @@ export default function ReportsPage() {
 
                             if (isPaid) {
                               return (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                                   <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Paid
                                 </span>
                               );
                             }
                             if (isPending) {
                               return (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
                                   <Clock className="w-2.5 h-2.5 text-amber-600" /> Pending
                                 </span>
                               );
                             }
                             return (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 uppercase">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 uppercase">
                                 <XCircle className="w-2.5 h-2.5 text-rose-600" /> {ord.status}
                               </span>
                             );
                           })()}
                         </td>
 
-                        <td className="py-2.5 px-3 text-right text-slate-400 font-medium text-[10px] whitespace-nowrap">
-                          {new Date(ord.created_at).toLocaleString('id-ID', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                        {/* 10. Tanggal & Waktu */}
+                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                          <div className="flex flex-col items-end justify-center text-[10px]">
+                            <span className="font-bold text-slate-700 font-mono">
+                              {new Date(ord.created_at).toLocaleDateString('id-ID', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </span>
+                            <span className="text-slate-400 font-mono text-[9.5px]">
+                              {new Date(ord.created_at).toLocaleTimeString('id-ID', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })} WIB
+                            </span>
+                          </div>
                         </td>
 
                       </tr>
                     );
                   })}
                 </tbody>
-                <tfoot className="bg-slate-100/80 font-black text-slate-900 border-t-2 border-slate-300 text-xs">
+                <tfoot className="bg-slate-100/90 font-black text-slate-900 border-t-2 border-slate-300 text-xs">
                   <tr>
-                    <td colSpan={2} className="py-3 px-3 uppercase tracking-wider text-[11px] text-slate-600">
+                    <td colSpan={2} className="py-3.5 px-3.5 uppercase tracking-wider text-[11px] text-slate-700 align-middle">
                       Total Akumulasi Terpilih
                     </td>
-                    <td className="py-3 px-3 text-center font-black">
+                    <td className="py-3.5 px-3.5 text-center font-black align-middle whitespace-nowrap font-mono">
                       {totalTicketsSold} Pcs
                     </td>
-                    <td className="py-3 px-3 text-right text-blue-800">
+                    <td className="py-3.5 px-3.5 text-right text-blue-800 font-mono align-middle whitespace-nowrap">
                       Rp {totalSubtotal.toLocaleString('id-ID')}
                     </td>
-                    <td className="py-3 px-3 text-right text-amber-800">
+                    <td className="py-3.5 px-3.5 text-right text-amber-800 font-mono align-middle whitespace-nowrap">
                       Rp {totalTaxAmount.toLocaleString('id-ID')}
                     </td>
-                    <td className="py-3 px-3 text-right text-purple-800">
+                    <td className="py-3.5 px-3.5 text-right text-purple-800 font-mono align-middle whitespace-nowrap">
                       Rp {totalPlatformFee.toLocaleString('id-ID')}
                     </td>
-                    <td className="py-3 px-3 text-right text-emerald-800 text-sm">
+                    <td className="py-3.5 px-3.5 text-right text-emerald-800 text-sm font-mono align-middle whitespace-nowrap">
                       Rp {totalGrossRevenue.toLocaleString('id-ID')}
                     </td>
-                    <td colSpan={3} className="py-3 px-3 text-right text-[10px] font-bold text-slate-500">
+                    <td colSpan={3} className="py-3.5 px-3.5 text-right text-[10px] font-bold text-slate-500 align-middle">
                       {paidOrders.length} Pesanan Berhasil
                     </td>
                   </tr>

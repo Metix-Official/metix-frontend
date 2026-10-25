@@ -3407,6 +3407,7 @@ export async function createPromo(
     ticket_type_id?: number | null;
     discount_type: 'PERCENTAGE' | 'FIXED';
     discount_value: number;
+    max_discount?: number | null;
     min_purchase?: number;
     quota?: number;
     max_usage_per_user?: number;
@@ -3415,6 +3416,7 @@ export async function createPromo(
     benefit_quantity?: number | null;
     start_at: string;
     end_at: string;
+    status?: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | string;
   }
 ): Promise<boolean> {
   const token = getStoredToken();
@@ -3451,6 +3453,7 @@ export async function updatePromo(
     ticket_type_id?: number | null;
     discount_type?: "PERCENTAGE" | "FIXED";
     discount_value?: number;
+    max_discount?: number | null;
     min_purchase?: number;
     quota?: number;
     max_usage_per_user?: number;
@@ -3928,6 +3931,8 @@ export interface ReportTicketItem {
   identity_type?: string;
   identity_number?: string;
   status?: string;
+  benefit_name?: string;
+  benefit_type?: string;
 }
 
 export interface ReportOrderItem {
@@ -3955,6 +3960,9 @@ export interface ReportOrderItem {
   promo_code?: string;
   discount_amount?: number;
   original_subtotal?: number;
+  benefit_name?: string;
+  benefit_type?: string;
+  benefit_quantity?: number;
 }
 
 export async function fetchSalesReportData(params?: {
@@ -3993,7 +4001,11 @@ export async function fetchSalesReportData(params?: {
         const rawTax = Number(ord.local_tax_amount ?? ord.local_tax ?? ord.tax_amount ?? ord.tax ?? 0);
         const rawFee = Number(ord.platform_fee ?? ord.fee_platform ?? 0);
         const rawDiscount = Number(ord.discount_amount ?? ord.discount ?? ord.promo_discount ?? 0);
-        const promoCode = ord.promo_code || ord.voucher_code || (ord.promo && typeof ord.promo === 'object' ? ord.promo.code : (typeof ord.promo === 'string' ? ord.promo : null)) || undefined;
+        const promoObj = ord.promo && typeof ord.promo === 'object' ? ord.promo : null;
+        const promoCode = ord.promo_code || ord.voucher_code || promoObj?.code || (typeof ord.promo === 'string' ? ord.promo : null) || undefined;
+        const benefitName = ord.benefit_name || promoObj?.benefit_name || (ord.tickets && ord.tickets[0]?.benefit_name) || undefined;
+        const benefitType = ord.benefit_type || promoObj?.benefit_type || (ord.tickets && ord.tickets[0]?.benefit_type) || undefined;
+        const benefitQuantity = ord.benefit_quantity || promoObj?.benefit_quantity || undefined;
 
         let subtotal = rawSubtotal;
         let tax = rawTax;
@@ -4015,7 +4027,7 @@ export async function fetchSalesReportData(params?: {
         }
 
         const totalAmount = rawTotal > 0 ? rawTotal : (subtotal + tax + fee);
-        const originalSubtotal = Number(ord.original_subtotal ?? (rawDiscount > 0 ? (subtotal + rawDiscount) : subtotal));
+        const originalSubtotal = Number(ord.original_subtotal ?? subtotal);
 
         return {
           id: ord.id,
@@ -4040,6 +4052,9 @@ export async function fetchSalesReportData(params?: {
           promo_code: promoCode,
           discount_amount: rawDiscount,
           original_subtotal: originalSubtotal,
+          benefit_name: benefitName,
+          benefit_type: benefitType,
+          benefit_quantity: benefitQuantity,
         };
       });
 

@@ -153,6 +153,7 @@ export default function PosPage() {
   } | null>(null);
   const [isCheckingPayment, setIsCheckingPayment] = useState(false);
   const [isSimulatingPayment, setIsSimulatingPayment] = useState(false);
+  const [isIframeLoading, setIsIframeLoading] = useState(true);
   const [qrisTimeLeft, setQrisTimeLeft] = useState<number>(900); // 15 mins countdown
 
   // Recent POS Orders State
@@ -453,6 +454,16 @@ export default function PosPage() {
     return Math.max(0, tendered - grandTotal);
   }, [paymentMethod, amountTendered, grandTotal]);
 
+  const isFormComplete = useMemo(() => {
+    if (!selectedEvent || cart.length === 0) return false;
+    if (!buyerName.trim() || !buyerEmail.trim() || !buyerPhone.trim()) return false;
+    if (paymentMethod === 'cash') {
+      const tendered = Number(amountTendered) || 0;
+      if (tendered < grandTotal) return false;
+    }
+    return true;
+  }, [selectedEvent, cart.length, buyerName, buyerEmail, buyerPhone, paymentMethod, amountTendered, grandTotal]);
+
   const handleApplyPromo = () => {
     setPromoError(null);
     if (!promoInput.trim()) {
@@ -527,6 +538,7 @@ export default function PosPage() {
 
       if (paymentMethod === 'QRIS' && paymentInfo) {
         // Open QRIS modal for buyer to scan
+        setIsIframeLoading(true);
         setActiveQrisOrder({
           order: createdOrder,
           payment: paymentInfo,
@@ -657,6 +669,14 @@ export default function PosPage() {
     const frontendUrl = typeof window !== 'undefined' ? window.location.origin : 'https://metix.id';
     const ticketLink = `${frontendUrl}/tickets/view/${orderNumber}`;
 
+    const buyerEmailText = order.buyer_email || buyerEmail;
+    const accountInfoText = buyerEmailText ? `
+🔐 *AKUN METIX PEMBELI*:
+• Email: *${buyerEmailText}*
+• Password Default: *123456789*
+_Gunakan akun di atas untuk login ke ${frontendUrl} guna melihat dan mengelola seluruh e-tiket Anda._
+` : '';
+
     return `Halo Kak *${bName}*,
 
 Terima kasih telah melakukan pembelian tiket di Box-Office Metix! 🎉
@@ -673,7 +693,7 @@ ${ticketsText}
 
 🔗 *LINK E-TIKET RESMI (BARCODE HP)*:
 ${ticketLink}
-
+${accountInfoText}
 _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pintu masuk (Gate Check-in) untuk proses scan masuk. Selamat menikmati acara!_ 🙌
 *- Tim Metix Ticketing-*`;
   };
@@ -1714,68 +1734,8 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                       <div className="font-extrabold text-xs">QRIS DOKU</div>
                       <div className="text-[10px] text-slate-500 font-medium">Uang masuk ke Merchant DOKU</div>
                     </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('cash')}
-                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer relative ${paymentMethod === 'cash'
-                        ? 'border-emerald-600 bg-emerald-50/80 text-emerald-950 shadow-sm ring-1 ring-emerald-500'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                        }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="p-1.5 rounded-lg bg-emerald-600 text-white">
-                          <DollarSign className="w-4 h-4" />
-                        </div>
-                        {paymentMethod === 'cash' && (
-                          <div className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center">
-                            <Check className="w-2.5 h-2.5" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="font-extrabold text-xs">Tunai (Cash)</div>
-                      <div className="text-[10px] text-slate-500 font-medium">Kas Fisik di Meja Kasir</div>
-                    </button>
                   </div>
                 </div>
-
-                {/* Cash Calculator Input (If Cash method selected) */}
-                {paymentMethod === 'cash' && (
-                  <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-extrabold text-emerald-900">Uang Tunai Diterima (Rp)</label>
-                      {grandTotal > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAmountTendered(String(grandTotal));
-                            setAmountTenderedDisplay(grandTotal.toLocaleString('id-ID'));
-                          }}
-                          className="text-[10px] font-black text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
-                        >
-                          Uang Pas (Rp {grandTotal.toLocaleString('id-ID')})
-                        </button>
-                      )}
-                    </div>
-
-                    <input
-                      type="text"
-                      value={amountTenderedDisplay ?? ''}
-                      onChange={handleAmountTenderedChange}
-                      placeholder="e.g. 500.000"
-                      className="w-full px-3.5 py-2 bg-white border border-emerald-300 rounded-xl text-sm font-black text-slate-900 focus:outline-none focus:border-emerald-600"
-                    />
-
-                    {Number(amountTendered) > 0 && (
-                      <div className="flex items-center justify-between text-xs font-bold pt-1 border-t border-emerald-200/80">
-                        <span className="text-emerald-900">Kembalian (Change):</span>
-                        <span className="text-sm font-black text-emerald-700">
-                          Rp {changeDue.toLocaleString('id-ID')}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* Financial Breakdown & Grand Total Bar */}
                 <div className="p-4 rounded-2xl bg-slate-900 text-white space-y-2 shadow-md">
@@ -1830,8 +1790,9 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                 {/* Checkout Submit CTA */}
                 <button
                   type="submit"
-                  disabled={isSubmitting || cart.length === 0}
-                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 text-white font-extrabold text-sm shadow-xl shadow-blue-700/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-40"
+                  disabled={isSubmitting || !isFormComplete}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 text-white font-extrabold text-sm shadow-xl shadow-blue-700/20 transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+                  title={!isFormComplete ? 'Lengkapi semua data pembeli (Nama, Email, No. HP) dan pilih tiket untuk melanjutkan' : ''}
                 >
                   {isSubmitting ? (
                     <>
@@ -1847,6 +1808,18 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                     </>
                   )}
                 </button>
+
+                {!isFormComplete && !isSubmitting && (
+                  <p className="text-center text-[10px] text-slate-400 font-medium pt-1">
+                    {cart.length === 0
+                      ? 'Pilih minimal 1 tiket untuk dimasukkan ke keranjang kasir.'
+                      : !buyerName.trim() || !buyerEmail.trim() || !buyerPhone.trim()
+                      ? 'Harap lengkapi semua data pembeli (Nama, Email, dan No. HP).'
+                      : paymentMethod === 'cash' && (Number(amountTendered) || 0) < grandTotal
+                      ? 'Uang tunai yang diterima masih kurang dari total tagihan.'
+                      : ''}
+                  </p>
+                )}
               </form>
             </div>
           </div>
@@ -1855,115 +1828,99 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
 
       {/* ================= MODAL QRIS MERCHANT DOKU INTERAKTIF ================= */}
       {activeQrisOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto animate-in fade-in-0">
-          <div className="relative w-full max-w-md max-h-[90vh] bg-white rounded-3xl shadow-2xl border border-slate-200 flex flex-col my-auto overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/80 backdrop-blur-md overflow-y-auto animate-in fade-in-0">
+          <div className="relative w-full max-w-3xl lg:max-w-4xl max-h-[96vh] bg-white rounded-3xl shadow-2xl border border-slate-200 flex flex-col my-auto overflow-hidden animate-in zoom-in-95 duration-200">
             {/* Sticky Header */}
-            <div className="shrink-0 bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-900 px-5 py-4 text-white text-center relative shadow-sm">
+            <div className="shrink-0 bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-900 px-5 py-3 sm:py-3.5 text-white text-center relative shadow-sm">
               <button
                 type="button"
                 onClick={() => setActiveQrisOrder(null)}
-                className="absolute right-3.5 top-3.5 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                className="absolute right-3.5 top-3 sm:top-3.5 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
                 title="Tutup Modal"
               >
                 <X className="w-5 h-5" />
               </button>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-[10px] font-bold uppercase tracking-wider mb-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white/15 border border-white/20 text-[11px] font-bold uppercase tracking-wider mb-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" /> Official Merchant QRIS (DOKU)
               </div>
-              <h3 className="text-lg font-black tracking-tight">Pindai QRIS untuk Bayar</h3>
-              <p className="text-[11px] text-blue-100 font-medium line-clamp-1">
-                Uang masuk otomatis ke rekening Merchant DOKU Metix & komisi terhitung.
+              <h3 className="text-base sm:text-lg font-black tracking-tight">QRIS Resmi Merchant DOKU</h3>
+              <p className="text-[11px] sm:text-xs text-blue-100 font-medium">
+                Pindai kode QRIS resmi di bawah menggunakan aplikasi M-Banking (BCA, Mandiri, BRI, BNI) atau E-Wallet (GoPay, OVO, DANA, ShopeePay).
               </p>
             </div>
 
             {/* Scrollable Body Content */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-3.5 text-center">
-              {/* QR Code Container */}
-              <div className="mx-auto w-52 h-52 sm:w-56 sm:h-56 p-2 bg-white rounded-3xl border-2 border-indigo-300 shadow-lg flex flex-col items-center justify-center relative">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${encodeURIComponent(
-                    activeQrisOrder.payment?.payment_url || activeQrisOrder.order.order_number
-                  )}`}
-                  alt="QRIS DOKU Code"
-                  className="w-full h-full object-contain rounded-2xl"
-                />
-              </div>
-
-              {/* Supported Payment Logos / Notice */}
-              <div className="space-y-1">
-                <p className="text-xs font-extrabold text-slate-800">
-                  Bisa di-scan: BCA, Livin, GoPay, OVO, DANA, ShopeePay & Semua M-Banking
-                </p>
-                <div className="flex items-center justify-center gap-1.5 text-xs text-slate-500 font-medium">
-                  <Clock className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Masa berlaku QRIS: <strong className="text-slate-900 font-mono font-black">{formatCountdown(qrisTimeLeft)}</strong></span>
-                </div>
-              </div>
-
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3">
               {/* Live Polling Status Indicator */}
-              <div className="p-2.5 rounded-2xl bg-indigo-50/80 border border-indigo-200 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2 text-indigo-900 font-bold">
-                  <span className="relative flex h-2.5 w-2.5">
+              <div className="p-2.5 rounded-2xl bg-indigo-50/90 border border-indigo-200 flex items-center justify-between text-xs shadow-xs">
+                <div className="flex items-center gap-2.5 text-indigo-950 font-bold">
+                  <span className="relative flex h-3 w-3">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-600"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-600"></span>
                   </span>
-                  <span className="text-[11px] sm:text-xs">Menunggu Pembayaran dari Pembeli...</span>
+                  <span className="text-xs sm:text-sm">Menunggu Pembayaran dari Pembeli...</span>
+                  <span className="text-[11px] font-normal text-indigo-600 hidden sm:inline">(Sistem otomatis mendeteksi saat uang masuk)</span>
                 </div>
-                {isCheckingPayment && (
-                  <Loader2 className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
-                )}
-              </div>
-
-              {/* Financial Breakdown Table */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90 text-xs space-y-1.5 text-left font-medium">
-                <div className="flex justify-between text-slate-600 text-[11px]">
-                  <span>No. Pesanan:</span>
-                  <span className="font-mono font-bold text-slate-900">{activeQrisOrder.order.order_number}</span>
-                </div>
-                <div className="flex justify-between text-slate-600 text-[11px]">
-                  <span>Subtotal Tiket (Hak EO):</span>
-                  <span className="font-bold text-slate-900">
-                    Rp {Number(activeQrisOrder.pricing?.subtotal || activeQrisOrder.order.subtotal || 0).toLocaleString('id-ID')}
-                  </span>
-                </div>
-                <div className="flex justify-between text-slate-600 text-[11px]">
-                  <span>Pajak Daerah ({activeQrisOrder.order.local_tax_percentage || localTaxPercentage}%):</span>
-                  <span className="font-bold text-slate-900">
-                    + Rp {Number(activeQrisOrder.pricing?.local_tax_amount || activeQrisOrder.order.local_tax_amount || 0).toLocaleString('id-ID')}
-                  </span>
-                </div>
-                <div className="flex justify-between text-indigo-700 font-bold text-[11px]">
-                  <span>Biaya Layanan Metix (QRIS):</span>
-                  <span>
-                    + Rp {Number(activeQrisOrder.pricing?.platform_fee || activeQrisOrder.order.platform_fee || 0).toLocaleString('id-ID')}
-                  </span>
-                </div>
-                <div className="pt-2 border-t border-slate-200 flex justify-between text-sm font-black text-slate-900">
-                  <span>TOTAL TAGIHAN:</span>
-                  <span className="text-blue-700">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">No. Pesanan: <strong className="text-slate-800 font-mono">{activeQrisOrder.order.order_number}</strong></span>
+                  <span className="px-2.5 py-1 rounded-lg bg-blue-700 text-white font-black text-xs">
                     Rp {Number(activeQrisOrder.order.grand_total || activeQrisOrder.pricing?.total_amount || 0).toLocaleString('id-ID')}
                   </span>
                 </div>
               </div>
+
+              {/* Official DOKU Merchant QRIS Iframe Embed */}
+              {activeQrisOrder.payment?.payment_url ? (
+                <div className="relative w-full rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-xs min-h-[580px] sm:min-h-[620px]">
+                  {isIframeLoading && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/95 backdrop-blur-xs z-10 space-y-2">
+                      <Loader2 className="w-9 h-9 text-indigo-600 animate-spin" />
+                      <span className="text-sm font-bold text-slate-700">Memuat QRIS Resmi DOKU...</span>
+                      <span className="text-xs text-slate-400">Menghubungkan ke gateway resmi DOKU</span>
+                    </div>
+                  )}
+                  <iframe
+                    src={
+                      activeQrisOrder.payment.payment_url.includes('?')
+                        ? `${activeQrisOrder.payment.payment_url}&view=iframe`
+                        : `${activeQrisOrder.payment.payment_url}?view=iframe`
+                    }
+                    onLoad={() => setIsIframeLoading(false)}
+                    className="w-full h-[580px] sm:h-[620px] border-0"
+                    title="Official Merchant QRIS DOKU"
+                    allow="payment *"
+                  />
+                </div>
+              ) : (
+                <div className="p-8 text-center text-xs text-rose-600 font-bold">
+                  URL Pembayaran DOKU tidak tersedia.
+                </div>
+              )}
             </div>
 
             {/* Sticky Actions Footer */}
-            <div className="shrink-0 p-3.5 sm:p-4 bg-slate-50 border-t border-slate-200 space-y-2">
-              <div className="flex items-center gap-2">
+            <div className="shrink-0 p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="hidden sm:inline">Pembayaran QRIS diverifikasi otomatis secara realtime oleh DOKU Gateway.</span>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                 {activeQrisOrder.payment?.payment_url && (
                   <a
                     href={activeQrisOrder.payment.payment_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 py-2 px-3 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
+                    className="flex-1 sm:flex-initial py-2.5 px-4 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    title="Buka di tab baru atau monitor layar pembeli"
                   >
-                    <ExternalLink className="w-3.5 h-3.5" /> Buka Laman DOKU
+                    <ExternalLink className="w-3.5 h-3.5" /> Buka di Tab Baru
                   </a>
                 )}
                 <button
                   type="button"
                   onClick={() => setActiveQrisOrder(null)}
-                  className="flex-1 py-2 px-3 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition-all cursor-pointer"
+                  className="flex-1 sm:flex-initial py-2.5 px-5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold transition-all cursor-pointer"
                 >
                   Tutup
                 </button>
@@ -2073,6 +2030,23 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                         <span className="font-mono font-black text-blue-700">{t.ticket_code}</span>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Info Akun Pembeli */}
+              {(successOrder.buyer_email || buyerEmail) && (
+                <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200 text-xs text-blue-950 space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-extrabold text-blue-900">
+                    <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span>Akun Pembeli Telah Terdaftar Otomatis</span>
+                  </div>
+                  <p className="text-[11px] text-blue-700 font-medium">
+                    Pembeli dapat login ke web Metix untuk melihat &amp; mengunduh tiket:
+                  </p>
+                  <div className="bg-white p-2.5 rounded-xl border border-blue-100 font-mono text-[11px] space-y-0.5">
+                    <div>Email: <strong className="text-slate-900">{successOrder.buyer_email || buyerEmail}</strong></div>
+                    <div>Password Default: <strong className="text-emerald-700">123456789</strong></div>
                   </div>
                 </div>
               )}

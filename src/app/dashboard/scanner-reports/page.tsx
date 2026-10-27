@@ -49,7 +49,10 @@ export default function ScannerReportsPage() {
     async function loadData() {
       setIsLoading(true);
       try {
-        const staffList = (await fetchEoAdmins()) || [];
+        const allStaff = (await fetchEoAdmins()) || [];
+        const staffList = allStaff.filter(
+          (s: any) => (s.role || "").toUpperCase() !== "POS" && (s.role || "").toUpperCase() !== "CASHIER" && (s.role || "").toUpperCase() !== "KASIR"
+        );
 
         setScanners(staffList);
         if (staffList.length > 0) {

@@ -5,9 +5,11 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import {
   fetchSalesReportData,
   fetchMyEvents,
+  fetchEoPosCashiers,
   getStoredUser,
   ReportOrderItem,
   ApiEvent,
+  ApiPosCashierItem,
 } from '@/lib/api';
 import { getUserRole, ROLES } from '@/lib/roles';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -45,6 +47,11 @@ import {
   ShieldCheck,
   Tag,
   Coffee,
+  ChevronDown,
+  ChevronUp,
+  Store,
+  Globe,
+  Users,
 } from 'lucide-react';
 
 export default function ReportsPage() {
@@ -57,8 +64,15 @@ export default function ReportsPage() {
   const [selectedEventId, setSelectedEventId] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('all');
+  const [selectedChannel, setSelectedChannel] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [posCashiers, setPosCashiers] = useState<ApiPosCashierItem[]>([]);
+  const [expandedOrders, setExpandedOrders] = useState<Record<string | number, boolean>>({});
+
+  const toggleOrderExpand = (id: string | number) => {
+    setExpandedOrders((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   // Role Determination
   const currentRole = useMemo(() => {
@@ -71,14 +85,18 @@ export default function ReportsPage() {
     setUser(storedUser);
 
     if (selectedEventId === 'all') {
-      const evData = await fetchMyEvents();
+      const [evData, cashiers] = await Promise.all([
+        fetchMyEvents(),
+        fetchEoPosCashiers(),
+      ]);
       setEvents(evData.events || []);
+      setPosCashiers(cashiers || []);
       setOrders([]);
       setIsLoading(false);
       return;
     }
 
-    const [repData, evData] = await Promise.all([
+    const [repData, evData, cashiers] = await Promise.all([
       fetchSalesReportData({
         event_id: selectedEventId,
         month: 'all',
@@ -86,10 +104,12 @@ export default function ReportsPage() {
         status: selectedStatus,
       }),
       fetchMyEvents(),
+      fetchEoPosCashiers(),
     ]);
 
     setEvents(evData.events || []);
     setOrders(repData.orders || []);
+    setPosCashiers(cashiers || []);
     setIsLoading(false);
   };
 
@@ -102,10 +122,45 @@ export default function ReportsPage() {
     return events.filter((ev) => String(ev.status || '').toLowerCase() === 'published');
   }, [events]);
 
+  // Distinct cashiers list: from posCashiers API + any cashiers detected in orders (filtered by selected event if chosen)
+  const availableCashiers = useMemo(() => {
+    const map = new Map<string, { id?: number; name: string; email?: string }>();
+
+    // 1. From API posCashiers
+    posCashiers.forEach((c) => {
+      if (selectedEventId !== 'all' && c.event_id && String(c.event_id) !== String(selectedEventId)) {
+        return;
+      }
+      if (c.name) {
+        const key = String(c.id || c.email || c.name).toLowerCase();
+        map.set(key, { id: c.id, name: c.name, email: c.email || undefined });
+      }
+    });
+
+    // 2. From loaded orders
+    orders.forEach((ord) => {
+      if (selectedEventId !== 'all' && ord.event_id && String(ord.event_id) !== String(selectedEventId)) {
+        return;
+      }
+      if (ord.is_pos && ord.cashier_name) {
+        const key = String(ord.cashier_id || ord.cashier_email || ord.cashier_name).toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, {
+            id: ord.cashier_id || undefined,
+            name: ord.cashier_name,
+            email: ord.cashier_email || undefined,
+          });
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }, [posCashiers, orders, selectedEventId]);
+
   // Extract distinct Ticket Categories strictly from ticket_types.category for selectedEventId
   const availableCategories = useMemo(() => {
     const set = new Set<string>();
-    
+
     // 1. Extract from events (filtered by selectedEventId)
     const targetEvents = selectedEventId === 'all'
       ? events
@@ -214,6 +269,36 @@ export default function ReportsPage() {
       });
     }
 
+    // Filter by Petugas / Channel Select Option
+    if (selectedChannel !== 'all') {
+      result = result.filter((ord) => {
+        if (selectedChannel === 'online') {
+          return !ord.is_pos;
+        }
+        if (selectedChannel === 'pos') {
+          return ord.is_pos;
+        }
+        if (selectedChannel === 'not_created') {
+          return false;
+        }
+        if (selectedChannel.startsWith('cashier-')) {
+          const targetKey = selectedChannel.replace('cashier-', '').toLowerCase();
+          const ordCashierId = ord.cashier_id ? String(ord.cashier_id).toLowerCase() : '';
+          const ordCashierName = (ord.cashier_name || '').toLowerCase();
+          const ordCashierEmail = (ord.cashier_email || '').toLowerCase();
+
+          return (
+            ord.is_pos &&
+            (ordCashierId === targetKey ||
+              ordCashierName === targetKey ||
+              ordCashierEmail === targetKey ||
+              ordCashierName.includes(targetKey))
+          );
+        }
+        return true;
+      });
+    }
+
     // Filter by Order Status (strictly show paid/completed orders only)
     const isPaid = (ord: any) => {
       const st = (ord.status || '').toLowerCase();
@@ -231,9 +316,11 @@ export default function ReportsPage() {
         ord.buyer_email.toLowerCase().includes(q) ||
         (ord.event_title || '').toLowerCase().includes(q) ||
         (ord.ticket_type_name || '').toLowerCase().includes(q) ||
-        (ord.payment_method || '').toLowerCase().includes(q)
+        (ord.payment_method || '').toLowerCase().includes(q) ||
+        (ord.cashier_name || '').toLowerCase().includes(q) ||
+        (ord.cashier_email || '').toLowerCase().includes(q)
     );
-  }, [orders, publishedEvents, currentRole, selectedPaymentMethod, searchQuery]);
+  }, [orders, events, publishedEvents, currentRole, selectedEventId, selectedCategory, selectedPaymentMethod, selectedChannel, searchQuery]);
 
   // Strictly Paid Orders for Financial Metrics & Aggregations
   const paidOrders = useMemo(() => {
@@ -354,11 +441,22 @@ export default function ReportsPage() {
         escapeCsv('Periode Laporan:'),
         escapeCsv(periodLabel),
       ].join(','));
+      const channelFilterLabel =
+        selectedChannel === 'all'
+          ? 'Semua Petugas / Channel'
+          : selectedChannel === 'online'
+            ? 'Online Web (Pembeli Mandiri)'
+            : selectedChannel === 'pos'
+              ? 'Kasir Offline (OTS)'
+              : selectedChannel === 'not_created'
+                ? 'Admin Petugas / Channel belum dibuat'
+                : selectedChannel.replace('cashier-', 'Kasir OTS: ');
+
       lines.push([
         escapeCsv('Cakupan Event:'),
         escapeCsv(eventCoverageName),
-        escapeCsv('Filter Metode Bayar:'),
-        escapeCsv(paymentFilterLabel),
+        escapeCsv('Filter Petugas / Channel:'),
+        escapeCsv(channelFilterLabel),
       ].join(','));
       lines.push([
         escapeCsv('Total Data Transaksi:'),
@@ -400,6 +498,8 @@ export default function ReportsPage() {
       const tableHeaders = [
         'No.',
         'No. Order / Invoice',
+        'Kanal Penjualan',
+        'Petugas / Kasir OTS',
         'Nama Pembeli',
         'Nama Pengunjung (Attendee)',
         'Email Pembeli',
@@ -450,6 +550,8 @@ export default function ReportsPage() {
         lines.push([
           rowNumber++,
           escapeCsv(ord.order_number),
+          escapeCsv(ord.is_pos ? 'Kasir Offline (OTS)' : 'Online Web'),
+          escapeCsv(ord.is_pos ? (ord.cashier_name || 'Admin Kasir POS') : '-'),
           escapeCsv(ord.buyer_name || '-'),
           escapeCsv(
             ord.full_name ||
@@ -556,7 +658,8 @@ export default function ReportsPage() {
 
     paidOrders.forEach((ord) => {
       const pm = (ord.payment_method || '').toLowerCase();
-      if (pm.includes('pos') || pm.includes('cash') || pm.includes('kasir') || pm.includes('tunai')) {
+      const ch = (ord.sales_channel || '').toLowerCase();
+      if (ord.is_pos || ch === 'pos' || pm.includes('pos') || pm.includes('cash') || pm.includes('kasir') || pm.includes('tunai')) {
         posCount++;
       } else if (pm.includes('doku') || pm.includes('qris') || pm.includes('va') || pm.includes('bank') || pm.includes('gopay')) {
         onlineCount++;
@@ -785,43 +888,49 @@ export default function ReportsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
             {/* Channel 1 */}
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-extrabold text-slate-700 flex items-center gap-1.5">
-                  <CreditCard className="w-3.5 h-3.5 text-blue-600" /> Doku QRIS & VA
-                </span>
-                <span className="font-black text-blue-700">{channelStats.onlinePct}%</span>
-              </div>
-              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-600 rounded-full transition-all duration-500" style={{ width: `${channelStats.onlinePct}%` }} />
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 flex flex-col justify-between">
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-extrabold text-slate-700 flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-blue-600" /> Doku QRIS & VA
+                  </span>
+                  <span className="font-black text-blue-700">{channelStats.onlinePct}%</span>
+                </div>
+                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-600 rounded-full transition-all duration-500" style={{ width: `${channelStats.onlinePct}%` }} />
+                </div>
               </div>
               <span className="text-[10px] text-slate-400 font-medium block">Online Automatic Checkout</span>
             </div>
 
             {/* Channel 2 */}
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-extrabold text-slate-700 flex items-center gap-1.5">
-                  <DollarSign className="w-3.5 h-3.5 text-emerald-600" /> Kasir Offline (POS Tunai)
-                </span>
-                <span className="font-black text-emerald-700">{channelStats.posPct}%</span>
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 flex flex-col justify-between">
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-extrabold text-slate-700 flex items-center gap-1.5">
+                    <Store className="w-3.5 h-3.5 text-emerald-600" /> Kasir Offline (POS)
+                  </span>
+                  <span className="font-black text-emerald-700">{channelStats.posPct}%</span>
+                </div>
+                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-600 rounded-full transition-all duration-500" style={{ width: `${channelStats.posPct}%` }} />
+                </div>
               </div>
-              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-600 rounded-full transition-all duration-500" style={{ width: `${channelStats.posPct}%` }} />
-              </div>
-              <span className="text-[10px] text-slate-400 font-medium block">On-the-spot Cash Tendered</span>
+              <span className="text-[10px] text-slate-400 font-medium block">Tiket Kasir Offline & OTS</span>
             </div>
 
             {/* Channel 3 */}
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-extrabold text-slate-700 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-purple-600" /> E-Wallet & Lainnya
-                </span>
-                <span className="font-black text-purple-700">{channelStats.otherPct}%</span>
-              </div>
-              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                <div className="h-full bg-purple-600 rounded-full transition-all duration-500" style={{ width: `${channelStats.otherPct}%` }} />
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 flex flex-col justify-between">
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-extrabold text-slate-700 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-600" /> E-Wallet & Lainnya
+                  </span>
+                  <span className="font-black text-purple-700">{channelStats.otherPct}%</span>
+                </div>
+                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-purple-600 rounded-full transition-all duration-500" style={{ width: `${channelStats.otherPct}%` }} />
+                </div>
               </div>
               <span className="text-[10px] text-slate-400 font-medium block">Promo & Transfer Bank Direct</span>
             </div>
@@ -854,6 +963,7 @@ export default function ReportsPage() {
                   onValueChange={(val) => {
                     setSelectedEventId(val);
                     setSelectedCategory('all');
+                    setSelectedChannel('all');
                   }}
                 >
                   <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
@@ -888,7 +998,7 @@ export default function ReportsPage() {
               </div>
 
               {/* Payment Method / Type Filter */}
-              <div className="w-40">
+              <div className="w-36 sm:w-40">
                 <Select value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
                   <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
                     <SelectValue placeholder="Metode Pembayaran" />
@@ -909,6 +1019,36 @@ export default function ReportsPage() {
                           {pm}
                         </SelectItem>
                       ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Petugas / Channel Filter Dropdown */}
+              <div className="w-48 sm:w-56">
+                <Select value={selectedChannel} onValueChange={setSelectedChannel}>
+                  <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white truncate">
+                    <SelectValue placeholder={availableCashiers.length > 0 ? "Semua Petugas / Channel" : "Admin Petugas / Channel belum dibuat"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Petugas / Channel</SelectItem>
+                    <SelectItem value="online">🌐 Online Web (Pembeli Mandiri)</SelectItem>
+                    {availableCashiers.length > 0 ? (
+                      <>
+                        <SelectItem value="pos">🏬 Semua Kasir OTS ({availableCashiers.length})</SelectItem>
+                        {availableCashiers.map((c) => {
+                          const val = `cashier-${c.id || c.name}`;
+                          return (
+                            <SelectItem key={val} value={val}>
+                              🏬 Kasir: {c.name} {c.email ? `(${c.email})` : ''}
+                            </SelectItem>
+                          );
+                        })}
+                      </>
+                    ) : (
+                      <SelectItem value="not_created" className="text-amber-700 bg-amber-50/70 font-semibold italic text-[11px] py-1.5 border-t border-slate-100">
+                        ⚠️ Admin Petugas / Channel belum dibuat
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -950,11 +1090,12 @@ export default function ReportsPage() {
             </div>
           ) : filteredOrders.length > 0 ? (
             <div className="relative overflow-auto max-h-[calc(100vh-230px)] min-h-[420px] border border-slate-200/90 rounded-2xl bg-white shadow-xs">
-              <table className="w-full text-left text-xs text-slate-700 min-w-[1000px] border-separate border-spacing-0">
+              <table className="w-full text-left text-xs text-slate-700 min-w-[1100px] border-separate border-spacing-0">
                 <thead className="sticky top-0 z-20 text-slate-700 text-[10px] font-black uppercase tracking-wider">
                   <tr>
-                    <th className="sticky top-0 z-20 py-3.5 px-3.5 align-middle min-w-[180px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">No. Order & Pembeli</th>
-                    <th className="sticky top-0 z-20 py-3.5 px-3.5 align-middle min-w-[220px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Event & Kategori</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-3.5 align-middle min-w-[190px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">No. Order & Pembeli</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-3.5 align-middle min-w-[210px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Event & Kategori</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-3.5 align-middle min-w-[150px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Petugas / Channel</th>
                     <th className="sticky top-0 z-20 py-3.5 px-3.5 text-center align-middle w-[70px] min-w-[70px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Qty</th>
                     <th className="sticky top-0 z-20 py-3.5 px-3.5 text-right align-middle min-w-[140px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Subtotal Tiket</th>
                     <th className="sticky top-0 z-20 py-3.5 px-3.5 text-right align-middle min-w-[100px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Pajak (5%)</th>
@@ -996,222 +1137,315 @@ export default function ReportsPage() {
                     const originalSubtotal = Number(ord.original_subtotal || rowSubtotal);
                     const netSubtotal = Math.max(0, originalSubtotal - discountAmount);
                     const coffeeLabel = rawBenefitName.trim() || 'Free Coffee';
+                    const hasTickets = Boolean(ord.tickets && ord.tickets.length > 0);
+                    const isExpanded = Boolean(expandedOrders[ord.id]);
 
                     return (
-                      <tr key={ord.id} className="hover:bg-blue-50/40 transition-colors group">
+                      <React.Fragment key={ord.id}>
+                        <tr className={`hover:bg-blue-50/40 transition-colors group ${isExpanded ? 'bg-blue-50/40' : ''}`}>
 
-                        {/* 1. No. Order & Pembeli */}
-                        <td className="py-3 px-3.5 align-middle border-b border-slate-100">
-                          <div className="flex flex-col gap-0.5 justify-center">
-                            <span className="font-mono font-black text-slate-900 group-hover:text-blue-700 transition-colors text-xs tracking-tight">
-                              {ord.order_number}
-                            </span>
-                            <span className="text-[11px] font-bold text-slate-800 truncate max-w-[160px]">
-                              {ord.buyer_name}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-medium truncate max-w-[160px]">
-                              {ord.buyer_email}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* 2. Event & Kategori (dengan Badges Promo & Kopi) */}
-                        <td className="py-3 px-3.5 align-middle border-b border-slate-100">
-                          <div className="flex flex-col gap-1 justify-center max-w-[230px]">
-                            <span className="font-bold text-slate-900 truncate text-xs" title={ord.event_title}>
-                              {ord.event_title}
-                            </span>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-[10px] text-blue-700 font-black">
-                                {ord.ticket_type_name}
-                              </span>
-                              {(ord as any).category || (ord as any).ticket_category ? (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 text-[9px] font-bold">
-                                  🏷️ {(ord as any).category || (ord as any).ticket_category}
+                          {/* 1. No. Order & Pembeli */}
+                          <td className="py-3 px-3.5 align-middle border-b border-slate-100">
+                            <div className="flex flex-col gap-0.5 justify-center">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-black text-slate-900 group-hover:text-blue-700 transition-colors text-xs tracking-tight">
+                                  {ord.order_number}
                                 </span>
-                              ) : null}
-                            </div>
-
-                            {/* Badges Pembeda Promo */}
-                            {hasAnyPromo && (
-                              <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                                {/* Tipe 1: Promo Diskon Potongan Harga */}
-                                {isDiscountPromo && (
-                                  <>
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[9.5px] font-extrabold shadow-2xs">
-                                      <Tag className="w-2.5 h-2.5 text-purple-600" />
-                                      <span>{ord.promo_code || 'PROMO'}</span>
-                                    </span>
-                                    <span className="inline-flex items-center text-[9.5px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200/80">
-                                      Diskon -Rp {discountAmount.toLocaleString('id-ID')}
-                                    </span>
-                                  </>
-                                )}
-
-                                {/* Tipe 2: Promo Penanda Free Kopi */}
-                                {isCoffeePromo && (
-                                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 text-[9.5px] font-extrabold shadow-2xs">
-                                    <Coffee className="w-2.5 h-2.5 text-amber-700 shrink-0" />
-                                    <span>{ord.promo_code || 'KODE KOPI'}</span>
-                                    {rawBenefitName && rawBenefitName.trim().toLowerCase() !== String(ord.promo_code || '').trim().toLowerCase() && rawBenefitName.trim().toLowerCase() !== 'free coffee' && (
-                                      <span className="text-[9px] font-semibold text-amber-700/80">({rawBenefitName.trim()})</span>
+                                {hasTickets && (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleOrderExpand(ord.id)}
+                                    className={`p-1 rounded-md transition-all ${isExpanded
+                                      ? 'bg-blue-100 text-blue-700 shadow-2xs'
+                                      : 'bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-blue-600'
+                                      }`}
+                                    title={isExpanded ? 'Tutup rincian tiket' : `Lihat rincian ${ord.tickets?.length || ord.quantity} tiket`}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronUp className="w-3 h-3" />
+                                    ) : (
+                                      <ChevronDown className="w-3 h-3" />
                                     )}
-                                  </span>
+                                  </button>
                                 )}
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                {ord.tickets?.length || ord.quantity} Tiket
+                              </span>
+                              <span className="text-[11px] font-bold text-slate-800 truncate max-w-[160px]">
+                                {ord.buyer_name}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-medium truncate max-w-[160px]">
+                                {ord.buyer_email}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* 2. Event & Kategori (dengan Badges Promo & Kopi) */}
+                          <td className="py-3 px-3.5 align-middle border-b border-slate-100">
+                            <div className="flex flex-col gap-1 justify-center max-w-[210px]">
+                              <span className="font-bold text-slate-900 truncate text-xs" title={ord.event_title}>
+                                {ord.event_title}
+                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[10px] text-blue-700 font-black">
+                                  {ord.ticket_type_name}
+                                </span>
+                                {(ord as any).category || (ord as any).ticket_category ? (
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 text-[9px] font-bold">
+                                    🏷️ {(ord as any).category || (ord as any).ticket_category}
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              {/* Badges Pembeda Promo */}
+                              {hasAnyPromo && (
+                                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                  {/* Tipe 1: Promo Diskon Potongan Harga */}
+                                  {isDiscountPromo && (
+                                    <>
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[9.5px] font-extrabold shadow-2xs">
+                                        <Tag className="w-2.5 h-2.5 text-purple-600" />
+                                        <span>{ord.promo_code || 'PROMO'}</span>
+                                      </span>
+                                      <span className="inline-flex items-center text-[9.5px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200/80">
+                                        Diskon -Rp {discountAmount.toLocaleString('id-ID')}
+                                      </span>
+                                    </>
+                                  )}
+
+                                  {/* Tipe 2: Promo Penanda Free Kopi */}
+                                  {isCoffeePromo && (
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-300 text-[9.5px] font-extrabold shadow-2xs">
+                                      <Coffee className="w-2.5 h-2.5 text-amber-700 shrink-0" />
+                                      <span>{ord.promo_code || 'KODE KOPI'}</span>
+                                      {rawBenefitName && rawBenefitName.trim().toLowerCase() !== String(ord.promo_code || '').trim().toLowerCase() && rawBenefitName.trim().toLowerCase() !== 'free coffee' && (
+                                        <span className="text-[9px] font-semibold text-amber-700/80">({rawBenefitName.trim()})</span>
+                                      )}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* 3. Petugas / Channel */}
+                          <td className="py-3 px-3.5 align-middle border-b border-slate-100">
+                            {ord.is_pos ? (
+                              <div className="flex flex-col gap-0.5 justify-center">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200/80 text-[10px] font-extrabold w-fit shadow-2xs">
+                                  <Store className="w-2.5 h-2.5 text-amber-600" />
+                                  <span>Kasir OTS</span>
+                                </span>
+                                <span className="text-xs font-black text-slate-800 truncate max-w-[150px] mt-0.5">
+                                  {ord.cashier_name || 'Admin Kasir POS'}
+                                </span>
+                                <span className="text-[9.5px] text-slate-400 font-mono truncate max-w-[150px]">
+                                  {ord.cashier_email || '(Petugas Loket)'}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col gap-0.5 justify-center">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold w-fit">
+                                  <Globe className="w-2.5 h-2.5 text-slate-500" />
+                                  <span>Online Web</span>
+                                </span>
+                                <span className="text-[11px] font-semibold text-slate-500 mt-0.5">
+                                  Pembeli Mandiri
+                                </span>
                               </div>
                             )}
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* 3. Qty */}
-                        <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap border-b border-slate-100">
-                          <span className="font-black text-slate-900 text-xs px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 inline-block font-mono">
-                            {ord.quantity} Pcs
-                          </span>
-                        </td>
+                          {/* 4. Qty */}
+                          <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap border-b border-slate-100">
+                            <span className="font-black text-slate-900 text-xs px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 inline-block font-mono">
+                              {ord.quantity} Pcs
+                            </span>
+                          </td>
 
-                        {/* 4. Subtotal Tiket */}
-                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
-                          {isDiscountPromo ? (
-                            <div className="flex flex-col items-end justify-center gap-0.5">
-                              <div className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold leading-tight font-mono">
-                                <span className="text-[9px]">Awal:</span>
-                                <span className="line-through decoration-rose-500 decoration-1.5">
-                                  Rp {originalSubtotal.toLocaleString('id-ID')}
+                          {/* 4. Subtotal Tiket */}
+                          <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
+                            {isDiscountPromo ? (
+                              <div className="flex flex-col items-end justify-center gap-0.5">
+                                <div className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold leading-tight font-mono">
+                                  <span className="text-[9px]">Awal:</span>
+                                  <span className="line-through decoration-rose-500 decoration-1.5">
+                                    Rp {originalSubtotal.toLocaleString('id-ID')}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] font-extrabold text-rose-600 leading-tight font-mono">
+                                  - Rp {discountAmount.toLocaleString('id-ID')}
+                                </span>
+                                <span className="font-black text-slate-900 text-xs font-mono mt-0.5">
+                                  Rp {netSubtotal.toLocaleString('id-ID')}
                                 </span>
                               </div>
-                              <span className="text-[10px] font-extrabold text-rose-600 leading-tight font-mono">
-                                - Rp {discountAmount.toLocaleString('id-ID')}
-                              </span>
-                              <span className="font-black text-slate-900 text-xs font-mono mt-0.5">
-                                Rp {netSubtotal.toLocaleString('id-ID')}
-                              </span>
-                            </div>
-                          ) : isCoffeePromo ? (
-                            <div className="flex flex-col items-end justify-center gap-0.5">
-                              <span className="font-black text-slate-900 text-xs font-mono">
-                                Rp {rowSubtotal.toLocaleString('id-ID')}
-                              </span>
-                              <span className="text-[9.5px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/80 inline-flex items-center gap-1">
-                                <Coffee className="w-2.5 h-2.5 text-amber-600" />
-                                <span>Klaim Kopi</span>
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col items-end justify-center">
-                              <span className="font-bold text-slate-800 text-xs font-mono">
-                                Rp {rowSubtotal.toLocaleString('id-ID')}
-                              </span>
-                            </div>
-                          )}
-                        </td>
+                            ) : isCoffeePromo ? (
+                              <div className="flex flex-col items-end justify-center gap-0.5">
+                                <span className="font-black text-slate-900 text-xs font-mono">
+                                  Rp {rowSubtotal.toLocaleString('id-ID')}
+                                </span>
+                                <span className="text-[9.5px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/80 inline-flex items-center gap-1">
+                                  <Coffee className="w-2.5 h-2.5 text-amber-600" />
+                                  <span>Klaim Kopi</span>
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-end justify-center">
+                                <span className="font-bold text-slate-800 text-xs font-mono">
+                                  Rp {rowSubtotal.toLocaleString('id-ID')}
+                                </span>
+                              </div>
+                            )}
+                          </td>
 
-                        {/* 5. Pajak (5%) */}
-                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
-                          <span className="font-semibold text-amber-700 text-xs font-mono">
-                            Rp {rowTax.toLocaleString('id-ID')}
-                          </span>
-                        </td>
+                          {/* 5. Pajak (5%) */}
+                          <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
+                            <span className="font-semibold text-amber-700 text-xs font-mono">
+                              Rp {rowTax.toLocaleString('id-ID')}
+                            </span>
+                          </td>
 
-                        {/* 6. Fee Platform (7%) */}
-                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
-                          <span className="font-semibold text-purple-700 text-xs font-mono">
-                            Rp {rowFee.toLocaleString('id-ID')}
-                          </span>
-                        </td>
+                          {/* 6. Fee Platform (7%) */}
+                          <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
+                            <span className="font-semibold text-purple-700 text-xs font-mono">
+                              Rp {rowFee.toLocaleString('id-ID')}
+                            </span>
+                          </td>
 
-                        {/* 7. Total Tagihan */}
-                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
-                          {isDiscountPromo ? (
-                            <div className="flex flex-col items-end justify-center gap-0.5">
-                              <span className="font-black text-blue-700 text-xs font-mono">
-                                Rp {rowTotal.toLocaleString('id-ID')}
-                              </span>
-                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 mt-0.5">
-                                Hemat Rp {discountAmount.toLocaleString('id-ID')}
-                              </span>
-                            </div>
-                          ) : isCoffeePromo ? (
-                            <div className="flex flex-col items-end justify-center gap-0.5">
-                              <span className="font-black text-blue-700 text-xs font-mono">
-                                Rp {rowTotal.toLocaleString('id-ID')}
-                              </span>
-                              <span className="text-[9px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/80 mt-0.5 inline-flex items-center gap-1">
-                                <Coffee className="w-2.5 h-2.5 text-amber-600" />
-                                <span>Bonus Kopi</span>
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col items-end justify-center">
-                              <span className="font-black text-blue-700 text-xs font-mono">
-                                Rp {rowTotal.toLocaleString('id-ID')}
-                              </span>
-                            </div>
-                          )}
-                        </td>
+                          {/* 7. Total Tagihan */}
+                          <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
+                            {isDiscountPromo ? (
+                              <div className="flex flex-col items-end justify-center gap-0.5">
+                                <span className="font-black text-blue-700 text-xs font-mono">
+                                  Rp {rowTotal.toLocaleString('id-ID')}
+                                </span>
+                                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 mt-0.5">
+                                  Hemat Rp {discountAmount.toLocaleString('id-ID')}
+                                </span>
+                              </div>
+                            ) : isCoffeePromo ? (
+                              <div className="flex flex-col items-end justify-center gap-0.5">
+                                <span className="font-black text-blue-700 text-xs font-mono">
+                                  Rp {rowTotal.toLocaleString('id-ID')}
+                                </span>
+                                <span className="text-[9px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/80 mt-0.5 inline-flex items-center gap-1">
+                                  <Coffee className="w-2.5 h-2.5 text-amber-600" />
+                                  <span>Bonus Kopi</span>
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-end justify-center">
+                                <span className="font-black text-blue-700 text-xs font-mono">
+                                  Rp {rowTotal.toLocaleString('id-ID')}
+                                </span>
+                              </div>
+                            )}
+                          </td>
 
-                        {/* 8. Pembayaran */}
-                        <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap border-b border-slate-100">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-[10px] font-bold">
-                            <CreditCard className="w-3 h-3 text-slate-500" /> {ord.payment_method}
-                          </span>
-                        </td>
+                          {/* 8. Pembayaran */}
+                          <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap border-b border-slate-100">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-[10px] font-bold">
+                              <CreditCard className="w-3 h-3 text-slate-500" /> {ord.payment_method}
+                            </span>
+                          </td>
 
-                        {/* 9. Status */}
-                        <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap border-b border-slate-100">
-                          {(() => {
-                            const status = (ord.status || '').toLowerCase();
-                            const isPaid = status === 'paid' || status === 'completed';
-                            const isPending = status === 'pending' || status === 'unpaid' || status === 'waiting_payment';
+                          {/* 9. Status */}
+                          <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap border-b border-slate-100">
+                            {(() => {
+                              const status = (ord.status || '').toLowerCase();
+                              const isPaid = status === 'paid' || status === 'completed';
+                              const isPending = status === 'pending' || status === 'unpaid' || status === 'waiting_payment';
 
-                            if (isPaid) {
+                              if (isPaid) {
+                                return (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Paid
+                                  </span>
+                                );
+                              }
+                              if (isPending) {
+                                return (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                    <Clock className="w-2.5 h-2.5 text-amber-600" /> Pending
+                                  </span>
+                                );
+                              }
                               return (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                  <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Paid
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 uppercase">
+                                  <XCircle className="w-2.5 h-2.5 text-rose-600" /> {ord.status}
                                 </span>
                               );
-                            }
-                            if (isPending) {
-                              return (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                                  <Clock className="w-2.5 h-2.5 text-amber-600" /> Pending
-                                </span>
-                              );
-                            }
-                            return (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 uppercase">
-                                <XCircle className="w-2.5 h-2.5 text-rose-600" /> {ord.status}
+                            })()}
+                          </td>
+
+                          {/* 10. Tanggal & Waktu */}
+                          <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
+                            <div className="flex flex-col items-end justify-center text-[10px]">
+                              <span className="font-bold text-slate-700 font-mono">
+                                {new Date(ord.created_at).toLocaleDateString('id-ID', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
                               </span>
-                            );
-                          })()}
-                        </td>
+                              <span className="text-slate-400 font-mono text-[9.5px]">
+                                {new Date(ord.created_at).toLocaleTimeString('id-ID', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })} WIB
+                              </span>
+                            </div>
+                          </td>
 
-                        {/* 10. Tanggal & Waktu */}
-                        <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
-                          <div className="flex flex-col items-end justify-center text-[10px]">
-                            <span className="font-bold text-slate-700 font-mono">
-                              {new Date(ord.created_at).toLocaleDateString('id-ID', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                              })}
-                            </span>
-                            <span className="text-slate-400 font-mono text-[9.5px]">
-                              {new Date(ord.created_at).toLocaleTimeString('id-ID', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })} WIB
-                            </span>
-                          </div>
-                        </td>
+                        </tr>
 
-                      </tr>
+                        {/* Expandable sub-row for multiple tickets / attendees */}
+                        {isExpanded && hasTickets && (
+                          <tr className="bg-slate-50/70 border-b border-slate-200">
+                            <td colSpan={11} className="p-4">
+                              <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-xs">
+                                <h5 className="text-xs font-black text-slate-900 flex items-center gap-2">
+                                  <Users className="w-4 h-4 text-blue-600" />
+                                  <span>
+                                    Daftar Tiket & Attendees Pesanan ({ord.tickets!.length} Peserta)
+                                  </span>
+                                </h5>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  {ord.tickets!.map((t, idx) => (
+                                    <div
+                                      key={t.id || idx}
+                                      className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50 space-y-1.5 text-xs hover:border-blue-300 hover:bg-blue-50/30 transition-all shadow-2xs"
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="font-mono font-black text-blue-700 text-xs tracking-tight">
+                                          {t.ticket_code}
+                                        </span>
+                                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-blue-100/90 text-blue-800 border border-blue-200/60 shrink-0">
+                                          {t.ticket_type}
+                                        </span>
+                                      </div>
+                                      <div className="font-bold text-slate-900 text-xs truncate">
+                                        {t.full_name || ord.buyer_name || 'Peserta'}
+                                      </div>
+                                      <div className="text-[10.5px] text-slate-500 font-medium truncate">
+                                        {t.email || ord.buyer_email || '-'} • {t.phone || ord.buyer_phone || '-'}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
                 <tfoot className="sticky bottom-0 z-20 font-black text-slate-900 text-xs shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
                   <tr>
-                    <td colSpan={2} className="sticky bottom-0 z-20 py-3.5 px-3.5 uppercase tracking-wider text-[11px] text-slate-800 align-middle bg-slate-100/95 backdrop-blur-md border-t-2 border-slate-300">
+                    <td colSpan={3} className="sticky bottom-0 z-20 py-3.5 px-3.5 uppercase tracking-wider text-[11px] text-slate-800 align-middle bg-slate-100/95 backdrop-blur-md border-t-2 border-slate-300">
                       <div className="flex items-center gap-2">
                         <span className="relative flex h-2 w-2">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>

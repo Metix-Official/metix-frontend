@@ -95,6 +95,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return 'Event Organizer (EO)';
       case ROLES.SCANNER:
         return 'Admin Scanner Staff';
+      case ROLES.POS:
+        return 'Admin Kasir POS';
       case ROLES.BUYER:
       default:
         return 'Pembeli Tiket';
@@ -109,6 +111,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return 'EO Partner';
       case ROLES.SCANNER:
         return 'Staff Scanner';
+      case ROLES.POS:
+        return 'Kasir Box-Office';
       case ROLES.BUYER:
       default:
         return 'Pembeli Tiket';
@@ -125,6 +129,12 @@ interface SidebarNavItem {
 
   // Dynamic Navigation Items per Role with distinct Href routes
   const roleNavItems: SidebarNavItem[] = React.useMemo(() => {
+    if (currentRole === ROLES.POS) {
+      return [
+        { name: 'Kasir POS Console', href: '/dashboard/pos', iconName: 'CreditCard' },
+        { name: 'Profil Saya', href: '/dashboard/profile', iconName: 'Users' },
+      ];
+    }
     if (currentRole === ROLES.SCANNER) {
       return [
         { name: 'Dashboard Scanner', href: '/dashboard/checkin', iconName: 'QrCode' },
@@ -157,6 +167,7 @@ interface SidebarNavItem {
         { name: 'Refund Pembeli', href: '/dashboard/refunds', iconName: 'RotateCcw', badge: 'Refund' },
         { name: 'Kasir Offline (POS)', href: '/dashboard/pos', iconName: 'CreditCard' },
         { name: 'Kelola Admin Scan', href: '/dashboard/admins', iconName: 'Users' },
+        { name: 'Kelola Admin POS', href: '/dashboard/pos-cashiers', iconName: 'Users', badge: 'POS' },
         { name: 'Laporan Scanner', href: '/dashboard/scanner-reports', iconName: 'QrCode', badge: 'Gate' },
         { name: 'Laporan Penjualan', href: '/dashboard/reports', iconName: 'Send' },
         { name: 'Pengaturan', href: '/dashboard/settings', iconName: 'Settings' },

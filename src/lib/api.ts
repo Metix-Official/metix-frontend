@@ -2040,7 +2040,7 @@ export async function fetchMyEvents(): Promise<{
     const storedUser = getStoredUser();
     const userRole = (storedUser?.role || '').toUpperCase();
 
-    if (userRole !== 'OWNER') {
+    if (userRole !== 'OWNER' && userRole !== 'POS' && userRole !== 'CASHIER') {
       const profile = await fetchOrganizerProfile();
       if (profile && profile.id) {
         const filtered = eventsList.filter((e) => {
@@ -3551,12 +3551,16 @@ export async function createOfflineOrder(
   }
 }
 
-export async function fetchOfflineDashboard(eventId: number): Promise<any> {
+export async function fetchOfflineDashboard(eventId: number, cashierId?: number | null): Promise<any> {
   const token = getStoredToken();
   if (!token) return null;
 
   try {
-    const response = await fetch(`${API_BASE_URL}/organizer/events/${eventId}/offline-dashboard`, {
+    let url = `${API_BASE_URL}/organizer/events/${eventId}/offline-dashboard`;
+    if (cashierId) {
+      url += `?cashier_id=${cashierId}`;
+    }
+    const response = await fetch(url, {
       headers: getHeaders(token),
     });
 
@@ -3964,6 +3968,11 @@ export interface ReportOrderItem {
   benefit_type?: string;
   benefit_quantity?: number;
   promo?: any;
+  is_pos?: boolean;
+  cashier_id?: number | null;
+  cashier_name?: string | null;
+  cashier_email?: string | null;
+  sales_channel?: string;
 }
 
 export async function fetchSalesReportData(params?: {
@@ -4061,6 +4070,11 @@ export async function fetchSalesReportData(params?: {
           benefit_type: benefitType,
           benefit_quantity: benefitQuantity,
           promo: promoObj,
+          is_pos: Boolean(ord.is_pos || (ord.order_number && String(ord.order_number).startsWith("POS-")) || ord.cashier_id),
+          cashier_id: ord.cashier_id || null,
+          cashier_name: ord.cashier_name || ord.cashier?.name || null,
+          cashier_email: ord.cashier_email || ord.cashier?.email || null,
+          sales_channel: ord.sales_channel || (String(ord.order_number || "").startsWith("POS-") ? "POS_OFFLINE" : "ONLINE"),
         };
       });
 
@@ -4150,6 +4164,7 @@ export interface EoAdminUser {
   name: string;
   email: string;
   phone?: string | null;
+  role?: string;
   scan_quota?: number | null;
   scan_count?: number;
   event_id?: number | string | null;
@@ -4196,7 +4211,12 @@ export async function fetchEoAdmins(): Promise<EoAdminUser[]> {
       const data = await response.json();
       const list = data?.data || data?.team || data?.scanners || (Array.isArray(data) ? data : []);
       if (Array.isArray(list) && list.length > 0) {
-        staffList = list.map((item: any) => {
+        staffList = list
+          .filter((item: any) => {
+            const r = (item.role || item.user?.role || item.role_in_team || "").toUpperCase();
+            return r !== "POS" && r !== "CASHIER" && r !== "KASIR";
+          })
+          .map((item: any) => {
           const evtObj = item.event || (Array.isArray(item.events) ? item.events[0] : null) || item.assigned_event;
           const evtId = item.event_id || evtObj?.id || item.user?.event_id || (Array.isArray(item.event_ids) ? item.event_ids[0] : null);
           const evtTitle = item.event_title || evtObj?.title || evtObj?.name || item.user?.event_title;
@@ -5945,4 +5965,133 @@ export async function completeRefundRequestApi(
     message: json.message || 'Pengembalian dana berhasil dikonfirmasi selesai.',
     data: json.data,
   };
+}
+
+
+// ==========================================
+// EO POS CASHIERS MANAGEMENT API
+// ==========================================
+
+export interface ApiPosCashierItem {
+  id: number;
+  cashier_assignment_id?: number;
+  name: string;
+  email: string;
+  phone?: string | null;
+  role?: string;
+  status?: string;
+  event_id?: number | null;
+  event_title?: string | null;
+  tickets_sold: number;
+  orders_count: number;
+  total_revenue: number;
+  last_sale_at?: string | null;
+  created_at?: string;
+}
+
+export interface CreatePosCashierPayload {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string | null;
+  event_id: number;
+  status?: string;
+}
+
+export interface UpdatePosCashierPayload {
+  name?: string;
+  email?: string;
+  password?: string;
+  phone?: string | null;
+  event_id?: number | null;
+  status?: string;
+}
+
+export async function fetchEoPosCashiers(): Promise<ApiPosCashierItem[]> {
+  const token = getStoredToken();
+  if (!token) return [];
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/organizer/cashiers`, {
+      headers: getHeaders(token),
+      cache: "no-store",
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const list = data?.data || (Array.isArray(data) ? data : []);
+      return Array.isArray(list) ? list : [];
+    }
+  } catch (err) {
+    console.warn("Failed to fetch EO POS cashiers:", err);
+  }
+  return [];
+}
+
+export async function createEoPosCashier(payload: CreatePosCashierPayload): Promise<ApiPosCashierItem> {
+  const token = getStoredToken();
+  if (!token) throw new Error("Silakan login terlebih dahulu (Unauthenticated).");
+
+  const response = await fetch(`${API_BASE_URL}/organizer/cashiers`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(token),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    let msg = data?.message || "Gagal menambahkan admin kasir POS.";
+    if (data?.errors && typeof data.errors === "object") {
+      const errList = Object.values(data.errors).flat();
+      if (errList.length > 0 && errList[0]) {
+        msg = String(errList[0]);
+      }
+    }
+    throw new Error(msg);
+  }
+
+  return data?.data || data;
+}
+
+export async function updateEoPosCashier(id: number, payload: UpdatePosCashierPayload): Promise<ApiPosCashierItem> {
+  const token = getStoredToken();
+  if (!token) throw new Error("Silakan login terlebih dahulu (Unauthenticated).");
+
+  const response = await fetch(`${API_BASE_URL}/organizer/cashiers/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...getHeaders(token),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    let msg = data?.message || "Gagal memperbarui data admin kasir POS.";
+    if (data?.errors && typeof data.errors === "object") {
+      const errList = Object.values(data.errors).flat();
+      if (errList.length > 0 && errList[0]) {
+        msg = String(errList[0]);
+      }
+    }
+    throw new Error(msg);
+  }
+
+  return data?.data || data;
+}
+
+export async function deleteEoPosCashier(id: number): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) throw new Error("Silakan login terlebih dahulu (Unauthenticated).");
+
+  const response = await fetch(`${API_BASE_URL}/organizer/cashiers/${id}`, {
+    method: "DELETE",
+    headers: getHeaders(token),
+  });
+
+  return response.ok;
 }

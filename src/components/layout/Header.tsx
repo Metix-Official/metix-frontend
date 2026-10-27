@@ -115,6 +115,9 @@ export const Header: React.FC<HeaderProps> = ({
       if (role === 'SCANNER') {
         return 'Staff Scanner QR';
       }
+      if (role === 'POS') {
+        return 'Admin Kasir POS';
+      }
       if (role === 'OWNER') {
         return 'Super Admin Platform';
       }

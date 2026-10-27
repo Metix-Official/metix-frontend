@@ -4,11 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { StatMetric, Transaction, EventItem } from '@/data/mockData';
-import { fetchDashboardData, fetchOwnerOrganizers, fetchEoAdmins, fetchMyEvents, fetchUserTickets, fetchSalesReportData, fetchScannerCheckIns, DashboardResponse, EoAdminUser, getStoredUser, manualSyncPaidOrder } from '@/lib/api';
+import { fetchDashboardData, fetchOwnerOrganizers, fetchEoAdmins, fetchMyEvents, fetchUserTickets, fetchSalesReportData, fetchScannerCheckIns, fetchEoPosCashiers, DashboardResponse, EoAdminUser, ApiPosCashierItem, getStoredUser, manualSyncPaidOrder } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
 import {
   Plus,
+  CreditCard,
   Download,
   Sparkles,
   Ticket,
@@ -46,6 +47,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null);
   const [eoAdmins, setEoAdmins] = useState<EoAdminUser[]>([]);
+  const [posCashiers, setPosCashiers] = useState<ApiPosCashierItem[]>([]);
   const [isManualSyncOpen, setIsManualSyncOpen] = useState(false);
   const [syncInvoice, setSyncInvoice] = useState('MTX-20260925-4GW9LD');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -123,7 +125,10 @@ export default function DashboardPage() {
           salesReport: salesReportRes,
         } as any);
 
-        const admins = await fetchEoAdmins();
+        const [admins, posList] = await Promise.all([
+          fetchEoAdmins().catch(() => []),
+          fetchEoPosCashiers().catch(() => []),
+        ]);
         let globalApiCheckInCount = 0;
         const candidateEventIds = new Set<number | string>();
         finalEvents.forEach((e: any) => { if (e.id) candidateEventIds.add(e.id); });
@@ -184,6 +189,30 @@ export default function DashboardPage() {
         }
 
         setEoAdmins(finalStaffList);
+
+        const apiCashiersList: any[] = rawDash?.cashiers?.list || (res as any)?.cashiers?.list || [];
+        let finalCashierList: ApiPosCashierItem[] = Array.isArray(posList) ? [...posList] : [];
+        if (Array.isArray(apiCashiersList) && apiCashiersList.length > 0) {
+          apiCashiersList.forEach((c: any) => {
+            const cId = c.user_id || c.id;
+            const existing = finalCashierList.find((x) => x.id === cId || (x.email && c.email && x.email.toLowerCase() === c.email.toLowerCase()));
+            if (!existing) {
+              finalCashierList.push({
+                id: cId,
+                name: c.name || "Kasir POS",
+                email: c.email || "",
+                phone: c.phone || null,
+                event_id: c.event_id,
+                event_title: c.event_title || "Event",
+                status: c.status || "ACTIVE",
+                tickets_sold: Number(c.tickets_sold || 0),
+                orders_count: Number(c.orders_count || 0),
+                total_revenue: Number(c.total_revenue || 0),
+              });
+            }
+          });
+        }
+        setPosCashiers(finalCashierList);
       } else {
         // 3. Akun Pembeli (BUYER) - hanya ambil data pembeli agar tidak 403
         const [res, userTickets] = await Promise.all([
@@ -2059,6 +2088,358 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+
+            {/* ========================================================================= */}
+            {/* 5. MONITORING PENJUALAN KASIR OFFLINE (POS)                               */}
+            {/* ========================================================================= */}
+            {(() => {
+              const totalPosTickets = posCashiers.reduce((acc, c) => acc + (Number(c.tickets_sold) || 0), 0);
+              const totalPosRevenue = posCashiers.reduce((acc, c) => acc + (Number(c.total_revenue) || 0), 0);
+
+              return (
+                <div className="rounded-2xl bg-white border border-slate-200/90 p-4 sm:p-5 shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-black uppercase tracking-wider">
+                          Box-Office & Walk-In
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-600 font-bold">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          </span>
+                          Live Sales
+                        </span>
+                      </div>
+                      <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2 tracking-tight">
+                        <CreditCard className="w-5 h-5 text-indigo-600" />
+                        Monitoring Penjualan Kasir Offline (POS)
+                      </h3>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Pantau real-time total lembar tiket yang berhasil dijual oleh masing-masing kasir (Admin POS 1, Admin POS 2, dll).
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-start sm:self-center">
+                      <Link
+                        href="/dashboard/pos"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-all border border-slate-200 shadow-2xs shrink-0 cursor-pointer"
+                      >
+                        <span>Terminal POS</span>
+                      </Link>
+                      <Link
+                        href="/dashboard/pos-cashiers"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black transition-all shadow-md shadow-indigo-600/20 shrink-0 cursor-pointer active:scale-[0.98]"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Kelola Admin POS</span>
+                      </Link>
+                    </div>
+                  </div>
+
+                  {posCashiers.length === 0 ? (
+                    <div className="py-10 text-center space-y-2.5 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto border border-indigo-100">
+                        <CreditCard className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-1 max-w-sm mx-auto">
+                        <h4 className="text-xs font-black text-slate-800">Belum Ada Admin Kasir POS Terdaftar</h4>
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          Daftarkan staf kasir di menu Kelola Admin POS untuk mulai melayani transaksi penjualan tiket on-the-spot di venue acara.
+                        </p>
+                      </div>
+                      <Link
+                        href="/dashboard/pos-cashiers"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors shadow-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Tambah Admin POS
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+                      {/* CARD 1: Grafik Batang (Bar Chart) Penjualan Kasir POS */}
+                      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                              <BarChart3 className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <h4 className="text-xs sm:text-sm font-black text-slate-900">
+                                Grafik Penjualan Kasir POS
+                              </h4>
+                              <p className="text-[10.5px] text-slate-400 font-medium">
+                                Visualisasi perbandingan tiket terjual per admin
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
+                            {posCashiers.length} Kasir
+                          </span>
+                        </div>
+
+                        {/* Bar Chart Area */}
+                        {(() => {
+                          const maxTickets = Math.max(
+                            ...posCashiers.map((c) => Number(c.tickets_sold) || 0),
+                            1
+                          );
+
+                          return (
+                            <div className="space-y-4 pt-1">
+                              {/* Chart Bars Grid */}
+                              <div className="h-44 flex items-end justify-around gap-3 sm:gap-6 px-2 sm:px-4 pb-2 border-b border-dashed border-slate-200 relative">
+                                {/* Grid Lines Background */}
+                                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-40 py-2">
+                                  <div className="border-b border-slate-200 w-full" />
+                                  <div className="border-b border-slate-200 w-full" />
+                                  <div className="border-b border-slate-200 w-full" />
+                                </div>
+
+                                {posCashiers.map((cashier, idx) => {
+                                  const tickets = Number(cashier.tickets_sold) || 0;
+                                  const percent = totalPosTickets > 0 ? Math.round((tickets / totalPosTickets) * 100) : 0;
+                                  // Relative height based on max tickets sold, with min height for visual balance
+                                  const heightPct = Math.max(
+                                    Math.round((tickets / maxTickets) * 100),
+                                    tickets > 0 ? 15 : 6
+                                  );
+
+                                  const barGradients = [
+                                    "from-indigo-600 via-indigo-500 to-blue-400 shadow-indigo-500/20",
+                                    "from-blue-600 via-sky-500 to-cyan-400 shadow-blue-500/20",
+                                    "from-violet-600 via-purple-500 to-fuchsia-400 shadow-purple-500/20",
+                                    "from-emerald-600 via-teal-500 to-emerald-400 shadow-emerald-500/20",
+                                    "from-amber-600 via-orange-500 to-yellow-400 shadow-amber-500/20",
+                                  ];
+                                  const gradientClass = barGradients[idx % barGradients.length];
+
+                                  return (
+                                    <div
+                                      key={cashier.id || idx}
+                                      className="flex flex-col items-center gap-2 z-10 flex-1 max-w-[100px] group cursor-pointer"
+                                    >
+                                      {/* Badge Tiket di Atas Batang */}
+                                      <div className="flex flex-col items-center">
+                                        <span className="text-[10px] sm:text-[11px] font-black text-slate-900 bg-slate-50 group-hover:bg-indigo-50 group-hover:text-indigo-700 px-2 py-0.5 rounded-full border border-slate-200 group-hover:border-indigo-200 shadow-2xs group-hover:scale-105 transition-all whitespace-nowrap font-mono">
+                                          {tickets.toLocaleString("id-ID")} Tiket
+                                        </span>
+                                      </div>
+
+                                      {/* The Bar */}
+                                      <div className="w-full flex justify-center items-end h-28">
+                                        <div
+                                          className={`w-10 sm:w-12 rounded-t-xl bg-gradient-to-t ${gradientClass} shadow-md group-hover:brightness-110 transition-all duration-500 flex items-center justify-center`}
+                                          style={{ height: `${heightPct}%` }}
+                                        >
+                                          {tickets > 0 && (
+                                            <span className="text-white text-[9.5px] font-black drop-shadow-xs">
+                                              {percent}%
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Kasir Label */}
+                                      <div className="text-center w-full">
+                                        <p className="text-[11px] font-bold text-slate-800 truncate group-hover:text-indigo-600 transition-colors">
+                                          {cashier.name || `Admin ${idx + 1}`}
+                                        </p>
+                                        <p className="text-[9px] text-slate-400 font-medium truncate">
+                                          {cashier.email ? cashier.email.split('@')[0] : `POS #${idx + 1}`}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Footer Note */}
+                              <div className="flex items-center justify-between text-[10.5px] text-slate-400 pt-1">
+                                <span className="flex items-center gap-1 font-semibold text-slate-600">
+                                  <Users className="w-3.5 h-3.5 text-indigo-500" />
+                                  Total {posCashiers.length} Admin Kasir Terdaftar
+                                </span>
+                                <span>{totalPosTickets.toLocaleString("id-ID")} Total Tiket Terjual</span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      {/* CARD 2: Rekapitulasi Penjualan (Sesuai Gambar 2) */}
+                      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center">
+                              <Receipt className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <h4 className="text-xs sm:text-sm font-black text-slate-900">
+                                Rekap Penjualan per Kasir
+                              </h4>
+                              <p className="text-[10.5px] text-slate-400 font-medium">
+                                Ringkasan data penjualan masing-masing admin
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                            Aktif
+                          </span>
+                        </div>
+
+                        {/* List Sesuai Format Gambar 2 (Tabel dengan Titik Dua Lurus Sejajar):
+                            Admin   :  10 Tiket
+                            admin 2 :  30 Tiket
+                            -------------------
+                            Total   :  40 Tiket
+                        */}
+                        <div className="p-3 sm:p-4 rounded-xl bg-slate-50/80 border border-slate-200/90">
+                          <div className="max-h-[200px] overflow-y-auto pr-1">
+                            <table className="w-full border-separate border-spacing-y-1 text-left">
+                              <colgroup>
+                                <col className="w-auto" />
+                                <col className="w-8" />
+                                <col className="w-32 sm:w-36" />
+                              </colgroup>
+                              <tbody>
+                                {posCashiers.map((cashier, idx) => {
+                                  const tickets = Number(cashier.tickets_sold) || 0;
+
+                                  return (
+                                    <tr
+                                      key={cashier.id || idx}
+                                      className="hover:bg-white rounded-xl transition-all group"
+                                    >
+                                      {/* Col 1: Nama Admin & Email & Keterangan */}
+                                      <td className="py-2 pl-2 pr-1 align-middle rounded-l-xl group-hover:bg-white transition-colors">
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                          <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs shrink-0 group-hover:scale-105 transition-transform">
+                                            #{idx + 1}
+                                          </div>
+                                          <div className="min-w-0 space-y-0.5">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <span className="text-xs sm:text-sm font-black text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
+                                                {cashier.name || `Admin ${idx + 1}`}
+                                              </span>
+                                              <span className="inline-flex items-center px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-100 text-[9px] font-extrabold uppercase tracking-wide">
+                                                POS
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-[10.5px] text-slate-400 font-medium truncate">
+                                              <span className="truncate">{cashier.email || '-'}</span>
+                                              {cashier.event_title && (
+                                                <>
+                                                  <span className="text-slate-300">•</span>
+                                                  <span className="text-slate-500 font-semibold truncate max-w-[120px]">
+                                                    {cashier.event_title}
+                                                  </span>
+                                                </>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </td>
+
+                                      {/* Col 2: Titik Dua (Lurus Sejajar 100% Mengikuti Kolom Tabel) */}
+                                      <td className="py-2 px-1 text-center align-middle font-black text-slate-400 text-sm sm:text-base w-8 group-hover:bg-white transition-colors">
+                                        :
+                                      </td>
+
+                                      {/* Col 3: Jumlah Tiket & Keterangan Omset */}
+                                      <td className="py-2 pr-2 pl-1 text-right align-middle whitespace-nowrap rounded-r-xl font-mono group-hover:bg-white transition-colors">
+                                        <div className="flex flex-col items-end">
+                                          <div className="flex items-baseline gap-1">
+                                            <span className="text-sm sm:text-base font-black text-slate-900 group-hover:text-indigo-600 transition-colors">
+                                              {tickets.toLocaleString("id-ID")}
+                                            </span>
+                                            <span className="text-[11px] font-bold text-slate-500">
+                                              Tiket
+                                            </span>
+                                          </div>
+                                          <span className="text-[9.5px] font-semibold text-slate-400">
+                                            Rp {(Number(cashier.total_revenue) || 0).toLocaleString("id-ID")}
+                                          </span>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+
+                              {/* Footer Total Row Dalam Tabel Yang Sama Persis */}
+                              <tfoot>
+                                <tr>
+                                  <td colSpan={3} className="pt-2 pb-2">
+                                    <div className="border-t-2 border-dashed border-slate-300" />
+                                  </td>
+                                </tr>
+                                <tr className="bg-gradient-to-r from-amber-50 via-amber-100/50 to-amber-50 shadow-2xs">
+                                  {/* Col 1: Label Total & Keterangan */}
+                                  <td className="py-2.5 pl-3 pr-1 align-middle rounded-l-xl border-y border-l border-amber-300/80">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <span className="relative flex h-2.5 w-2.5 shrink-0">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                                      </span>
+                                      <div>
+                                        <span className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider block">
+                                          TOTAL PENJUALAN
+                                        </span>
+                                        <span className="text-[10px] font-bold text-amber-800/80">
+                                          Akumulasi {posCashiers.length} Kasir POS
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* Col 2: Titik Dua (Lurus Sejajar Sempurna Dengan Kolom Di Atasnya!) */}
+                                  <td className="py-2.5 px-1 text-center align-middle font-black text-amber-950 text-sm sm:text-base w-8 border-y border-amber-300/80">
+                                    :
+                                  </td>
+
+                                  {/* Col 3: Total Tiket & Keterangan Omset */}
+                                  <td className="py-2.5 pr-3 pl-1 text-right align-middle whitespace-nowrap rounded-r-xl border-y border-r border-amber-300/80 font-mono">
+                                    <div className="flex flex-col items-end">
+                                      <div className="flex items-baseline gap-1">
+                                        <span className="text-base sm:text-lg font-black text-amber-950">
+                                          {totalPosTickets.toLocaleString("id-ID")}
+                                        </span>
+                                        <span className="text-xs font-black text-amber-800">
+                                          Tiket
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] font-bold text-emerald-700">
+                                        Rp {totalPosRevenue.toLocaleString("id-ID")}
+                                      </span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Card 2 Footer Details */}
+                        <div className="flex items-center justify-between text-[10.5px] pt-1 border-t border-slate-100">
+                          <span className="text-slate-500 font-medium">
+                            Total Omset Kasir: <strong className="text-slate-900 font-mono font-bold">Rp {totalPosRevenue.toLocaleString("id-ID")}</strong>
+                          </span>
+                          <Link
+                            href="/dashboard/pos-cashiers"
+                            className="text-indigo-600 font-black hover:underline flex items-center gap-1 text-[11px]"
+                          >
+                            <span>Kelola Kasir</span>
+                            <ArrowRight className="w-3 h-3" />
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         );
       })()}

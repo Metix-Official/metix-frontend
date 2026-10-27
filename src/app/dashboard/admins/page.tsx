@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import Link from 'next/link';
 import { toast } from '@/components/ui/sonner';
 import {
   fetchEoAdmins,
@@ -41,6 +42,7 @@ import {
   Calendar,
   Globe,
   Ticket,
+  ArrowRight,
 } from 'lucide-react';
 
 export default function EoAdminsPage() {
@@ -85,7 +87,12 @@ export default function EoAdminsPage() {
     loadAdmins();
   }, []);
 
-  const filteredAdmins = admins.filter(
+  const scannerAdmins = useMemo(
+    () => admins.filter((a) => (a.role || '').toUpperCase() !== 'POS' && (a.role || '').toUpperCase() !== 'CASHIER' && (a.role || '').toUpperCase() !== 'KASIR'),
+    [admins]
+  );
+
+  const filteredAdmins = scannerAdmins.filter(
     (a) =>
       a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       a.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -236,6 +243,25 @@ export default function EoAdminsPage() {
         </div>
       </div>
 
+      {/* Distinction Info Card */}
+      <div className="flex items-center justify-between flex-wrap gap-2 px-4 py-2.5 rounded-2xl bg-blue-50/60 border border-blue-200/60 text-xs">
+        <div className="flex items-center gap-2 text-slate-600 font-medium">
+          <span className="p-1 rounded-lg bg-blue-600 text-white">
+            <QrCode className="w-3.5 h-3.5" />
+          </span>
+          <span>
+            Halaman ini khusus <strong>Admin Scan QR (Gatekeeper)</strong> pintu masuk. Untuk mengelola kasir tiket box-office/offline, silakan buka menu <strong>Kelola Admin POS</strong>.
+          </span>
+        </div>
+        <Link
+          href="/dashboard/pos-cashiers"
+          className="inline-flex items-center gap-1 font-extrabold text-blue-600 hover:text-blue-700 text-xs hover:underline cursor-pointer"
+        >
+          <span>Buka Kelola Admin POS</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+
       {/* Main Content Area */}
       <div className="space-y-4">
         {/* Search & Counter Filter */}
@@ -252,7 +278,7 @@ export default function EoAdminsPage() {
           </div>
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 px-2.5 py-1.5 bg-slate-100 rounded-lg">
             <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-            <span>Total Staff: <strong>{admins.length}</strong> Akun</span>
+            <span>Total Staff Scanner: <strong>{scannerAdmins.length}</strong> Akun Gate</span>
           </div>
         </div>
 
@@ -362,8 +388,8 @@ export default function EoAdminsPage() {
                         </span>
                       </td>
                       <td className="px-3.5 py-2.5">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                          <QrCode className="w-3 h-3" /> Staff Scanner
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs">
+                          <QrCode className="w-3.5 h-3.5 text-indigo-600" /> Staff Scanner Gate
                         </span>
                       </td>
                       <td className="px-3.5 py-2.5 text-slate-500 text-[10px]">

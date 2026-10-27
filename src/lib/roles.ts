@@ -3,6 +3,7 @@ export const ROLES = {
   EO: 'EO',
   BUYER: 'BUYER',
   SCANNER: 'SCANNER',
+  POS: 'POS',
 } as const;
 
 export type UserRole = (typeof ROLES)[keyof typeof ROLES];
@@ -51,6 +52,9 @@ export function getUserRole(
 
     return ROLES.BUYER;
   }
+  if (rawRole === 'POS' || rawRole === 'CASHIER' || rawRole === 'KASIR') {
+    return ROLES.POS;
+  }
   if (rawRole === 'SCANNER' || rawRole === 'STAFF') {
     return ROLES.SCANNER;
   }
@@ -92,6 +96,12 @@ export function isOrganizer(
   user: { role?: string; roles?: Array<{ name: string }> } | null | undefined
 ): boolean {
   return isEo(user);
+}
+
+export function isPos(
+  user: { role?: string; roles?: Array<{ name: string }> } | null | undefined
+): boolean {
+  return hasRole(user, ROLES.POS);
 }
 
 export function isBuyer(
@@ -172,6 +182,7 @@ export function canAccessRoute(
       '/dashboard/pos',
       '/dashboard/checkin',
       '/dashboard/admins',
+      '/dashboard/pos-cashiers',
       '/dashboard/wristbands',
       '/dashboard/reports',
       '/dashboard/scanner-reports',
@@ -206,6 +217,16 @@ export function canAccessRoute(
     return isPathAllowed(scannerAllowed, pathname);
   }
 
+  // POS Cashier Routes
+  if (role === ROLES.POS) {
+    const posAllowed = [
+      '/dashboard/pos',
+      '/dashboard/profile',
+      '/dashboard/security',
+    ];
+    return isPathAllowed(posAllowed, pathname);
+  }
+
   return false;
 }
 
@@ -225,6 +246,8 @@ export function getDefaultRoleDashboard(
       return '/dashboard';
     case ROLES.SCANNER:
       return '/dashboard/checkin';
+    case ROLES.POS:
+      return '/dashboard/pos';
     default:
       return '/';
   }

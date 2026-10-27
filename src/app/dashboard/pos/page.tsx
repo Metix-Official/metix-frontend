@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { isPos } from '@/lib/roles';
 import {
   fetchMyEvents,
   fetchTicketTypes,
@@ -14,6 +15,9 @@ import {
   ApiTicketType,
   ApiPromo,
   CreateOfflineOrderPayload,
+  getStoredUser,
+  fetchEoPosCashiers,
+  ApiPosCashierItem,
 } from '@/lib/api';
 import jsPDF from 'jspdf';
 import { toast } from '@/components/ui/sonner';
@@ -41,6 +45,7 @@ import {
   Phone,
   QrCode,
   Building2,
+  UserCheck,
   Printer,
   RefreshCw,
   Zap,
@@ -156,6 +161,13 @@ export default function PosPage() {
   const [isIframeLoading, setIsIframeLoading] = useState(true);
   const [qrisTimeLeft, setQrisTimeLeft] = useState<number>(900); // 15 mins countdown
 
+  // Logged-in user & Cashier isolation state
+  const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [eoCashiers, setEoCashiers] = useState<ApiPosCashierItem[]>([]);
+  const [selectedCashierFilter, setSelectedCashierFilter] = useState<string>("ALL");
+
+  const isCashierRole = useMemo(() => isPos(currentUser), [currentUser]);
+
   // Recent POS Orders State
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [posStats, setPosStats] = useState<any>({});
@@ -202,7 +214,11 @@ export default function PosPage() {
     const data = await fetchMyEvents();
     setEvents(data.events);
     // Default null: User must choose an event before tickets and pricing are loaded
-    setSelectedEvent(null);
+    if (data.events && data.events.length === 1) {
+      setSelectedEvent(data.events[0]);
+    } else {
+      setSelectedEvent(null);
+    }
     setTicketTypes([]);
     setCart([]);
     setRecentOrders([]);
@@ -211,10 +227,19 @@ export default function PosPage() {
   };
 
   useEffect(() => {
+    const user = getStoredUser();
+    setCurrentUser(user);
     loadEvents();
+    if (user && !isPos(user)) {
+      fetchEoPosCashiers()
+        .then((res) => {
+          if (Array.isArray(res)) setEoCashiers(res);
+        })
+        .catch(() => {});
+    }
   }, []);
 
-  const loadTicketTypesAndPosDashboard = async (evtId: number) => {
+  const loadTicketTypesAndPosDashboard = async (evtId: number, cashierIdParam?: number | null) => {
     setIsTicketsLoading(true);
     const types = await fetchTicketTypes(evtId);
     setTicketTypes(types);
@@ -222,7 +247,11 @@ export default function PosPage() {
     const promos = await fetchPromos(evtId);
     setEventPromos(promos);
 
-    const posData = await fetchOfflineDashboard(evtId);
+    const targetCashier = cashierIdParam !== undefined 
+      ? cashierIdParam 
+      : (selectedCashierFilter !== "ALL" ? Number(selectedCashierFilter) : null);
+
+    const posData = await fetchOfflineDashboard(evtId, targetCashier);
     if (posData) {
       const ordersList = posData.latestOrders || posData.orders || posData.data?.latestOrders || [];
       const statsObj = posData.stats || posData.data?.stats || {};
@@ -230,6 +259,13 @@ export default function PosPage() {
       setPosStats(statsObj);
     }
     setIsTicketsLoading(false);
+  };
+
+  const handleCashierFilterChange = (val: string) => {
+    setSelectedCashierFilter(val);
+    if (selectedEvent) {
+      loadTicketTypesAndPosDashboard(selectedEvent.id, val !== "ALL" ? Number(val) : null);
+    }
   };
 
   useEffect(() => {
@@ -1001,65 +1037,130 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
       <div className="w-full space-y-6">
         {/* Banner Header */}
         <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-800 to-indigo-900 text-white p-6 sm:p-7 shadow-xl shadow-blue-700/15 border border-blue-600/30">
-          <div className="space-y-1.5 max-w-3xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-xs font-black uppercase tracking-wider backdrop-blur-md">
-              <QrCode className="w-3.5 h-3.5 text-amber-300" /> Point of Sale (POS) Console
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5 max-w-3xl">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-xs font-black uppercase tracking-wider backdrop-blur-md">
+                <QrCode className="w-3.5 h-3.5 text-amber-300" /> Point of Sale (POS) Console
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+                Kasir Tiket On-The-Spot & Box-Office
+              </h2>
+              <p className="text-xs text-blue-100 font-medium">
+                Layanan penjualan tiket langsung di venue acara dengan integrasi pembayaran instan <strong>QRIS DOKU</strong> dan <strong>Tunai (Cash)</strong>.
+              </p>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight">
-              Kasir Tiket On-The-Spot & Box-Office
-            </h2>
-            <p className="text-xs text-blue-100 font-medium">
-              Layanan penjualan tiket langsung di venue acara dengan integrasi pembayaran instan <strong>QRIS DOKU</strong> dan <strong>Tunai (Cash)</strong>.
-            </p>
+
+            {isCashierRole && currentUser && (
+              <div className="shrink-0 flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-inner">
+                <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                  <UserCheck className="w-5 h-5 text-emerald-300" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 block">
+                      Petugas Kasir Bertugas
+                    </span>
+                  </div>
+                  <h4 className="text-sm font-black text-white leading-tight">
+                    {currentUser.name}
+                  </h4>
+                  <span className="text-[11px] font-medium text-blue-200 block">
+                    {currentUser.email}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Metric Cards Summary POS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Total Penjualan POS</span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-slate-900">
-                Rp {selectedEvent ? (posStats.totalRevenue || 0).toLocaleString('id-ID') : '0'}
-              </h4>
-              <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
-                <DollarSign className="w-5 h-5" />
+        <div className="space-y-3">
+          {!isCashierRole && eoCashiers.length > 0 && (
+            <div className="flex items-center justify-between flex-wrap gap-2 px-1">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <span>Filter Petugas Kasir:</span>
+              </div>
+              <div className="w-full sm:w-72">
+                <Select value={selectedCashierFilter} onValueChange={handleCashierFilterChange}>
+                  <SelectTrigger className="h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 shadow-2xs cursor-pointer">
+                    <SelectValue placeholder="Semua Petugas Kasir" />
+                  </SelectTrigger>
+                  <SelectContent align="end" className="rounded-2xl shadow-xl border-slate-200 p-1">
+                    <SelectItem value="ALL" className="rounded-xl text-xs font-bold py-2 cursor-pointer">
+                      👥 Semua Petugas Kasir (Total)
+                    </SelectItem>
+                    {eoCashiers.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)} className="rounded-xl text-xs font-bold py-2 cursor-pointer">
+                        👤 {c.name} ({c.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Transaksi Lunas</span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-emerald-600">
-                {selectedEvent ? (posStats.totalOrdersCount || 0) : 0} Order
-              </h4>
-              <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
-                <Receipt className="w-5 h-5" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Total Penjualan POS</span>
+                {isCashierRole && (
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                    Kasir Anda
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xl font-black text-slate-900">
+                  Rp {selectedEvent ? (posStats.totalRevenue || 0).toLocaleString('id-ID') : '0'}
+                </h4>
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-700">
+                  <DollarSign className="w-5 h-5" />
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Penjualan QRIS DOKU</span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-indigo-600">
-                Rp {selectedEvent ? (posStats.salesByMethod?.qris || 0).toLocaleString('id-ID') : '0'}
-              </h4>
-              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700">
-                <QrCode className="w-5 h-5" />
+            <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Transaksi Lunas</span>
+                {posStats.totalTickets ? (
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/60">
+                    {posStats.totalTickets} Tiket
+                  </span>
+                ) : null}
+              </div>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xl font-black text-emerald-600">
+                  {selectedEvent ? (posStats.totalOrdersCount || 0) : 0} Order
+                </h4>
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700">
+                  <Receipt className="w-5 h-5" />
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
-            <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Penjualan Tunai (Cash)</span>
-            <div className="flex items-center justify-between">
-              <h4 className="text-xl font-black text-amber-600">
-                Rp {selectedEvent ? (posStats.salesByMethod?.cash || 0).toLocaleString('id-ID') : '0'}
-              </h4>
-              <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
-                <Building2 className="w-5 h-5" />
+            <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
+              <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Penjualan QRIS DOKU</span>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xl font-black text-indigo-600">
+                  Rp {selectedEvent ? (posStats.salesByMethod?.qris || 0).toLocaleString('id-ID') : '0'}
+                </h4>
+                <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700">
+                  <QrCode className="w-5 h-5" />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5 rounded-3xl bg-white border border-slate-200/90 shadow-2xs space-y-2">
+              <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Penjualan Tunai (Cash)</span>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xl font-black text-amber-600">
+                  Rp {selectedEvent ? (posStats.salesByMethod?.cash || 0).toLocaleString('id-ID') : '0'}
+                </h4>
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
+                  <Building2 className="w-5 h-5" />
+                </div>
               </div>
             </div>
           </div>
@@ -1349,7 +1450,9 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                       <div>
                         <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Riwayat Transaksi POS Hari Ini</h3>
                         <p className="text-xs text-slate-500 font-medium">
-                          {paidOrders.length > 0 ? `${paidOrders.length} transaksi terakhir di meja kasir venue.` : 'Transaksi lunas di meja kasir venue.'}
+                          {isCashierRole
+                            ? (paidOrders.length > 0 ? `${paidOrders.length} transaksi terakhir dicatat oleh Anda (${currentUser?.name || 'Kasir'}).` : 'Transaksi lunas oleh akun kasir Anda.')
+                            : (paidOrders.length > 0 ? `${paidOrders.length} transaksi terakhir di meja kasir venue.` : 'Transaksi lunas di meja kasir venue.')}
                         </p>
                       </div>
                     </div>
@@ -1372,6 +1475,9 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                         <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200 shadow-2xs">
                           <tr className="text-[10px] uppercase font-extrabold text-slate-500">
                             <th className="py-2.5 px-3 whitespace-nowrap sticky top-0 bg-slate-50 border-b border-slate-200">No. Order</th>
+                            {!isCashierRole && (
+                              <th className="py-2.5 px-3 sticky top-0 bg-slate-50 border-b border-slate-200">Petugas</th>
+                            )}
                             <th className="py-2.5 px-3 sticky top-0 bg-slate-50 border-b border-slate-200">Pembeli</th>
                             <th className="py-2.5 px-3 text-center whitespace-nowrap sticky top-0 bg-slate-50 border-b border-slate-200">Jml Tiket</th>
                             <th className="py-2.5 px-3 whitespace-nowrap sticky top-0 bg-slate-50 border-b border-slate-200">Metode</th>
@@ -1394,6 +1500,14 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                                 <td className="py-3 px-3 font-mono font-bold text-blue-700 whitespace-nowrap">
                                   {ord.order_number}
                                 </td>
+                                {!isCashierRole && (
+                                  <td className="py-3 px-3">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px]" title={ord.cashier_name || 'Kasir POS'}>
+                                      <User className="w-3 h-3 text-slate-500 shrink-0" />
+                                      <span className="truncate max-w-[100px]">{ord.cashier_name || 'Kasir POS'}</span>
+                                    </span>
+                                  </td>
+                                )}
                                 <td className="py-3 px-3">
                                   <span
                                     className="font-semibold text-slate-900 block max-w-[130px] sm:max-w-[160px] truncate"

@@ -65,6 +65,9 @@ import {
   MessageSquare,
   Copy,
   Download,
+  ChevronDown,
+  ChevronUp,
+  Users,
 } from 'lucide-react';
 
 interface CartItem {
@@ -171,6 +174,16 @@ export default function PosPage() {
   // Recent POS Orders State
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [posStats, setPosStats] = useState<any>({});
+
+  // Expandable Attendees/Tickets State for POS Orders (Accordion)
+  const [expandedOrders, setExpandedOrders] = useState<Record<string | number, boolean>>({});
+
+  const toggleOrderExpand = (orderId: string | number) => {
+    setExpandedOrders((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
+  };
 
   // Ticket Category Grouping & Filter State
   const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>('ALL');
@@ -595,13 +608,20 @@ export default function PosPage() {
           return [{
             id: createdOrder.id,
             order_number: num,
+            cashier_name: currentUser?.name || 'Kasir POS',
+            cashier_email: currentUser?.email,
             buyer_name: createdOrder.buyer_name || buyerName || 'Pembeli Walk-in (Kasir)',
+            buyer_email: createdOrder.buyer_email || buyerEmail || '-',
             buyer_phone: createdOrder.buyer_phone || buyerPhone,
+            promo_code: createdOrder.promo_code || appliedPromo?.code || null,
+            discount_amount: Number(createdOrder.discount_amount || discountAmount || 0),
+            tickets: createdOrder.tickets || [],
             total_tickets: totalQty,
             items_summary: itemsSummary,
             payment_method: createdOrder.payment_method || paymentMethod,
             grand_total: createdOrder.grand_total || grandTotal || 0,
             status: createdOrder.status || (paymentMethod === 'QRIS' ? 'pending' : 'paid'),
+            created_at: new Date().toISOString(),
           }, ...filtered];
         });
 
@@ -1495,92 +1515,223 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                             const itemsTooltip = ord.items_summary
                               || (Array.isArray(ord.items) && ord.items.length > 0 ? ord.items.map((it: any) => `${it.quantity || 1}x ${it.name || it.ticket_type_name || 'Tiket'}`).join(', ') : `${ticketQty} Tiket`);
 
+                            const isExpanded = Boolean(expandedOrders[ord.id]);
+                            const discountAmount = Number(ord.discount_amount || 0);
+                            const hasDiscount = discountAmount > 0;
+                            const promoCode = ord.promo_code || '';
+                            const originalTotal = Number(ord.grand_total || ord.total_amount || 0) + discountAmount;
+
+                            const ticketsList: any[] = (Array.isArray(ord.tickets) && ord.tickets.length > 0)
+                              ? ord.tickets
+                              : Array.from({ length: ticketQty }).map((_, idx) => ({
+                                  id: `${ord.id}-${idx}`,
+                                  ticket_code: `${ord.order_number}-${String(idx + 1).padStart(2, '0')}`,
+                                  ticket_type: (Array.isArray(ord.items) && ord.items[idx]?.name) || (ord.items && ord.items[0]?.name) || 'Tiket',
+                                  full_name: ord.buyer_name || 'Pembeli Walk-in (Kasir)',
+                                  email: ord.buyer_email || '-',
+                                  phone: ord.buyer_phone || '-',
+                                }));
+
                             return (
-                              <tr key={ord.id} className="hover:bg-slate-50 transition-colors">
-                                <td className="py-3 px-3 font-mono font-bold text-blue-700 whitespace-nowrap">
-                                  {ord.order_number}
-                                </td>
-                                {!isCashierRole && (
-                                  <td className="py-3 px-3">
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px]" title={ord.cashier_name || 'Kasir POS'}>
-                                      <User className="w-3 h-3 text-slate-500 shrink-0" />
-                                      <span className="truncate max-w-[100px]">{ord.cashier_name || 'Kasir POS'}</span>
+                              <React.Fragment key={ord.id}>
+                                <tr className={`hover:bg-blue-50/30 transition-colors ${isExpanded ? 'bg-blue-50/30' : ''}`}>
+                                  {/* No. Order + Chevron Toggle */}
+                                  <td className="py-3 px-3 whitespace-nowrap">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-mono font-bold text-blue-700 tracking-tight">
+                                        {ord.order_number}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleOrderExpand(ord.id)}
+                                        className={`p-1 rounded-md transition-all cursor-pointer ${
+                                          isExpanded
+                                            ? 'bg-blue-100 text-blue-700 shadow-2xs'
+                                            : 'bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-blue-600'
+                                        }`}
+                                        title={isExpanded ? 'Tutup rincian tiket' : `Lihat rincian ${ticketsList.length} tiket`}
+                                      >
+                                        {isExpanded ? (
+                                          <ChevronUp className="w-3.5 h-3.5" />
+                                        ) : (
+                                          <ChevronDown className="w-3.5 h-3.5" />
+                                        )}
+                                      </button>
+                                    </div>
+                                    <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+                                      {ticketQty} Tiket
                                     </span>
                                   </td>
-                                )}
-                                <td className="py-3 px-3">
-                                  <span
-                                    className="font-semibold text-slate-900 block max-w-[130px] sm:max-w-[160px] truncate"
-                                    title={ord.buyer_name || 'Pembeli POS'}
-                                  >
-                                    {ord.buyer_name || 'Pembeli POS'}
-                                  </span>
-                                  {ord.buyer_phone && (
-                                    <span
-                                      className="text-[10px] text-slate-400 font-mono block max-w-[130px] truncate"
-                                      title={ord.buyer_phone}
-                                    >
-                                      {ord.buyer_phone}
-                                    </span>
+
+                                  {!isCashierRole && (
+                                    <td className="py-3 px-3">
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-[10px]" title={ord.cashier_name || 'Kasir POS'}>
+                                        <User className="w-3 h-3 text-slate-500 shrink-0" />
+                                        <span className="truncate max-w-[100px]">{ord.cashier_name || 'Kasir POS'}</span>
+                                      </span>
+                                    </td>
                                   )}
-                                </td>
-                                <td className="py-3 px-3 text-center whitespace-nowrap">
-                                  <span
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 font-black text-xs shadow-2xs"
-                                    title={itemsTooltip}
-                                  >
-                                    <Ticket className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                    <span>{ticketQty}</span>
-                                    <span className="text-[10px] font-bold text-blue-500">Tiket</span>
-                                  </span>
-                                </td>
-                                <td className="py-3 px-3 font-extrabold uppercase text-[10px] text-slate-500 whitespace-nowrap">
-                                  {ord.payment_method || 'QRIS'}
-                                </td>
-                                <td className="py-3 px-3 font-black text-slate-900 whitespace-nowrap">
-                                  Rp {Number(ord.grand_total || ord.total_amount || 0).toLocaleString('id-ID')}
-                                </td>
-                                <td className="py-3 px-3 text-center whitespace-nowrap">
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                    <CheckCircle2 className="w-3 h-3 shrink-0" /> Paid
-                                  </span>
-                                </td>
-                                <td className="py-3 px-3 text-right whitespace-nowrap">
-                                  <div className="flex items-center justify-end gap-1.5 shrink-0">
-                                    {/* Button 1: Detail QR / Buka E-Tiket */}
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenTicketView(ord.order_number)}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 font-bold text-[11px] whitespace-nowrap shrink-0 transition-all cursor-pointer shadow-2xs"
-                                      title="Buka Halaman Barcode E-Tiket"
-                                    >
-                                      <QrCode className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                                      <span>Lihat QR</span>
-                                    </button>
 
-                                    {/* Button 2: Kirim WhatsApp */}
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSendWhatsAppForOrder(ord)}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[11px] whitespace-nowrap shrink-0 transition-all cursor-pointer shadow-2xs"
-                                      title="Kirim E-Tiket ke WhatsApp Pembeli"
+                                  <td className="py-3 px-3">
+                                    <span
+                                      className="font-semibold text-slate-900 block max-w-[130px] sm:max-w-[160px] truncate"
+                                      title={ord.buyer_name || 'Pembeli POS'}
                                     >
-                                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                      <span>Kirim WA</span>
-                                    </button>
+                                      {ord.buyer_name || 'Pembeli POS'}
+                                    </span>
+                                    {ord.buyer_phone && (
+                                      <span
+                                        className="text-[10px] text-slate-400 font-mono block max-w-[130px] truncate"
+                                        title={ord.buyer_phone}
+                                      >
+                                        {ord.buyer_phone}
+                                      </span>
+                                    )}
 
-                                    {/* Button 3: Salin Link (Jika WA bermasalah) */}
+                                    {/* Diskon dan Kode Promo (Gambar 3) */}
+                                    {Boolean(promoCode || hasDiscount) && (
+                                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                                        {promoCode && (
+                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[9.5px] font-extrabold shadow-2xs">
+                                            <Tag className="w-2.5 h-2.5 text-purple-600 shrink-0" />
+                                            <span>{promoCode}</span>
+                                          </span>
+                                        )}
+                                        {hasDiscount && (
+                                          <span className="inline-flex items-center text-[9.5px] font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-200/80">
+                                            Diskon -Rp {discountAmount.toLocaleString('id-ID')}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+
+                                  <td className="py-3 px-3 text-center whitespace-nowrap">
                                     <button
                                       type="button"
-                                      onClick={() => handleCopyTicketLink(ord.order_number)}
-                                      className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 shrink-0 transition-all cursor-pointer"
-                                      title="Salin Tautan E-Tiket ke Clipboard"
+                                      onClick={() => toggleOrderExpand(ord.id)}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 font-black text-xs shadow-2xs transition-all cursor-pointer"
+                                      title={`Klik untuk lihat rincian ${ticketQty} tiket`}
                                     >
-                                      <Copy className="w-3.5 h-3.5" />
+                                      <Ticket className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                      <span>{ticketQty}</span>
+                                      <span className="text-[10px] font-bold text-blue-500">Tiket</span>
                                     </button>
-                                  </div>
-                                </td>
-                              </tr>
+                                  </td>
+
+                                  <td className="py-3 px-3 font-extrabold uppercase text-[10px] text-slate-500 whitespace-nowrap">
+                                    {ord.payment_method || 'QRIS'}
+                                  </td>
+
+                                  {/* Total Tagihan: Harga Awal Dicoret, Diskon, Total, Hemat (Gambar 3) */}
+                                  <td className="py-3 px-3 whitespace-nowrap">
+                                    {hasDiscount ? (
+                                      <div className="flex flex-col items-start gap-0.5">
+                                        <div className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold leading-tight font-mono">
+                                          <span className="text-[9px]">Awal:</span>
+                                          <span className="line-through decoration-rose-500 decoration-1.5">
+                                            Rp {originalTotal.toLocaleString('id-ID')}
+                                          </span>
+                                        </div>
+                                        <span className="text-[10px] font-extrabold text-rose-600 leading-tight font-mono">
+                                          - Rp {discountAmount.toLocaleString('id-ID')}
+                                        </span>
+                                        <span className="font-black text-slate-900 text-xs font-mono">
+                                          Rp {Number(ord.grand_total || ord.total_amount || 0).toLocaleString('id-ID')}
+                                        </span>
+                                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 mt-0.5 inline-block">
+                                          Hemat Rp {discountAmount.toLocaleString('id-ID')}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="font-black text-slate-900 font-mono">
+                                        Rp {Number(ord.grand_total || ord.total_amount || 0).toLocaleString('id-ID')}
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  <td className="py-3 px-3 text-center whitespace-nowrap">
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      <CheckCircle2 className="w-3 h-3 shrink-0" /> Paid
+                                    </span>
+                                  </td>
+
+                                  <td className="py-3 px-3 text-right whitespace-nowrap">
+                                    <div className="flex items-center justify-end gap-1.5 shrink-0">
+                                      {/* Button 1: Detail QR / Buka E-Tiket */}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenTicketView(ord.order_number)}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 font-bold text-[11px] whitespace-nowrap shrink-0 transition-all cursor-pointer shadow-2xs"
+                                        title="Buka Halaman Barcode E-Tiket"
+                                      >
+                                        <QrCode className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                        <span>Lihat QR</span>
+                                      </button>
+
+                                      {/* Button 2: Kirim WhatsApp */}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSendWhatsAppForOrder(ord)}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[11px] whitespace-nowrap shrink-0 transition-all cursor-pointer shadow-2xs"
+                                        title="Kirim E-Tiket ke WhatsApp Pembeli"
+                                      >
+                                        <MessageSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                        <span>Kirim WA</span>
+                                      </button>
+
+                                      {/* Button 3: Salin Link (Jika WA bermasalah) */}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCopyTicketLink(ord.order_number)}
+                                        className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 shrink-0 transition-all cursor-pointer"
+                                        title="Salin Tautan E-Tiket ke Clipboard"
+                                      >
+                                        <Copy className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+
+                                {/* Expandable sub-row for multiple tickets / attendees (Gambar 2) */}
+                                {isExpanded && (
+                                  <tr className="bg-slate-50/70 border-b border-slate-200">
+                                    <td colSpan={isCashierRole ? 7 : 8} className="p-4">
+                                      <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-xs">
+                                        <h5 className="text-xs font-black text-slate-900 flex items-center gap-2">
+                                          <Users className="w-4 h-4 text-blue-600" />
+                                          <span>
+                                            Daftar Tiket & Attendees Pesanan ({ticketsList.length} Peserta)
+                                          </span>
+                                        </h5>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                          {ticketsList.map((t: any, idx: number) => (
+                                            <div
+                                              key={t.id || idx}
+                                              className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50 space-y-1.5 text-xs hover:border-blue-300 hover:bg-blue-50/30 transition-all shadow-2xs"
+                                            >
+                                              <div className="flex items-center justify-between gap-2">
+                                                <span className="font-mono font-black text-blue-700 text-xs tracking-tight">
+                                                  {t.ticket_code || `${ord.order_number}-${String(idx + 1).padStart(2, '0')}`}
+                                                </span>
+                                                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-blue-100/90 text-blue-800 border border-blue-200/60 shrink-0">
+                                                  {t.ticket_type || t.category || (ord.items && ord.items[0]?.name) || 'Tiket'}
+                                                </span>
+                                              </div>
+                                              <div className="font-bold text-slate-900 text-xs truncate">
+                                                {t.full_name || ord.buyer_name || 'Peserta'}
+                                              </div>
+                                              <div className="text-[10.5px] text-slate-500 font-medium truncate">
+                                                {(t.email || ord.buyer_email || '-') + ' • ' + (t.phone || ord.buyer_phone || '-')}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
                             );
                           })}
                         </tbody>

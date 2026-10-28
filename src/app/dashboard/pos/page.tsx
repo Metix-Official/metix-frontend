@@ -1521,6 +1521,25 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                             const promoCode = ord.promo_code || '';
                             const originalTotal = Number(ord.grand_total || ord.total_amount || 0) + discountAmount;
 
+                            const rawTotal = Number(ord.grand_total || ord.total_amount || 0);
+                            let rawSubtotal = Number(ord.subtotal || ord.original_subtotal || 0);
+                            let rawTax = Number(ord.local_tax_amount ?? ord.tax_amount ?? ord.tax ?? 0);
+                            let rawFee = Number(ord.platform_fee ?? ord.fee_platform ?? 0);
+
+                            if (rawSubtotal === 0 && rawTotal > 0) {
+                              rawSubtotal = Math.round(rawTotal / 1.12);
+                            }
+                            if (rawTax === 0 && rawSubtotal > 0) {
+                              rawTax = Math.round(rawSubtotal * 0.05);
+                            }
+                            if (rawFee === 0 && rawSubtotal > 0) {
+                              rawFee = Math.round(rawSubtotal * 0.07);
+                            }
+                            const rowSubtotal = rawSubtotal;
+                            const rowTax = rawTax;
+                            const rowFee = rawFee;
+                            const rowTotal = rawTotal > 0 ? rawTotal : (rowSubtotal + rowTax + rowFee);
+
                             const ticketsList: any[] = (Array.isArray(ord.tickets) && ord.tickets.length > 0)
                               ? ord.tickets
                               : Array.from({ length: ticketQty }).map((_, idx) => ({
@@ -1693,39 +1712,136 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                                   </td>
                                 </tr>
 
-                                {/* Expandable sub-row for multiple tickets / attendees (Gambar 2) */}
+                                {/* Expandable sub-row for multiple tickets / attendees */}
                                 {isExpanded && (
                                   <tr className="bg-slate-50/70 border-b border-slate-200">
-                                    <td colSpan={isCashierRole ? 7 : 8} className="p-4">
+                                    <td colSpan={isCashierRole ? 7 : 8} className="p-3 sm:p-4">
                                       <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-xs">
-                                        <h5 className="text-xs font-black text-slate-900 flex items-center gap-2">
-                                          <Users className="w-4 h-4 text-blue-600" />
-                                          <span>
-                                            Daftar Tiket & Attendees Pesanan ({ticketsList.length} Peserta)
+                                        <div className="flex items-center justify-between">
+                                          <h5 className="text-xs font-black text-slate-900 flex items-center gap-2">
+                                            <Users className="w-4 h-4 text-blue-600" />
+                                            <span>
+                                              Rincian Tiket & Pemesan ({ticketsList.length} Peserta)
+                                            </span>
+                                          </h5>
+                                          <span className="text-[11px] font-mono font-bold text-slate-500">
+                                            No. Order: <span className="text-slate-900">{ord.order_number}</span>
                                           </span>
-                                        </h5>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                          {ticketsList.map((t: any, idx: number) => (
-                                            <div
-                                              key={t.id || idx}
-                                              className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50 space-y-1.5 text-xs hover:border-blue-300 hover:bg-blue-50/30 transition-all shadow-2xs"
-                                            >
-                                              <div className="flex items-center justify-between gap-2">
-                                                <span className="font-mono font-black text-blue-700 text-xs tracking-tight">
-                                                  {t.ticket_code || `${ord.order_number}-${String(idx + 1).padStart(2, '0')}`}
-                                                </span>
-                                                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-blue-100/90 text-blue-800 border border-blue-200/60 shrink-0">
-                                                  {t.ticket_type || t.category || (ord.items && ord.items[0]?.name) || 'Tiket'}
-                                                </span>
-                                              </div>
-                                              <div className="font-bold text-slate-900 text-xs truncate">
-                                                {t.full_name || ord.buyer_name || 'Peserta'}
-                                              </div>
-                                              <div className="text-[10.5px] text-slate-500 font-medium truncate">
-                                                {(t.email || ord.buyer_email || '-') + ' • ' + (t.phone || ord.buyer_phone || '-')}
-                                              </div>
-                                            </div>
-                                          ))}
+                                        </div>
+
+                                        <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
+                                          <table className="w-full text-left text-xs border-collapse">
+                                            <thead className="bg-slate-50 text-slate-700 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
+                                              <tr>
+                                                <th className="py-2.5 px-3.5">Nama Pemesan Tiket</th>
+                                                <th className="py-2.5 px-3.5">Kode & Tipe Tiket</th>
+                                                <th className="py-2.5 px-3.5 text-center w-[80px]">Qty</th>
+                                                <th className="py-2.5 px-3.5 text-right min-w-[130px]">Subtotal Tiket</th>
+                                                <th className="py-2.5 px-3.5 text-right min-w-[100px]">Pajak (5%)</th>
+                                                <th className="py-2.5 px-3.5 text-right min-w-[120px]">Fee Platform (7%)</th>
+                                                <th className="py-2.5 px-3.5 text-right min-w-[130px]">Total Tagihan</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 bg-white">
+                                              {ticketsList.map((t: any, idx: number) => {
+                                                const ticketCount = ticketsList.length || ticketQty || 1;
+                                                const tPrice = (t.price && Number(t.price) > 0)
+                                                  ? Number(t.price)
+                                                  : Math.round(rowSubtotal / ticketCount);
+                                                const tDiscount = hasDiscount ? Math.round(discountAmount / ticketCount) : 0;
+                                                const tSubtotal = Math.max(0, tPrice - tDiscount);
+                                                const tTax = Math.round(rowTax / ticketCount);
+                                                const tFee = Math.round(rowFee / ticketCount);
+                                                const tTotal = Math.round(rowTotal / ticketCount);
+
+                                                return (
+                                                  <tr
+                                                    key={t.id || idx}
+                                                    className="hover:bg-blue-50/30 transition-colors"
+                                                  >
+                                                    {/* 1. Nama Pemesan Tiket */}
+                                                    <td className="py-3 px-3.5 align-middle">
+                                                      <div className="flex flex-col gap-0.5">
+                                                        <span className="font-bold text-slate-900 text-xs">
+                                                          {t.full_name || ord.buyer_name || 'Pembeli Walk-in (Kasir)'}
+                                                        </span>
+                                                        <span className="text-[10.5px] text-slate-400 font-medium">
+                                                          {t.email || ord.buyer_email || '-'}
+                                                          {(t.phone || ord.buyer_phone) && ` • ${t.phone || ord.buyer_phone}`}
+                                                        </span>
+                                                      </div>
+                                                    </td>
+
+                                                    {/* 2. Kode & Tipe Tiket */}
+                                                    <td className="py-3 px-3.5 align-middle">
+                                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span className="font-mono font-black text-blue-700 text-xs tracking-tight">
+                                                          {t.ticket_code || `${ord.order_number}-${String(idx + 1).padStart(2, '0')}`}
+                                                        </span>
+                                                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-blue-100/90 text-blue-800 border border-blue-200/60 shrink-0">
+                                                          {t.ticket_type || t.category || (ord.items && ord.items[0]?.name) || 'Tiket'}
+                                                        </span>
+                                                        {t.category && t.category !== t.ticket_type && (
+                                                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                                            🏷️ {t.category}
+                                                          </span>
+                                                        )}
+                                                      </div>
+                                                    </td>
+
+                                                    {/* 3. Qty */}
+                                                    <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap">
+                                                      <span className="font-black text-slate-900 text-xs px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 inline-block font-mono">
+                                                        1 Pcs
+                                                      </span>
+                                                    </td>
+
+                                                    {/* 4. Subtotal Tiket */}
+                                                    <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                                                      {hasDiscount && tDiscount > 0 ? (
+                                                        <div className="flex flex-col items-end justify-center gap-0.5">
+                                                          <span className="text-[9.5px] line-through text-slate-400 font-mono">
+                                                            Rp {tPrice.toLocaleString('id-ID')}
+                                                          </span>
+                                                          <span className="text-[9.5px] font-extrabold text-rose-600 font-mono">
+                                                            - Rp {tDiscount.toLocaleString('id-ID')}
+                                                          </span>
+                                                          <span className="font-bold text-slate-800 text-xs font-mono">
+                                                            Rp {tSubtotal.toLocaleString('id-ID')}
+                                                          </span>
+                                                        </div>
+                                                      ) : (
+                                                        <span className="font-bold text-slate-800 text-xs font-mono">
+                                                          Rp {tSubtotal.toLocaleString('id-ID')}
+                                                        </span>
+                                                      )}
+                                                    </td>
+
+                                                    {/* 5. Pajak (5%) */}
+                                                    <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                                                      <span className="font-semibold text-amber-700 text-xs font-mono">
+                                                        Rp {tTax.toLocaleString('id-ID')}
+                                                      </span>
+                                                    </td>
+
+                                                    {/* 6. Fee Platform (7%) */}
+                                                    <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                                                      <span className="font-semibold text-purple-700 text-xs font-mono">
+                                                        Rp {tFee.toLocaleString('id-ID')}
+                                                      </span>
+                                                    </td>
+
+                                                    {/* 7. Total Tagihan */}
+                                                    <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                                                      <span className="font-black text-blue-700 text-xs font-mono">
+                                                        Rp {tTotal.toLocaleString('id-ID')}
+                                                      </span>
+                                                    </td>
+                                                  </tr>
+                                                );
+                                              })}
+                                            </tbody>
+                                          </table>
                                         </div>
                                       </div>
                                     </td>

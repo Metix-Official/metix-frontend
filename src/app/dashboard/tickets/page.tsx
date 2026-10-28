@@ -837,9 +837,6 @@ export default function TicketsPage() {
       const ticketType = ticket.ticket_type?.name || (ticket as any).ticket_type_name || (ticket as any).type_name || 'Tiket';
       const category = (ticket.ticket_type as any)?.category || (ticket as any).category || '';
       const buyerName = ticket.holder_name || (ticket.attendee as any)?.full_name || ticket.order?.buyer_name || (ticket as any).user?.name || getStoredUser()?.name || 'Pelanggan Metix';
-      const rawPrice = ticket.ticket_type?.price ?? (ticket.order as any)?.grand_total ?? (ticket.order as any)?.total_amount ?? 0;
-      const numPrice = Number(rawPrice);
-      const priceDisplay = numPrice > 0 ? `Rp ${numPrice.toLocaleString('id-ID')}` : 'FREE PASS';
 
       let dateStr = '-';
       let timeStr = '';
@@ -1087,29 +1084,23 @@ export default function TicketsPage() {
       doc.setFont('courier', 'bold');
       doc.setFontSize(7.5);
       doc.setTextColor(15, 23, 42);
-      doc.text(ticketCode, cardX + 160.5, cardY + 57, { align: 'center' });
-
-      // Price Display
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(37, 99, 235);
-      doc.text(priceDisplay, cardX + 160.5, cardY + 64, { align: 'center' });
+      doc.text(ticketCode, cardX + 160.5, cardY + 58, { align: 'center' });
 
       if (pdfPromoCode) {
         doc.setFillColor(254, 243, 199);
         doc.setDrawColor(245, 158, 11);
-        doc.roundedRect(cardX + 138, cardY + 68, 45, 4.5, 1, 1, 'FD');
+        doc.roundedRect(cardX + 138, cardY + 63, 45, 4.5, 1, 1, 'FD');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(4.8);
         doc.setTextColor(146, 64, 14);
-        doc.text(`KUPON: ${pdfPromoCode}`, cardX + 160.5, cardY + 71.2, { align: 'center' });
+        doc.text(`KUPON: ${pdfPromoCode}`, cardX + 160.5, cardY + 66.2, { align: 'center' });
       }
 
       // Metix Watermark Logo
       doc.setFont('helvetica', 'black');
       doc.setFontSize(9.5);
       doc.setTextColor(30, 58, 138);
-      doc.text('METIX', cardX + 160.5, cardY + 75, { align: 'center' });
+      doc.text('METIX', cardX + 160.5, cardY + (pdfPromoCode ? 74 : 70), { align: 'center' });
 
       // Re-stroke outer card border cleanly
       doc.setDrawColor(203, 213, 225);
@@ -1708,8 +1699,8 @@ export default function TicketsPage() {
 
                     {/* 3. Right Ticket Stub (QR Code & Action Section) - Simple & Clean */}
                     <div className="relative p-5 sm:p-6 w-full md:w-56 lg:w-60 flex flex-col items-center justify-between bg-slate-50/70 border-t md:border-t-0 md:border-l border-slate-200/70 space-y-4 shrink-0 z-10">
-                      {/* Stub Header: Status & Price */}
-                      <div className="w-full flex items-center justify-between gap-2">
+                      {/* Stub Header: Status */}
+                      <div className="w-full flex items-center justify-center">
                         <span
                           className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border shadow-2xs ${isRefundApproved
                               ? 'bg-rose-50 text-rose-700 border-rose-300'
@@ -1729,9 +1720,6 @@ export default function TicketsPage() {
                                 : 'Siap Check-In'}
                         </span>
 
-                        <span className="text-xs font-mono font-black text-slate-800">
-                          {priceDisplay}
-                        </span>
                       </div>
 
                       {/* Official QR Code with Clean Frame */}

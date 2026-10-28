@@ -75,6 +75,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [agreeDataProcessing, setAgreeDataProcessing] = useState(false);
   const [agreeMarketing, setAgreeMarketing] = useState(false);
 
+  // Forgot Password Modal State (Maintenance / Instagram Support)
+  const [isForgotPasswordModalOpen, setIsForgotPasswordModalOpen] = useState(false);
+
   // Forgot Password Flow State
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotOtp, setForgotOtp] = useState('');
@@ -92,6 +95,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   // Synchronize mode whenever initialMode or isOpen changes
   useEffect(() => {
     if (isOpen) {
+      setIsForgotPasswordModalOpen(false);
       setMode(initialMode === 'register' ? 'register' : 'login');
       setLoginError(null);
       setRegisterError(null);
@@ -727,16 +731,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       </label>
                       <button
                         type="button"
-                        onClick={() => {
-                          setForgotEmail(loginEmail || '');
-                          setForgotStep(1);
-                          setForgotError(null);
-                          setForgotSuccess(null);
-                          setForgotOtp('');
-                          setForgotNewPassword('');
-                          setForgotConfirmPassword('');
-                          setMode('forgot_password');
-                        }}
+                        onClick={() => setIsForgotPasswordModalOpen(true)}
                         className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
                       >
                         Lupa Password?
@@ -1447,6 +1442,73 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         userEmail={statusModal.userEmail}
         onClose={() => setStatusModal({ ...statusModal, isOpen: false })}
       />
+
+      {/* Modal Bantuan Lupa Kata Sandi (Maintenance OTP & Kontak Instagram) */}
+      {isForgotPasswordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in-0 duration-200">
+          <div className="relative w-full max-w-[380px] bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-100 text-center space-y-4 animate-in zoom-in-95 duration-200">
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => setIsForgotPasswordModalOpen(false)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+              aria-label="Tutup"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Visual Icon Badge */}
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500/10 via-rose-500/10 to-blue-500/10 border border-slate-200/80 flex items-center justify-center text-slate-800 shadow-2xs">
+              <KeyRound className="w-7 h-7 text-blue-600" />
+            </div>
+
+            {/* Title & Natural Friendly Description */}
+            <div className="space-y-1.5">
+              <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
+                Pembaruan Kata Sandi
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed font-medium px-1">
+                Layanan verifikasi OTP otomatis saat ini sedang dalam peningkatan sistem berkala demi keamanan akun Anda.
+              </p>
+            </div>
+
+            {/* Assistance Card */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70 text-left space-y-1 shadow-2xs">
+              <div className="flex items-center gap-1.5 text-slate-900 text-xs font-bold">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>Bantuan Penggantian Sandi</span>
+              </div>
+              <p className="text-[11.5px] text-slate-500 leading-relaxed font-normal">
+                Untuk mengubah atau mengatur ulang kata sandi akun Anda, silakan hubungi tim kami langsung melalui DM Instagram resmi kami.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-1">
+              <a
+                href="https://www.instagram.com/metix.id/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 hover:opacity-95 active:scale-[0.99] text-white text-xs font-bold shadow-md shadow-pink-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <svg className="w-4 h-4 text-white fill-current shrink-0" viewBox="0 0 24 24">
+                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                </svg>
+                <span>Hubungi Instagram @metix.id</span>
+                <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setIsForgotPasswordModalOpen(false)}
+                className="w-full py-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 text-xs font-semibold transition-all cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

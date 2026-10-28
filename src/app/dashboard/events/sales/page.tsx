@@ -706,8 +706,39 @@ export default function EventSalesDetailPage() {
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {filteredOrders.map((ord) => {
                     const isExpanded = expandedOrderId === ord.id;
-                    const hasTickets = ord.tickets && ord.tickets.length > 0;
+                    const hasTickets = Boolean((ord.tickets && ord.tickets.length > 0) || ord.quantity > 0);
+                    const ticketsList = (ord.tickets && ord.tickets.length > 0)
+                      ? ord.tickets
+                      : [
+                          {
+                            id: ord.id,
+                            ticket_code: ord.order_number,
+                            ticket_type: ord.ticket_type_name || 'Tiket',
+                            full_name: ord.full_name || ord.buyer_name || 'Peserta',
+                            email: ord.buyer_email,
+                            phone: ord.buyer_phone,
+                          }
+                        ];
                     const isPaid = ord.status === 'paid' || ord.status === 'completed';
+
+                    const rawTotal = Number(ord.total_amount || 0);
+                    let rawSubtotal = Number(ord.subtotal || ord.original_subtotal || 0);
+                    let rawTax = Number((ord as any).local_tax_amount ?? ord.tax_amount ?? (ord as any).tax ?? 0);
+                    let rawFee = Number(ord.platform_fee ?? (ord as any).fee_platform ?? 0);
+
+                    if (rawSubtotal === 0 && rawTotal > 0) {
+                      rawSubtotal = Math.round(rawTotal / 1.12);
+                    }
+                    if (rawTax === 0 && rawSubtotal > 0) {
+                      rawTax = Math.round(rawSubtotal * 0.05);
+                    }
+                    if (rawFee === 0 && rawSubtotal > 0) {
+                      rawFee = Math.round(rawSubtotal * 0.07);
+                    }
+                    const rowSubtotal = rawSubtotal;
+                    const rowTax = rawTax;
+                    const rowFee = rawFee;
+                    const rowTotal = rawTotal > 0 ? rawTotal : (rowSubtotal + rowTax + rowFee);
 
                     const discountAmount = Number(ord.discount_amount || 0);
                     const hasDiscount = discountAmount > 0;
@@ -913,34 +944,133 @@ export default function EventSalesDetailPage() {
                         {/* Expandable sub-row for multiple tickets in one order */}
                         {isExpanded && hasTickets && (
                           <tr className="bg-slate-50/70 border-b border-slate-200">
-                            <td colSpan={9} className="p-4">
-                              <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-                                <h5 className="text-xs font-black text-slate-900 flex items-center gap-2">
-                                  <Users className="w-4 h-4 text-blue-600" />
-                                  Daftar Tiket & Attendees Pesanan ({ord.tickets!.length} Peserta)
-                                </h5>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                  {ord.tickets!.map((t, idx) => (
-                                    <div
-                                      key={t.id || idx}
-                                      className="p-3 rounded-xl border border-slate-200 bg-slate-50/50 space-y-1.5 text-xs"
-                                    >
-                                      <div className="flex items-center justify-between">
-                                        <span className="font-mono font-black text-blue-700 text-[11px]">
-                                          {t.ticket_code}
-                                        </span>
-                                        <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-blue-100 text-blue-800">
-                                          {t.ticket_type}
-                                        </span>
-                                      </div>
-                                      <div className="font-bold text-slate-900">
-                                        {t.full_name}
-                                      </div>
-                                      <div className="text-[10px] text-slate-500">
-                                        {t.email || '-'} • {t.phone || '-'}
-                                      </div>
-                                    </div>
-                                  ))}
+                            <td colSpan={9} className="p-3 sm:p-4">
+                              <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-xs">
+                                <div className="flex items-center justify-between">
+                                  <h5 className="text-xs font-black text-slate-900 flex items-center gap-2">
+                                    <Users className="w-4 h-4 text-blue-600" />
+                                    <span>
+                                      Rincian Tiket & Pemesan ({ticketsList.length} Peserta)
+                                    </span>
+                                  </h5>
+                                  <span className="text-[11px] font-mono font-bold text-slate-500">
+                                    No. Order: <span className="text-slate-900">{ord.order_number}</span>
+                                  </span>
+                                </div>
+
+                                <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
+                                  <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-slate-50 text-slate-700 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
+                                      <tr>
+                                        <th className="py-2.5 px-3.5">Nama Pemesan Tiket</th>
+                                        <th className="py-2.5 px-3.5">Kode & Tipe Tiket</th>
+                                        <th className="py-2.5 px-3.5 text-center w-[80px]">Qty</th>
+                                        <th className="py-2.5 px-3.5 text-right min-w-[130px]">Subtotal Tiket</th>
+                                        <th className="py-2.5 px-3.5 text-right min-w-[100px]">Pajak (5%)</th>
+                                        <th className="py-2.5 px-3.5 text-right min-w-[120px]">Fee Platform (7%)</th>
+                                        <th className="py-2.5 px-3.5 text-right min-w-[130px]">Total Tagihan</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                      {ticketsList.map((t: any, idx: number) => {
+                                        const ticketCount = ticketsList.length || ord.quantity || 1;
+                                        const tPrice = (t.price && Number(t.price) > 0)
+                                          ? Number(t.price)
+                                          : Math.round(rowSubtotal / ticketCount);
+                                        const tDiscount = isDiscountPromo ? Math.round(discountAmount / ticketCount) : 0;
+                                        const tSubtotal = Math.max(0, tPrice - tDiscount);
+                                        const tTax = Math.round(rowTax / ticketCount);
+                                        const tFee = Math.round(rowFee / ticketCount);
+                                        const tTotal = Math.round(rowTotal / ticketCount);
+
+                                        return (
+                                          <tr
+                                            key={t.id || idx}
+                                            className="hover:bg-blue-50/30 transition-colors"
+                                          >
+                                            {/* 1. Nama Pemesan Tiket */}
+                                            <td className="py-3 px-3.5 align-middle">
+                                              <div className="flex flex-col gap-0.5">
+                                                <span className="font-bold text-slate-900 text-xs">
+                                                  {t.full_name || ord.buyer_name || 'Peserta'}
+                                                </span>
+                                                <span className="text-[10.5px] text-slate-400 font-medium">
+                                                  {t.email || ord.buyer_email || '-'}
+                                                  {(t.phone || ord.buyer_phone) && ` • ${t.phone || ord.buyer_phone}`}
+                                                </span>
+                                              </div>
+                                            </td>
+
+                                            {/* 2. Kode & Tipe Tiket */}
+                                            <td className="py-3 px-3.5 align-middle">
+                                              <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="font-mono font-black text-blue-700 text-xs tracking-tight">
+                                                  {t.ticket_code || `${ord.order_number}-${String(idx + 1).padStart(2, '0')}`}
+                                                </span>
+                                                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-blue-100/90 text-blue-800 border border-blue-200/60 shrink-0">
+                                                  {t.ticket_type || ord.ticket_type_name || 'Tiket'}
+                                                </span>
+                                                {t.category && (
+                                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                                    🏷️ {t.category}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </td>
+
+                                            {/* 3. Qty */}
+                                            <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap">
+                                              <span className="font-black text-slate-900 text-xs px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 inline-block font-mono">
+                                                1 Pcs
+                                              </span>
+                                            </td>
+
+                                            {/* 4. Subtotal Tiket */}
+                                            <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                                              {isDiscountPromo && tDiscount > 0 ? (
+                                                <div className="flex flex-col items-end justify-center gap-0.5">
+                                                  <span className="text-[9.5px] line-through text-slate-400 font-mono">
+                                                    Rp {tPrice.toLocaleString('id-ID')}
+                                                  </span>
+                                                  <span className="text-[9.5px] font-extrabold text-rose-600 font-mono">
+                                                    - Rp {tDiscount.toLocaleString('id-ID')}
+                                                  </span>
+                                                  <span className="font-bold text-slate-800 text-xs font-mono">
+                                                    Rp {tSubtotal.toLocaleString('id-ID')}
+                                                  </span>
+                                                </div>
+                                              ) : (
+                                                <span className="font-bold text-slate-800 text-xs font-mono">
+                                                  Rp {tSubtotal.toLocaleString('id-ID')}
+                                                </span>
+                                              )}
+                                            </td>
+
+                                            {/* 5. Pajak (5%) */}
+                                            <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                                              <span className="font-semibold text-amber-700 text-xs font-mono">
+                                                Rp {tTax.toLocaleString('id-ID')}
+                                              </span>
+                                            </td>
+
+                                            {/* 6. Fee Platform (7%) */}
+                                            <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                                              <span className="font-semibold text-purple-700 text-xs font-mono">
+                                                Rp {tFee.toLocaleString('id-ID')}
+                                              </span>
+                                            </td>
+
+                                            {/* 7. Total Tagihan */}
+                                            <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                                              <span className="font-black text-blue-700 text-xs font-mono">
+                                                Rp {tTotal.toLocaleString('id-ID')}
+                                              </span>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
                                 </div>
                               </div>
                             </td>

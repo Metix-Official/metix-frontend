@@ -1137,7 +1137,19 @@ export default function ReportsPage() {
                     const originalSubtotal = Number(ord.original_subtotal || rowSubtotal);
                     const netSubtotal = Math.max(0, originalSubtotal - discountAmount);
                     const coffeeLabel = rawBenefitName.trim() || 'Free Coffee';
-                    const hasTickets = Boolean(ord.tickets && ord.tickets.length > 0);
+                    const hasTickets = Boolean((ord.tickets && ord.tickets.length > 0) || ord.quantity > 0);
+                    const ticketsList = (ord.tickets && ord.tickets.length > 0)
+                      ? ord.tickets
+                      : [
+                          {
+                            id: ord.id,
+                            ticket_code: ord.order_number,
+                            ticket_type: ord.ticket_type_name || 'Tiket Masuk',
+                            full_name: ord.buyer_name || 'Peserta',
+                            email: ord.buyer_email,
+                            phone: ord.buyer_phone,
+                          }
+                        ];
                     const isExpanded = Boolean(expandedOrders[ord.id]);
 
                     return (
@@ -1159,7 +1171,7 @@ export default function ReportsPage() {
                                       ? 'bg-blue-100 text-blue-700 shadow-2xs'
                                       : 'bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-blue-600'
                                       }`}
-                                    title={isExpanded ? 'Tutup rincian tiket' : `Lihat rincian ${ord.tickets?.length || ord.quantity} tiket`}
+                                    title={isExpanded ? 'Tutup rincian tiket' : `Lihat rincian ${ticketsList.length || ord.quantity} tiket`}
                                   >
                                     {isExpanded ? (
                                       <ChevronUp className="w-3 h-3" />
@@ -1170,7 +1182,7 @@ export default function ReportsPage() {
                                 )}
                               </div>
                               <span className="text-[10px] text-slate-400 font-medium">
-                                {ord.tickets?.length || ord.quantity} Tiket
+                                {ticketsList.length || ord.quantity} Tiket
                               </span>
                               <span className="text-[11px] font-bold text-slate-800 truncate max-w-[160px]">
                                 {ord.buyer_name}
@@ -1404,36 +1416,133 @@ export default function ReportsPage() {
                         {/* Expandable sub-row for multiple tickets / attendees */}
                         {isExpanded && hasTickets && (
                           <tr className="bg-slate-50/70 border-b border-slate-200">
-                            <td colSpan={11} className="p-4">
+                            <td colSpan={11} className="p-3 sm:p-4">
                               <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-xs">
-                                <h5 className="text-xs font-black text-slate-900 flex items-center gap-2">
-                                  <Users className="w-4 h-4 text-blue-600" />
-                                  <span>
-                                    Daftar Tiket & Attendees Pesanan ({ord.tickets!.length} Peserta)
+                                <div className="flex items-center justify-between">
+                                  <h5 className="text-xs font-black text-slate-900 flex items-center gap-2">
+                                    <Users className="w-4 h-4 text-blue-600" />
+                                    <span>
+                                      Rincian Tiket & Pemesan ({ticketsList.length} Peserta)
+                                    </span>
+                                  </h5>
+                                  <span className="text-[11px] font-mono font-bold text-slate-500">
+                                    No. Order: <span className="text-slate-900">{ord.order_number}</span>
                                   </span>
-                                </h5>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                  {ord.tickets!.map((t, idx) => (
-                                    <div
-                                      key={t.id || idx}
-                                      className="p-3.5 rounded-xl border border-slate-200/90 bg-slate-50/50 space-y-1.5 text-xs hover:border-blue-300 hover:bg-blue-50/30 transition-all shadow-2xs"
-                                    >
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="font-mono font-black text-blue-700 text-xs tracking-tight">
-                                          {t.ticket_code}
-                                        </span>
-                                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-blue-100/90 text-blue-800 border border-blue-200/60 shrink-0">
-                                          {t.ticket_type}
-                                        </span>
-                                      </div>
-                                      <div className="font-bold text-slate-900 text-xs truncate">
-                                        {t.full_name || ord.buyer_name || 'Peserta'}
-                                      </div>
-                                      <div className="text-[10.5px] text-slate-500 font-medium truncate">
-                                        {t.email || ord.buyer_email || '-'} • {t.phone || ord.buyer_phone || '-'}
-                                      </div>
-                                    </div>
-                                  ))}
+                                </div>
+
+                                <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
+                                  <table className="w-full text-left text-xs border-collapse">
+                                    <thead className="bg-slate-50 text-slate-700 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
+                                      <tr>
+                                        <th className="py-2.5 px-3.5">Nama Pemesan Tiket</th>
+                                        <th className="py-2.5 px-3.5">Kode & Tipe Tiket</th>
+                                        <th className="py-2.5 px-3.5 text-center w-[80px]">Qty</th>
+                                        <th className="py-2.5 px-3.5 text-right min-w-[130px]">Subtotal Tiket</th>
+                                        <th className="py-2.5 px-3.5 text-right min-w-[100px]">Pajak (5%)</th>
+                                        <th className="py-2.5 px-3.5 text-right min-w-[120px]">Fee Platform (7%)</th>
+                                        <th className="py-2.5 px-3.5 text-right min-w-[130px]">Total Tagihan</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                      {ticketsList.map((t: any, idx: number) => {
+                                        const ticketCount = ticketsList.length || ord.quantity || 1;
+                                        const tPrice = (t.price && Number(t.price) > 0)
+                                          ? Number(t.price)
+                                          : Math.round(rowSubtotal / ticketCount);
+                                        const tDiscount = isDiscountPromo ? Math.round(discountAmount / ticketCount) : 0;
+                                        const tSubtotal = Math.max(0, tPrice - tDiscount);
+                                        const tTax = Math.round(rowTax / ticketCount);
+                                        const tFee = Math.round(rowFee / ticketCount);
+                                        const tTotal = Math.round(rowTotal / ticketCount);
+
+                                        return (
+                                          <tr
+                                            key={t.id || idx}
+                                            className="hover:bg-blue-50/30 transition-colors"
+                                          >
+                                            {/* 1. Nama Pemesan Tiket */}
+                                            <td className="py-3 px-3.5 align-middle">
+                                              <div className="flex flex-col gap-0.5">
+                                                <span className="font-bold text-slate-900 text-xs">
+                                                  {t.full_name || ord.buyer_name || 'Peserta'}
+                                                </span>
+                                                <span className="text-[10.5px] text-slate-400 font-medium">
+                                                  {t.email || ord.buyer_email || '-'}
+                                                  {(t.phone || ord.buyer_phone) && ` • ${t.phone || ord.buyer_phone}`}
+                                                </span>
+                                              </div>
+                                            </td>
+
+                                            {/* 2. Kode & Tipe Tiket */}
+                                            <td className="py-3 px-3.5 align-middle">
+                                              <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="font-mono font-black text-blue-700 text-xs tracking-tight">
+                                                  {t.ticket_code || `${ord.order_number}-${String(idx + 1).padStart(2, '0')}`}
+                                                </span>
+                                                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-blue-100/90 text-blue-800 border border-blue-200/60 shrink-0">
+                                                  {t.ticket_type || ord.ticket_type_name || 'Tiket'}
+                                                </span>
+                                                {t.category && (
+                                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                                    🏷️ {t.category}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </td>
+
+                                            {/* 3. Qty */}
+                                            <td className="py-3 px-3.5 text-center align-middle whitespace-nowrap">
+                                              <span className="font-black text-slate-900 text-xs px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200 inline-block font-mono">
+                                                1 Pcs
+                                              </span>
+                                            </td>
+
+                                            {/* 4. Subtotal Tiket */}
+                                            <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                                              {isDiscountPromo && tDiscount > 0 ? (
+                                                <div className="flex flex-col items-end justify-center gap-0.5">
+                                                  <span className="text-[9.5px] line-through text-slate-400 font-mono">
+                                                    Rp {tPrice.toLocaleString('id-ID')}
+                                                  </span>
+                                                  <span className="text-[9.5px] font-extrabold text-rose-600 font-mono">
+                                                    - Rp {tDiscount.toLocaleString('id-ID')}
+                                                  </span>
+                                                  <span className="font-bold text-slate-800 text-xs font-mono">
+                                                    Rp {tSubtotal.toLocaleString('id-ID')}
+                                                  </span>
+                                                </div>
+                                              ) : (
+                                                <span className="font-bold text-slate-800 text-xs font-mono">
+                                                  Rp {tSubtotal.toLocaleString('id-ID')}
+                                                </span>
+                                              )}
+                                            </td>
+
+                                            {/* 5. Pajak (5%) */}
+                                            <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                                              <span className="font-semibold text-amber-700 text-xs font-mono">
+                                                Rp {tTax.toLocaleString('id-ID')}
+                                              </span>
+                                            </td>
+
+                                            {/* 6. Fee Platform (7%) */}
+                                            <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                                              <span className="font-semibold text-purple-700 text-xs font-mono">
+                                                Rp {tFee.toLocaleString('id-ID')}
+                                              </span>
+                                            </td>
+
+                                            {/* 7. Total Tagihan */}
+                                            <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
+                                              <span className="font-black text-blue-700 text-xs font-mono">
+                                                Rp {tTotal.toLocaleString('id-ID')}
+                                              </span>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
                                 </div>
                               </div>
                             </td>

@@ -282,17 +282,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsSubmittingRegister(true);
 
     try {
-      // Request OTP for registration (with phone checking in backend)
-      await requestOtpApi({
+      // Registrasi langsung tanpa OTP
+      const res = await registerUser({
+        name: name.trim(),
         email: email.trim(),
-        purpose: 'REGISTER',
+        password,
+        password_confirmation: password,
+        role: registerRole,
         phone: fullPhoneNumber,
+        gender: gender === 'male' ? 'MALE' : 'FEMALE',
+        birth_date: getFormattedBirthDate(),
       });
-      setOtpTargetEmail(email.trim());
-      setOtpPurpose('REGISTER');
-      setIsOtpModalOpen(true);
+
+      handleAuthCompletion(res.user);
     } catch (err: any) {
-      setRegisterError(err.message || 'Gagal mengirim kode OTP registrasi.');
+      setRegisterError(err.message || 'Gagal melakukan registrasi. Silakan periksa kembali data Anda.');
     } finally {
       setIsSubmittingRegister(false);
     }
@@ -1158,7 +1162,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     </p>
                   ) : (
                     <p className="text-[10.5px] text-slate-400 font-medium">
-                      Kode OTP verifikasi akan dikirim ke email ini (cek Inbox / folder Spam).
+                      Pastikan alamat email Anda aktif untuk menerima e-ticket & informasi pesanan.
                     </p>
                   )}
                 </div>
@@ -1394,10 +1398,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   >
                     {isSubmittingRegister ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> Mengirimkan OTP...
+                        <Loader2 className="w-4 h-4 animate-spin" /> Mendaftarkan akun...
                       </>
                     ) : (
-                      'Kirim Kode OTP Registrasi'
+                      'Daftar Sekarang'
                     )}
                   </button>
                 </div>

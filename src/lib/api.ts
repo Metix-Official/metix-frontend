@@ -3798,6 +3798,7 @@ export async function fetchOwnerUsers(params?: FetchOwnerUsersParams): Promise<F
 
     const response = await fetch(url.toString(), {
       headers: getHeaders(token),
+      cache: 'no-store',
     });
 
     if (!response.ok) {
@@ -3828,11 +3829,12 @@ export async function fetchUserSessionStats(): Promise<UserSessionStats | null> 
   try {
     const response = await fetch(`${API_BASE_URL}/owner/users/session-stats`, {
       headers: getHeaders(token),
+      cache: 'no-store',
     });
 
     if (!response.ok) return null;
     const data = await response.json();
-    return data?.data || null;
+    return data?.data || data?.stats || (data?.total_active_tokens !== undefined ? data : null) || null;
   } catch (error) {
     console.warn('Failed to fetch user session stats:', error);
     return null;
@@ -5004,6 +5006,7 @@ export async function fetchOrganizerWithdrawals(params?: {
 
     const response = await fetch(url.toString(), {
       headers: getHeaders(token),
+      cache: 'no-store',
     });
 
     if (!response.ok) return { withdrawals: [] };
@@ -5178,6 +5181,7 @@ export async function fetchOwnerWithdrawals(params?: {
 
     const response = await fetch(url.toString(), {
       headers: getHeaders(token),
+      cache: 'no-store',
     });
 
     if (!response.ok) return { withdrawals: [] };

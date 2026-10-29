@@ -132,18 +132,27 @@ export default function MasterUserPage() {
   const loadUsers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetchOwnerUsers({
-        search: debouncedSearch,
-        role: roleFilter,
-        status: statusFilter,
-        page: currentPage,
-        per_page: perPage,
-      });
+      const [resResult, statsResult] = await Promise.allSettled([
+        fetchOwnerUsers({
+          search: debouncedSearch,
+          role: roleFilter,
+          status: statusFilter,
+          page: currentPage,
+          per_page: perPage,
+        }),
+        fetchUserSessionStats(),
+      ]);
 
-      setUsers(res.users);
-      setMeta(res.meta);
-      if (res.stats) {
-        setSessionStats(res.stats);
+      if (resResult.status === 'fulfilled') {
+        setUsers(resResult.value.users);
+        setMeta(resResult.value.meta);
+        if (resResult.value.stats) {
+          setSessionStats(resResult.value.stats);
+        }
+      }
+
+      if (statsResult.status === 'fulfilled' && statsResult.value) {
+        setSessionStats(statsResult.value);
       }
     } catch (err: any) {
       toast.error('Gagal Mengambil Data Master User', {

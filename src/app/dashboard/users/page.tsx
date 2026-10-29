@@ -300,15 +300,40 @@ export default function MasterUserPage() {
     setIsSavingEdit(false);
   };
 
-  // Handle Revoke Sessions (Force Logout)
+  // Handle Revoke Sessions (Force Logout) with instant Optimistic UI
   const handleConfirmRevokeSession = async () => {
     if (!sessionRevokeUser) return;
+    const targetUserId = sessionRevokeUser.id;
+    const targetUserName = sessionRevokeUser.name;
+    const isBuyer = sessionRevokeUser.role === 'BUYER';
+
     setIsRevokingSession(true);
+
+    // Optimistic Update: Langsung ubah bulatan status sesi user menjadi Merah (Offline) seketika
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === targetUserId
+          ? { ...u, is_online: false, active_sessions_count: 0 }
+          : u
+      )
+    );
+    setSessionStats((prev) =>
+      prev
+        ? {
+            ...prev,
+            total_active_tokens: Math.max(0, prev.total_active_tokens - 1),
+            logged_in_users_count: Math.max(0, prev.logged_in_users_count - 1),
+            buyer_tokens_count: isBuyer ? Math.max(0, prev.buyer_tokens_count - 1) : prev.buyer_tokens_count,
+            buyer_logged_in_count: isBuyer ? Math.max(0, prev.buyer_logged_in_count - 1) : prev.buyer_logged_in_count,
+          }
+        : prev
+    );
+
     try {
-      const res = await revokeOwnerUserSessions(sessionRevokeUser.id);
+      const res = await revokeOwnerUserSessions(targetUserId);
       if (res.success) {
         toast.success('Sesi Berhasil Dihapus! 🔓', {
-          description: `Seluruh sesi aktif untuk ${sessionRevokeUser.name} telah dicabut. Pengguna telah dipaksa logout.`,
+          description: `Seluruh sesi aktif untuk ${targetUserName} telah dicabut. Pengguna telah dipaksa logout.`,
         });
         setSessionRevokeUser(null);
         await loadUsers();
@@ -316,19 +341,42 @@ export default function MasterUserPage() {
         toast.error('Gagal Menghapus Sesi', {
           description: res.message,
         });
+        await loadUsers(); // Rollback jika server gagal
       }
     } catch (err: any) {
       toast.error('Gagal Menghapus Sesi', {
         description: err?.message || 'Terjadi kesalahan sistem saat menghapus sesi.',
       });
+      await loadUsers(); // Rollback
     } finally {
       setIsRevokingSession(false);
     }
   };
 
-  // Handle Revoke All Buyer Sessions (Global Force Logout)
+  // Handle Revoke All Buyer Sessions (Global Force Logout) with instant Optimistic UI
   const handleConfirmRevokeAllBuyers = async () => {
     setIsRevokingAllBuyers(true);
+
+    // Optimistic Update: Langsung ubah seluruh user BUYER di tabel menjadi Merah (Offline) seketika
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.role === 'BUYER'
+          ? { ...u, is_online: false, active_sessions_count: 0 }
+          : u
+      )
+    );
+    setSessionStats((prev) =>
+      prev
+        ? {
+            ...prev,
+            total_active_tokens: Math.max(0, prev.total_active_tokens - prev.buyer_tokens_count),
+            logged_in_users_count: Math.max(0, prev.logged_in_users_count - prev.buyer_logged_in_count),
+            buyer_tokens_count: 0,
+            buyer_logged_in_count: 0,
+          }
+        : prev
+    );
+
     try {
       const res = await revokeAllBuyerSessions();
       if (res.success) {
@@ -341,11 +389,13 @@ export default function MasterUserPage() {
         toast.error('Gagal Menghapus Sesi Pembeli', {
           description: res.message,
         });
+        await loadUsers(); // Rollback
       }
     } catch (err: any) {
       toast.error('Gagal Menghapus Sesi Pembeli', {
         description: err?.message || 'Terjadi kesalahan sistem saat menghapus sesi seluruh pembeli.',
       });
+      await loadUsers(); // Rollback
     } finally {
       setIsRevokingAllBuyers(false);
     }
@@ -681,22 +731,23 @@ export default function MasterUserPage() {
           ) : users.length > 0 ? (
             <div className="space-y-4">
               <div className="overflow-x-auto rounded-2xl border border-slate-200/80">
-                <table className="w-full text-left text-xs text-slate-700 min-w-[950px]">
-                  <thead className="bg-slate-50 text-slate-600 text-[11px] font-black uppercase tracking-wider border-b border-slate-200/80">
+                <table className="w-full text-left text-xs text-slate-700 min-w-[1050px]">
+                  <thead className="bg-slate-50/90 text-slate-600 text-[11px] font-black uppercase tracking-wider border-b border-slate-200/80">
                     <tr>
-                      <th className="py-3.5 px-4 w-12 text-center">#</th>
-                      <th className="py-3.5 px-4">Pengguna</th>
-                      <th className="py-3.5 px-4">Kontak & NIK</th>
-                      <th className="py-3.5 px-4">Role</th>
-                      <th className="py-3.5 px-4">
-                        <div className="flex items-center gap-1">
+                      <th className="py-3.5 px-4 w-12 text-center whitespace-nowrap align-middle">#</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap align-middle">Pengguna</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap align-middle">Kontak & NIK</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap align-middle">Role</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap align-middle text-center">Session</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap align-middle">
+                        <div className="inline-flex items-center gap-1.5">
                           <span>Status</span>
-                          <span className="text-[10px] text-slate-400 font-normal lowercase">(klik utk ubah)</span>
+                          <span className="text-[9px] text-slate-400 font-medium normal-case tracking-normal bg-slate-200/60 px-1.5 py-0.5 rounded-sm">klik ubah</span>
                         </div>
                       </th>
-                      <th className="py-3.5 px-4">Kota / Domisili</th>
-                      <th className="py-3.5 px-4">Bergabung</th>
-                      <th className="py-3.5 px-4 text-right">Aksi</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap align-middle">Kota / Domisili</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap align-middle">Bergabung</th>
+                      <th className="py-3.5 px-4 text-right whitespace-nowrap align-middle">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -716,12 +767,12 @@ export default function MasterUserPage() {
                           onClick={() => setSelectedUser(u)}
                         >
                           {/* Row Number */}
-                          <td className="py-3.5 px-4 text-center font-bold text-slate-400 text-[11px]">
+                          <td className="py-3.5 px-4 text-center font-bold text-slate-400 text-[11px] align-middle whitespace-nowrap">
                             {rowNumber}
                           </td>
 
                           {/* User Info (Photo + Name) */}
-                          <td className="py-3.5 px-4">
+                          <td className="py-3.5 px-4 align-middle">
                             <div className="flex items-center gap-3">
                               {photo ? (
                                 <img
@@ -747,7 +798,7 @@ export default function MasterUserPage() {
                           </td>
 
                           {/* Contact & NIK */}
-                          <td className="py-3.5 px-4">
+                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                             <div className="flex flex-col text-[11px]">
                               <span className="font-bold text-slate-800 flex items-center gap-1 truncate">
                                 <Phone className="w-3 h-3 text-slate-400 shrink-0" />
@@ -761,13 +812,35 @@ export default function MasterUserPage() {
                           </td>
 
                           {/* Role */}
-                          <td className="py-3.5 px-4">
+                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                             {renderRoleBadge(u.role)}
+                          </td>
+
+                          {/* Session Indicator (Online / Offline) */}
+                          <td className="py-3.5 px-4 align-middle whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
+                            {u.is_online ? (
+                              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 shadow-2xs">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                                <span className="text-[11px] font-extrabold text-emerald-700 tracking-wide">
+                                  Online
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200/80 shadow-2xs">
+                                <span className="inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                                <span className="text-[11px] font-extrabold text-rose-700 tracking-wide">
+                                  Offline
+                                </span>
+                              </div>
+                            )}
                           </td>
 
                           {/* Clickable Status Button:
                               Active (Biru) -> Inactive (Kuning) -> Blocked (Merah) -> Active (Biru) */}
-                          <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-3.5 px-4 align-middle whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
                               disabled={statusUpdatingId === u.id}
@@ -780,7 +853,7 @@ export default function MasterUserPage() {
                           </td>
 
                           {/* City / Province */}
-                          <td className="py-3.5 px-4">
+                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                             <div className="flex items-center gap-1.5 text-slate-600 font-medium">
                               <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                               <span className="truncate max-w-[150px]">
@@ -790,7 +863,7 @@ export default function MasterUserPage() {
                           </td>
 
                           {/* Registered Date */}
-                          <td className="py-3.5 px-4">
+                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                             <div className="flex items-center gap-1.5 text-slate-500 font-medium text-[11px]">
                               <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                               <span>{formatDate(u.created_at)}</span>
@@ -798,7 +871,7 @@ export default function MasterUserPage() {
                           </td>
 
                           {/* Action Buttons: Edit & Detail */}
-                          <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                          <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1.5">
                               {/* Edit Button */}
                               <button

@@ -3733,6 +3733,8 @@ export interface OwnerUserItem {
   photo_url?: string | null;
   role: 'OWNER' | 'EO' | 'BUYER' | 'SCANNER' | string;
   status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED' | string;
+  active_sessions_count?: number;
+  is_online?: boolean;
   date_of_birth?: string | null;
   gender?: string | null;
   buyer_address?: string | null;

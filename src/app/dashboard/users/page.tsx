@@ -5,6 +5,10 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import {
   fetchOwnerUsers,
   updateOwnerUser,
+  revokeOwnerUserSessions,
+  revokeAllBuyerSessions,
+  fetchUserSessionStats,
+  UserSessionStats,
   OwnerUserItem,
   getPhotoUrl,
 } from '@/lib/api';
@@ -43,6 +47,8 @@ import {
   Lock,
   Save,
   RotateCcw,
+  LogOut,
+  KeyRound,
 } from 'lucide-react';
 
 interface EditFormData {
@@ -83,6 +89,17 @@ export default function MasterUserPage() {
   // Data State
   const [users, setUsers] = useState<OwnerUserItem[]>([]);
   const [selectedUser, setSelectedUser] = useState<OwnerUserItem | null>(null);
+
+  // Revoke Session (Force Logout) State
+  const [sessionRevokeUser, setSessionRevokeUser] = useState<OwnerUserItem | null>(null);
+  const [isRevokingSession, setIsRevokingSession] = useState(false);
+
+  // Global Revoke All Buyer Sessions State
+  const [isRevokeAllBuyerModalOpen, setIsRevokeAllBuyerModalOpen] = useState(false);
+  const [isRevokingAllBuyers, setIsRevokingAllBuyers] = useState(false);
+
+  // Session Stats State (personal_access_tokens count)
+  const [sessionStats, setSessionStats] = useState<UserSessionStats | null>(null);
 
   // Quick Status Toggle State
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
@@ -125,6 +142,9 @@ export default function MasterUserPage() {
 
       setUsers(res.users);
       setMeta(res.meta);
+      if (res.stats) {
+        setSessionStats(res.stats);
+      }
     } catch (err: any) {
       toast.error('Gagal Mengambil Data Master User', {
         description: err?.message || 'Terjadi kesalahan saat memuat data pengguna.',
@@ -271,6 +291,57 @@ export default function MasterUserPage() {
     setIsSavingEdit(false);
   };
 
+  // Handle Revoke Sessions (Force Logout)
+  const handleConfirmRevokeSession = async () => {
+    if (!sessionRevokeUser) return;
+    setIsRevokingSession(true);
+    try {
+      const res = await revokeOwnerUserSessions(sessionRevokeUser.id);
+      if (res.success) {
+        toast.success('Sesi Berhasil Dihapus! 🔓', {
+          description: `Seluruh sesi aktif untuk ${sessionRevokeUser.name} telah dicabut. Pengguna telah dipaksa logout.`,
+        });
+        setSessionRevokeUser(null);
+        await loadUsers();
+      } else {
+        toast.error('Gagal Menghapus Sesi', {
+          description: res.message,
+        });
+      }
+    } catch (err: any) {
+      toast.error('Gagal Menghapus Sesi', {
+        description: err?.message || 'Terjadi kesalahan sistem saat menghapus sesi.',
+      });
+    } finally {
+      setIsRevokingSession(false);
+    }
+  };
+
+  // Handle Revoke All Buyer Sessions (Global Force Logout)
+  const handleConfirmRevokeAllBuyers = async () => {
+    setIsRevokingAllBuyers(true);
+    try {
+      const res = await revokeAllBuyerSessions();
+      if (res.success) {
+        toast.success('Sesi Semua Pembeli Berhasil Dihapus! 🔓', {
+          description: `Sebanyak ${res.revoked_tokens ?? 0} sesi/token aktif dari ${res.buyer_count ?? 0} akun pembeli (Buyer) telah dicabut. Semua pembeli berhasil dipaksa logout.`,
+        });
+        setIsRevokeAllBuyerModalOpen(false);
+        await loadUsers();
+      } else {
+        toast.error('Gagal Menghapus Sesi Pembeli', {
+          description: res.message,
+        });
+      }
+    } catch (err: any) {
+      toast.error('Gagal Menghapus Sesi Pembeli', {
+        description: err?.message || 'Terjadi kesalahan sistem saat menghapus sesi seluruh pembeli.',
+      });
+    } finally {
+      setIsRevokingAllBuyers(false);
+    }
+  };
+
   // Format Date Helper
   const formatDate = (dateString?: string | null) => {
     if (!dateString) return '-';
@@ -392,7 +463,17 @@ export default function MasterUserPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsRevokeAllBuyerModalOpen(true)}
+                className="px-4 py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-100 hover:text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-xs"
+                title="Hapus sesi aktif dan paksa logout seluruh akun dengan role Buyer"
+              >
+                <LogOut className="w-4 h-4 text-rose-300" />
+                <span>Logout Semua Buyer</span>
+              </button>
+
               <button
                 onClick={handleRefresh}
                 className="px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-xs"
@@ -400,6 +481,96 @@ export default function MasterUserPage() {
                 <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                 <span>Refresh Data</span>
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Metric Cards - Real-time Session Counter (personal_access_tokens) */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* Card 1: Total Sesi Login Aktif */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex items-center justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Total Sesi Login
+                </span>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                  {isLoading ? '-' : (sessionStats?.total_active_tokens ?? 0)}
+                </span>
+                <span className="text-xs font-semibold text-slate-500">Token Aktif</span>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium">
+                Tabel personal_access_tokens
+              </p>
+            </div>
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
+              <KeyRound className="w-5 h-5" />
+            </div>
+          </div>
+
+          {/* Card 2: Pengguna Sedang Login */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                Akun Sedang Online
+              </span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                  {isLoading ? '-' : (sessionStats?.logged_in_users_count ?? 0)}
+                </span>
+                <span className="text-xs font-semibold text-slate-500">Pengguna Unik</span>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium">
+                Dari {meta.total} total akun terdaftar
+              </p>
+            </div>
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5" />
+            </div>
+          </div>
+
+          {/* Card 3: Sesi Buyer (Pembeli) */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                Sesi Buyer (Pembeli)
+              </span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-black text-sky-700 tracking-tight">
+                  {isLoading ? '-' : (sessionStats?.buyer_tokens_count ?? 0)}
+                </span>
+                <span className="text-xs font-semibold text-slate-500">Sesi Aktif</span>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium">
+                {isLoading ? '-' : (sessionStats?.buyer_logged_in_count ?? 0)} akun pembeli online
+              </p>
+            </div>
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center shrink-0">
+              <UserIcon className="w-5 h-5" />
+            </div>
+          </div>
+
+          {/* Card 4: Sesi Penyelenggara & Tim */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                Sesi EO & Staff
+              </span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-black text-amber-700 tracking-tight">
+                  {isLoading ? '-' : ((sessionStats?.eo_tokens_count ?? 0) + (sessionStats?.other_tokens_count ?? 0))}
+                </span>
+                <span className="text-xs font-semibold text-slate-500">Sesi Aktif</span>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium">
+                {sessionStats?.eo_tokens_count ?? 0} EO • {sessionStats?.other_tokens_count ?? 0} Scanner/Admin
+              </p>
+            </div>
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shrink-0">
+              <Building className="w-5 h-5" />
             </div>
           </div>
         </div>
@@ -640,6 +811,20 @@ export default function MasterUserPage() {
                               >
                                 <Eye className="w-3.5 h-3.5" />
                                 <span>Detail</span>
+                              </button>
+
+                              {/* Hapus Sesi / Force Logout Button */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSessionRevokeUser(u);
+                                }}
+                                className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 hover:text-amber-800 font-bold text-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer border border-amber-200 shadow-2xs"
+                                title="Hapus Seluruh Sesi Aktif (Logout Paksa)"
+                              >
+                                <LogOut className="w-3.5 h-3.5" />
+                                <span>Hapus Sesi</span>
                               </button>
                             </div>
                           </td>
@@ -1104,6 +1289,176 @@ export default function MasterUserPage() {
                 className="px-5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-extrabold transition-colors cursor-pointer"
               >
                 Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL KONFIRMASI HAPUS SESI (FORCE LOGOUT) ================= */}
+      {sessionRevokeUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-xs animate-in fade-in-0"
+          onClick={() => !isRevokingSession && setSessionRevokeUser(null)}
+        >
+          <div
+            className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-rose-700 p-6 text-white relative shrink-0">
+              <button
+                type="button"
+                disabled={isRevokingSession}
+                onClick={() => setSessionRevokeUser(null)}
+                className="absolute right-4 top-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer disabled:opacity-50"
+                title="Tutup"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 border-2 border-white/30 text-white flex items-center justify-center font-black text-lg shadow-md shrink-0">
+                  <LogOut className="w-6 h-6" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[11px] font-bold tracking-wider text-amber-200 uppercase block">
+                    Konfirmasi Tindakan
+                  </span>
+                  <h3 className="text-lg font-black truncate">Hapus Sesi & Logout Paksa</h3>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 text-slate-700">
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-900 leading-relaxed">
+                  Apakah Anda yakin ingin menghapus seluruh sesi aktif untuk pengguna:
+                  <div className="mt-1.5 font-bold text-slate-900 text-sm bg-white/80 p-2 rounded-xl border border-amber-200">
+                    {sessionRevokeUser.name} <span className="text-xs text-slate-500 font-normal">({sessionRevokeUser.email})</span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Tindakan ini akan <strong>mencabut seluruh token login</strong> milik pengguna ini di database. Pengguna akan langsung dikeluarkan (logout paksa) dari semua perangkat (HP, laptop, browser) dan harus login ulang untuk dapat mengakses sistem.
+              </p>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                disabled={isRevokingSession}
+                onClick={() => setSessionRevokeUser(null)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isRevokingSession}
+                onClick={handleConfirmRevokeSession}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 text-white font-bold text-xs shadow-md shadow-amber-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isRevokingSession ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Memproses...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="w-4 h-4" />
+                    <span>Ya, Logout Paksa</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL KONFIRMASI HAPUS SESI SEMUA BUYER (GLOBAL FORCE LOGOUT) ================= */}
+      {isRevokeAllBuyerModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-xs animate-in fade-in-0"
+          onClick={() => !isRevokingAllBuyers && setIsRevokeAllBuyerModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-rose-600 via-rose-700 to-red-800 p-6 text-white relative shrink-0">
+              <button
+                type="button"
+                disabled={isRevokingAllBuyers}
+                onClick={() => setIsRevokeAllBuyerModalOpen(false)}
+                className="absolute right-4 top-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer disabled:opacity-50"
+                title="Tutup"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 border-2 border-white/30 text-white flex items-center justify-center font-black text-lg shadow-md shrink-0">
+                  <LogOut className="w-6 h-6" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[11px] font-bold tracking-wider text-rose-200 uppercase block">
+                    Aksi Massal (Owner Only)
+                  </span>
+                  <h3 className="text-lg font-black truncate">Logout Seluruh Buyer</h3>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 text-slate-700">
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200/80 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="text-xs text-rose-900 leading-relaxed">
+                  Apakah Anda yakin ingin <strong>mencabut seluruh sesi login untuk SEMUA akun BUYER</strong>?
+                  <div className="mt-2 text-xs text-rose-800 bg-white/80 p-2.5 rounded-xl border border-rose-200 font-medium">
+                    ⚠️ Pengguna dengan peran <strong>EO, Scanner, dan Owner TIDAK akan terpengaruh</strong>.
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Semua pembeli (Buyer) yang saat ini sedang login di perangkat manapun akan langsung dikeluarkan (logout paksa) dan wajib login kembali jika ingin mengakses platform.
+              </p>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                disabled={isRevokingAllBuyers}
+                onClick={() => setIsRevokeAllBuyerModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isRevokingAllBuyers}
+                onClick={handleConfirmRevokeAllBuyers}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-700 hover:to-red-800 text-white font-bold text-xs shadow-md shadow-rose-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isRevokingAllBuyers ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Mencabut Sesi...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="w-4 h-4" />
+                    <span>Ya, Logout Semua Buyer</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

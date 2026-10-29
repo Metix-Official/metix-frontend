@@ -3752,6 +3752,15 @@ export interface FetchOwnerUsersParams {
   per_page?: number;
 }
 
+export interface UserSessionStats {
+  total_active_tokens: number;
+  logged_in_users_count: number;
+  buyer_tokens_count: number;
+  buyer_logged_in_count: number;
+  eo_tokens_count: number;
+  other_tokens_count: number;
+}
+
 export interface FetchOwnerUsersResponse {
   users: OwnerUserItem[];
   meta: {
@@ -3760,6 +3769,7 @@ export interface FetchOwnerUsersResponse {
     per_page: number;
     total: number;
   };
+  stats?: UserSessionStats;
 }
 
 export async function fetchOwnerUsers(params?: FetchOwnerUsersParams): Promise<FetchOwnerUsersResponse> {
@@ -3802,11 +3812,30 @@ export async function fetchOwnerUsers(params?: FetchOwnerUsersParams): Promise<F
       per_page: Number(params?.per_page || 15),
       total: userList.length,
     };
+    const stats = data?.stats as UserSessionStats | undefined;
 
-    return { users: userList, meta };
+    return { users: userList, meta, stats };
   } catch (error) {
     console.warn('Failed to fetch owner users from API:', error);
     return { users: [], meta: { current_page: 1, last_page: 1, per_page: 15, total: 0 } };
+  }
+}
+
+export async function fetchUserSessionStats(): Promise<UserSessionStats | null> {
+  const token = getStoredToken();
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/owner/users/session-stats`, {
+      headers: getHeaders(token),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data?.data || null;
+  } catch (error) {
+    console.warn('Failed to fetch user session stats:', error);
+    return null;
   }
 }
 
@@ -3857,6 +3886,82 @@ export async function updateOwnerUser(
     };
   } catch (err: any) {
     return { success: false, message: err?.message || 'Terjadi kesalahan koneksi' };
+  }
+}
+
+export async function revokeOwnerUserSessions(
+  userId: number
+): Promise<{ success: boolean; message: string; revoked_tokens?: number }> {
+  const token = getStoredToken();
+  if (!token) return { success: false, message: 'Unauthenticated' };
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/owner/users/${userId}/revoke-sessions`, {
+      method: 'POST',
+      headers: {
+        ...getHeaders(token),
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return {
+        success: false,
+        message: data?.message || 'Gagal menghapus sesi aktif pengguna',
+      };
+    }
+
+    return {
+      success: true,
+      message: data?.message || 'Sesi pengguna berhasil dihapus.',
+      revoked_tokens: data?.data?.revoked_tokens ?? 0,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || 'Terjadi kesalahan koneksi saat menghapus sesi',
+    };
+  }
+}
+
+export async function revokeAllBuyerSessions(): Promise<{
+  success: boolean;
+  message: string;
+  revoked_tokens?: number;
+  buyer_count?: number;
+}> {
+  const token = getStoredToken();
+  if (!token) return { success: false, message: 'Unauthenticated' };
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/owner/users/revoke-buyer-sessions`, {
+      method: 'POST',
+      headers: {
+        ...getHeaders(token),
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return {
+        success: false,
+        message: data?.message || 'Gagal menghapus sesi aktif seluruh buyer',
+      };
+    }
+
+    return {
+      success: true,
+      message: data?.message || 'Seluruh sesi pembeli berhasil dihapus.',
+      revoked_tokens: data?.data?.revoked_tokens ?? 0,
+      buyer_count: data?.data?.buyer_count ?? 0,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || 'Terjadi kesalahan koneksi saat menghapus sesi seluruh buyer',
+    };
   }
 }
 

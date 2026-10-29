@@ -342,9 +342,16 @@ export default function ReportsPage() {
     [paidOrders]
   );
 
-  // 3. Fee Platform Metix (7%)
+  // 3. Fee Platform Metix
   const totalPlatformFee = useMemo(
-    () => paidOrders.reduce((sum, item) => sum + (item.platform_fee ?? Math.round((item.subtotal || 0) * 0.07)), 0),
+    () => paidOrders.reduce((sum, item) => {
+      const sub = item.subtotal || 0;
+      const tax = item.tax_amount ?? Math.round(sub * 0.05);
+      const fee = (item.platform_fee !== undefined && item.platform_fee !== null && item.platform_fee > 0)
+        ? item.platform_fee
+        : ((item.total_amount && item.total_amount > (sub + tax)) ? (item.total_amount - sub - tax) : Math.round(sub * 0.07));
+      return sum + fee;
+    }, 0),
     [paidOrders]
   );
 
@@ -483,7 +490,7 @@ export default function ReportsPage() {
       lines.push([
         escapeCsv('Total Pajak Daerah (5%):'),
         escapeCsv(`Rp ${totalTaxAmount.toLocaleString('id-ID')}`),
-        escapeCsv('Total Fee Platform (7%):'),
+        escapeCsv('Total Fee Platform:'),
         escapeCsv(`Rp ${totalPlatformFee.toLocaleString('id-ID')}`),
       ].join(','));
       lines.push([
@@ -511,7 +518,7 @@ export default function ReportsPage() {
         'Jumlah Tiket (Qty)',
         'Subtotal Tiket (Rp)',
         'Pajak Daerah 5% (Rp)',
-        'Fee Platform 7% (Rp)',
+        'Fee Platform (Rp)',
         'Total Tagihan (Rp)',
         'Metode Pembayaran',
         'Status Transaksi',
@@ -544,7 +551,11 @@ export default function ReportsPage() {
 
         const rowSubtotal = ord.subtotal || 0;
         const rowTax = ord.tax_amount ?? Math.round(rowSubtotal * 0.05);
-        const rowFee = ord.platform_fee ?? Math.round(rowSubtotal * 0.07);
+        const rowFee = (ord.platform_fee !== undefined && ord.platform_fee !== null && ord.platform_fee > 0)
+          ? ord.platform_fee
+          : ((ord.total_amount && ord.total_amount > (rowSubtotal + rowTax))
+              ? (ord.total_amount - rowSubtotal - rowTax)
+              : Math.round(rowSubtotal * 0.07));
         const rowTotal = ord.total_amount || (rowSubtotal + rowTax + rowFee);
 
         lines.push([
@@ -786,11 +797,11 @@ export default function ReportsPage() {
             </span>
           </div>
 
-          {/* 3. Fee Platform 7% */}
+          {/* 3. Fee Platform */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-1 bg-purple-600" />
             <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
-              {currentRole === ROLES.OWNER ? 'Komisi Platform (7%)' : 'Fee Platform (7%)'}
+              {currentRole === ROLES.OWNER ? 'Komisi Platform' : 'Fee Platform'}
             </span>
             <div className="flex items-center justify-between">
               <h4 className="text-lg sm:text-xl font-black text-purple-700 truncate">
@@ -1099,7 +1110,7 @@ export default function ReportsPage() {
                     <th className="sticky top-0 z-20 py-3.5 px-3.5 text-center align-middle w-[70px] min-w-[70px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Qty</th>
                     <th className="sticky top-0 z-20 py-3.5 px-3.5 text-right align-middle min-w-[140px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Subtotal Tiket</th>
                     <th className="sticky top-0 z-20 py-3.5 px-3.5 text-right align-middle min-w-[100px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Pajak (5%)</th>
-                    <th className="sticky top-0 z-20 py-3.5 px-3.5 text-right align-middle min-w-[110px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Fee Platform (7%)</th>
+                    <th className="sticky top-0 z-20 py-3.5 px-3.5 text-right align-middle min-w-[110px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Fee Platform</th>
                     <th className="sticky top-0 z-20 py-3.5 px-3.5 text-right align-middle min-w-[140px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Total Tagihan</th>
                     <th className="sticky top-0 z-20 py-3.5 px-3.5 text-center align-middle min-w-[115px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Pembayaran</th>
                     <th className="sticky top-0 z-20 py-3.5 px-3.5 text-center align-middle min-w-[100px] bg-slate-50/95 backdrop-blur-md border-b-2 border-slate-200 text-slate-700">Status</th>
@@ -1110,7 +1121,11 @@ export default function ReportsPage() {
                   {filteredOrders.map((ord) => {
                     const rowSubtotal = ord.subtotal || 0;
                     const rowTax = ord.tax_amount ?? Math.round(rowSubtotal * 0.05);
-                    const rowFee = ord.platform_fee ?? Math.round(rowSubtotal * 0.07);
+                    const rowFee = (ord.platform_fee !== undefined && ord.platform_fee !== null && ord.platform_fee > 0)
+                      ? ord.platform_fee
+                      : ((ord.total_amount && ord.total_amount > (rowSubtotal + rowTax))
+                          ? (ord.total_amount - rowSubtotal - rowTax)
+                          : Math.round(rowSubtotal * 0.07));
                     const rowTotal = ord.total_amount || (rowSubtotal + rowTax + rowFee);
 
                     const discountAmount = Number(ord.discount_amount || 0);
@@ -1439,7 +1454,7 @@ export default function ReportsPage() {
                                         <th className="py-2.5 px-3.5 text-center w-[80px]">Qty</th>
                                         <th className="py-2.5 px-3.5 text-right min-w-[130px]">Subtotal Tiket</th>
                                         <th className="py-2.5 px-3.5 text-right min-w-[100px]">Pajak (5%)</th>
-                                        <th className="py-2.5 px-3.5 text-right min-w-[120px]">Fee Platform (7%)</th>
+                                        <th className="py-2.5 px-3.5 text-right min-w-[120px]">Fee Platform</th>
                                         <th className="py-2.5 px-3.5 text-right min-w-[130px]">Total Tagihan</th>
                                       </tr>
                                     </thead>
@@ -1448,12 +1463,15 @@ export default function ReportsPage() {
                                         const ticketCount = ticketsList.length || ord.quantity || 1;
                                         const tPrice = (t.price && Number(t.price) > 0)
                                           ? Number(t.price)
-                                          : Math.round(rowSubtotal / ticketCount);
+                                          : (t.unit_price && Number(t.unit_price) > 0)
+                                            ? Number(t.unit_price)
+                                            : Math.round(rowSubtotal / ticketCount);
                                         const tDiscount = isDiscountPromo ? Math.round(discountAmount / ticketCount) : 0;
                                         const tSubtotal = Math.max(0, tPrice - tDiscount);
-                                        const tTax = Math.round(rowTax / ticketCount);
-                                        const tFee = Math.round(rowFee / ticketCount);
-                                        const tTotal = Math.round(rowTotal / ticketCount);
+                                        const ratio = rowSubtotal > 0 ? (tSubtotal / rowSubtotal) : (1 / ticketCount);
+                                        const tTax = Math.round(rowTax * ratio);
+                                        const tFee = Math.round(rowFee * ratio);
+                                        const tTotal = tSubtotal + tTax + tFee;
 
                                         return (
                                           <tr

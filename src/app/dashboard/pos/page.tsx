@@ -1533,7 +1533,7 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                               rawTax = Math.round(rawSubtotal * 0.05);
                             }
                             if (rawFee === 0 && rawSubtotal > 0) {
-                              rawFee = Math.round(rawSubtotal * 0.07);
+                              rawFee = (rawTotal > rawSubtotal + rawTax) ? (rawTotal - rawSubtotal - rawTax) : Math.round(rawSubtotal * 0.07);
                             }
                             const rowSubtotal = rawSubtotal;
                             const rowTax = rawTax;
@@ -1738,7 +1738,7 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                                                 <th className="py-2.5 px-3.5 text-center w-[80px]">Qty</th>
                                                 <th className="py-2.5 px-3.5 text-right min-w-[130px]">Subtotal Tiket</th>
                                                 <th className="py-2.5 px-3.5 text-right min-w-[100px]">Pajak (5%)</th>
-                                                <th className="py-2.5 px-3.5 text-right min-w-[120px]">Fee Platform (7%)</th>
+                                                <th className="py-2.5 px-3.5 text-right min-w-[120px]">Fee Platform</th>
                                                 <th className="py-2.5 px-3.5 text-right min-w-[130px]">Total Tagihan</th>
                                               </tr>
                                             </thead>
@@ -1747,12 +1747,15 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                                                 const ticketCount = ticketsList.length || ticketQty || 1;
                                                 const tPrice = (t.price && Number(t.price) > 0)
                                                   ? Number(t.price)
-                                                  : Math.round(rowSubtotal / ticketCount);
+                                                  : (t.unit_price && Number(t.unit_price) > 0)
+                                                    ? Number(t.unit_price)
+                                                    : Math.round(rowSubtotal / ticketCount);
                                                 const tDiscount = hasDiscount ? Math.round(discountAmount / ticketCount) : 0;
                                                 const tSubtotal = Math.max(0, tPrice - tDiscount);
-                                                const tTax = Math.round(rowTax / ticketCount);
-                                                const tFee = Math.round(rowFee / ticketCount);
-                                                const tTotal = Math.round(rowTotal / ticketCount);
+                                                const ratio = rowSubtotal > 0 ? (tSubtotal / rowSubtotal) : (1 / ticketCount);
+                                                const tTax = Math.round(rowTax * ratio);
+                                                const tFee = Math.round(rowFee * ratio);
+                                                const tTotal = tSubtotal + tTax + tFee;
 
                                                 return (
                                                   <tr

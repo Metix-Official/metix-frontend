@@ -4148,7 +4148,7 @@ export async function fetchSalesReportData(params?: {
           tax = Math.round(subtotal * 0.05);
         }
         if (fee === 0 && subtotal > 0) {
-          fee = Math.round(subtotal * 0.07);
+          fee = (rawTotal > subtotal + tax) ? (rawTotal - subtotal - tax) : Math.round(subtotal * 0.07);
         }
 
         const totalAmount = rawTotal > 0 ? rawTotal : (subtotal + tax + fee);

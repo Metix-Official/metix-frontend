@@ -70,6 +70,7 @@ export default function MasterUserPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sessionFilter, setSessionFilter] = useState<string>('all');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -137,6 +138,7 @@ export default function MasterUserPage() {
           search: debouncedSearch,
           role: roleFilter,
           status: statusFilter,
+          session: sessionFilter,
           page: currentPage,
           per_page: perPage,
         }),
@@ -161,7 +163,7 @@ export default function MasterUserPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [debouncedSearch, roleFilter, statusFilter, currentPage, perPage]);
+  }, [debouncedSearch, roleFilter, statusFilter, sessionFilter, currentPage, perPage]);
 
   useEffect(() => {
     loadUsers();
@@ -178,10 +180,15 @@ export default function MasterUserPage() {
     setDebouncedSearch('');
     setRoleFilter('all');
     setStatusFilter('all');
+    setSessionFilter('all');
     setCurrentPage(1);
   };
 
-  const hasActiveFilters = searchQuery !== '' || roleFilter !== 'all' || statusFilter !== 'all';
+  const hasActiveFilters =
+    searchQuery !== '' ||
+    roleFilter !== 'all' ||
+    statusFilter !== 'all' ||
+    sessionFilter !== 'all';
 
   // Status cycle: ACTIVE -> INACTIVE -> BLOCKED -> ACTIVE
   const getNextStatus = (currentStatus?: string): 'ACTIVE' | 'INACTIVE' | 'BLOCKED' => {
@@ -700,6 +707,39 @@ export default function MasterUserPage() {
                     <SelectItem value="ACTIVE">Active</SelectItem>
                     <SelectItem value="INACTIVE">Inactive</SelectItem>
                     <SelectItem value="BLOCKED">Blocked</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Select Session */}
+              <div className="w-[160px]">
+                <Select
+                  value={sessionFilter}
+                  onValueChange={(val) => {
+                    setSessionFilter(val);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-full bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-blue-600 h-10">
+                    <SelectValue placeholder="Semua Sesi" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Sesi</SelectItem>
+                    <SelectItem value="online">
+                      <div className="inline-flex items-center gap-2">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span className="font-bold text-emerald-700">Online</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="offline">
+                      <div className="inline-flex items-center gap-2">
+                        <span className="inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                        <span className="font-bold text-rose-700">Offline</span>
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>

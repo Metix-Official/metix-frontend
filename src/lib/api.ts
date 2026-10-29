@@ -3750,6 +3750,7 @@ export interface FetchOwnerUsersParams {
   search?: string;
   role?: string;
   status?: string;
+  session?: string;
   page?: number;
   per_page?: number;
 }
@@ -3790,6 +3791,9 @@ export async function fetchOwnerUsers(params?: FetchOwnerUsersParams): Promise<F
     }
     if (params?.status && params.status !== 'all') {
       url.searchParams.append('status', params.status);
+    }
+    if (params?.session && params.session !== 'all') {
+      url.searchParams.append('session', params.session);
     }
     if (params?.page) {
       url.searchParams.append('page', String(params.page));

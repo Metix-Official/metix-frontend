@@ -332,7 +332,11 @@ export default function ReportsPage() {
 
   // 1. Subtotal Penjualan Tiket (Harga Pokok Murni)
   const totalSubtotal = useMemo(
-    () => paidOrders.reduce((sum, item) => sum + (item.subtotal || 0), 0),
+    () => paidOrders.reduce((sum, item) => {
+      const gross = Number(item.original_subtotal || item.subtotal || item.total_amount || 0);
+      const discount = Number(item.discount_amount || (item as any).promo_usage?.discount_amount || (item as any).promo?.discount_value || 0);
+      return sum + Math.max(0, gross - discount);
+    }, 0),
     [paidOrders]
   );
 
@@ -549,7 +553,8 @@ export default function ReportsPage() {
           })
           : '-';
 
-        const rowSubtotal = ord.subtotal || 0;
+        const rowDiscount = Number(ord.discount_amount || (ord as any).promo_usage?.discount_amount || (ord as any).promo?.discount_value || 0);
+        const rowSubtotal = Math.max(0, Number(ord.original_subtotal || ord.subtotal || 0) - rowDiscount);
         const rowTax = ord.tax_amount ?? Math.round(rowSubtotal * 0.05);
         const rowFee = (ord.platform_fee !== undefined && ord.platform_fee !== null && ord.platform_fee > 0)
           ? ord.platform_fee
@@ -576,7 +581,7 @@ export default function ReportsPage() {
           escapeCsv(ord.event_title || '-'),
           escapeCsv(ord.ticket_type_name || '-'),
           escapeCsv(ord.promo_code || '-'),
-          ord.discount_amount || 0,
+          rowDiscount,
           ord.quantity || 1,
           rowSubtotal,
           rowTax,
@@ -1128,7 +1133,7 @@ export default function ReportsPage() {
                           : Math.round(rowSubtotal * 0.07));
                     const rowTotal = ord.total_amount || (rowSubtotal + rowTax + rowFee);
 
-                    const discountAmount = Number(ord.discount_amount || 0);
+                    const discountAmount = Number(ord.discount_amount || (ord as any).promo_usage?.discount_amount || (ord as any).promo?.discount_value || 0);
                     const hasDiscount = discountAmount > 0;
 
                     // Benefit / Free Coffee detection

@@ -196,7 +196,11 @@ export default function EventSalesDetailPage() {
   const totalSubtotal = useMemo(() => {
     return filteredOrders
       .filter((o) => o.status === 'paid' || o.status === 'completed')
-      .reduce((acc, ord) => acc + (ord.subtotal || ord.total_amount), 0);
+      .reduce((acc, ord) => {
+        const grossSub = Number(ord.original_subtotal || ord.subtotal || ord.total_amount || 0);
+        const discount = Number(ord.discount_amount || (ord as any).promo_usage?.discount_amount || (ord as any).promo?.discount_value || 0);
+        return acc + Math.max(0, grossSub - discount);
+      }, 0);
   }, [filteredOrders]);
 
   // Distinct payment methods extracted from orders

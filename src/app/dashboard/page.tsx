@@ -447,7 +447,11 @@ export default function DashboardPage() {
         const status = (item.status || item.payment_status || '').toLowerCase();
         return status === 'paid' || status === 'success' || status === 'completed';
       });
-      const reportSubtotal = (dashboardData as any)?.salesReport?.totalSubtotal || reportOrders.reduce((sum: number, item: any) => sum + (item.subtotal || (item.ticket_price ? item.ticket_price * (item.quantity || 1) : 0) || item.total_amount || 0), 0);
+      const reportSubtotal = (dashboardData as any)?.salesReport?.totalSubtotal || reportOrders.reduce((sum: number, item: any) => {
+        const gross = item.subtotal || (item.ticket_price ? item.ticket_price * (item.quantity || 1) : 0) || item.total_amount || 0;
+        const discount = Number(item.discount_amount || item.promo_usage?.discount_amount || 0);
+        return sum + Math.max(0, gross - discount);
+      }, 0);
       const reportTicketsSold = (dashboardData as any)?.salesReport?.totalTicketsSold || reportOrders.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
 
       const calcOrders = rawEvents.reduce((acc: number, e: any) => {
@@ -1133,7 +1137,11 @@ export default function DashboardPage() {
           const status = (item.status || item.payment_status || '').toLowerCase();
           return status === 'paid' || status === 'success' || status === 'completed';
         });
-        const reportSubtotal = (dashboardData as any)?.salesReport?.totalSubtotal || reportOrders.reduce((sum: number, item: any) => sum + (item.subtotal || (item.ticket_price ? item.ticket_price * (item.quantity || 1) : 0) || item.total_amount || 0), 0);
+        const reportSubtotal = (dashboardData as any)?.salesReport?.totalSubtotal || reportOrders.reduce((sum: number, item: any) => {
+        const gross = item.subtotal || (item.ticket_price ? item.ticket_price * (item.quantity || 1) : 0) || item.total_amount || 0;
+        const discount = Number(item.discount_amount || item.promo_usage?.discount_amount || 0);
+        return sum + Math.max(0, gross - discount);
+      }, 0);
         const reportTicketsSold = (dashboardData as any)?.salesReport?.totalTicketsSold || reportOrders.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
 
         const calcOrders = rawEvents.reduce((acc: number, e: any) => {
@@ -1152,11 +1160,19 @@ export default function DashboardPage() {
 
         const calcOnlineSubtotal = reportOrders
           .filter((item: any) => !String(item.order_number || '').toUpperCase().startsWith('POS-'))
-          .reduce((sum: number, item: any) => sum + (item.subtotal || (item.ticket_price ? item.ticket_price * (item.quantity || 1) : 0) || item.total_amount || 0), 0);
+          .reduce((sum: number, item: any) => {
+            const gross = item.subtotal || (item.ticket_price ? item.ticket_price * (item.quantity || 1) : 0) || item.total_amount || 0;
+            const discount = Number(item.discount_amount || item.promo_usage?.discount_amount || 0);
+            return sum + Math.max(0, gross - discount);
+          }, 0);
 
         const calcOfflineSubtotal = reportOrders
           .filter((item: any) => String(item.order_number || '').toUpperCase().startsWith('POS-'))
-          .reduce((sum: number, item: any) => sum + (item.subtotal || (item.ticket_price ? item.ticket_price * (item.quantity || 1) : 0) || item.total_amount || 0), 0);
+          .reduce((sum: number, item: any) => {
+            const gross = item.subtotal || (item.ticket_price ? item.ticket_price * (item.quantity || 1) : 0) || item.total_amount || 0;
+            const discount = Number(item.discount_amount || item.promo_usage?.discount_amount || 0);
+            return sum + Math.max(0, gross - discount);
+          }, 0);
 
         const onlineRevenue = typeof eoChannels?.online?.revenue === 'number'
           ? eoChannels.online.revenue

@@ -286,21 +286,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsSubmittingRegister(true);
 
     try {
-      // Registrasi langsung tanpa OTP
-      const res = await registerUser({
-        name: name.trim(),
+      // Kirim kode OTP untuk verifikasi pendaftaran akun baru
+      await requestOtpApi({
         email: email.trim(),
-        password,
-        password_confirmation: password,
-        role: registerRole,
+        purpose: 'REGISTER',
         phone: fullPhoneNumber,
-        gender: gender === 'male' ? 'MALE' : 'FEMALE',
-        birth_date: getFormattedBirthDate(),
       });
 
-      handleAuthCompletion(res.user);
+      setOtpTargetEmail(email.trim());
+      setOtpPurpose('REGISTER');
+      setIsOtpModalOpen(true);
     } catch (err: any) {
-      setRegisterError(err.message || 'Gagal melakukan registrasi. Silakan periksa kembali data Anda.');
+      setRegisterError(err.message || 'Gagal mengirimkan kode OTP registrasi. Silakan periksa kembali data Anda.');
     } finally {
       setIsSubmittingRegister(false);
     }
@@ -383,9 +380,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   const handleResendOtpModal = async () => {
+    const cleanPhoneDigits = phone.trim().replace(/\D/g, '');
+    const fullPhoneNumber = cleanPhoneDigits ? `+62${cleanPhoneDigits}` : undefined;
     await requestOtpApi({
       email: otpTargetEmail,
       purpose: otpPurpose,
+      phone: otpPurpose === 'REGISTER' ? fullPhoneNumber : undefined,
     });
   };
 
@@ -1393,7 +1393,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   >
                     {isSubmittingRegister ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" /> Mendaftarkan akun...
+                        <Loader2 className="w-4 h-4 animate-spin" /> Mengirim kode OTP...
                       </>
                     ) : (
                       'Daftar Sekarang'

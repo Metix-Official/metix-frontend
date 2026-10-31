@@ -19,11 +19,11 @@ export const metadata: Metadata = {
   description: "Beli tiket resmi event, konser musik, seminar, dan festival pilihan Anda.",
   icons: {
     icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
       { url: "/icon_metix.jpeg", type: "image/jpeg" },
-      { url: "/icon.jpeg", type: "image/jpeg" },
     ],
-    shortcut: "/icon_metix.jpeg",
-    apple: "/icon_metix.jpeg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
   },
 };
 

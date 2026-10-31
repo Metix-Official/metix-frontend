@@ -202,7 +202,7 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
                           {/* Avatar with Instagram story gradient ring */}
                           <div className="p-0.5 rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600">
                             <img
-                              src="/icon_metix.jpeg"
+                              src="/icon.svg"
                               alt="Metix Logo"
                               className="w-7 h-7 rounded-full object-cover bg-white"
                             />

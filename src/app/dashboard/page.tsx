@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
+import { TicketCategoriesCard } from '@/components/dashboard/TicketCategoriesCard';
 import { StatMetric, Transaction, EventItem } from '@/data/mockData';
-import { fetchDashboardData, fetchOwnerOrganizers, fetchEoAdmins, fetchMyEvents, fetchUserTickets, fetchSalesReportData, fetchScannerCheckIns, fetchEoPosCashiers, DashboardResponse, EoAdminUser, ApiPosCashierItem, getStoredUser, manualSyncPaidOrder } from '@/lib/api';
+import { fetchDashboardData, fetchOwnerOrganizers, fetchEoAdmins, fetchMyEvents, fetchUserTickets, fetchSalesReportData, fetchScannerCheckIns, fetchEoPosCashiers, fetchMasterEvents, DashboardResponse, EoAdminUser, ApiPosCashierItem, getStoredUser, manualSyncPaidOrder } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from 'sonner';
 import {
@@ -92,13 +93,16 @@ export default function DashboardPage() {
       // 1. Akun OWNER (Super Admin Platform):
       // Panggil owner dashboard dan hitung pending organizer approvals
       if (role === 'OWNER') {
-        const [res, pendingRes] = await Promise.all([
+        const [res, pendingRes, masterEventsRes] = await Promise.all([
           fetchDashboardData(),
           fetchOwnerOrganizers({ status: 'PENDING_APPROVAL' }).catch(() => ({ organizers: [], meta: { total: 0 } })),
+          fetchMasterEvents({ per_page: 50 }).catch(() => ({ events: [] })),
         ]);
         const pendingCount = (pendingRes as any)?.meta?.total ?? (pendingRes as any)?.organizers?.length ?? 0;
+        const eventsList = (masterEventsRes as any)?.events || (masterEventsRes as any)?.data || [];
         setDashboardData({
           ...res,
+          eventsList: eventsList,
           pendingMitraCount: pendingCount,
         } as any);
         setIsLoading(false);
@@ -116,11 +120,17 @@ export default function DashboardPage() {
           fetchSalesReportData({ month: 'all', year: 'all' }),
         ]);
 
-        const finalEvents = (res?.eventsList && res.eventsList.length > 0) ? res.eventsList : (myEventsRes?.events || []);
+        const finalEvents = myEventsRes?.events || [];
+        const myEventIds = new Set(finalEvents.map((e: any) => String(e.id)));
+
+        // Scope ticket_types_by_event strictly to the EO's own events
+        const rawTicketTypes = (res as any)?.ticket_types_by_event || (res as any)?.data?.ticket_types_by_event || [];
+        const eoTicketTypes = rawTicketTypes.filter((ev: any) => myEventIds.has(String(ev.event_id)));
 
         setDashboardData({
           ...res,
           eventsList: finalEvents,
+          ticket_types_by_event: eoTicketTypes,
           tickets: (res?.tickets?.data && res.tickets.data.length > 0) ? res.tickets : { data: userTickets || [] },
           salesReport: salesReportRes,
         } as any);
@@ -269,6 +279,17 @@ export default function DashboardPage() {
     return 'pembeli';
   }, [storedUser, isScannerAdmin]);
 
+  // Memoized ticket types per event for category card and breakdown
+  const ticketTypesByEventList = React.useMemo(() => {
+    const rawData = (dashboardData as any)?.data || dashboardData;
+    const eoTicketTypesByEvent = dashboardData?.ticket_types_by_event || rawData?.ticket_types_by_event || [];
+    const rawEvents = dashboardData?.eventsList || rawData?.eventsList || [];
+    if (Array.isArray(eoTicketTypesByEvent) && eoTicketTypesByEvent.length > 0) {
+      return eoTicketTypesByEvent;
+    }
+    return rawEvents;
+  }, [dashboardData]);
+
   // Compute stat cards values based on authenticated role
   const statsToDisplay: StatMetric[] = React.useMemo(() => {
     const rawData = (dashboardData as any)?.data || dashboardData;
@@ -336,8 +357,8 @@ export default function DashboardPage() {
     const totalStaff = uniqueStaffIds.size > 0
       ? uniqueStaffIds.size
       : (eoAdmins.length > 0
-          ? eoAdmins.length
-          : Number(rawData?.scanners?.total ?? (dashboardData as any)?.scanners?.total ?? 0));
+        ? eoAdmins.length
+        : Number(rawData?.scanners?.total ?? (dashboardData as any)?.scanners?.total ?? 0));
 
     const totalScannedFromAdmins = eoAdmins.reduce((acc, a) => acc + (Number(a.scan_count) || 0), 0);
     const totalScannedFromScannersList = scannersListFromApi.reduce((acc: number, sc: any) => acc + (Number(sc.scanned_count ?? sc.scan_count) || 0), 0);
@@ -1124,6 +1145,17 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ========================================================================= */}
+      {/* CARD DETAIL KUOTA & PENJUALAN PER KATEGORI TIKET (SESUAI GAMBAR REFERENSI) */}
+      {/* ========================================================================= */}
+      {(currentRole === 'owner' || currentRole === 'mitra') && (
+        <TicketCategoriesCard
+          ticketTypesByEvent={ticketTypesByEventList}
+          rawEvents={dashboardData?.eventsList || []}
+          currentRole={currentRole}
+        />
+      )}
+
       {/* Monitor Activity Per Scanner Widget (Scanner 1, Scanner 2, Scanner 3...) - ONLY for EO (mitra) */}
       {currentRole === 'mitra' && (() => {
         const eoRevenueData = dashboardData?.revenue || (dashboardData as any)?.data?.revenue;
@@ -1138,10 +1170,10 @@ export default function DashboardPage() {
           return status === 'paid' || status === 'success' || status === 'completed';
         });
         const reportSubtotal = (dashboardData as any)?.salesReport?.totalSubtotal || reportOrders.reduce((sum: number, item: any) => {
-        const gross = item.subtotal || (item.ticket_price ? item.ticket_price * (item.quantity || 1) : 0) || item.total_amount || 0;
-        const discount = Number(item.discount_amount || item.promo_usage?.discount_amount || 0);
-        return sum + Math.max(0, gross - discount);
-      }, 0);
+          const gross = item.subtotal || (item.ticket_price ? item.ticket_price * (item.quantity || 1) : 0) || item.total_amount || 0;
+          const discount = Number(item.discount_amount || item.promo_usage?.discount_amount || 0);
+          return sum + Math.max(0, gross - discount);
+        }, 0);
         const reportTicketsSold = (dashboardData as any)?.salesReport?.totalTicketsSold || reportOrders.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
 
         const calcOrders = rawEvents.reduce((acc: number, e: any) => {
@@ -1391,7 +1423,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex justify-between text-[10px] font-bold text-slate-400">
                         <span>Porsi Kanal Online</span>
-                        <span>{onlineRevenuePct}% dari Total Omzet</span>
+                        <span>{onlineRevenuePct}% dari Total</span>
                       </div>
                     </div>
                   </div>
@@ -1441,7 +1473,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex justify-between text-[10px] font-bold text-slate-400">
                         <span>Porsi Kanal Offline (POS)</span>
-                        <span>{offlineRevenuePct}% dari Total Omzet</span>
+                        <span>{offlineRevenuePct}% dari Total</span>
                       </div>
                     </div>
                   </div>
@@ -1715,261 +1747,6 @@ export default function DashboardPage() {
                   })}
                 </div>
               </div>
-            </div>
-
-            {/* ========================================================================= */}
-            {/* 3. TIKET TERJUAL PER TICKET TYPE BERDASARKAN EVENT                       */}
-            {/* ========================================================================= */}
-            <div className="rounded-3xl bg-white border border-slate-200/90 p-5 sm:p-7 shadow-xs space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-black uppercase tracking-wider">
-                      Inventori Tiket
-                    </span>
-                    <span className="text-xs font-bold text-slate-400">
-                      Rincian Kategori Tiket
-                    </span>
-                  </div>
-                  <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                    <Ticket className="w-5 h-5 text-indigo-600" />
-                    Penjualan per Tipe Tiket (Berdasarkan Event)
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">
-                    Pantau berapa jumlah tiket terjual, sisa kuota, dan total omzet untuk setiap kategori tiket di tiap event.
-                  </p>
-                </div>
-
-                <Link
-                  href="/dashboard/events/sales"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold text-xs transition-all border border-indigo-200 self-start sm:self-center shadow-2xs"
-                >
-                  <span>Laporan Penjualan Lengkap</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-
-              {/* Event Cards & Ticket Types Breakdown */}
-              {ticketTypesByEventList.length === 0 ? (
-                <div className="py-12 px-4 text-center rounded-2xl bg-slate-50 border border-dashed border-slate-200 space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto border border-indigo-100">
-                    <Ticket className="w-6 h-6" />
-                  </div>
-                  <div className="space-y-1 max-w-sm mx-auto">
-                    <h4 className="text-sm font-black text-slate-800">Belum Ada Tipe Tiket Aktif</h4>
-                    <p className="text-xs text-slate-500 font-medium">
-                      Buat event baru dan tambahkan jenis tiket (VIP, Presale, Regular) untuk mulai memantau penjualan.
-                    </p>
-                  </div>
-                  <Link
-                    href="/dashboard/events"
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white font-extrabold text-xs hover:bg-blue-700 transition-colors shadow-sm"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Buat Event Baru
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-5">
-                  {ticketTypesByEventList
-                    .filter((ev: any) => {
-                      const st = String(ev?.event_status || '').toLowerCase();
-                      return st === 'published' || st === 'active';
-                    })
-                    .map((eventItem: any) => {
-                      const types = eventItem.ticket_types || [];
-                      const eventSold = eventItem.total_sold || 0;
-                      const eventQuota = eventItem.total_quota || 0;
-                      const eventRev = eventItem.total_revenue || 0;
-                      const fillPercent = eventQuota > 0 ? Math.round((eventSold / eventQuota) * 100) : 0;
-
-                      return (
-                        <div
-                          key={eventItem.event_id}
-                          className="rounded-2xl border border-slate-200 overflow-hidden bg-slate-50/40 hover:border-slate-300 transition-colors"
-                        >
-                          {/* Event Header Banner */}
-                          <div className="p-4 sm:p-5 bg-white border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-black uppercase">
-                                  Event #{eventItem.event_id}
-                                </span>
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase">
-                                  {eventItem.event_status || 'PUBLISHED'}
-                                </span>
-                              </div>
-                              <h4 className="text-base font-black text-slate-900 tracking-tight">
-                                {eventItem.event_title}
-                              </h4>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-600">
-                              <div className="text-left sm:text-right">
-                                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
-                                  Tiket Terjual
-                                </span>
-                                <span className="text-sm font-black text-slate-900">
-                                  {eventSold.toLocaleString('id-ID')} / {eventQuota.toLocaleString('id-ID')} ({fillPercent}%)
-                                </span>
-                              </div>
-
-                              <div className="text-left sm:text-right border-l border-slate-200 pl-4">
-                                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">
-                                  Total Omzet Event
-                                </span>
-                                <span className="text-sm font-black text-emerald-600">
-                                  Rp {eventRev.toLocaleString('id-ID')}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Ticket Types Table / Cards */}
-                          <div className="p-4 sm:p-5">
-                            {types.length === 0 ? (
-                              <p className="text-xs text-slate-400 italic py-2">
-                                Belum ada kategori tiket yang dibuat untuk event ini.
-                              </p>
-                            ) : (
-                              (() => {
-                                // Group ticket types strictly by DB field `category` (e.g. Early Bird, VIP, Presale, Regular, Festival)
-                                const categoriesMap = new Map<string, any[]>();
-                                types.forEach((tt: any) => {
-                                  const catName = String(
-                                    tt.category || tt.ticket_category || tt.ticket_type_category || 'Utama'
-                                  ).trim();
-                                  if (!categoriesMap.has(catName)) {
-                                    categoriesMap.set(catName, []);
-                                  }
-                                  categoriesMap.get(catName)!.push(tt);
-                                });
-
-                                return (
-                                  <div className="space-y-4">
-                                    {Array.from(categoriesMap.entries()).map(([categoryTitle, catTypes]) => {
-                                      const catTotalSold = catTypes.reduce((sum: number, t: any) => sum + (t.sold_count || 0), 0);
-                                      const catTotalQuota = catTypes.reduce((sum: number, t: any) => sum + (t.quota || 0), 0);
-                                      const catTotalRev = catTypes.reduce((sum: number, t: any) => sum + (t.revenue || ((t.sold_count || 0) * (t.price || 0))), 0);
-
-                                      return (
-                                        <div
-                                          key={categoryTitle}
-                                          className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-3"
-                                        >
-                                          {/* Category Header */}
-                                          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                                            <div className="flex items-center gap-2">
-                                              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
-                                              <h5 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                                                Kategori: {categoryTitle}
-                                              </h5>
-                                              <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-200">
-                                                {catTypes.length} Tipe Tiket
-                                              </span>
-                                            </div>
-
-                                            <div className="flex items-center gap-3 text-[11px] font-bold text-slate-500">
-                                              <span>Terjual: <strong className="text-slate-900 font-extrabold">{catTotalSold} / {catTotalQuota}</strong></span>
-                                              <span>•</span>
-                                              <span className="text-emerald-600 font-extrabold">
-                                                Rp {catTotalRev.toLocaleString('id-ID')}
-                                              </span>
-                                            </div>
-                                          </div>
-
-                                          {/* Cards Inside Category Group */}
-                                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                                            {catTypes.map((tt: any) => {
-                                              const soldCount = tt.sold_count || 0;
-                                              const quota = tt.quota || 0;
-                                              const price = tt.price || 0;
-                                              const remaining = tt.remaining ?? Math.max(0, quota - soldCount);
-                                              const pct = tt.percentage ?? (quota > 0 ? Math.round((soldCount / quota) * 100) : 0);
-                                              const subtotalRev = tt.revenue ?? (soldCount * price);
-                                              const rawStatus = String(tt.status || tt.ticket_status || tt.raw_status || '').toUpperCase();
-                                              const isSoldOut = rawStatus === 'SOLD_OUT' || (quota > 0 && remaining === 0);
-                                              const isInactive = rawStatus === 'INACTIVE';
-
-                                              return (
-                                                <div
-                                                  key={tt.id || tt.name}
-                                                  className={`p-4 rounded-xl border transition-all space-y-3 ${isSoldOut
-                                                    ? 'bg-slate-50/80 border-slate-200/90'
-                                                    : 'bg-slate-50/60 border-slate-200/80 hover:bg-white hover:border-indigo-300 hover:shadow-xs'
-                                                    }`}
-                                                >
-                                                  <div className="flex items-start justify-between gap-2">
-                                                    <div>
-                                                      <h5 className={`text-xs font-black line-clamp-1 ${isSoldOut ? 'text-slate-500' : 'text-slate-900'}`}>
-                                                        {tt.name}
-                                                      </h5>
-                                                      <span
-                                                        className={`text-xs font-black ${isSoldOut
-                                                          ? 'line-through text-slate-400 decoration-rose-500 decoration-2'
-                                                          : 'text-indigo-600'
-                                                          }`}
-                                                      >
-                                                        Rp {price.toLocaleString('id-ID')}
-                                                      </span>
-                                                    </div>
-
-                                                    {isSoldOut ? (
-                                                      <span className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-black uppercase tracking-wider shadow-2xs">
-                                                        SOLD_OUT
-                                                      </span>
-                                                    ) : isInactive ? (
-                                                      <span className="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-black uppercase tracking-wider shadow-2xs">
-                                                        INACTIVE
-                                                      </span>
-                                                    ) : (
-                                                      <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black uppercase tracking-wider shadow-2xs">
-                                                        Sisa {remaining}
-                                                      </span>
-                                                    )}
-                                                  </div>
-
-                                                  {/* Stats: Terjual vs Kuota */}
-                                                  <div className="p-2.5 rounded-lg bg-white border border-slate-200/80 flex items-center justify-between text-xs">
-                                                    <span className="text-slate-500 font-semibold text-[11px]">
-                                                      Terjual:
-                                                    </span>
-                                                    <span className="font-black text-slate-900">
-                                                      {soldCount} / {quota} <span className="text-slate-400 font-normal">({pct}%)</span>
-                                                    </span>
-                                                  </div>
-
-                                                  {/* Progress Bar */}
-                                                  <div className="space-y-1">
-                                                    <div className="w-full h-1.5 rounded-full bg-slate-200/70 overflow-hidden">
-                                                      <div
-                                                        className="h-full bg-indigo-600 rounded-full transition-all duration-500"
-                                                        style={{ width: `${Math.min(100, pct)}%` }}
-                                                      />
-                                                    </div>
-                                                    <div className="flex justify-between text-[10px] font-bold text-slate-400">
-                                                      <span>Omzet Tipe Ini:</span>
-                                                      <span className="text-slate-800 font-black">
-                                                        Rp {subtotalRev.toLocaleString('id-ID')}
-                                                      </span>
-                                                    </div>
-                                                  </div>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                );
-                              })()
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
             </div>
 
             {/* ========================================================================= */}

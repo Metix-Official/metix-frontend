@@ -5,6 +5,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import {
   fetchMasterPayments,
   MasterPayment,
+  updateOwnerPaymentApi,
 } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/sonner';
@@ -36,6 +37,12 @@ import {
   User,
   Mail,
   Receipt,
+  MoreVertical,
+  Pencil,
+  Trash2,
+  Lock,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 
 export default function MasterPaymentPage() {
@@ -72,6 +79,26 @@ export default function MasterPaymentPage() {
   } | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [copiedInvoice, setCopiedInvoice] = useState<string | null>(null);
+
+  // Action Dropdown & Modal State
+  const [actionMenuPaymentId, setActionMenuPaymentId] = useState<number | null>(null);
+
+  // Edit Modal State
+  const [editingPayment, setEditingPayment] = useState<MasterPayment | null>(null);
+  const [editForm, setEditForm] = useState<{
+    provider_transaction_id: string;
+    status: string;
+    paid_at: string;
+  }>({
+    provider_transaction_id: '',
+    status: 'PENDING',
+    paid_at: '',
+  });
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+
+  // Delete/Cancel Modal State
+  const [cancellingPayment, setCancellingPayment] = useState<MasterPayment | null>(null);
+  const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
   // Debounce search input
   useEffect(() => {
@@ -170,6 +197,82 @@ export default function MasterPaymentPage() {
     setCopiedInvoice(invoice);
     toast.success(`Nomor invoice ${invoice} berhasil disalin! 📋`);
     setTimeout(() => setCopiedInvoice((prev) => (prev === invoice ? null : prev)), 2000);
+  };
+
+  // Open Edit Modal
+  const handleOpenEdit = (payment: MasterPayment) => {
+    setEditingPayment(payment);
+    let formattedPaidAt = '';
+    if (payment.paid_at) {
+      const d = new Date(payment.paid_at);
+      if (!isNaN(d.getTime())) {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        formattedPaidAt = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+    }
+    setEditForm({
+      provider_transaction_id: payment.provider_transaction_id === '-' ? '' : (payment.provider_transaction_id || ''),
+      status: (payment.status || 'PENDING').toUpperCase(),
+      paid_at: formattedPaidAt,
+    });
+    setActionMenuPaymentId(null);
+  };
+
+  // Submit Edit Form
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPayment) return;
+
+    setIsSubmittingEdit(true);
+    try {
+      const res = await updateOwnerPaymentApi(editingPayment.id, {
+        provider_transaction_id: editForm.provider_transaction_id.trim() || null,
+        status: editForm.status,
+        paid_at: editForm.paid_at ? new Date(editForm.paid_at).toISOString() : null,
+      });
+
+      // Update state in place
+      setPayments((prev) =>
+        prev.map((p) => (p.id === editingPayment.id ? { ...p, ...res.data } : p))
+      );
+
+      toast.success('Data transaksi pembayaran berhasil diperbarui! 🎉');
+      setEditingPayment(null);
+    } catch (err: any) {
+      toast.error('Gagal Memperbarui Transaksi', {
+        description: err.message || 'Terjadi kesalahan saat menyimpan perubahan.',
+      });
+    } finally {
+      setIsSubmittingEdit(false);
+    }
+  };
+
+  // Confirm Cancel (Delete Action)
+  const handleConfirmCancel = async () => {
+    if (!cancellingPayment) return;
+
+    setIsSubmittingCancel(true);
+    try {
+      const res = await updateOwnerPaymentApi(cancellingPayment.id, {
+        status: 'CANCELLED',
+      });
+
+      // Update state in place
+      setPayments((prev) =>
+        prev.map((p) =>
+          p.id === cancellingPayment.id ? { ...p, ...res.data, status: 'CANCELLED' } : p
+        )
+      );
+
+      toast.success(`Transaksi #${cancellingPayment.invoice_number} berhasil dibatalkan (Status: CANCELLED).`);
+      setCancellingPayment(null);
+    } catch (err: any) {
+      toast.error('Gagal Membatalkan Transaksi', {
+        description: err.message || 'Terjadi kesalahan saat membatalkan transaksi.',
+      });
+    } finally {
+      setIsSubmittingCancel(false);
+    }
   };
 
   // Render Status Badge
@@ -360,6 +463,7 @@ export default function MasterPaymentPage() {
                       <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Paid At</th>
                       <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Expired At</th>
                       <th className="py-3.5 px-4 text-center whitespace-nowrap align-middle">Raw Response</th>
+                      <th className="py-3.5 px-4 text-center whitespace-nowrap align-middle">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
@@ -511,6 +615,54 @@ export default function MasterPaymentPage() {
                             ) : (
                               <span className="text-slate-400 italic text-[11px]">-</span>
                             )}
+                          </td>
+
+                          {/* 12. Aksi (Titik 3) */}
+                          <td className="py-3.5 px-4 text-center whitespace-nowrap align-middle">
+                            <div className="relative inline-block text-left">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActionMenuPaymentId(actionMenuPaymentId === payment.id ? null : payment.id);
+                                }}
+                                className="p-1.5 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer border border-transparent hover:border-slate-200"
+                                title="Menu Pilihan"
+                              >
+                                <MoreVertical className="w-4 h-4" />
+                              </button>
+
+                              {actionMenuPaymentId === payment.id && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-20 cursor-default"
+                                    onClick={() => setActionMenuPaymentId(null)}
+                                  />
+                                  <div className="absolute right-0 mt-1 w-44 rounded-2xl bg-white shadow-xl border border-slate-100 py-1.5 z-30 animate-in fade-in-0 zoom-in-95 duration-150">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEdit(payment)}
+                                      className="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 flex items-center gap-2 transition-colors cursor-pointer"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5 text-blue-600" />
+                                      <span>Edit Transaksi</span>
+                                    </button>
+                                    <div className="h-px bg-slate-100 my-1" />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setCancellingPayment(payment);
+                                        setActionMenuPaymentId(null);
+                                      }}
+                                      className="w-full px-3.5 py-2 text-left text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                      <span>Batalkan Transaksi</span>
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -673,6 +825,353 @@ export default function MasterPaymentPage() {
           </div>
         </div>
       )}
+      {/* Edit Payment Modal */}
+      {editingPayment && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in-0 duration-200">
+          <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 sm:p-6 border-b border-slate-100 bg-slate-50/70">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center shadow-2xs">
+                  <Pencil className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Edit Transaksi Pembayaran
+                  </h3>
+                  <p className="text-xs text-slate-500 font-mono">
+                    Invoice: {editingPayment.invoice_number} (Order #{editingPayment.order_id})
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setEditingPayment(null)}
+                className="p-1.5 rounded-xl hover:bg-slate-200/60 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                title="Tutup Modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <form onSubmit={handleSaveEdit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
+              {/* SECTION 1: Disabled / Read-Only Fields */}
+              <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-4 space-y-3 shadow-2xs">
+                <div className="flex items-center gap-1.5 text-slate-500 font-bold text-[11px] uppercase tracking-wider">
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Informasi Transaksi (Read-Only / Terkunci)</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                  {/* Order Number */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-500">Nomor Order</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={`Order #${editingPayment.order_id} (${editingPayment.order_number})`}
+                      className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono text-slate-600 cursor-not-allowed select-none font-medium"
+                    />
+                  </div>
+
+                  {/* Event Title */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-500">Nama Event</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={editingPayment.event_title || '-'}
+                      className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-600 cursor-not-allowed select-none font-medium truncate"
+                    />
+                  </div>
+
+                  {/* Buyer Name & Email */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-500">Nama Pembeli</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={editingPayment.buyer_name || '-'}
+                      className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-600 cursor-not-allowed select-none font-medium"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-500">Email Pembeli</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={editingPayment.buyer_email || '-'}
+                      className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-600 cursor-not-allowed select-none font-medium"
+                    />
+                  </div>
+
+                  {/* Invoice & Total Amount */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-500">Nomor Invoice</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={editingPayment.invoice_number || '-'}
+                      className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono text-slate-600 cursor-not-allowed select-none font-medium"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-500">Total Nominal Tagihan</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={formatIDR(editingPayment.amount)}
+                      className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-extrabold text-blue-700 cursor-not-allowed select-none"
+                    />
+                  </div>
+
+                  {/* Provider & Method */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-500">Provider & Metode</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={`${editingPayment.provider || 'DOKU'} - ${editingPayment.payment_method || '-'}`}
+                      className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-600 cursor-not-allowed select-none font-medium"
+                    />
+                  </div>
+
+                  {/* Created & Expired */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-500">Waktu Kedaluwarsa</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={editingPayment.expired_at ? formatDateTime(editingPayment.expired_at) : '-'}
+                      className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-600 cursor-not-allowed select-none font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: Editable Fields */}
+              <div className="space-y-4 pt-1">
+                <div className="flex items-center gap-1.5 text-blue-700 font-bold text-xs uppercase tracking-wider">
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>Bidang yang Dapat Diperbarui</span>
+                </div>
+
+                {/* 1. Provider Transaction ID */}
+                <div className="space-y-1.5 text-left">
+                  <label className="text-xs font-semibold text-slate-700">
+                    Provider Transaction ID
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.provider_transaction_id}
+                    onChange={(e) => setEditForm({ ...editForm, provider_transaction_id: e.target.value })}
+                    placeholder="Contoh: 1234567890 atau DOKU-REF-123"
+                    className="w-full px-3.5 py-2.5 bg-white hover:bg-slate-50/50 focus:bg-white border border-slate-200 focus:border-blue-600 rounded-xl text-xs font-mono font-medium text-slate-900 placeholder:text-slate-400 shadow-2xs focus:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-600/10 transition-all"
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    ID referensi transaksi resmi dari payment gateway (DOKU / Bank).
+                  </p>
+                </div>
+
+                {/* 2. Status Select */}
+                <div className="space-y-1.5 text-left">
+                  <label className="text-xs font-semibold text-slate-700">
+                    Status Pembayaran <span className="text-rose-500">*</span>
+                  </label>
+                  <Select
+                    value={editForm.status}
+                    onValueChange={(val) => {
+                      const next = { ...editForm, status: val };
+                      // If changed to PAID and paid_at is empty, suggest current datetime
+                      if (val === 'PAID' && !editForm.paid_at) {
+                        const now = new Date();
+                        const pad = (n: number) => String(n).padStart(2, '0');
+                        next.paid_at = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+                      }
+                      setEditForm(next);
+                    }}
+                  >
+                    <SelectTrigger className="w-full py-2.5 rounded-xl border-slate-200 bg-white text-xs font-bold shadow-2xs">
+                      <SelectValue placeholder="Pilih status pembayaran" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PENDING" className="text-xs font-bold text-amber-700">
+                        PENDING (Menunggu Pembayaran)
+                      </SelectItem>
+                      <SelectItem value="PAID" className="text-xs font-bold text-emerald-700">
+                        PAID (Lunas / Berhasil)
+                      </SelectItem>
+                      <SelectItem value="FAILED" className="text-xs font-bold text-rose-700">
+                        FAILED (Gagal)
+                      </SelectItem>
+                      <SelectItem value="EXPIRED" className="text-xs font-bold text-slate-600">
+                        EXPIRED (Kedaluwarsa)
+                      </SelectItem>
+                      <SelectItem value="REFUNDED" className="text-xs font-bold text-purple-700">
+                        REFUNDED (Dikembalikan)
+                      </SelectItem>
+                      <SelectItem value="CANCELLED" className="text-xs font-bold text-rose-700">
+                        CANCELLED (Dibatalkan)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 3. Paid At */}
+                <div className="space-y-1.5 text-left">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700">
+                      Waktu Pembayaran (Paid At)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const now = new Date();
+                          const pad = (n: number) => String(n).padStart(2, '0');
+                          const nowFormatted = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+                          setEditForm({ ...editForm, paid_at: nowFormatted });
+                        }}
+                        className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                      >
+                        Set Sekarang
+                      </button>
+                      {editForm.paid_at && (
+                        <>
+                          <span className="text-slate-300">•</span>
+                          <button
+                            type="button"
+                            onClick={() => setEditForm({ ...editForm, paid_at: '' })}
+                            className="text-[11px] font-semibold text-slate-400 hover:text-rose-600 hover:underline cursor-pointer"
+                          >
+                            Kosongkan
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <input
+                    type="datetime-local"
+                    value={editForm.paid_at}
+                    onChange={(e) => setEditForm({ ...editForm, paid_at: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-white hover:bg-slate-50/50 focus:bg-white border border-slate-200 focus:border-blue-600 rounded-xl text-xs font-medium text-slate-900 shadow-2xs focus:shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-600/10 transition-all"
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    Kosongkan jika transaksi belum atau tidak dibayar.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingPayment(null)}
+                  disabled={isSubmittingEdit}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingEdit}
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white text-xs font-bold transition-all shadow-md shadow-blue-600/20 cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isSubmittingEdit ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <span>Simpan Perubahan</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete / Cancel Confirmation Modal */}
+      {cancellingPayment && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in-0 duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-6 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto shadow-2xs">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Batalkan Transaksi Pembayaran?
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Apakah Anda yakin ingin membatalkan transaksi ini? Data tidak akan dihapus permanen, melainkan status pembayaran akan diubah menjadi <strong className="font-bold text-rose-600">CANCELLED</strong>.
+                </p>
+              </div>
+
+              {/* Transaction Summary Card */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-left space-y-1.5 text-xs shadow-2xs">
+                <div className="flex justify-between items-center text-slate-500 text-[11px]">
+                  <span>Nomor Invoice:</span>
+                  <span className="font-mono font-bold text-slate-800">{cancellingPayment.invoice_number}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 text-[11px]">
+                  <span>Order:</span>
+                  <span className="font-bold text-slate-800">#{cancellingPayment.order_id} ({cancellingPayment.order_number})</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 text-[11px]">
+                  <span>Pembeli:</span>
+                  <span className="font-semibold text-slate-800">{cancellingPayment.buyer_name}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 text-[11px]">
+                  <span>Total Tagihan:</span>
+                  <span className="font-extrabold text-blue-700">{formatIDR(cancellingPayment.amount)}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 text-[11px]">
+                  <span>Status Saat Ini:</span>
+                  <span>{renderStatusBadge(cancellingPayment.status)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setCancellingPayment(null)}
+                disabled={isSubmittingCancel}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Kembali
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancel}
+                disabled={isSubmittingCancel}
+                className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-[0.99] text-white text-xs font-bold transition-all shadow-md shadow-rose-600/20 cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isSubmittingCancel ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Membatalkan...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Ya, Batalkan Transaksi</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </DashboardLayout>
   );
 }

@@ -68,7 +68,7 @@ export default function EventSalesDetailPage() {
   // Extract distinct Ticket Categories strictly from ticket_types.category for selectedEventId
   const availableCategories = useMemo(() => {
     const set = new Set<string>();
-    
+
     // 1. Extract from events (filtered by selectedEventId)
     const targetEvents = selectedEventId === 'all'
       ? events
@@ -308,7 +308,7 @@ export default function EventSalesDetailPage() {
       lines.push([
         escapeCsv('Total Transaksi Selesai:'),
         escapeCsv(`${filteredOrders.filter((o) => o.status === 'paid' || o.status === 'completed').length} Transaksi Lunas`),
-        escapeCsv('Total Omzet Bruto Lunas:'),
+        escapeCsv('Total Bruto Lunas:'),
         escapeCsv(`Rp ${totalGrossRevenue.toLocaleString('id-ID')}`),
       ].join(','));
       lines.push('');
@@ -549,7 +549,7 @@ export default function EventSalesDetailPage() {
           <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
-                Total Omzet (Subtotal)
+                Total (Subtotal)
               </span>
               <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-100">
                 <DollarSign className="w-4 h-4" />
@@ -714,15 +714,15 @@ export default function EventSalesDetailPage() {
                     const ticketsList = (ord.tickets && ord.tickets.length > 0)
                       ? ord.tickets
                       : [
-                          {
-                            id: ord.id,
-                            ticket_code: ord.order_number,
-                            ticket_type: ord.ticket_type_name || 'Tiket',
-                            full_name: ord.full_name || ord.buyer_name || 'Peserta',
-                            email: ord.buyer_email,
-                            phone: ord.buyer_phone,
-                          }
-                        ];
+                        {
+                          id: ord.id,
+                          ticket_code: ord.order_number,
+                          ticket_type: ord.ticket_type_name || 'Tiket',
+                          full_name: ord.full_name || ord.buyer_name || 'Peserta',
+                          email: ord.buyer_email,
+                          phone: ord.buyer_phone,
+                        }
+                      ];
                     const isPaid = ord.status === 'paid' || ord.status === 'completed';
 
                     const rawTotal = Number(ord.total_amount || 0);

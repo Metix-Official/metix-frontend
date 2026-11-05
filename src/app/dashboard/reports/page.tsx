@@ -498,7 +498,7 @@ export default function ReportsPage() {
         escapeCsv(`Rp ${totalPlatformFee.toLocaleString('id-ID')}`),
       ].join(','));
       lines.push([
-        escapeCsv('Total Omzet Bruto (Tagihan Masuk):'),
+        escapeCsv('Total Bruto (Tagihan Masuk):'),
         escapeCsv(`Rp ${totalGrossRevenue.toLocaleString('id-ID')}`),
         escapeCsv('Catatan Akuntansi:'),
         escapeCsv('Pemisahan: Subtotal Tiket + Pajak 5% + Komisi Platform 7%'),
@@ -559,8 +559,8 @@ export default function ReportsPage() {
         const rowFee = (ord.platform_fee !== undefined && ord.platform_fee !== null && ord.platform_fee > 0)
           ? ord.platform_fee
           : ((ord.total_amount && ord.total_amount > (rowSubtotal + rowTax))
-              ? (ord.total_amount - rowSubtotal - rowTax)
-              : Math.round(rowSubtotal * 0.07));
+            ? (ord.total_amount - rowSubtotal - rowTax)
+            : Math.round(rowSubtotal * 0.07));
         const rowTotal = ord.total_amount || (rowSubtotal + rowTax + rowFee);
 
         lines.push([
@@ -764,7 +764,7 @@ export default function ReportsPage() {
         {/* Separated 5 Stat Metric Cards (Omzet Tiket, Pajak 5%, Fee Platform 7%, Total Bruto, Tiket Terjual) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
 
-          {/* 1. Subtotal Omzet Tiket */}
+          {/* 1. Subtotal Tiket */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-1 bg-blue-600" />
             <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
@@ -821,7 +821,7 @@ export default function ReportsPage() {
             </span>
           </div>
 
-          {/* 4. Total Omzet Bruto */}
+          {/* 4. Total Bruto */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-600" />
             <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
@@ -1129,8 +1129,8 @@ export default function ReportsPage() {
                     const rowFee = (ord.platform_fee !== undefined && ord.platform_fee !== null && ord.platform_fee > 0)
                       ? ord.platform_fee
                       : ((ord.total_amount && ord.total_amount > (rowSubtotal + rowTax))
-                          ? (ord.total_amount - rowSubtotal - rowTax)
-                          : Math.round(rowSubtotal * 0.07));
+                        ? (ord.total_amount - rowSubtotal - rowTax)
+                        : Math.round(rowSubtotal * 0.07));
                     const rowTotal = ord.total_amount || (rowSubtotal + rowTax + rowFee);
 
                     const discountAmount = Number(ord.discount_amount || (ord as any).promo_usage?.discount_amount || (ord as any).promo?.discount_value || 0);
@@ -1161,15 +1161,15 @@ export default function ReportsPage() {
                     const ticketsList = (ord.tickets && ord.tickets.length > 0)
                       ? ord.tickets
                       : [
-                          {
-                            id: ord.id,
-                            ticket_code: ord.order_number,
-                            ticket_type: ord.ticket_type_name || 'Tiket Masuk',
-                            full_name: ord.buyer_name || 'Peserta',
-                            email: ord.buyer_email,
-                            phone: ord.buyer_phone,
-                          }
-                        ];
+                        {
+                          id: ord.id,
+                          ticket_code: ord.order_number,
+                          ticket_type: ord.ticket_type_name || 'Tiket Masuk',
+                          full_name: ord.buyer_name || 'Peserta',
+                          email: ord.buyer_email,
+                          phone: ord.buyer_phone,
+                        }
+                      ];
                     const isExpanded = Boolean(expandedOrders[ord.id]);
 
                     return (

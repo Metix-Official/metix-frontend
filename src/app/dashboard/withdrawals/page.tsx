@@ -718,10 +718,10 @@ export default function WithdrawalManagementPage() {
               </div>
             </div>
 
-            {/* Card 4: Total Omzet Tiket Platform */}
+            {/* Card 4: Total Tiket Platform */}
             <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-1.5">
               <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                Total Omzet Tiket Platform
+                Total Tiket Platform
               </span>
               <div className="flex items-center justify-between">
                 <div>
@@ -1053,15 +1053,14 @@ export default function WithdrawalManagementPage() {
                             <button
                               type="button"
                               onClick={() => handleOpenOwnerActionModal(item)}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-xs ${
-                                item.status === 'PENDING'
+                              className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-xs ${item.status === 'PENDING'
                                   ? 'bg-amber-500 hover:bg-amber-600 text-white'
                                   : item.status === 'PROCESSING'
-                                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                  : item.status === 'COMPLETED'
-                                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                              }`}
+                                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                    : item.status === 'COMPLETED'
+                                      ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                                }`}
                             >
                               {item.status === 'COMPLETED' ? (
                                 <>

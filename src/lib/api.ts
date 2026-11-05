@@ -2042,14 +2042,24 @@ export async function fetchMyEvents(): Promise<{
 
     if (userRole !== 'OWNER' && userRole !== 'POS' && userRole !== 'CASHIER') {
       const profile = await fetchOrganizerProfile();
-      if (profile && profile.id) {
-        const filtered = eventsList.filter((e) => {
+      const myOrgId = profile?.id || storedUser?.organizer_profile?.id || (storedUser as any)?.organizer_id;
+      const myUserId = storedUser?.id || profile?.user_id;
+
+      if (myOrgId || myUserId) {
+        eventsList = eventsList.filter((e: any) => {
           const orgId = e.organizer?.id || e.organizer_id;
-          return !orgId || Number(orgId) === Number(profile.id);
+          const orgUserId = e.user_id || e.organizer?.user_id;
+
+          if (myOrgId && orgId) {
+            return Number(orgId) === Number(myOrgId);
+          }
+          if (myUserId && orgUserId) {
+            return Number(orgUserId) === Number(myUserId);
+          }
+          return false;
         });
-        if (filtered.length > 0) {
-          eventsList = filtered;
-        }
+      } else {
+        eventsList = [];
       }
     }
 
@@ -4659,6 +4669,7 @@ export interface ApiOrganizerProfile {
 
 export async function fetchOrganizerProfile(): Promise<ApiOrganizerProfile | null> {
   const token = getStoredToken();
+  const user = getStoredUser();
   if (!token) return null;
 
   try {
@@ -4666,14 +4677,19 @@ export async function fetchOrganizerProfile(): Promise<ApiOrganizerProfile | nul
       headers: getHeaders(token),
     });
 
-    if (!response.ok) return null;
-
-    const data = await response.json();
-    return data?.data || data?.profile || data || null;
+    if (response.ok) {
+      const data = await response.json();
+      const profile = data?.data || data?.profile || data || null;
+      if (profile && profile.id) return profile;
+    }
   } catch (error) {
     console.warn('Failed to fetch organizer profile:', error);
-    return null;
   }
+
+  if (user?.organizer_profile && user.organizer_profile.id) {
+    return user.organizer_profile as ApiOrganizerProfile;
+  }
+  return null;
 }
 
 export async function saveOrganizerProfile(payload: {
@@ -5644,6 +5660,41 @@ export async function fetchMasterOrderItems(orderId: number | string): Promise<M
 }
 
 // ----------------------------------------------------------------------
+export async function updateMasterOrderApi(
+  orderId: number | string,
+  payload: {
+    paid_at?: string | null;
+    status?: string | null;
+  }
+): Promise<{ success: boolean; message: string; data: Partial<MasterOrder> }> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/owner/orders/${orderId}`, {
+    method: 'PUT',
+    headers: {
+      ...getHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorMsg =
+      (json?.errors ? Object.values(json.errors).flat().join(', ') : null) ||
+      json?.message ||
+      'Gagal memperbarui data order.';
+    throw new Error(errorMsg);
+  }
+
+  return {
+    success: true,
+    message: json.message || 'Order berhasil diperbarui.',
+    data: json.data,
+  };
+}
+
 // MASTER PAYMENTS API (OWNER)
 // ----------------------------------------------------------------------
 export interface MasterPayment {
@@ -5720,6 +5771,42 @@ export async function fetchMasterPayments(params?: {
 }
 
 // ----------------------------------------------------------------------
+export async function updateOwnerPaymentApi(
+  paymentId: number,
+  payload: {
+    provider_transaction_id?: string | null;
+    status: string;
+    paid_at?: string | null;
+  }
+): Promise<{ success: boolean; message: string; data: MasterPayment }> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/owner/payments/${paymentId}`, {
+    method: 'PUT',
+    headers: {
+      ...getHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorMsg =
+      (json?.errors ? Object.values(json.errors).flat().join(', ') : null) ||
+      json?.message ||
+      'Gagal memperbarui data pembayaran.';
+    throw new Error(errorMsg);
+  }
+
+  return {
+    success: true,
+    message: json.message || 'Data pembayaran berhasil diperbarui.',
+    data: json.data,
+  };
+}
+
 // MASTER PAYMENT WEBHOOKS API (OWNER)
 // ----------------------------------------------------------------------
 export interface MasterPaymentWebhook {

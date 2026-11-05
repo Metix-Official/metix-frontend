@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   fetchSalesReportData,
   fetchMyEvents,
@@ -65,6 +65,7 @@ interface DisplayRowItem {
 }
 
 function TicketCategoryDetailContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   // Query parameters
@@ -339,6 +340,35 @@ function TicketCategoryDetailContent() {
     toast.success('File CSV berhasil diunduh.');
   };
 
+  // Handle Close Tab / Window with fallback
+  const handleCloseTab = () => {
+    // 1. Coba tutup tab secara langsung
+    try {
+      window.close();
+    } catch {
+      // ignore
+    }
+
+    // 2. Trik window.open self-close untuk Chromium
+    try {
+      window.open('', '_self');
+      window.close();
+    } catch {
+      // ignore
+    }
+
+    // 3. Fallback jika tab tidak diizinkan ditutup otomatis oleh browser policy
+    setTimeout(() => {
+      if (typeof window !== 'undefined' && !window.closed) {
+        if (window.history.length > 1) {
+          window.history.back();
+        } else {
+          router.push('/dashboard');
+        }
+      }
+    }, 150);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50/70 text-slate-900 flex flex-col font-sans">
       {/* ========================================================================= */}
@@ -383,14 +413,8 @@ function TicketCategoryDetailContent() {
 
             <button
               type="button"
-              onClick={() => {
-                if (window.opener) {
-                  window.close();
-                } else {
-                  window.history.back();
-                }
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold transition-all shadow-xs cursor-pointer"
+              onClick={handleCloseTab}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-white text-xs font-extrabold transition-all shadow-xs cursor-pointer"
               title="Tutup Halaman Ini"
             >
               <X className="w-3.5 h-3.5" />
@@ -567,22 +591,22 @@ function TicketCategoryDetailContent() {
           {/* THE DATA TABLE (11 KOLOM SESUAI PERMINTAAN USER) */}
           {/* ========================================================================= */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[1250px]">
+            <table className="w-full text-left border-collapse min-w-[1400px]">
               <thead>
-                <tr className="bg-slate-100/80 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
-                  <th className="py-3.5 px-4 text-center w-12">#</th>
-                  <th className="py-3.5 px-4">Nama Buyer</th>
-                  <th className="py-3.5 px-4">Email</th>
-                  <th className="py-3.5 px-4">Event</th>
-                  <th className="py-3.5 px-4">Order Number</th>
-                  <th className="py-3.5 px-4 text-right">Subtotal</th>
-                  <th className="py-3.5 px-4 text-right">Local Tax</th>
-                  <th className="py-3.5 px-4 text-right">Platform Fee</th>
-                  <th className="py-3.5 px-4 text-center">Payment Method</th>
-                  <th className="py-3.5 px-4 text-right">Total Amount</th>
-                  <th className="py-3.5 px-4 text-center">KATEGORI Tiket</th>
-                  <th className="py-3.5 px-4 text-center">Tiket</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
+                <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-500">
+                  <th className="py-3.5 px-4 text-center align-middle whitespace-nowrap w-12 text-slate-400">#</th>
+                  <th className="py-3.5 px-4 text-left align-middle whitespace-nowrap min-w-[170px]">Nama Buyer</th>
+                  <th className="py-3.5 px-4 text-left align-middle whitespace-nowrap min-w-[180px]">Email</th>
+                  <th className="py-3.5 px-4 text-left align-middle whitespace-nowrap min-w-[140px]">Event</th>
+                  <th className="py-3.5 px-4 text-left align-middle whitespace-nowrap min-w-[180px]">Order Number</th>
+                  <th className="py-3.5 px-4 text-right align-middle whitespace-nowrap min-w-[110px]">Subtotal</th>
+                  <th className="py-3.5 px-4 text-right align-middle whitespace-nowrap min-w-[100px]">Local Tax</th>
+                  <th className="py-3.5 px-4 text-right align-middle whitespace-nowrap min-w-[110px]">Platform Fee</th>
+                  <th className="py-3.5 px-4 text-center align-middle whitespace-nowrap min-w-[125px]">Payment Method</th>
+                  <th className="py-3.5 px-4 text-right align-middle whitespace-nowrap min-w-[120px]">Total Amount</th>
+                  <th className="py-3.5 px-4 text-center align-middle whitespace-nowrap min-w-[120px]">Kategori Tiket</th>
+                  <th className="py-3.5 px-4 text-center align-middle whitespace-nowrap min-w-[120px]">Tiket</th>
+                  <th className="py-3.5 px-4 text-center align-middle whitespace-nowrap min-w-[100px]">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
@@ -590,7 +614,7 @@ function TicketCategoryDetailContent() {
                   Array.from({ length: 6 }).map((_, idx) => (
                     <tr key={idx} className="animate-pulse">
                       <td colSpan={13} className="py-4 px-4">
-                        <Skeleton className="h-6 w-full rounded-lg" />
+                        <Skeleton className="h-7 w-full rounded-lg" />
                       </td>
                     </tr>
                   ))
@@ -630,36 +654,36 @@ function TicketCategoryDetailContent() {
                         className="hover:bg-blue-50/40 transition-colors duration-150 group"
                       >
                         {/* 1. Row Number */}
-                        <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-400">
+                        <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap font-mono font-bold text-slate-400 text-xs">
                           {rowNumber}
                         </td>
 
                         {/* 2. Nama Buyer */}
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-black text-[11px] flex items-center justify-center shrink-0">
+                        <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-full bg-blue-50 text-blue-600 border border-blue-200/80 font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
                               {row.buyer_name ? row.buyer_name.charAt(0).toUpperCase() : 'U'}
                             </div>
-                            <span className="font-extrabold text-slate-900 truncate max-w-[170px]" title={row.buyer_name}>
+                            <span className="font-extrabold text-slate-900 text-xs truncate max-w-[160px]" title={row.buyer_name}>
                               {row.buyer_name}
                             </span>
                           </div>
                         </td>
 
                         {/* 3. Email */}
-                        <td className="py-3.5 px-4">
+                        <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                           <div className="flex items-center gap-1.5 text-slate-600 font-mono text-[11.5px]">
                             <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="truncate max-w-[190px]" title={row.buyer_email}>
+                            <span className="truncate max-w-[180px]" title={row.buyer_email}>
                               {row.buyer_email}
                             </span>
                           </div>
                         </td>
 
                         {/* 4. Event */}
-                        <td className="py-3.5 px-4">
+                        <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                           <span
-                            className="inline-block px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 font-bold text-[11px] truncate max-w-[160px]"
+                            className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold text-[11px] border border-slate-200/60 max-w-[160px] truncate"
                             title={row.event_title}
                           >
                             {row.event_title}
@@ -667,72 +691,72 @@ function TicketCategoryDetailContent() {
                         </td>
 
                         {/* 5. Order Number */}
-                        <td className="py-3.5 px-4 font-mono">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-blue-700 bg-blue-50/70 px-2 py-0.5 rounded border border-blue-200/60">
-                              {row.order_number}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopyOrderNumber(row.order_number)}
-                              className="p-1 text-slate-400 hover:text-blue-600 rounded-md transition-colors cursor-pointer"
-                              title="Salin Order Number"
-                            >
-                              {isCopied ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          </div>
+                        <td className="py-3.5 px-4 align-middle whitespace-nowrap font-mono">
+                          <button
+                            type="button"
+                            onClick={() => handleCopyOrderNumber(row.order_number)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-mono text-[11px] font-bold border transition-all cursor-pointer group shadow-2xs ${
+                              isCopied
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-400/20'
+                                : 'bg-blue-50/70 hover:bg-blue-100/70 text-blue-700 border-blue-200/80 hover:border-blue-300'
+                            }`}
+                            title="Klik untuk salin Order Number"
+                          >
+                            <span>{row.order_number}</span>
+                            {isCopied ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            ) : (
+                              <Copy className="w-3 h-3 text-blue-400 group-hover:text-blue-700 shrink-0 transition-colors" />
+                            )}
+                          </button>
                         </td>
 
                         {/* 6. Subtotal */}
-                        <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-800">
+                        <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap font-mono font-bold text-slate-800 text-xs tabular-nums">
                           Rp {row.subtotal.toLocaleString('id-ID')}
                         </td>
 
                         {/* 7. Local Tax */}
-                        <td className="py-3.5 px-4 text-right font-mono font-semibold text-slate-600">
+                        <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap font-mono font-semibold text-slate-600 text-xs tabular-nums">
                           Rp {row.local_tax.toLocaleString('id-ID')}
                         </td>
 
                         {/* 8. Platform Fee */}
-                        <td className="py-3.5 px-4 text-right font-mono font-semibold text-slate-600">
+                        <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap font-mono font-semibold text-slate-600 text-xs tabular-nums">
                           Rp {row.platform_fee.toLocaleString('id-ID')}
                         </td>
 
                         {/* 9. Payment Method */}
-                        <td className="py-3.5 px-4 text-center">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-extrabold text-[10.5px] border border-slate-200">
-                            <CreditCard className="w-3 h-3 text-slate-500" />
+                        <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-extrabold text-[11px] border border-slate-200 shadow-2xs">
+                            <CreditCard className="w-3 h-3 text-slate-500 shrink-0" />
                             {row.payment_method}
                           </span>
                         </td>
 
                         {/* 10. Total Amount */}
-                        <td className="py-3.5 px-4 text-right font-mono font-black text-emerald-600 text-xs">
+                        <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap font-mono font-black text-emerald-600 text-xs tabular-nums">
                           Rp {row.total_amount.toLocaleString('id-ID')}
                         </td>
 
                         {/* 11. KATEGORI Tiket */}
-                        <td className="py-3.5 px-4 text-center">
-                          <span className="inline-block px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-black text-[10.5px] uppercase tracking-wide">
+                        <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 font-black text-[10.5px] uppercase tracking-wide shadow-2xs">
                             {row.category}
                           </span>
                         </td>
 
                         {/* 12. Tiket */}
-                        <td className="py-3.5 px-4 text-center">
-                          <span className="inline-block px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-extrabold text-[11px]">
+                        <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 font-extrabold text-[11px] shadow-2xs">
                             {row.ticket_name}
                           </span>
                         </td>
 
                         {/* 13. Status Pembayaran */}
-                        <td className="py-3.5 px-4 text-center">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-extrabold text-[10.5px] uppercase">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-extrabold text-[10.5px] uppercase shadow-2xs">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                             {row.status || 'PAID'}
                           </span>
                         </td>

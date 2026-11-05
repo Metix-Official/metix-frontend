@@ -484,7 +484,13 @@ export function TicketCategoriesCard({
                   <Link
                     href={`/dashboard/reports/ticket-category?event_id=${encodeURIComponent(String(item.event_id || ''))}&category=${encodeURIComponent(item.category)}&ticket=${encodeURIComponent(item.name)}${item.id ? `&ticket_type_id=${encodeURIComponent(String(item.id))}` : ''}&event_title=${encodeURIComponent(item.event_title || '')}`}
                     target="_blank"
-                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                        e.preventDefault();
+                        const url = `/dashboard/reports/ticket-category?event_id=${encodeURIComponent(String(item.event_id || ''))}&category=${encodeURIComponent(item.category)}&ticket=${encodeURIComponent(item.name)}${item.id ? `&ticket_type_id=${encodeURIComponent(String(item.id))}` : ''}&event_title=${encodeURIComponent(item.event_title || '')}`;
+                        window.open(url, '_blank');
+                      }
+                    }}
                     className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200/90 hover:border-blue-600 font-extrabold text-xs transition-all duration-200 shadow-2xs group cursor-pointer"
                   >
                     <span>Lihat Detail Pembeli</span>

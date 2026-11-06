@@ -176,6 +176,11 @@ function TicketCategoryDetailContent() {
 
           if (catMatches && tktMatches) {
             matchedInTickets = true;
+            const itemSubtotal = Number(t.price ?? ord.subtotal ?? 0);
+            const itemTax = Number(ord.tax_amount ?? 0);
+            const itemFee = Number(ord.platform_fee ?? 0);
+            const itemTotal = itemSubtotal + itemTax + itemFee;
+
             list.push({
               id: `${ord.id}-${t.id || idx}`,
               order_id: ord.id,
@@ -185,11 +190,11 @@ function TicketCategoryDetailContent() {
               buyer_phone: t.phone || ord.buyer_phone,
               event_title: ord.event_title || eventTitle || 'Event Metix',
               event_id: ord.event_id,
-              subtotal: Number(t.price ?? ord.subtotal),
-              local_tax: Number(ord.tax_amount ?? 0),
-              platform_fee: Number(ord.platform_fee ?? 0),
+              subtotal: itemSubtotal,
+              local_tax: itemTax,
+              platform_fee: itemFee,
               payment_method: ord.payment_method || 'Midtrans QRIS / VA',
-              total_amount: Number(ord.total_amount || (t.price ?? ord.subtotal)),
+              total_amount: itemTotal,
               category: t.category || ord.category || ord.ticket_category || categoryParam || 'Reguler',
               ticket_name: t.ticket_type || ord.ticket_type_name || ticketParam || 'Tiket Pass',
               quantity: 1,
@@ -210,6 +215,11 @@ function TicketCategoryDetailContent() {
       const topTktMatch = !normTargetTkt || ordTkt.includes(normTargetTkt) || normTargetTkt.includes(ordTkt);
 
       if (topCatMatch && topTktMatch) {
+        const itemSubtotal = Number(ord.subtotal || ord.total_amount || 0);
+        const itemTax = Number(ord.tax_amount ?? 0);
+        const itemFee = Number(ord.platform_fee ?? 0);
+        const itemTotal = itemSubtotal + itemTax + itemFee;
+
         list.push({
           id: String(ord.id),
           order_id: ord.id,
@@ -219,11 +229,11 @@ function TicketCategoryDetailContent() {
           buyer_phone: ord.buyer_phone,
           event_title: ord.event_title || eventTitle || 'Event Metix',
           event_id: ord.event_id,
-          subtotal: Number(ord.subtotal || ord.total_amount),
-          local_tax: Number(ord.tax_amount ?? 0),
-          platform_fee: Number(ord.platform_fee ?? 0),
+          subtotal: itemSubtotal,
+          local_tax: itemTax,
+          platform_fee: itemFee,
           payment_method: ord.payment_method || 'Midtrans QRIS / VA',
-          total_amount: Number(ord.total_amount),
+          total_amount: itemTotal,
           category: ord.category || ord.ticket_category || categoryParam || 'Reguler',
           ticket_name: ord.ticket_type_name || ticketParam || 'Tiket Pass',
           quantity: ord.quantity || 1,

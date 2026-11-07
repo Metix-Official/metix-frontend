@@ -176,9 +176,38 @@ function TicketCategoryDetailContent() {
 
           if (catMatches && tktMatches) {
             matchedInTickets = true;
-            const itemSubtotal = Number(t.price ?? ord.subtotal ?? 0);
-            const itemTax = Number(ord.tax_amount ?? 0);
-            const itemFee = Number(ord.platform_fee ?? 0);
+            // Hitung nilai murni per 1 item / 1 tiket
+            const orderTicketCount = Math.max(1, ord.tickets?.length || ord.quantity || 1);
+            const itemSubtotal = Number(t.price ?? (ord.subtotal ? Math.round(ord.subtotal / orderTicketCount) : 0));
+
+            // Local Tax per item (proporsional 5% / dibagi jumlah tiket)
+            let itemTax = 0;
+            if (ord.tax_amount && orderTicketCount > 1) {
+              itemTax = Math.round(Number(ord.tax_amount) / orderTicketCount);
+            } else if (ord.tax_amount) {
+              itemTax = Number(ord.tax_amount);
+            } else {
+              itemTax = Math.round(itemSubtotal * 0.05);
+            }
+            const standardTax = Math.round(itemSubtotal * 0.05);
+            if (itemTax === 0 || Math.abs(itemTax - standardTax) <= 100) {
+              itemTax = standardTax;
+            }
+
+            // Platform Fee per item (proporsional 7% / dibagi jumlah tiket)
+            let itemFee = 0;
+            if (ord.platform_fee && orderTicketCount > 1) {
+              itemFee = Math.round(Number(ord.platform_fee) / orderTicketCount);
+            } else if (ord.platform_fee) {
+              itemFee = Number(ord.platform_fee);
+            } else {
+              itemFee = Math.round(itemSubtotal * 0.07);
+            }
+            const standardFee = Math.round(itemSubtotal * 0.07);
+            if (itemFee === 0 || Math.abs(itemFee - standardFee) <= 600) {
+              itemFee = standardFee;
+            }
+
             const itemTotal = itemSubtotal + itemTax + itemFee;
 
             list.push({
@@ -215,9 +244,20 @@ function TicketCategoryDetailContent() {
       const topTktMatch = !normTargetTkt || ordTkt.includes(normTargetTkt) || normTargetTkt.includes(ordTkt);
 
       if (topCatMatch && topTktMatch) {
-        const itemSubtotal = Number(ord.subtotal || ord.total_amount || 0);
-        const itemTax = Number(ord.tax_amount ?? 0);
-        const itemFee = Number(ord.platform_fee ?? 0);
+        const orderTicketCount = Math.max(1, ord.quantity || 1);
+        const itemSubtotal = Number(
+          ord.subtotal
+            ? Math.round(ord.subtotal / orderTicketCount)
+            : (ord.total_amount ? Math.round(ord.total_amount / orderTicketCount) : 0)
+        );
+
+        let itemTax = Math.round(Number(ord.tax_amount ?? 0) / orderTicketCount);
+        let itemFee = Math.round(Number(ord.platform_fee ?? 0) / orderTicketCount);
+        const standardTax = Math.round(itemSubtotal * 0.05);
+        const standardFee = Math.round(itemSubtotal * 0.07);
+        if (itemTax === 0 || Math.abs(itemTax - standardTax) <= 100) itemTax = standardTax;
+        if (itemFee === 0 || Math.abs(itemFee - standardFee) <= 600) itemFee = standardFee;
+
         const itemTotal = itemSubtotal + itemTax + itemFee;
 
         list.push({
@@ -236,7 +276,7 @@ function TicketCategoryDetailContent() {
           total_amount: itemTotal,
           category: ord.category || ord.ticket_category || categoryParam || 'Reguler',
           ticket_name: ord.ticket_type_name || ticketParam || 'Tiket Pass',
-          quantity: ord.quantity || 1,
+          quantity: 1,
           status: 'PAID',
           created_at: ord.created_at,
         });

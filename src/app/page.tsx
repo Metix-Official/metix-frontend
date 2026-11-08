@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/public/Navbar';
 import { Hero } from '@/components/public/Hero';
 import { CategorySection } from '@/components/public/CategorySection';
@@ -14,6 +15,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { fetchPublicEvents, ApiEvent } from '@/lib/api';
 
 export default function PublicHomepage() {
+  const router = useRouter();
   const { lang, setLang } = useLanguage('id');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
@@ -76,9 +78,14 @@ export default function PublicHomepage() {
 
   const handleOrderTicket = () => {
     setIsWelcomeModalOpen(false);
-    const element = document.getElementById('events');
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
+    if (apiEvents && apiEvents.length > 0) {
+      const targetEvent = apiEvents[0];
+      router.push(`/events/${targetEvent.slug || targetEvent.id}/checkout`);
+    } else {
+      const element = document.getElementById('events');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
     }
   };
 
@@ -141,6 +148,7 @@ export default function PublicHomepage() {
         isOpen={isWelcomeModalOpen}
         onClose={() => setIsWelcomeModalOpen(false)}
         onOrderTicket={handleOrderTicket}
+        featuredEvent={apiEvents && apiEvents.length > 0 ? apiEvents[0] : null}
       />
     </div>
   );

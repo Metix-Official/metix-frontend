@@ -18,6 +18,9 @@ interface EventCardProps {
   rawApiEvent?: ApiEvent;
   index?: number;
   animationDelayMs?: number;
+  customLink?: string;
+  onClick?: (e: React.MouseEvent) => void;
+  className?: string;
 }
 
 export const EventCard: React.FC<EventCardProps> = ({
@@ -25,6 +28,9 @@ export const EventCard: React.FC<EventCardProps> = ({
   rawApiEvent,
   index = 0,
   animationDelayMs,
+  customLink,
+  onClick,
+  className,
 }) => {
   const delay = animationDelayMs ?? index * 80;
   const fallbackUrl = DEFAULT_CONCERT_BANNERS[index % DEFAULT_CONCERT_BANNERS.length];
@@ -113,13 +119,14 @@ export const EventCard: React.FC<EventCardProps> = ({
     }
   };
 
-  const eventLink = `/events/${targetApiEvent.slug || targetApiEvent.id}`;
+  const eventLink = customLink || `/events/${targetApiEvent.slug || targetApiEvent.id}`;
 
   return (
     <Link
       href={eventLink}
+      onClick={onClick}
       style={{ animationDelay: `${delay}ms` }}
-      className="group relative rounded-3xl bg-white border border-slate-200/90 hover:border-blue-500/60 shadow-sm hover:shadow-2xl hover:shadow-blue-600/15 transition-all duration-300 flex flex-col h-full hover:-translate-y-1.5 animate-fade-in-up opacity-0 cursor-pointer overflow-hidden"
+      className={`group relative rounded-3xl bg-white border border-slate-200/90 hover:border-blue-500/60 shadow-sm hover:shadow-2xl hover:shadow-blue-600/15 transition-all duration-300 flex flex-col h-full hover:-translate-y-1.5 animate-fade-in-up opacity-0 cursor-pointer overflow-hidden ${className || ''}`}
     >
       {/* Top Banner & Image Thumbnail with Ticket Voucher Header */}
       <div className="relative h-48 sm:h-52 w-full bg-slate-950 flex flex-col justify-between overflow-hidden shrink-0">

@@ -58,7 +58,17 @@ import {
   API_BASE_URL,
   ApiEvent,
   ApiTicketType,
+  CheckoutHolderPayload,
 } from '@/lib/api';
+import {
+  BuyerProfileLike,
+  CheckoutIdentityType,
+  extractBuyerFormDefaults,
+  getIdentityValidationMeta,
+  isValidIdentityNumber,
+  isValidIndonesianPhone,
+  sanitizeIdentityNumber,
+} from '@/lib/checkoutIdentity';
 import { AuthModal } from '@/components/public/AuthModal';
 import { Footer } from '@/components/public/Footer';
 
@@ -105,8 +115,20 @@ export default function EventCheckoutClient() {
   const [buyerEmail, setBuyerEmail] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
   const [buyerAddress, setBuyerAddress] = useState('');
+  const [buyerIdentityType, setBuyerIdentityType] = useState<CheckoutIdentityType>('KTP');
   const [buyerNik, setBuyerNik] = useState('');
   const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
+
+  const applyUserProfileToBuyer = React.useCallback((u: BuyerProfileLike | null | undefined) => {
+    if (!u) return;
+    const defaults = extractBuyerFormDefaults(u);
+    setBuyerName(defaults.name);
+    setBuyerEmail(defaults.email);
+    setBuyerPhone(defaults.phone);
+    setBuyerAddress(defaults.address);
+    setBuyerIdentityType(defaults.identityType);
+    setBuyerNik(defaults.identityNumber);
+  }, []);
 
   // Address Rich Text Format Helper
   const addressTextareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -171,7 +193,14 @@ export default function EventCheckoutClient() {
 
   // Pemegang Tiket Details (Per-ticket holders)
   const [sameAsBuyerFlags, setSameAsBuyerFlags] = useState<boolean[]>([true]);
-  const [ticketHolders, setTicketHolders] = useState<{ name: string; phone: string; nik: string; address: string }[]>([]);
+  const [ticketHolders, setTicketHolders] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    identityType: CheckoutIdentityType;
+    nik: string;
+    address: string;
+  }[]>([]);
 
   // Promo Code State
   const [isUsePromoChecked, setIsUsePromoChecked] = useState(false);
@@ -240,25 +269,14 @@ export default function EventCheckoutClient() {
 
     if (token) {
       setIsUserLoggedIn(true);
-      const getAddressValue = (u: any) => u?.address || u?.location || '';
-      const getNikValue = (u: any) => u?.nik || '';
-      const getPhoneValue = (u: any) => u?.phone || u?.phone_number || u?.whatsapp || u?.no_hp || '';
 
       if (user) {
-        setBuyerName(user.name || user.first_name || '');
-        setBuyerEmail(user.email || '');
-        setBuyerPhone(getPhoneValue(user));
-        setBuyerAddress(getAddressValue(user));
-        setBuyerNik(getNikValue(user));
+        applyUserProfileToBuyer(user);
       }
 
       fetchUserProfile().then((freshUser) => {
         if (freshUser) {
-          setBuyerName(freshUser.name || freshUser.first_name || '');
-          setBuyerEmail(freshUser.email || '');
-          setBuyerPhone(getPhoneValue(freshUser));
-          setBuyerAddress(getAddressValue(freshUser));
-          setBuyerNik(getNikValue(freshUser));
+          applyUserProfileToBuyer(freshUser);
         }
       });
     } else {
@@ -266,7 +284,7 @@ export default function EventCheckoutClient() {
       setAuthModalMode('login');
       setIsAuthModalOpen(true);
     }
-  }, [params]);
+  }, [params, applyUserProfileToBuyer]);
 
   // Reservation Timer Countdown with persistent target timestamp across reloads
   useEffect(() => {
@@ -358,7 +376,9 @@ export default function EventCheckoutClient() {
           const isSame = i === 0 || !!sameAsBuyerFlags[i];
           nextHolders.push({
             name: isSame ? buyerName : '',
+            email: isSame ? buyerEmail : '',
             phone: isSame ? buyerPhone : '',
+            identityType: isSame ? buyerIdentityType : 'KTP',
             nik: isSame ? buyerNik : '',
             address: isSame ? buyerAddress : '',
           });
@@ -371,7 +391,9 @@ export default function EventCheckoutClient() {
         if (sameAsBuyerFlags[i] || (i === 0 && sameAsBuyerFlags[0] !== false)) {
           nextHolders[i] = {
             name: buyerName,
+            email: buyerEmail,
             phone: buyerPhone,
+            identityType: buyerIdentityType,
             nik: buyerNik,
             address: buyerAddress,
           };
@@ -384,14 +406,16 @@ export default function EventCheckoutClient() {
           (h, i) =>
             !prevHolders[i] ||
             h.name !== prevHolders[i].name ||
+            h.email !== prevHolders[i].email ||
             h.phone !== prevHolders[i].phone ||
+            h.identityType !== prevHolders[i].identityType ||
             h.nik !== prevHolders[i].nik ||
             h.address !== prevHolders[i].address
         );
 
       return isDifferent ? nextHolders : prevHolders;
     });
-  }, [totalTicketCount, buyerName, buyerPhone, buyerNik, buyerAddress, sameAsBuyerFlags]);
+  }, [totalTicketCount, buyerName, buyerEmail, buyerPhone, buyerIdentityType, buyerNik, buyerAddress, sameAsBuyerFlags]);
 
   const handleToggleSameAsBuyer = (idx: number, isChecked: boolean) => {
     setSameAsBuyerFlags((prev) => {
@@ -406,7 +430,9 @@ export default function EventCheckoutClient() {
         if (next[idx]) {
           next[idx] = {
             name: buyerName,
+            email: buyerEmail,
             phone: buyerPhone,
+            identityType: buyerIdentityType,
             nik: buyerNik,
             address: buyerAddress,
           };
@@ -499,18 +525,16 @@ export default function EventCheckoutClient() {
   // Form Validations
   const isBuyerNameValid = buyerName.trim().length > 0;
   const isBuyerEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail.trim());
-  const isBuyerPhoneValid =
-    /^(08|628|\+628|8)\d{8,11}$/.test(buyerPhone.trim().replace(/\D/g, '')) ||
-    (buyerPhone.trim().replace(/\D/g, '').length >= 10 && buyerPhone.trim().replace(/\D/g, '').length <= 13);
+  const isBuyerPhoneValid = isValidIndonesianPhone(buyerPhone);
   const isBuyerAddressValid = true;
-  const isBuyerNikValid = /^\d{16}$/.test(buyerNik.trim().replace(/\D/g, ''));
+  const isBuyerNikValid = isValidIdentityNumber(buyerNik, buyerIdentityType);
 
   const isHoldersValid = ticketHolders.every(
     (h) =>
       h.name.trim().length > 0 &&
-      h.phone.trim().replace(/\D/g, '').length >= 10 &&
-      h.phone.trim().replace(/\D/g, '').length <= 13 &&
-      /^\d{16}$/.test(h.nik.trim().replace(/\D/g, ''))
+      isValidIndonesianPhone(h.phone) &&
+      isValidIdentityNumber(h.nik, h.identityType) &&
+      (!h.email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(h.email.trim()))
   );
 
   const isStep1Valid =
@@ -709,15 +733,33 @@ export default function EventCheckoutClient() {
         backendCategory = selectedPaymentCategory || 'QRIS';
       }
 
+      const flatTicketTypeIds = selectedTickets.flatMap((t) =>
+        Array.from({ length: t.quantity }, () => t.ticket_type_id)
+      );
+      const holdersPayload: CheckoutHolderPayload[] = ticketHolders.map((holder, idx) => ({
+        ticket_type_id: flatTicketTypeIds[idx],
+        full_name: holder.name.trim(),
+        email: holder.email.trim() || buyerEmail.trim() || undefined,
+        phone: holder.phone.trim(),
+        identity_type: holder.identityType,
+        identity_number: holder.nik.trim(),
+      }));
+
       const orderData: any = await checkoutOrder({
         reservation_id: reservationId,
         reservation_ids: reservationIds,
         promo_code: isUsePromoChecked && appliedPromo ? appliedPromo.code : undefined,
         payment_category: backendCategory,
         payment_method: selectedPaymentCategory,
-        nik: buyerNik,
+        nik: buyerIdentityType === 'KTP' ? buyerNik.trim() : undefined,
         address: buyerAddress,
-      } as any);
+        buyer_name: buyerName.trim(),
+        buyer_email: buyerEmail.trim(),
+        buyer_phone: buyerPhone.trim(),
+        buyer_identity_type: buyerIdentityType,
+        buyer_identity_number: buyerNik.trim(),
+        holders: holdersPayload,
+      });
 
       // Save to localStorage immediately
       if (typeof window !== 'undefined') {
@@ -725,7 +767,7 @@ export default function EventCheckoutClient() {
         if (storedUser) {
           const updatedUser = {
             ...storedUser,
-            nik: buyerNik || storedUser.nik,
+            nik: buyerIdentityType === 'KTP' ? (buyerNik.trim() || storedUser.nik) : storedUser.nik,
             address: buyerAddress || storedUser.address,
             phone: buyerPhone || storedUser.phone,
           };
@@ -1240,52 +1282,71 @@ export default function EventCheckoutClient() {
                   )}
                 </div>
 
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="font-extrabold text-slate-800">Nomor NIK KTP *</label>
-                    <span
-                      className={`text-[11px] font-bold transition-colors ${isBuyerNikValid
-                        ? 'text-emerald-600'
-                        : buyerNik.length > 0
-                          ? 'text-amber-600'
-                          : 'text-slate-400'
-                        }`}
-                    >
-                      {isBuyerNikValid ? '✓ 16 Digit Lengkap' : `${buyerNik.length}/16 digit`}
-                    </span>
-                  </div>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={16}
-                    required
-                    value={buyerNik}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '').slice(0, 16);
-                      setBuyerNik(val);
-                    }}
-                    placeholder="16 Digit Angka NIK KTP (cth: 3171012345670001)"
-                    className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none font-mono transition-all ${isBuyerNikValid
-                      ? 'border-emerald-500 focus:border-emerald-600 bg-emerald-50/20'
-                      : buyerNik.length > 0
-                        ? 'border-amber-400 focus:border-amber-500 bg-amber-50/20'
-                        : 'border-slate-300 focus:border-blue-600'
-                      }`}
-                  />
-                  {buyerNik.length > 0 && !isBuyerNikValid ? (
-                    <p className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> NIK KTP harus tepat 16 angka (saat ini {buyerNik.length} digit, kurang {16 - buyerNik.length} digit)
-                    </p>
-                  ) : isBuyerNikValid ? (
-                    <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> NIK KTP 16 digit terverifikasi
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-slate-400 font-medium">
-                      Wajib 16 digit angka sesuai kartu identitas KTP aa
-                    </p>
-                  )}
-                </div>
+                {(() => {
+                  const buyerIdMeta = getIdentityValidationMeta(buyerNik, buyerIdentityType);
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="font-extrabold text-slate-800">Identitas (KTP / Passport) *</label>
+                        <span
+                          className={`text-[11px] font-bold transition-colors ${buyerIdMeta.isValid
+                            ? 'text-emerald-600'
+                            : buyerNik.length > 0
+                              ? 'text-amber-600'
+                              : 'text-slate-400'
+                            }`}
+                        >
+                          {buyerIdMeta.badgeText}
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <select
+                          aria-label="Jenis identitas pemesan"
+                          value={buyerIdentityType}
+                          onChange={(e) => {
+                            const nextType = (e.target.value === 'PASSPORT' ? 'PASSPORT' : 'KTP') as CheckoutIdentityType;
+                            setBuyerIdentityType(nextType);
+                            setBuyerNik((prev) => sanitizeIdentityNumber(prev, nextType));
+                          }}
+                          className="px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-extrabold text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none shrink-0"
+                        >
+                          <option value="KTP">KTP</option>
+                          <option value="PASSPORT">Passport</option>
+                        </select>
+                        <input
+                          type="text"
+                          inputMode={buyerIdMeta.inputMode}
+                          maxLength={buyerIdMeta.maxLength}
+                          required
+                          value={buyerNik}
+                          onChange={(e) => {
+                            setBuyerNik(sanitizeIdentityNumber(e.target.value, buyerIdentityType));
+                          }}
+                          placeholder={buyerIdMeta.placeholder}
+                          className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none font-mono transition-all ${buyerIdMeta.isValid
+                            ? 'border-emerald-500 focus:border-emerald-600 bg-emerald-50/20'
+                            : buyerNik.length > 0
+                              ? 'border-amber-400 focus:border-amber-500 bg-amber-50/20'
+                              : 'border-slate-300 focus:border-blue-600'
+                            }`}
+                        />
+                      </div>
+                      {buyerNik.length > 0 && !buyerIdMeta.isValid ? (
+                        <p className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {buyerIdMeta.errorText}
+                        </p>
+                      ) : buyerIdMeta.isValid ? (
+                        <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> {buyerIdMeta.successText}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-slate-400 font-medium">
+                          {buyerIdMeta.helperText}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* 
                 <div className="space-y-1.5 sm:col-span-2">
@@ -1414,7 +1475,7 @@ export default function EventCheckoutClient() {
                         </label>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                         <div>
                           <input
                             type="text"
@@ -1425,7 +1486,7 @@ export default function EventCheckoutClient() {
                               const val = e.target.value;
                               setTicketHolders((prev) => {
                                 const next = [...prev];
-                                next[idx].name = val;
+                                next[idx] = { ...next[idx], name: val };
                                 return next;
                               });
                             }}
@@ -1449,11 +1510,11 @@ export default function EventCheckoutClient() {
                               const val = e.target.value.replace(/\D/g, '').slice(0, 13);
                               setTicketHolders((prev) => {
                                 const next = [...prev];
-                                next[idx].phone = val;
+                                next[idx] = { ...next[idx], phone: val };
                                 return next;
                               });
                             }}
-                            placeholder="WhatsApp (10-12 digit)"
+                            placeholder="WhatsApp (10-13 digit)"
                             className={`w-full px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none transition-all ${isHolderSame
                               ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500'
                               : holder.phone.replace(/\D/g, '').length >= 10 && holder.phone.replace(/\D/g, '').length <= 13
@@ -1472,36 +1533,88 @@ export default function EventCheckoutClient() {
 
                         <div>
                           <input
-                            type="text"
-                            inputMode="numeric"
-                            maxLength={16}
-                            required
-                            value={holder.nik}
+                            type="email"
+                            value={holder.email}
                             disabled={isHolderSame}
                             onChange={(e) => {
-                              const val = e.target.value.replace(/\D/g, '').slice(0, 16);
+                              const val = e.target.value;
                               setTicketHolders((prev) => {
                                 const next = [...prev];
-                                next[idx].nik = val;
+                                next[idx] = { ...next[idx], email: val };
                                 return next;
                               });
                             }}
-                            placeholder="NIK KTP (16 Digit)"
-                            className={`w-full px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none font-mono transition-all ${isHolderSame
+                            placeholder="Email Pemegang (Opsional)"
+                            className={`w-full px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none transition-all ${isHolderSame
                               ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500'
-                              : holder.nik.replace(/\D/g, '').length === 16
-                                ? 'bg-white border-emerald-500 focus:border-emerald-600'
-                                : holder.nik.length > 0
-                                  ? 'bg-white border-amber-400 focus:border-amber-500'
-                                  : 'bg-white border-slate-300 focus:border-blue-600'
+                              : 'bg-white border-slate-300 focus:border-blue-600'
                               }`}
                           />
-                          {!isHolderSame && holder.nik.length > 0 && holder.nik.replace(/\D/g, '').length !== 16 && (
-                            <span className="text-[10px] text-amber-600 font-bold block mt-1">
-                              NIK: {holder.nik.length}/16 digit (kurang {16 - holder.nik.length})
-                            </span>
-                          )}
                         </div>
+
+                        {(() => {
+                          const holderIdMeta = getIdentityValidationMeta(holder.nik, holder.identityType);
+                          return (
+                            <div>
+                              <div className="flex gap-2">
+                                <select
+                                  aria-label={`Jenis identitas pemegang tiket ${idx + 1}`}
+                                  value={holder.identityType}
+                                  disabled={isHolderSame}
+                                  onChange={(e) => {
+                                    const nextType = (e.target.value === 'PASSPORT' ? 'PASSPORT' : 'KTP') as CheckoutIdentityType;
+                                    setTicketHolders((prev) => {
+                                      const next = [...prev];
+                                      next[idx] = {
+                                        ...next[idx],
+                                        identityType: nextType,
+                                        nik: sanitizeIdentityNumber(next[idx].nik, nextType),
+                                      };
+                                      return next;
+                                    });
+                                  }}
+                                  className={`px-2.5 py-2 border rounded-xl text-xs font-extrabold focus:outline-none shrink-0 ${isHolderSame
+                                    ? 'bg-slate-100/80 border-slate-200 cursor-not-allowed text-slate-500'
+                                    : 'bg-white border-slate-300 text-slate-800 focus:border-blue-600'
+                                    }`}
+                                >
+                                  <option value="KTP">KTP</option>
+                                  <option value="PASSPORT">Passport</option>
+                                </select>
+                                <input
+                                  type="text"
+                                  inputMode={holderIdMeta.inputMode}
+                                  maxLength={holderIdMeta.maxLength}
+                                  required
+                                  value={holder.nik}
+                                  disabled={isHolderSame}
+                                  onChange={(e) => {
+                                    const val = sanitizeIdentityNumber(e.target.value, holder.identityType);
+                                    setTicketHolders((prev) => {
+                                      const next = [...prev];
+                                      next[idx] = { ...next[idx], nik: val };
+                                      return next;
+                                    });
+                                  }}
+                                  placeholder={holder.identityType === 'PASSPORT' ? 'No. Passport (cth: A1234567)' : 'NIK KTP (16 Digit)'}
+                                  className={`w-full px-3.5 py-2 border rounded-xl text-xs text-slate-900 focus:outline-none font-mono transition-all ${isHolderSame
+                                    ? 'bg-slate-100/80 border-slate-200 font-semibold cursor-not-allowed text-slate-500'
+                                    : holderIdMeta.isValid
+                                      ? 'bg-white border-emerald-500 focus:border-emerald-600'
+                                      : holder.nik.length > 0
+                                        ? 'bg-white border-amber-400 focus:border-amber-500'
+                                        : 'bg-white border-slate-300 focus:border-blue-600'
+                                    }`}
+                                />
+                              </div>
+                              {!isHolderSame && holder.nik.length > 0 && !holderIdMeta.isValid && (
+                                <span className="text-[10px] text-amber-600 font-bold block mt-1">
+                                  {holderIdMeta.errorText}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   );
@@ -1659,7 +1772,7 @@ export default function EventCheckoutClient() {
                       ? 'Pilih minimal 1 tiket terlebih dahulu.'
                       : !isAgreedTerms
                         ? 'Centang persetujuan Ketentuan Layanan di atas.'
-                        : 'Lengkapi seluruh field identitas (Nama, Email, WA, NIK KTP, Alamat) dengan benar.'}
+                        : 'Lengkapi seluruh field identitas (Nama, Email, WA, KTP/Passport) dengan benar.'}
                   </span>
                 </div>
               )}
@@ -1706,11 +1819,11 @@ export default function EventCheckoutClient() {
                       : !isAgreedTerms
                         ? 'Centang persetujuan Ketentuan Layanan di atas.'
                         : !isBuyerNikValid
-                          ? 'Nomor NIK KTP pemesan harus tepat 16 digit angka.'
+                          ? `Nomor ${buyerIdentityType === 'PASSPORT' ? 'Passport pemesan min. 6 karakter' : 'NIK KTP pemesan harus tepat 16 digit angka'}.`
                           : !isBuyerPhoneValid
                             ? 'Nomor WhatsApp pemesan harus valid (10-13 digit angka).'
                             : !isHoldersValid
-                              ? 'Lengkapi data pemegang tiket (NIK 16 digit & WA valid).'
+                              ? 'Lengkapi data pemegang tiket (KTP/Passport & WA valid).'
                               : 'Lengkapi seluruh field identitas pemesan.'}
                   </span>
                 </div>
@@ -2413,17 +2526,12 @@ export default function EventCheckoutClient() {
           setIsAuthModalOpen(false);
           setIsUserLoggedIn(true);
           const user = getStoredUser();
-          const getPhoneValue = (u: any) => u?.phone || u?.phone_number || u?.whatsapp || u?.no_hp || '';
           if (user) {
-            setBuyerName(user.name || user.first_name || '');
-            setBuyerEmail(user.email || '');
-            setBuyerPhone(getPhoneValue(user));
+            applyUserProfileToBuyer(user);
           }
           fetchUserProfile().then((freshUser) => {
             if (freshUser) {
-              setBuyerName(freshUser.name || freshUser.first_name || '');
-              setBuyerEmail(freshUser.email || '');
-              setBuyerPhone(getPhoneValue(freshUser));
+              applyUserProfileToBuyer(freshUser);
             }
           });
         }}

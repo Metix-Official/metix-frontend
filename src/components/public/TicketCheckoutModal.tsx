@@ -45,7 +45,15 @@ import {
   ApiEvent,
   ApiTicketType,
   UserProfile,
+  CheckoutHolderPayload,
 } from '@/lib/api';
+import {
+  BuyerProfileLike,
+  CheckoutIdentityType,
+  extractBuyerFormDefaults,
+  isValidIdentityNumber,
+  sanitizeIdentityNumber,
+} from '@/lib/checkoutIdentity';
 import { Skeleton } from '@/components/ui/Skeleton';
 import Link from 'next/link';
 import { AuthModal } from '@/components/public/AuthModal';
@@ -58,8 +66,10 @@ interface TicketCheckoutModalProps {
 
 interface TicketHolderDetail {
   name: string;
+  email: string;
   phone: string;
   address: string;
+  identityType: CheckoutIdentityType;
   nik: string;
   sameAsBuyer: boolean;
 }
@@ -97,6 +107,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
   const [buyerEmail, setBuyerEmail] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
   const [buyerAddress, setBuyerAddress] = useState('');
+  const [buyerIdentityType, setBuyerIdentityType] = useState<CheckoutIdentityType>('KTP');
   const [buyerNik, setBuyerNik] = useState('');
 
   // Voucher & Referral Code State
@@ -175,27 +186,24 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
 
       if (token) {
         setIsUserLoggedIn(true);
-        const getAddressValue = (u: any) => u?.address || u?.location || '';
-        const getNikValue = (u: any) => u?.nik || '';
-        const getPhoneValue = (u: any) => u?.phone || u?.phone_number || u?.whatsapp || u?.no_hp || '';
+        const applyUser = (u: BuyerProfileLike & UserProfile) => {
+          const defaults = extractBuyerFormDefaults(u);
+          setCurrentUser(u);
+          setBuyerName(defaults.name);
+          setBuyerEmail(defaults.email);
+          setBuyerPhone(defaults.phone);
+          setBuyerAddress(defaults.address);
+          setBuyerIdentityType(defaults.identityType);
+          setBuyerNik(defaults.identityNumber);
+        };
 
         if (user) {
-          setCurrentUser(user);
-          setBuyerName(user.name || user.first_name || '');
-          setBuyerEmail(user.email || '');
-          setBuyerPhone(getPhoneValue(user));
-          setBuyerAddress(getAddressValue(user));
-          setBuyerNik(getNikValue(user));
+          applyUser(user);
         }
         // Async fetch fresh profile to ensure latest details
         fetchUserProfile().then((freshUser) => {
           if (freshUser) {
-            setCurrentUser(freshUser);
-            setBuyerName(freshUser.name || freshUser.first_name || '');
-            setBuyerEmail(freshUser.email || '');
-            setBuyerPhone(getPhoneValue(freshUser));
-            setBuyerAddress(getAddressValue(freshUser));
-            setBuyerNik(getNikValue(freshUser));
+            applyUser(freshUser);
           }
         });
       } else {
@@ -205,6 +213,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
         setBuyerEmail('');
         setBuyerPhone('');
         setBuyerAddress('');
+        setBuyerIdentityType('KTP');
         setBuyerNik('');
       }
 
@@ -233,7 +242,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
 
   // Sync holder data when buyer info changes for holders with sameAsBuyer = true
   useEffect(() => {
-    if (!buyerName && !buyerPhone && !buyerAddress && !buyerNik) return;
+    if (!buyerName && !buyerEmail && !buyerPhone && !buyerAddress && !buyerNik) return;
     setSelectedTickets((prev) =>
       prev.map((item) => ({
         ...item,
@@ -242,15 +251,17 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
             ? {
               ...h,
               name: buyerName,
+              email: buyerEmail,
               phone: buyerPhone,
               address: buyerAddress,
+              identityType: buyerIdentityType,
               nik: buyerNik,
             }
             : h
         ),
       }))
     );
-  }, [buyerName, buyerPhone, buyerAddress, buyerNik]);
+  }, [buyerName, buyerEmail, buyerPhone, buyerAddress, buyerIdentityType, buyerNik]);
 
   // ALWAYS call useMemo BEFORE any conditional early return to respect React Rules of Hooks
   const totalPrice = useMemo(() => {
@@ -372,7 +383,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
   const isBuyerEmailValid = buyerEmail.trim().length > 0;
   const isBuyerPhoneValid = buyerPhone.trim().length > 0;
   const isBuyerAddressValid = buyerAddress.trim().length > 0;
-  const isBuyerNikValid = buyerNik.trim().length > 0;
+  const isBuyerNikValid = isValidIdentityNumber(buyerNik, buyerIdentityType);
 
   const isHoldersValid = useMemo(() => {
     if (selectedTickets.length === 0) return false;
@@ -382,7 +393,8 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
           h.name.trim().length > 0 &&
           h.phone.trim().length > 0 &&
           h.address.trim().length > 0 &&
-          h.nik.trim().length > 0
+          (!h.email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(h.email.trim())) &&
+          isValidIdentityNumber(h.nik, h.identityType)
       )
     );
   }, [selectedTickets]);
@@ -402,8 +414,10 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
 
   const createEmptyHolder = (): TicketHolderDetail => ({
     name: '',
+    email: '',
     phone: '',
     address: '',
+    identityType: 'KTP',
     nik: '',
     sameAsBuyer: false,
   });
@@ -464,16 +478,20 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
           if (isChecked) {
             newHolders[holderIndex] = {
               name: buyerName,
+              email: buyerEmail,
               phone: buyerPhone,
               address: buyerAddress,
+              identityType: buyerIdentityType,
               nik: buyerNik,
               sameAsBuyer: true,
             };
           } else {
             newHolders[holderIndex] = {
               name: '',
+              email: '',
               phone: '',
               address: '',
+              identityType: 'KTP',
               nik: '',
               sameAsBuyer: false,
             };
@@ -495,11 +513,17 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
       prev.map((item) => {
         if (item.ticketType.id === ticketTypeId) {
           const newHolders = [...item.holders];
-          newHolders[holderIndex] = {
+          const nextHolder = {
             ...newHolders[holderIndex],
             [field]: value,
             sameAsBuyer: false,
           };
+          if (field === 'identityType') {
+            const nextType = (value === 'PASSPORT' ? 'PASSPORT' : 'KTP') as CheckoutIdentityType;
+            nextHolder.identityType = nextType;
+            nextHolder.nik = sanitizeIdentityNumber(nextHolder.nik, nextType);
+          }
+          newHolders[holderIndex] = nextHolder;
           return { ...item, holders: newHolders };
         }
         return item;
@@ -516,24 +540,25 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
     setIsAuthModalOpen(false);
     setIsUserLoggedIn(true);
 
-    const user = getStoredUser();
-    const getPhoneValue = (u: any) => u?.phone || u?.phone_number || u?.whatsapp || u?.no_hp || '';
+    const applyUser = (u: BuyerProfileLike & UserProfile) => {
+      const defaults = extractBuyerFormDefaults(u);
+      setCurrentUser(u);
+      setBuyerName(defaults.name);
+      setBuyerEmail(defaults.email);
+      setBuyerPhone(defaults.phone);
+      setBuyerAddress(defaults.address);
+      setBuyerIdentityType(defaults.identityType);
+      setBuyerNik(defaults.identityNumber);
+    };
 
+    const user = getStoredUser();
     if (user) {
-      setCurrentUser(user);
-      setBuyerName(user.name || user.first_name || '');
-      setBuyerEmail(user.email || '');
-      setBuyerPhone(getPhoneValue(user));
-      setBuyerNik(user.nik || '');
+      applyUser(user);
     }
 
     fetchUserProfile().then((freshUser) => {
       if (freshUser) {
-        setCurrentUser(freshUser);
-        setBuyerName(freshUser.name || freshUser.first_name || '');
-        setBuyerEmail(freshUser.email || '');
-        setBuyerPhone(getPhoneValue(freshUser));
-        setBuyerNik(freshUser.nik || '');
+        applyUser(freshUser);
       }
     });
   };
@@ -591,13 +616,19 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
 
     try {
       const firstSelection = selectedTickets[0];
+      const itemsPayload = selectedTickets.map((st) => ({
+        ticket_type_id: st.ticketType.id,
+        quantity: st.quantity,
+      }));
       const reservation = await createReservation({
         event_id: event.id,
         ticket_type_id: firstSelection.ticketType.id,
-        quantity: firstSelection.quantity,
+        quantity: totalTicketCount || firstSelection.quantity,
+        items: itemsPayload,
       });
 
       const reservationId = Number(reservation?.id || (reservation as any)?.reservation_id);
+      const reservationIds = reservation?.reservation_ids || [reservationId];
       if (!reservationId || isNaN(reservationId)) {
         throw new Error('Gagal membuat reservasi. ID reservasi dari server tidak valid.');
       }
@@ -620,14 +651,32 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
         backendCategory = selectedPaymentCategory || 'QRIS';
       }
 
+      const holdersPayload: CheckoutHolderPayload[] = selectedTickets.flatMap((st) =>
+        st.holders.map((h) => ({
+          ticket_type_id: st.ticketType.id,
+          full_name: h.name.trim(),
+          email: h.email.trim() || buyerEmail.trim() || undefined,
+          phone: h.phone.trim(),
+          identity_type: h.identityType,
+          identity_number: h.nik.trim(),
+        }))
+      );
+
       const orderData: any = await checkoutOrder({
         reservation_id: reservationId,
+        reservation_ids: reservationIds,
         promo_code: appliedPromo?.code,
         payment_category: backendCategory,
         payment_method: selectedPaymentCategory,
-        nik: buyerNik,
+        nik: buyerIdentityType === 'KTP' ? buyerNik.trim() : undefined,
         address: buyerAddress,
-      } as any);
+        buyer_name: buyerName.trim(),
+        buyer_email: buyerEmail.trim(),
+        buyer_phone: buyerPhone.trim(),
+        buyer_identity_type: buyerIdentityType,
+        buyer_identity_number: buyerNik.trim(),
+        holders: holdersPayload,
+      });
 
       // Auto update stored user in local storage for instant future pre-filling
       if (typeof window !== 'undefined') {
@@ -635,7 +684,7 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
         if (storedUser) {
           const updatedUser = {
             ...storedUser,
-            nik: buyerNik || storedUser.nik,
+            nik: buyerIdentityType === 'KTP' ? (buyerNik.trim() || storedUser.nik) : storedUser.nik,
             address: buyerAddress || storedUser.address,
             phone: buyerPhone || storedUser.phone,
           };
@@ -1125,20 +1174,35 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <label className="block text-xs font-bold text-slate-700">
-                            Nomor Induk Kependudukan (NIK KTP) <span className="text-rose-500">*</span>
+                            Identitas (KTP / Passport) <span className="text-rose-500">*</span>
                           </label>
-                          {!buyerNik && <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">Wajib diisi</span>}
+                          {!isBuyerNikValid && <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">{buyerIdentityType === 'PASSPORT' ? 'Min. 6 karakter' : 'Wajib 16 digit'}</span>}
                         </div>
-                        <input
-                          type="text"
-                          maxLength={16}
-                          value={buyerNik}
-                          onChange={(e) => setBuyerNik(e.target.value.replace(/\D/g, '').slice(0, 16))}
-                          placeholder="16 Digit NIK Sesuai KTP (e.g. 3171012304950001)"
-                          className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono font-bold text-slate-900 focus:outline-none transition-all ${!buyerNik ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200 bg-slate-50/50 focus:border-blue-600 focus:bg-white'
-                            }`}
-                          required
-                        />
+                        <div className="flex gap-2">
+                          <select
+                            aria-label="Jenis identitas pemesan"
+                            value={buyerIdentityType}
+                            onChange={(e) => {
+                              const nextType = (e.target.value === 'PASSPORT' ? 'PASSPORT' : 'KTP') as CheckoutIdentityType;
+                              setBuyerIdentityType(nextType);
+                              setBuyerNik((prev) => sanitizeIdentityNumber(prev, nextType));
+                            }}
+                            className="px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-xs font-extrabold text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white shrink-0"
+                          >
+                            <option value="KTP">KTP</option>
+                            <option value="PASSPORT">Passport</option>
+                          </select>
+                          <input
+                            type="text"
+                            maxLength={buyerIdentityType === 'PASSPORT' ? 20 : 16}
+                            value={buyerNik}
+                            onChange={(e) => setBuyerNik(sanitizeIdentityNumber(e.target.value, buyerIdentityType))}
+                            placeholder={buyerIdentityType === 'PASSPORT' ? 'Nomor Passport (e.g. A1234567)' : '16 Digit NIK Sesuai KTP (e.g. 3171012304950001)'}
+                            className={`w-full px-3.5 py-2.5 rounded-xl border text-xs font-mono font-bold text-slate-900 focus:outline-none transition-all ${!isBuyerNikValid ? 'border-rose-300 bg-rose-50/30' : 'border-slate-200 bg-slate-50/50 focus:border-blue-600 focus:bg-white'
+                              }`}
+                            required
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1221,6 +1285,23 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
                                           <label className="text-[11px] font-extrabold text-slate-800 block mb-1">
+                                            Email Pemegang (Opsional)
+                                          </label>
+                                          <input
+                                            type="email"
+                                            disabled={holder.sameAsBuyer}
+                                            value={holder.email}
+                                            onChange={(e) => updateHolderField(st.ticketType.id, idx, 'email', e.target.value)}
+                                            placeholder="Opsional, default email pemesan"
+                                            className={`w-full px-3.5 py-2.5 border rounded-xl text-xs font-semibold focus:outline-none transition-all shadow-2xs ${holder.sameAsBuyer
+                                              ? 'bg-slate-100/90 text-slate-600 border-slate-200 cursor-not-allowed select-none font-bold'
+                                              : 'bg-white text-slate-900 border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20'
+                                              }`}
+                                          />
+                                        </div>
+
+                                        <div>
+                                          <label className="text-[11px] font-extrabold text-slate-800 block mb-1">
                                             Nomor WhatsApp *
                                           </label>
                                           <input
@@ -1236,19 +1317,41 @@ export const TicketCheckoutModal: React.FC<TicketCheckoutModalProps> = ({
                                               }`}
                                           />
                                         </div>
+                                      </div>
 
-                                        <div>
-                                          <label className="text-[11px] font-extrabold text-slate-800 block mb-1">
-                                            NIK (KTP) *
-                                          </label>
+                                      <div>
+                                        <label className="text-[11px] font-extrabold text-slate-800 block mb-1">
+                                          Identitas (KTP / Passport) *
+                                        </label>
+                                        <div className="flex gap-2">
+                                          <select
+                                            aria-label={`Jenis identitas pemegang tiket ${idx + 1}`}
+                                            disabled={holder.sameAsBuyer}
+                                            value={holder.identityType}
+                                            onChange={(e) => updateHolderField(st.ticketType.id, idx, 'identityType', e.target.value)}
+                                            className={`px-3 py-2.5 border rounded-xl text-xs font-extrabold focus:outline-none shrink-0 shadow-2xs ${holder.sameAsBuyer
+                                              ? 'bg-slate-100/90 text-slate-600 border-slate-200 cursor-not-allowed'
+                                              : 'bg-white text-slate-800 border-slate-300 focus:border-blue-600'
+                                              }`}
+                                          >
+                                            <option value="KTP">KTP</option>
+                                            <option value="PASSPORT">Passport</option>
+                                          </select>
                                           <input
                                             type="text"
-                                            maxLength={16}
+                                            maxLength={holder.identityType === 'PASSPORT' ? 20 : 16}
                                             required
                                             disabled={holder.sameAsBuyer}
                                             value={holder.nik}
-                                            onChange={(e) => updateHolderField(st.ticketType.id, idx, 'nik', e.target.value.replace(/\D/g, ''))}
-                                            placeholder="16 Digit NIK Sesuai KTP"
+                                            onChange={(e) =>
+                                              updateHolderField(
+                                                st.ticketType.id,
+                                                idx,
+                                                'nik',
+                                                sanitizeIdentityNumber(e.target.value, holder.identityType)
+                                              )
+                                            }
+                                            placeholder={holder.identityType === 'PASSPORT' ? 'Nomor Passport (e.g. A1234567)' : '16 Digit NIK Sesuai KTP'}
                                             className={`w-full px-3.5 py-2.5 border rounded-xl text-xs font-mono font-semibold focus:outline-none transition-all shadow-2xs ${holder.sameAsBuyer
                                               ? 'bg-slate-100/90 text-slate-600 border-slate-200 cursor-not-allowed select-none font-bold'
                                               : 'bg-white text-slate-900 border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20'

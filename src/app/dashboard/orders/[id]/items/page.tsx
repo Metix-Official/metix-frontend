@@ -9,7 +9,10 @@ import {
   fetchMasterOrderDetail,
   MasterOrderItem,
   MasterOrder,
+  MasterOrderTicket,
 } from '@/lib/api';
+import { TicketHoldersTable } from '@/components/dashboard/TicketHoldersTable';
+import { EditTicketAttendeeModal } from '@/components/dashboard/EditTicketAttendeeModal';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/sonner';
 import {
@@ -19,6 +22,7 @@ import {
   Ticket,
   Calendar,
   User,
+  UserCheck,
   Mail,
   CreditCard,
   Clock,
@@ -37,6 +41,8 @@ export default function OrderItemsDetailPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [items, setItems] = useState<MasterOrderItem[]>([]);
+  const [tickets, setTickets] = useState<MasterOrderTicket[]>([]);
+  const [editingTicket, setEditingTicket] = useState<MasterOrderTicket | null>(null);
   const [orderSummary, setOrderSummary] = useState<{
     id: number;
     order_number: string;
@@ -64,6 +70,8 @@ export default function OrderItemsDetailPage() {
       } else if (detailRes && detailRes.items) {
         setItems(detailRes.items);
       }
+
+      setTickets(itemsRes?.tickets || detailRes?.tickets || []);
 
       if (detailRes) {
         setFullOrder(detailRes);
@@ -329,6 +337,27 @@ export default function OrderItemsDetailPage() {
           </div>
         )}
 
+        {/* Issued Tickets & Ticket Holders Table */}
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-blue-600" />
+              <h3 className="text-sm font-extrabold text-slate-900">
+                Pemegang Tiket Terbit ({tickets.length})
+              </h3>
+            </div>
+            <span className="text-[11px] text-slate-500 font-medium">
+              Ubah nama / email / identitas pemegang tiket tanpa mengubah akun pembeli
+            </span>
+          </div>
+
+          <TicketHoldersTable
+            tickets={tickets}
+            isLoading={isLoading}
+            onEditTicket={(ticket) => setEditingTicket(ticket)}
+          />
+        </div>
+
         {/* Order Items Table */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5">
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
@@ -495,6 +524,18 @@ export default function OrderItemsDetailPage() {
           )}
         </div>
       </div>
+
+      <EditTicketAttendeeModal
+        ticket={editingTicket}
+        buyerName={effectiveBuyerName}
+        buyerEmail={effectiveBuyerEmail !== '-' ? effectiveBuyerEmail : undefined}
+        onClose={() => setEditingTicket(null)}
+        onSuccess={(updatedTicket) => {
+          setTickets((prev) =>
+            prev.map((t) => (t.id === updatedTicket.id ? updatedTicket : t))
+          );
+        }}
+      />
     </DashboardLayout>
   );
 }

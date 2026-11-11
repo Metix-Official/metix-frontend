@@ -8,6 +8,7 @@ import {
   MasterOrder,
   updateMasterOrderApi,
 } from '@/lib/api';
+import { OrderTicketHoldersModal } from '@/components/dashboard/OrderTicketHoldersModal';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/sonner';
 import {
@@ -46,6 +47,7 @@ import {
   Pencil,
   CalendarPlus,
   Loader2,
+  UserCheck,
 } from 'lucide-react';
 
 export default function MasterOrderPage() {
@@ -80,6 +82,10 @@ export default function MasterOrderPage() {
   const [paidAtInput, setPaidAtInput] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('PAID');
   const [isSavingPaidAt, setIsSavingPaidAt] = useState<boolean>(false);
+
+  // Quick Manage Ticket Holders Modal State
+  const [openOptionsOrderId, setOpenOptionsOrderId] = useState<number | null>(null);
+  const [managingHoldersOrder, setManagingHoldersOrder] = useState<MasterOrder | null>(null);
 
   // Debounce search input
   useEffect(() => {
@@ -680,9 +686,12 @@ export default function MasterOrderPage() {
                             </Popover>
                           </td>
 
-                          {/* 12. Opsi: Button titik tiga Order Item lempar halaman */}
+                          {/* 12. Opsi: Button titik tiga Order Item & Pemegang Tiket */}
                           <td className="py-3.5 px-4 text-center whitespace-nowrap align-middle">
-                            <Popover>
+                            <Popover
+                              open={openOptionsOrderId === order.id}
+                              onOpenChange={(open) => setOpenOptionsOrderId(open ? order.id : null)}
+                            >
                               <PopoverTrigger asChild>
                                 <button
                                   type="button"
@@ -692,21 +701,37 @@ export default function MasterOrderPage() {
                                   <MoreVertical className="w-4 h-4" />
                                 </button>
                               </PopoverTrigger>
-                              <PopoverContent align="end" className="w-52 p-1.5 rounded-2xl bg-white shadow-xl border border-slate-200 animate-in fade-in-0 zoom-in-95">
+                              <PopoverContent align="end" className="w-56 p-1.5 rounded-2xl bg-white shadow-xl border border-slate-200 animate-in fade-in-0 zoom-in-95">
                                 <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1">
                                   <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                                     Opsi Order #{order.order_number}
                                   </span>
                                 </div>
                                 <div className="flex flex-col space-y-0.5">
+                                  {/* Quick Modal: Ubah Pemegang Tiket */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenOptionsOrderId(null);
+                                      setManagingHoldersOrder(order);
+                                    }}
+                                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer group/item"
+                                  >
+                                    <div className="flex items-center gap-2.5">
+                                      <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                                      <span>Ubah Pemegang Tiket</span>
+                                    </div>
+                                  </button>
+
                                   {/* Lempar Halaman: Order Items */}
                                   <Link
                                     href={`/dashboard/orders/${order.id}/items`}
+                                    onClick={() => setOpenOptionsOrderId(null)}
                                     className="flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors group/item"
                                   >
                                     <div className="flex items-center gap-2.5">
                                       <Package className="w-4 h-4 text-blue-600 shrink-0" />
-                                      <span>Order Items</span>
+                                      <span>Order Items & Tiket</span>
                                     </div>
                                     <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover/item:text-blue-600" />
                                   </Link>
@@ -812,6 +837,11 @@ export default function MasterOrderPage() {
           )}
         </div>
       </div>
+
+      <OrderTicketHoldersModal
+        order={managingHoldersOrder}
+        onClose={() => setManagingHoldersOrder(null)}
+      />
     </DashboardLayout>
   );
 }

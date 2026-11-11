@@ -370,9 +370,12 @@ export interface ApiTicketDetail {
   category?: string;
   holder_name?: string;
   attendee?: {
+    id?: number;
     full_name?: string;
     email?: string;
     phone?: string;
+    identity_type?: 'KTP' | 'PASSPORT' | 'OTHER' | string | null;
+    identity_number?: string | null;
   };
   order?: {
     id?: number | string;
@@ -1391,6 +1394,15 @@ export async function previewCheckout(payload: {
   return data?.data || data;
 }
 
+export interface CheckoutHolderPayload {
+  ticket_type_id?: number;
+  full_name: string;
+  email?: string;
+  phone?: string;
+  identity_type: 'KTP' | 'PASSPORT' | 'OTHER';
+  identity_number: string;
+}
+
 export async function checkoutOrder(payload: {
   reservation_id: number;
   reservation_ids?: number[];
@@ -1400,6 +1412,12 @@ export async function checkoutOrder(payload: {
   payment_method?: string;
   nik?: string;
   address?: string;
+  buyer_name?: string;
+  buyer_email?: string;
+  buyer_phone?: string;
+  buyer_identity_type?: 'KTP' | 'PASSPORT' | 'OTHER';
+  buyer_identity_number?: string;
+  holders?: CheckoutHolderPayload[];
 }): Promise<ApiOrder> {
   const token = getStoredToken();
   const response = await fetch(`${API_BASE_URL}/checkout`, {
@@ -1709,10 +1727,17 @@ export async function processCheckIn(payload: CheckInPayload): Promise<CheckInRe
       if (isSuccess) {
         const rawTicket = data?.ticket || data?.data?.ticket || data?.data;
         const returnedTicket = {
-          code: rawTicket?.ticket_code || rawTicket?.code || codeAttempt,
-          holder_name: rawTicket?.holder_name || rawTicket?.order?.buyer_name || rawTicket?.buyer_name || matchedOrder?.buyer_name || 'Pengunjung Gate',
+          code: rawTicket?.ticket_code || rawTicket?.ticket_number || rawTicket?.code || codeAttempt,
+          holder_name:
+            rawTicket?.attendee_name ||
+            rawTicket?.attendee?.full_name ||
+            rawTicket?.holder_name ||
+            rawTicket?.order?.buyer_name ||
+            rawTicket?.buyer_name ||
+            matchedOrder?.buyer_name ||
+            'Pengunjung Gate',
           event_name: rawTicket?.event_name || rawTicket?.event?.title || matchedOrder?.event?.title || 'Event Metix',
-          type_name: rawTicket?.type_name || rawTicket?.ticket_type?.name || 'Tiket Masuk',
+          type_name: rawTicket?.type_name || rawTicket?.ticket_type?.name || rawTicket?.ticket_type || 'Tiket Masuk',
           status: 'used',
         };
 
@@ -5522,6 +5547,29 @@ export interface MasterOrderItem {
   } | null;
 }
 
+export interface MasterOrderTicketAttendee {
+  id?: number | null;
+  full_name: string;
+  email?: string | null;
+  phone?: string | null;
+  identity_type?: 'KTP' | 'PASSPORT' | 'OTHER' | string | null;
+  identity_number?: string | null;
+}
+
+export interface MasterOrderTicket {
+  id: number;
+  order_id: number;
+  ticket_type_id: number;
+  ticket_type_name: string;
+  category?: string | null;
+  ticket_code: string;
+  status: string;
+  issued_at?: string | null;
+  owner_id?: number | null;
+  holder_name: string;
+  attendee?: MasterOrderTicketAttendee | null;
+}
+
 export interface MasterOrder {
   id: number;
   order_number: string;
@@ -5550,6 +5598,7 @@ export interface MasterOrder {
   created_at?: string | null;
   items_count?: number;
   items?: MasterOrderItem[];
+  tickets?: MasterOrderTicket[];
   payments?: any[];
 }
 
@@ -5584,6 +5633,7 @@ export interface MasterOrderItemsResponse {
     total_amount: number;
   };
   data: MasterOrderItem[];
+  tickets?: MasterOrderTicket[];
 }
 
 export async function fetchMasterOrders(params?: {
@@ -5691,6 +5741,45 @@ export async function updateMasterOrderApi(
   return {
     success: true,
     message: json.message || 'Order berhasil diperbarui.',
+    data: json.data,
+  };
+}
+
+export interface UpdateTicketAttendeePayload {
+  full_name: string;
+  email?: string | null;
+  identity_type?: 'KTP' | 'PASSPORT' | 'OTHER' | null;
+  identity_number?: string | null;
+}
+
+export async function updateOwnerTicketAttendeeApi(
+  ticketId: number | string,
+  payload: UpdateTicketAttendeePayload
+): Promise<{ success: boolean; message: string; data: MasterOrderTicket }> {
+  const token = getStoredToken();
+  if (!token) throw new Error('Unauthenticated');
+
+  const response = await fetch(`${API_BASE_URL}/owner/tickets/${ticketId}/attendee`, {
+    method: 'PUT',
+    headers: {
+      ...getHeaders(token),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorMsg =
+      (json?.errors ? Object.values(json.errors).flat().join(', ') : null) ||
+      json?.message ||
+      'Gagal memperbarui data pemegang tiket.';
+    throw new Error(errorMsg);
+  }
+
+  return {
+    success: true,
+    message: json.message || 'Data pemegang tiket berhasil diperbarui.',
     data: json.data,
   };
 }

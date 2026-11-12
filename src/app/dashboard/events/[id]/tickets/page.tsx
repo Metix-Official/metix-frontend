@@ -12,6 +12,8 @@ import {
   ApiEvent,
   ApiTicketType,
   getPhotoUrl,
+  getTicketManagementStatus,
+  groupAndSortTicketTypes,
 } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/sonner';
@@ -411,16 +413,11 @@ export default function EventTicketsPage({ params }: TicketsPageProps) {
     }
   };
 
-  // Group ticket types by category
-  const groupedTickets = React.useMemo(() => {
-    const groups: Record<string, ApiTicketType[]> = {};
-    ticketTypes.forEach((tt) => {
-      const cat = (tt.category || 'Umum').trim();
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(tt);
-    });
-    return groups;
-  }, [ticketTypes]);
+  // Group ticket types by category with ACTIVE cards & rows on top and SOLD_OUT at the bottom
+  const sortedTicketGroups = React.useMemo(
+    () => groupAndSortTicketTypes(ticketTypes, { checkSaleEnded: true }),
+    [ticketTypes]
+  );
 
   const bannerUrl = event?.banner ? getPhotoUrl(event.banner) : null;
 
@@ -821,9 +818,9 @@ export default function EventTicketsPage({ params }: TicketsPageProps) {
                 <Skeleton className="h-28 w-full rounded-2xl" />
                 <Skeleton className="h-28 w-full rounded-2xl" />
               </div>
-            ) : Object.keys(groupedTickets).length > 0 ? (
+            ) : sortedTicketGroups.length > 0 ? (
               <div className="space-y-5">
-                {Object.entries(groupedTickets).map(([categoryName, items]) => (
+                {sortedTicketGroups.map(([categoryName, items]) => (
                   <div
                     key={categoryName}
                     className="overflow-x-auto border border-slate-200/90 rounded-2xl bg-white shadow-2xs"
@@ -861,26 +858,7 @@ export default function EventTicketsPage({ params }: TicketsPageProps) {
                           const available =
                             tt.available ?? tt.available_quota ?? Math.max(0, totalQuota - sold);
 
-                          const isSaleEnded = (() => {
-                            if (!tt.sale_end_at) return false;
-                            try {
-                              const cleanStr =
-                                tt.sale_end_at.includes('Z') || tt.sale_end_at.includes('+')
-                                  ? tt.sale_end_at
-                                  : tt.sale_end_at.replace(' ', 'T');
-                              const end = new Date(cleanStr);
-                              return !isNaN(end.getTime()) && end.getTime() < Date.now();
-                            } catch {
-                              return false;
-                            }
-                          })();
-
-                          let rawStatus = (tt.status || 'ACTIVE').toUpperCase();
-                          if (available <= 0 && totalQuota > 0) {
-                            rawStatus = 'SOLD_OUT';
-                          } else if (isSaleEnded && rawStatus !== 'INACTIVE') {
-                            rawStatus = 'SALE_ENDED';
-                          }
+                          const rawStatus = getTicketManagementStatus(tt, { checkSaleEnded: true });
 
                           let statusBadge = (
                             <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">

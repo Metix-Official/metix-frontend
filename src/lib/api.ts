@@ -6386,3 +6386,81 @@ export async function deleteEoPosCashier(id: number): Promise<boolean> {
 
   return response.ok;
 }
+
+/**
+ * Determine display status of a ticket type for dashboard ticket management tables.
+ */
+export function getTicketManagementStatus(
+  tt: ApiTicketType,
+  options?: { checkSaleEnded?: boolean }
+): "ACTIVE" | "INACTIVE" | "SALE_ENDED" | "SOLD_OUT" {
+  const sold = tt.sold_count ?? tt.sold_quantity ?? 0;
+  const totalQuota = tt.quota ?? 0;
+  const available = tt.available ?? tt.available_quota ?? Math.max(0, totalQuota - sold);
+
+  let rawStatus = (tt.status || "ACTIVE").toUpperCase();
+  if (available <= 0 && totalQuota > 0) {
+    return "SOLD_OUT";
+  }
+
+  if (options?.checkSaleEnded && tt.sale_end_at) {
+    try {
+      const cleanStr =
+        tt.sale_end_at.includes("Z") || tt.sale_end_at.includes("+")
+          ? tt.sale_end_at
+          : tt.sale_end_at.replace(" ", "T");
+      const end = new Date(cleanStr);
+      if (!isNaN(end.getTime()) && end.getTime() < Date.now() && rawStatus !== "INACTIVE") {
+        return "SALE_ENDED";
+      }
+    } catch {
+      // Ignore malformed sale_end_at dates when resolving status.
+    }
+  }
+
+  if (rawStatus === "SOLD_OUT") return "SOLD_OUT";
+  if (rawStatus === "INACTIVE") return "INACTIVE";
+  if (rawStatus === "SALE_ENDED") return "SALE_ENDED";
+  return "ACTIVE";
+}
+
+function getTicketStatusSortRank(
+  tt: ApiTicketType,
+  options?: { checkSaleEnded?: boolean }
+): number {
+  const status = getTicketManagementStatus(tt, options);
+  if (status === "ACTIVE") return 0;
+  if (status === "SOLD_OUT") return 2;
+  return 1;
+}
+
+/**
+ * Group ticket types by category and sort both category cards and items inside each card
+ * so ACTIVE tickets appear at the top and SOLD_OUT tickets appear at the bottom.
+ */
+export function groupAndSortTicketTypes(
+  ticketTypes: ApiTicketType[],
+  options?: { checkSaleEnded?: boolean }
+): [string, ApiTicketType[]][] {
+  const groups: Record<string, ApiTicketType[]> = {};
+  ticketTypes.forEach((tt) => {
+    const cat = (tt.category || "Umum").trim();
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(tt);
+  });
+
+  const sortedEntries = Object.entries(groups).map(([categoryName, items]): [string, ApiTicketType[]] => {
+    const sortedItems = [...items].sort(
+      (a, b) => getTicketStatusSortRank(a, options) - getTicketStatusSortRank(b, options)
+    );
+    return [categoryName, sortedItems];
+  });
+
+  sortedEntries.sort(([, itemsA], [, itemsB]) => {
+    const bestRankA = Math.min(...itemsA.map((tt) => getTicketStatusSortRank(tt, options)));
+    const bestRankB = Math.min(...itemsB.map((tt) => getTicketStatusSortRank(tt, options)));
+    return bestRankA - bestRankB;
+  });
+
+  return sortedEntries;
+}

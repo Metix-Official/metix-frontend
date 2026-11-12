@@ -36,6 +36,8 @@ import {
   ApiPromo,
   ApiEventSetting,
   getPhotoUrl,
+  getTicketManagementStatus,
+  groupAndSortTicketTypes,
 } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VenueMapPicker } from '@/components/ui/VenueMapPicker';
@@ -3868,15 +3870,7 @@ export function EoEventsView() {
                   <Skeleton className="h-32 w-full rounded-2xl" />
                 ) : ticketTypes.length > 0 ? (
                   <div className="space-y-3">
-                    {(() => {
-                      const groups: Record<string, ApiTicketType[]> = {};
-                      ticketTypes.forEach((tt) => {
-                        const cat = (tt.category || 'Umum').trim();
-                        if (!groups[cat]) groups[cat] = [];
-                        groups[cat].push(tt);
-                      });
-
-                      return Object.entries(groups).map(([categoryName, items]) => (
+                    {groupAndSortTicketTypes(ticketTypes).map(([categoryName, items]) => (
                         <div key={categoryName} className="border border-slate-200 rounded-2xl bg-white shadow-2xs overflow-hidden">
                           <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
                             <div className="flex items-center gap-1.5 text-xs font-black text-slate-800">
@@ -3904,11 +3898,7 @@ export function EoEventsView() {
                                   const sold = tt.sold_count ?? tt.sold_quantity ?? 0;
                                   const totalQuota = tt.quota ?? 0;
                                   const available = tt.available ?? tt.available_quota ?? Math.max(0, totalQuota - sold);
-
-                                  let rawStatus = (tt.status || 'ACTIVE').toUpperCase();
-                                  if (available <= 0 && totalQuota > 0) {
-                                    rawStatus = 'SOLD_OUT';
-                                  }
+                                  const rawStatus = getTicketManagementStatus(tt);
 
                                   let statusBadge = (
                                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
@@ -3985,8 +3975,7 @@ export function EoEventsView() {
                             </table>
                           </div>
                         </div>
-                      ));
-                    })()}
+                      ))}
                   </div>
                 ) : (
                   <div className="p-6 text-center text-xs text-slate-400 font-medium bg-slate-50 rounded-2xl border border-slate-200">

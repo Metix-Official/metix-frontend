@@ -71,6 +71,53 @@ import {
 } from '@/lib/checkoutIdentity';
 import { AuthModal } from '@/components/public/AuthModal';
 import { Footer } from '@/components/public/Footer';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+/**
+ * Dropdown pemilih jenis identitas (KTP / Passport) menggunakan komponen Shadcn UI Select.
+ */
+function IdentityTypeSelect({
+  value,
+  onChange,
+  disabled = false,
+  ariaLabel,
+  className = '',
+}: {
+  value: CheckoutIdentityType;
+  onChange: (nextType: CheckoutIdentityType) => void;
+  disabled?: boolean;
+  ariaLabel: string;
+  className?: string;
+}) {
+  return (
+    <Select
+      value={value}
+      disabled={disabled}
+      onValueChange={(val) => onChange((val === 'PASSPORT' ? 'PASSPORT' : 'KTP') as CheckoutIdentityType)}
+    >
+      <SelectTrigger
+        aria-label={ariaLabel}
+        className={`w-[112px] sm:w-[120px] h-auto rounded-xl text-xs font-extrabold shrink-0 shadow-2xs transition-all ${className}`}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="rounded-xl border-slate-200 shadow-xl min-w-[130px] bg-white">
+        <SelectItem value="KTP" className="text-xs font-bold py-2 cursor-pointer">
+          KTP
+        </SelectItem>
+        <SelectItem value="PASSPORT" className="text-xs font-bold py-2 cursor-pointer">
+          Passport
+        </SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
 
 export default function EventCheckoutClient() {
   const params = useParams();
@@ -1036,6 +1083,18 @@ export default function EventCheckoutClient() {
                     );
                   }
 
+                  // Helper prioritas tiket:
+                  // 0 = Tersedia (Active & belum habis) -> Paling atas
+                  // 1 = Segera Dibuka (Upcoming)         -> Tengah
+                  // 2 = Sold Out / Berakhir              -> Paling bawah
+                  const getTicketPriority = (t: (typeof activeOrSoldOutTickets)[number]): number => {
+                    const soldOut = isTicketTypeSoldOut(t);
+                    const sched = getTicketTypeScheduleState(t);
+                    if (!soldOut && !sched.isUpcoming && !sched.isExpired) return 0;
+                    if (!soldOut && sched.isUpcoming) return 1;
+                    return 2;
+                  };
+
                   // Group by category (e.g., Early Bird, Pre-Sale 1, Festival, etc.)
                   const grouped: Record<string, typeof activeOrSoldOutTickets> = {};
                   activeOrSoldOutTickets.forEach((t) => {
@@ -1044,7 +1103,20 @@ export default function EventCheckoutClient() {
                     grouped[cat].push(t);
                   });
 
-                  return Object.entries(grouped).map(([categoryName, tickets]) => (
+                  // Urutkan tiket di dalam masing-masing kategori (Tersedia -> Segera Dibuka -> Sold Out)
+                  Object.keys(grouped).forEach((cat) => {
+                    grouped[cat].sort((a, b) => getTicketPriority(a) - getTicketPriority(b));
+                  });
+
+                  // Urutkan kategori agar kategori yang masih memiliki tiket Tersedia berada di paling atas,
+                  // dan kategori yang semua tiketnya sudah Sold Out dipindahkan ke paling bawah
+                  const sortedCategoryEntries = Object.entries(grouped).sort(([, ticketsA], [, ticketsB]) => {
+                    const minPriorityA = Math.min(...ticketsA.map(getTicketPriority));
+                    const minPriorityB = Math.min(...ticketsB.map(getTicketPriority));
+                    return minPriorityA - minPriorityB;
+                  });
+
+                  return sortedCategoryEntries.map(([categoryName, tickets]) => (
                     <div key={categoryName} className="space-y-3">
                       <div className="flex items-center justify-between pt-1 pb-1">
                         <div className="flex items-center gap-2">
@@ -1300,19 +1372,15 @@ export default function EventCheckoutClient() {
                         </span>
                       </div>
                       <div className="flex gap-2">
-                        <select
-                          aria-label="Jenis identitas pemesan"
+                        <IdentityTypeSelect
+                          ariaLabel="Jenis identitas pemesan"
                           value={buyerIdentityType}
-                          onChange={(e) => {
-                            const nextType = (e.target.value === 'PASSPORT' ? 'PASSPORT' : 'KTP') as CheckoutIdentityType;
+                          onChange={(nextType) => {
                             setBuyerIdentityType(nextType);
                             setBuyerNik((prev) => sanitizeIdentityNumber(prev, nextType));
                           }}
-                          className="px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-extrabold text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none shrink-0"
-                        >
-                          <option value="KTP">KTP</option>
-                          <option value="PASSPORT">Passport</option>
-                        </select>
+                          className="py-2.5 px-3 bg-slate-50 hover:bg-white border-slate-300 text-slate-800"
+                        />
                         <input
                           type="text"
                           inputMode={buyerIdMeta.inputMode}
@@ -1557,12 +1625,11 @@ export default function EventCheckoutClient() {
                           return (
                             <div>
                               <div className="flex gap-2">
-                                <select
-                                  aria-label={`Jenis identitas pemegang tiket ${idx + 1}`}
+                                <IdentityTypeSelect
+                                  ariaLabel={`Jenis identitas pemegang tiket ${idx + 1}`}
                                   value={holder.identityType}
                                   disabled={isHolderSame}
-                                  onChange={(e) => {
-                                    const nextType = (e.target.value === 'PASSPORT' ? 'PASSPORT' : 'KTP') as CheckoutIdentityType;
+                                  onChange={(nextType) => {
                                     setTicketHolders((prev) => {
                                       const next = [...prev];
                                       next[idx] = {
@@ -1573,14 +1640,12 @@ export default function EventCheckoutClient() {
                                       return next;
                                     });
                                   }}
-                                  className={`px-2.5 py-2 border rounded-xl text-xs font-extrabold focus:outline-none shrink-0 ${isHolderSame
-                                    ? 'bg-slate-100/80 border-slate-200 cursor-not-allowed text-slate-500'
-                                    : 'bg-white border-slate-300 text-slate-800 focus:border-blue-600'
-                                    }`}
-                                >
-                                  <option value="KTP">KTP</option>
-                                  <option value="PASSPORT">Passport</option>
-                                </select>
+                                  className={`py-2 px-3 ${
+                                    isHolderSame
+                                      ? 'bg-slate-100/80 border-slate-200 text-slate-500 cursor-not-allowed'
+                                      : 'bg-white hover:bg-slate-50 border-slate-300 text-slate-800'
+                                  }`}
+                                />
                                 <input
                                   type="text"
                                   inputMode={holderIdMeta.inputMode}

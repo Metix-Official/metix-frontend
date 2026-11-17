@@ -23,6 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import {
   ShoppingBag,
   Search,
@@ -48,6 +49,8 @@ import {
   CalendarPlus,
   Loader2,
   UserCheck,
+  Plus,
+  Minus,
 } from 'lucide-react';
 
 export default function MasterOrderPage() {
@@ -86,6 +89,22 @@ export default function MasterOrderPage() {
   // Quick Manage Ticket Holders Modal State
   const [openOptionsOrderId, setOpenOptionsOrderId] = useState<number | null>(null);
   const [managingHoldersOrder, setManagingHoldersOrder] = useState<MasterOrder | null>(null);
+
+  // Expandable Table Row State
+  const [expandedOrderIds, setExpandedOrderIds] = useState<Set<number>>(new Set());
+
+  const toggleExpandRow = (orderId: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) {
+        next.delete(orderId);
+      } else {
+        next.add(orderId);
+      }
+      return next;
+    });
+  };
 
   // Debounce search input
   useEffect(() => {
@@ -404,342 +423,504 @@ export default function MasterOrderPage() {
           ) : orders.length > 0 ? (
             <div className="space-y-4">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-600 border-collapse">
+                <table className="w-full text-left text-xs text-slate-700 min-w-[850px] border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-black uppercase tracking-wider text-slate-500">
-                      <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">#</th>
-                      <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Nama Buyer</th>
-                      <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Email</th>
+                    <tr className="border-b border-slate-200 bg-slate-50/90 text-[11px] font-black uppercase tracking-wider text-slate-600">
+                      <th className="py-3.5 px-4 w-16 text-center whitespace-nowrap align-middle">#</th>
+                      <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Buyer</th>
                       <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Event</th>
                       <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Order Number</th>
-                      <th className="py-3.5 px-4 text-right whitespace-nowrap align-middle">Subtotal</th>
-                      <th className="py-3.5 px-4 text-right whitespace-nowrap align-middle">Local Tax</th>
-                      <th className="py-3.5 px-4 text-right whitespace-nowrap align-middle">Platform Fee</th>
-                      <th className="py-3.5 px-4 text-center whitespace-nowrap align-middle">Payment Method</th>
-                      <th className="py-3.5 px-4 text-right whitespace-nowrap align-middle">Total Amount</th>
+                      <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Tanggal</th>
+                      <th className="py-3.5 px-4 text-right whitespace-nowrap align-middle">Total</th>
                       <th className="py-3.5 px-4 text-center whitespace-nowrap align-middle">Status</th>
-                      <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">
-                        <div className="flex items-center gap-1.5">
-                          <span>Paid At</span>
-                          <span className="text-[9px] font-semibold lowercase tracking-normal text-blue-600 bg-blue-50 border border-blue-200/80 px-1.5 py-0.5 rounded-md font-sans">
-                            klik edit
-                          </span>
-                        </div>
-                      </th>
-                      <th className="py-3.5 px-4 text-center whitespace-nowrap align-middle">Opsi</th>
+                      <th className="py-3.5 px-4 text-center whitespace-nowrap align-middle w-16">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {orders.map((order, index) => {
                       const rowNumber = (meta.current_page - 1) * meta.per_page + (index + 1);
+                      const isExpanded = expandedOrderIds.has(order.id);
+
                       return (
-                        <tr
-                          key={order.id}
-                          className="hover:bg-blue-50/40 transition-colors group"
-                        >
-                          {/* 0. No Urut */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap text-slate-400 font-mono text-[11px] font-bold">
-                            {rowNumber}
-                          </td>
-
-                          {/* 1. Nama Buyer */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                            <span className="font-extrabold text-slate-900 block">
-                              {order.buyer_name || '-'}
-                            </span>
-                            {order.buyer_phone && (
-                              <span className="text-[10px] text-slate-400 block">
-                                {order.buyer_phone}
-                              </span>
+                        <React.Fragment key={order.id}>
+                          <tr
+                            className={cn(
+                              'hover:bg-blue-50/40 transition-colors group',
+                              isExpanded && 'bg-blue-50/20'
                             )}
-                          </td>
-
-                          {/* 2. Email */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                            <span className="text-slate-600 block" title={order.buyer_email}>
-                              {order.buyer_email || '-'}
-                            </span>
-                          </td>
-
-                          {/* 3. Event */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                            <span className="font-bold text-slate-900 block" title={order.event?.title}>
-                              {order.event?.title || '-'}
-                            </span>
-                          </td>
-
-                          {/* 4. Order Number */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => handleCopyOrderNumber(order.order_number)}
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-mono text-[11px] font-bold border transition-all cursor-pointer group shadow-2xs ${
-                                copiedOrderNumber === order.order_number
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-400/20'
-                                  : 'bg-slate-50 hover:bg-blue-50 text-slate-800 hover:text-blue-700 border-slate-200 hover:border-blue-300'
-                              }`}
-                              title="Klik untuk salin nomor order"
-                            >
-                              <span>{order.order_number}</span>
-                              {copiedOrderNumber === order.order_number ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 animate-in zoom-in-75" />
-                              ) : (
-                                <Copy className="w-3 h-3 text-slate-400 group-hover:text-blue-600 shrink-0 transition-colors" />
-                              )}
-                            </button>
-                          </td>
-
-                          {/* 5. Subtotal */}
-                          <td className="py-3.5 px-4 text-right font-semibold text-slate-700 whitespace-nowrap align-middle">
-                            {formatIDR(order.subtotal)}
-                          </td>
-
-                          {/* 6. Local Tax */}
-                          <td className="py-3.5 px-4 text-right font-semibold text-slate-700 whitespace-nowrap align-middle">
-                            {formatIDR(order.local_tax || order.local_tax_amount)}
-                          </td>
-
-                          {/* 7. Platform Fee */}
-                          <td className="py-3.5 px-4 text-right font-semibold text-slate-700 whitespace-nowrap align-middle">
-                            {formatIDR(order.platform_fee)}
-                          </td>
-
-                          {/* 8. Payment Method */}
-                          <td className="py-3.5 px-4 text-center whitespace-nowrap align-middle">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 font-bold text-[11px]">
-                              <CreditCard className="w-3 h-3 text-slate-500" />
-                              {order.payment_method || '-'}
-                            </span>
-                          </td>
-
-                          {/* 9. Total Amount */}
-                          <td className="py-3.5 px-4 text-right font-black text-blue-600 whitespace-nowrap align-middle text-sm">
-                            {formatIDR(order.total_amount)}
-                          </td>
-
-                          {/* 10. Status */}
-                          <td className="py-3.5 px-4 text-center whitespace-nowrap align-middle">
-                            {renderStatusBadge(order.status)}
-                          </td>
-
-                          {/* 11. Paid At (Interactive Quick Edit Popover) */}
-                          <td className="py-3.5 px-4 whitespace-nowrap align-middle">
-                            <Popover
-                              open={editingPaidAtOrderId === order.id}
-                              onOpenChange={(open) => {
-                                if (open) {
-                                  handleOpenPaidAtEdit(order);
-                                } else {
-                                  setEditingPaidAtOrderId(null);
-                                }
-                              }}
-                            >
-                              <PopoverTrigger asChild>
+                          >
+                            {/* # + Button Tambah */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="font-bold text-slate-400 text-[11px] min-w-[18px] text-right font-mono">
+                                  {rowNumber}
+                                </span>
                                 <button
                                   type="button"
-                                  className={`group/btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer shadow-2xs ${
-                                    order.paid_at
-                                      ? 'bg-slate-50 hover:bg-blue-50 border-slate-200/80 hover:border-blue-300 text-slate-700 hover:text-blue-700'
-                                      : 'bg-amber-50/60 hover:bg-blue-50 border-dashed border-amber-300 hover:border-blue-300 text-amber-700 hover:text-blue-700'
-                                  }`}
-                                  title="Klik untuk ubah waktu pembayaran langsung di sini"
+                                  onClick={(e) => toggleExpandRow(order.id, e)}
+                                  className={cn(
+                                    'w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-2xs border',
+                                    isExpanded
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-blue-500/20'
+                                      : 'bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border-slate-200'
+                                  )}
+                                  title={
+                                    isExpanded
+                                      ? 'Tutup detail pesanan'
+                                      : 'Tampilkan data 1 baris lengkap ke bawah'
+                                  }
                                 >
-                                  {order.paid_at ? (
-                                    <>
-                                      <span>{formatDateTime(order.paid_at)}</span>
-                                      <Pencil className="w-3 h-3 text-slate-400 group-hover/btn:text-blue-600 transition-colors" />
-                                    </>
+                                  {isExpanded ? (
+                                    <Minus className="w-3.5 h-3.5 stroke-[2.5]" />
                                   ) : (
-                                    <>
-                                      <CalendarPlus className="w-3.5 h-3.5 text-amber-500 group-hover/btn:text-blue-600 transition-colors" />
-                                      <span className="italic">Belum diset</span>
-                                      <Pencil className="w-3 h-3 text-slate-400 group-hover/btn:text-blue-600 transition-colors opacity-70" />
-                                    </>
+                                    <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                                   )}
                                 </button>
-                              </PopoverTrigger>
+                              </div>
+                            </td>
 
-                              <PopoverContent
-                                align="start"
-                                side="bottom"
-                                className="w-80 p-4 rounded-2xl bg-white shadow-2xl border border-slate-200 animate-in fade-in-0 zoom-in-95 z-50 space-y-3.5"
-                              >
-                                {/* Popover Header */}
-                                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center">
-                                      <Calendar className="w-3.5 h-3.5" />
-                                    </div>
-                                    <div>
-                                      <h4 className="text-xs font-black text-slate-900">Ubah Waktu Bayar</h4>
-                                      <p className="text-[10px] text-slate-500 font-mono">Order #{order.order_number}</p>
-                                    </div>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingPaidAtOrderId(null)}
-                                    className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-
-                                {/* Quick Shortcuts */}
-                                <div className="flex items-center gap-1.5 text-[10.5px]">
-                                  <span className="text-slate-400 font-semibold">Pintas:</span>
-                                  <button
-                                    type="button"
-                                    onClick={handleSetCurrentTime}
-                                    className="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200 transition-colors cursor-pointer"
-                                  >
-                                    Waktu Sekarang
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setPaidAtInput('')}
-                                    className="px-2 py-0.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-bold border border-slate-200 transition-colors cursor-pointer"
-                                  >
-                                    Kosongkan
-                                  </button>
-                                </div>
-
-                                {/* Datetime Picker */}
-                                <div className="space-y-1 text-left">
-                                  <label className="text-[11px] font-semibold text-slate-700">
-                                    Tanggal & Jam Bayar
-                                  </label>
-                                  <input
-                                    type="datetime-local"
-                                    value={paidAtInput}
-                                    onChange={(e) => setPaidAtInput(e.target.value)}
-                                    className="w-full px-3 py-2 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-600 rounded-xl text-xs font-medium text-slate-900 shadow-2xs focus:outline-none focus:ring-4 focus:ring-blue-600/10 transition-all"
-                                  />
-                                </div>
-
-                                {/* Status Option */}
-                                <div className="space-y-1 text-left">
-                                  <label className="text-[11px] font-semibold text-slate-700">
-                                    Status Pesanan
-                                  </label>
-                                  <Select
-                                    value={selectedStatus}
-                                    onValueChange={(val) => setSelectedStatus(val)}
-                                  >
-                                    <SelectTrigger className="w-full py-1.5 h-9 rounded-xl border-slate-200 bg-slate-50/50 text-xs font-bold shadow-2xs">
-                                      <SelectValue placeholder="Pilih status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="PAID" className="text-xs font-bold text-emerald-700">
-                                        PAID (Lunas)
-                                      </SelectItem>
-                                      <SelectItem value="PENDING" className="text-xs font-bold text-amber-700">
-                                        PENDING (Menunggu)
-                                      </SelectItem>
-                                      <SelectItem value="CANCELLED" className="text-xs font-bold text-rose-700">
-                                        CANCELLED (Batal)
-                                      </SelectItem>
-                                      <SelectItem value="EXPIRED" className="text-xs font-bold text-slate-600">
-                                        EXPIRED (Kedaluwarsa)
-                                      </SelectItem>
-                                      <SelectItem value="REFUNDED" className="text-xs font-bold text-purple-700">
-                                        REFUNDED (Dikembalikan)
-                                      </SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-
-                                {/* Info Note */}
-                                <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 text-[10.5px] text-slate-500 leading-tight">
-                                  💡 Jika status diubah ke <strong>PAID</strong>, tiket & QR code pemesan akan otomatis diterbitkan.
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditingPaidAtOrderId(null)}
-                                    disabled={isSavingPaidAt}
-                                    className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold transition-colors cursor-pointer"
-                                  >
-                                    Batal
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSavePaidAt(order)}
-                                    disabled={isSavingPaidAt}
-                                    className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                                  >
-                                    {isSavingPaidAt ? (
-                                      <>
-                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                        <span>Menyimpan...</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Check className="w-3.5 h-3.5" />
-                                        <span>Simpan</span>
-                                      </>
-                                    )}
-                                  </button>
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                          </td>
-
-                          {/* 12. Opsi: Button titik tiga Order Item & Pemegang Tiket */}
-                          <td className="py-3.5 px-4 text-center whitespace-nowrap align-middle">
-                            <Popover
-                              open={openOptionsOrderId === order.id}
-                              onOpenChange={(open) => setOpenOptionsOrderId(open ? order.id : null)}
-                            >
-                              <PopoverTrigger asChild>
-                                <button
-                                  type="button"
-                                  className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-200 transition-all inline-flex items-center justify-center cursor-pointer shadow-2xs focus:outline-none"
-                                  title="Opsi Order"
-                                >
-                                  <MoreVertical className="w-4 h-4" />
-                                </button>
-                              </PopoverTrigger>
-                              <PopoverContent align="end" className="w-56 p-1.5 rounded-2xl bg-white shadow-xl border border-slate-200 animate-in fade-in-0 zoom-in-95">
-                                <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1">
-                                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                                    Opsi Order #{order.order_number}
+                            {/* Nama Buyer + Kontak */}
+                            <td className="py-3.5 px-4 align-middle">
+                              <div className="flex flex-col min-w-0 max-w-[180px]">
+                                <span className="font-extrabold text-slate-900 group-hover:text-blue-700 transition-colors truncate">
+                                  {order.buyer_name || '-'}
+                                </span>
+                                <span className="text-[11px] text-slate-400 font-medium truncate" title={order.buyer_email}>
+                                  {order.buyer_email || '-'}
+                                </span>
+                                {order.buyer_phone && (
+                                  <span className="text-[10px] text-slate-400 font-semibold truncate">
+                                    {order.buyer_phone}
                                   </span>
-                                </div>
-                                <div className="flex flex-col space-y-0.5">
-                                  {/* Quick Modal: Ubah Pemegang Tiket */}
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Event */}
+                            <td className="py-3.5 px-4 align-middle">
+                              <span
+                                className="font-bold text-slate-800 line-clamp-2 max-w-[200px] leading-snug"
+                                title={order.event?.title}
+                              >
+                                {order.event?.title || '-'}
+                              </span>
+                            </td>
+
+                            {/* Order Number */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => handleCopyOrderNumber(order.order_number)}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-mono text-[11px] font-bold border transition-all cursor-pointer group shadow-2xs ${
+                                  copiedOrderNumber === order.order_number
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-400/20'
+                                    : 'bg-slate-50 hover:bg-blue-50 text-slate-800 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                }`}
+                                title="Klik untuk salin nomor order"
+                              >
+                                <span>{order.order_number}</span>
+                                {copiedOrderNumber === order.order_number ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 animate-in zoom-in-75" />
+                                ) : (
+                                  <Copy className="w-3 h-3 text-slate-400 group-hover:text-blue-600 shrink-0 transition-colors" />
+                                )}
+                              </button>
+                            </td>
+
+                            {/* Tanggal */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <span className="text-xs font-semibold text-slate-700">
+                                {formatDateTime(order.created_at)}
+                              </span>
+                            </td>
+
+                            {/* Total Amount */}
+                            <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap">
+                              <span className="font-black text-blue-700 text-xs">
+                                {formatIDR(order.total_amount)}
+                              </span>
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
+                              {renderStatusBadge(order.status)}
+                            </td>
+
+                            {/* Aksi: Menu Titik Tiga */}
+                            <td className="py-3.5 px-4 text-center whitespace-nowrap align-middle">
+                              <Popover
+                                open={openOptionsOrderId === order.id}
+                                onOpenChange={(open) => setOpenOptionsOrderId(open ? order.id : null)}
+                              >
+                                <PopoverTrigger asChild>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setOpenOptionsOrderId(null);
-                                      setManagingHoldersOrder(order);
-                                    }}
-                                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer group/item"
+                                    className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-200 transition-all inline-flex items-center justify-center cursor-pointer shadow-2xs focus:outline-none"
+                                    title="Menu Aksi Order"
                                   >
-                                    <div className="flex items-center gap-2.5">
+                                    <MoreVertical className="w-4 h-4" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  align="end"
+                                  className="w-56 p-1.5 rounded-2xl bg-white shadow-xl border border-slate-200 animate-in fade-in-0 zoom-in-95 z-50"
+                                >
+                                  <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                      Aksi Order #{order.order_number}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-col space-y-0.5">
+                                    {/* Ubah Pemegang Tiket */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenOptionsOrderId(null);
+                                        setManagingHoldersOrder(order);
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer text-left"
+                                    >
                                       <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                                       <span>Ubah Pemegang Tiket</span>
-                                    </div>
-                                  </button>
+                                    </button>
 
-                                  {/* Lempar Halaman: Order Items */}
-                                  <Link
-                                    href={`/dashboard/orders/${order.id}/items`}
-                                    onClick={() => setOpenOptionsOrderId(null)}
-                                    className="flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors group/item"
-                                  >
-                                    <div className="flex items-center gap-2.5">
-                                      <Package className="w-4 h-4 text-blue-600 shrink-0" />
-                                      <span>Order Items & Tiket</span>
+                                    {/* Order Items & Tiket */}
+                                    <Link
+                                      href={`/dashboard/orders/${order.id}/items`}
+                                      onClick={() => setOpenOptionsOrderId(null)}
+                                      className="flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2.5">
+                                        <Package className="w-4 h-4 text-blue-600 shrink-0" />
+                                        <span>Order Items & Tiket</span>
+                                      </div>
+                                      <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                                    </Link>
+
+                                    {/* Ubah Waktu Bayar */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenOptionsOrderId(null);
+                                        handleOpenPaidAtEdit(order);
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer text-left"
+                                    >
+                                      <Pencil className="w-4 h-4 text-blue-600 shrink-0" />
+                                      <span>Ubah Waktu Bayar</span>
+                                    </button>
+
+                                    <div className="h-px bg-slate-100 my-1" />
+
+                                    {/* Salin No Order */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenOptionsOrderId(null);
+                                        handleCopyOrderNumber(order.order_number);
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer text-left"
+                                    >
+                                      <Copy className="w-4 h-4 text-slate-500 shrink-0" />
+                                      <span>Salin No. Order</span>
+                                    </button>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            </td>
+                          </tr>
+
+                          {/* Data 1 baris semua lengkap ke bawah saat button tambah di-click */}
+                          {isExpanded && (
+                            <tr className="bg-slate-50/70 border-b border-slate-200/80 animate-in fade-in-0 duration-150">
+                              <td colSpan={8} className="py-4 px-6">
+                                <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-3.5">
+                                  {/* Header Panel Detail */}
+                                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                                        <Package className="w-3.5 h-3.5 text-blue-600" />
+                                        Rincian Lengkap Pesanan
+                                      </span>
+                                      <span className="text-[11px] font-mono font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
+                                        #{order.order_number}
+                                      </span>
                                     </div>
-                                    <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover/item:text-blue-600" />
-                                  </Link>
+
+                                    <div className="flex items-center gap-2">
+                                      {/* Quick Link to Order Items */}
+                                      <Link
+                                        href={`/dashboard/orders/${order.id}/items`}
+                                        className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors inline-flex items-center gap-1.5 border border-blue-200"
+                                      >
+                                        <Package className="w-3.5 h-3.5 text-blue-600" />
+                                        <span>Order Items & Tiket</span>
+                                        <ExternalLink className="w-3 h-3 text-blue-500" />
+                                      </Link>
+
+                                      {/* Quick Button to Ticket Holders */}
+                                      <button
+                                        type="button"
+                                        onClick={() => setManagingHoldersOrder(order)}
+                                        className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition-colors inline-flex items-center gap-1.5 border border-emerald-200 cursor-pointer"
+                                      >
+                                        <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>Ubah Pemegang Tiket</span>
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Grid Informasi Lengkap */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                                    {/* Kolom 1: Rincian Biaya & Pajak */}
+                                    <div className="space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                        Rincian Biaya & Pajak
+                                      </span>
+                                      <div className="pt-0.5 space-y-1">
+                                        <div className="flex justify-between items-center text-slate-600">
+                                          <span>Subtotal:</span>
+                                          <span className="font-semibold">{formatIDR(order.subtotal)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-slate-600">
+                                          <span>Pajak Daerah:</span>
+                                          <span className="font-semibold">{formatIDR(order.local_tax || order.local_tax_amount)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-slate-600">
+                                          <span>Biaya Platform:</span>
+                                          <span className="font-semibold">{formatIDR(order.platform_fee)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center pt-1 border-t border-slate-200 font-extrabold text-blue-700">
+                                          <span>Total Tagihan:</span>
+                                          <span>{formatIDR(order.total_amount)}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Kolom 2: Pembayaran & Paid At (Interactive Popover) */}
+                                    <div className="space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                        Pembayaran & Waktu Bayar
+                                      </span>
+                                      <div className="pt-0.5 space-y-2">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-slate-400 text-[11px]">Metode:</span>
+                                          <span className="font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px] inline-flex items-center gap-1">
+                                            <CreditCard className="w-3 h-3 text-slate-400" />
+                                            {order.payment_method || '-'}
+                                          </span>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <span className="text-slate-400 text-[11px] block">Waktu Bayar:</span>
+                                          <Popover
+                                            open={editingPaidAtOrderId === order.id}
+                                            onOpenChange={(open) => {
+                                              if (open) {
+                                                handleOpenPaidAtEdit(order);
+                                              } else {
+                                                setEditingPaidAtOrderId(null);
+                                              }
+                                            }}
+                                          >
+                                            <PopoverTrigger asChild>
+                                              <button
+                                                type="button"
+                                                className={`group/btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer shadow-2xs ${
+                                                  order.paid_at
+                                                    ? 'bg-white hover:bg-blue-50 border-slate-200/80 hover:border-blue-300 text-slate-700 hover:text-blue-700'
+                                                    : 'bg-amber-50/60 hover:bg-blue-50 border-dashed border-amber-300 hover:border-blue-300 text-amber-700 hover:text-blue-700'
+                                                }`}
+                                                title="Klik untuk ubah waktu pembayaran"
+                                              >
+                                                {order.paid_at ? (
+                                                  <>
+                                                    <span>{formatDateTime(order.paid_at)}</span>
+                                                    <Pencil className="w-3 h-3 text-slate-400 group-hover/btn:text-blue-600 transition-colors" />
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <CalendarPlus className="w-3.5 h-3.5 text-amber-500 group-hover/btn:text-blue-600 transition-colors" />
+                                                    <span className="italic">Belum diset (Klik Edit)</span>
+                                                    <Pencil className="w-3 h-3 text-slate-400 group-hover/btn:text-blue-600 transition-colors opacity-70" />
+                                                  </>
+                                                )}
+                                              </button>
+                                            </PopoverTrigger>
+
+                                            <PopoverContent
+                                              align="start"
+                                              side="bottom"
+                                              className="w-80 p-4 rounded-2xl bg-white shadow-2xl border border-slate-200 animate-in fade-in-0 zoom-in-95 z-50 space-y-3.5"
+                                            >
+                                              {/* Popover Header */}
+                                              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                                                <div className="flex items-center gap-2">
+                                                  <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center">
+                                                    <Calendar className="w-3.5 h-3.5" />
+                                                  </div>
+                                                  <div>
+                                                    <h4 className="text-xs font-black text-slate-900">Ubah Waktu Bayar</h4>
+                                                    <p className="text-[10px] text-slate-500 font-mono">Order #{order.order_number}</p>
+                                                  </div>
+                                                </div>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setEditingPaidAtOrderId(null)}
+                                                  className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                                >
+                                                  <X className="w-3.5 h-3.5" />
+                                                </button>
+                                              </div>
+
+                                              {/* Quick Shortcuts */}
+                                              <div className="flex items-center gap-1.5 text-[10.5px]">
+                                                <span className="text-slate-400 font-semibold">Pintas:</span>
+                                                <button
+                                                  type="button"
+                                                  onClick={handleSetCurrentTime}
+                                                  className="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold border border-blue-200 transition-colors cursor-pointer"
+                                                >
+                                                  Waktu Sekarang
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setPaidAtInput('')}
+                                                  className="px-2 py-0.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-bold border border-slate-200 transition-colors cursor-pointer"
+                                                >
+                                                  Kosongkan
+                                                </button>
+                                              </div>
+
+                                              {/* Datetime Picker */}
+                                              <div className="space-y-1 text-left">
+                                                <label className="text-[11px] font-semibold text-slate-700">
+                                                  Tanggal & Jam Bayar
+                                                </label>
+                                                <input
+                                                  type="datetime-local"
+                                                  value={paidAtInput}
+                                                  onChange={(e) => setPaidAtInput(e.target.value)}
+                                                  className="w-full px-3 py-2 bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-600 rounded-xl text-xs font-medium text-slate-900 shadow-2xs focus:outline-none focus:ring-4 focus:ring-blue-600/10 transition-all"
+                                                />
+                                              </div>
+
+                                              {/* Status Option */}
+                                              <div className="space-y-1 text-left">
+                                                <label className="text-[11px] font-semibold text-slate-700">
+                                                  Status Pesanan
+                                                </label>
+                                                <Select
+                                                  value={selectedStatus}
+                                                  onValueChange={(val) => setSelectedStatus(val)}
+                                                >
+                                                  <SelectTrigger className="w-full py-1.5 h-9 rounded-xl border-slate-200 bg-slate-50/50 text-xs font-bold shadow-2xs">
+                                                    <SelectValue placeholder="Pilih status" />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    <SelectItem value="PAID" className="text-xs font-bold text-emerald-700">
+                                                      PAID (Lunas)
+                                                    </SelectItem>
+                                                    <SelectItem value="PENDING" className="text-xs font-bold text-amber-700">
+                                                      PENDING (Menunggu)
+                                                    </SelectItem>
+                                                    <SelectItem value="CANCELLED" className="text-xs font-bold text-rose-700">
+                                                      CANCELLED (Batal)
+                                                    </SelectItem>
+                                                    <SelectItem value="EXPIRED" className="text-xs font-bold text-slate-600">
+                                                      EXPIRED (Kedaluwarsa)
+                                                    </SelectItem>
+                                                    <SelectItem value="REFUNDED" className="text-xs font-bold text-purple-700">
+                                                      REFUNDED (Dikembalikan)
+                                                    </SelectItem>
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+
+                                              {/* Info Note */}
+                                              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 text-[10.5px] text-slate-500 leading-tight">
+                                                💡 Jika status diubah ke <strong>PAID</strong>, tiket & QR code pemesan akan otomatis diterbitkan.
+                                              </div>
+
+                                              {/* Action Buttons */}
+                                              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setEditingPaidAtOrderId(null)}
+                                                  disabled={isSavingPaidAt}
+                                                  className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold transition-colors cursor-pointer"
+                                                >
+                                                  Batal
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleSavePaidAt(order)}
+                                                  disabled={isSavingPaidAt}
+                                                  className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                                >
+                                                  {isSavingPaidAt ? (
+                                                    <>
+                                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                      <span>Menyimpan...</span>
+                                                    </>
+                                                  ) : (
+                                                    <>
+                                                      <Check className="w-3.5 h-3.5" />
+                                                      <span>Simpan</span>
+                                                    </>
+                                                  )}
+                                                </button>
+                                              </div>
+                                            </PopoverContent>
+                                          </Popover>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Kolom 3: Informasi Pemesan */}
+                                    <div className="space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                        Informasi Pemesan
+                                      </span>
+                                      <div className="pt-0.5 space-y-1">
+                                        <div className="font-extrabold text-slate-900 truncate">
+                                          {order.buyer_name || '-'}
+                                        </div>
+                                        <div className="text-slate-500 text-[11px] truncate" title={order.buyer_email}>
+                                          {order.buyer_email || '-'}
+                                        </div>
+                                        <div className="text-slate-600 font-semibold text-[11px]">
+                                          {order.buyer_phone || '-'}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Kolom 4: Event & Riwayat Waktu */}
+                                    <div className="space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                        Event & Riwayat Waktu
+                                      </span>
+                                      <div className="pt-0.5 space-y-1">
+                                        <div className="font-bold text-slate-800 truncate" title={order.event?.title}>
+                                          {order.event?.title || '-'}
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                                          <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                                          <span>Dibuat: {formatDateTime(order.created_at)}</span>
+                                        </div>
+                                        {order.expires_at && (
+                                          <div className="text-[11px] text-slate-400 flex items-center gap-1">
+                                            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                                            <span>Kedaluwarsa: {formatDateTime(order.expires_at)}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
-                              </PopoverContent>
-                            </Popover>
-                          </td>
-                        </tr>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>

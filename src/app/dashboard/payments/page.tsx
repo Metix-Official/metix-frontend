@@ -17,6 +17,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import {
   CreditCard,
   Search,
   RefreshCw,
@@ -43,6 +49,9 @@ import {
   Lock,
   AlertTriangle,
   Loader2,
+  Plus,
+  Minus,
+  Package,
 } from 'lucide-react';
 
 export default function MasterPaymentPage() {
@@ -82,6 +91,22 @@ export default function MasterPaymentPage() {
 
   // Action Dropdown & Modal State
   const [actionMenuPaymentId, setActionMenuPaymentId] = useState<number | null>(null);
+
+  // Expandable Table Row State
+  const [expandedPaymentIds, setExpandedPaymentIds] = useState<Set<number>>(new Set());
+
+  const toggleExpandRow = (paymentId: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedPaymentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(paymentId)) {
+        next.delete(paymentId);
+      } else {
+        next.add(paymentId);
+      }
+      return next;
+    });
+  };
 
   // Edit Modal State
   const [editingPayment, setEditingPayment] = useState<MasterPayment | null>(null);
@@ -447,224 +472,414 @@ export default function MasterPaymentPage() {
           ) : payments.length > 0 ? (
             <div className="space-y-4">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-600 border-collapse">
+                <table className="w-full text-left text-xs text-slate-700 min-w-[850px] border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-black uppercase tracking-wider text-slate-500">
-                      <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">#</th>
-                      {/* order_id = email, name, nama event */}
-                      <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Order Info (order_id)</th>
-                      <th className="py-3.5 px-4 text-center whitespace-nowrap align-middle">Provider</th>
-                      <th className="py-3.5 px-4 text-center whitespace-nowrap align-middle">Payment Method</th>
-                      <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Provider Trx ID</th>
+                    <tr className="border-b border-slate-200 bg-slate-50/90 text-[11px] font-black uppercase tracking-wider text-slate-600">
+                      <th className="py-3.5 px-4 w-16 text-center whitespace-nowrap align-middle">#</th>
+                      <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Buyer</th>
+                      <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Event</th>
                       <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Invoice Number</th>
-                      <th className="py-3.5 px-4 text-right whitespace-nowrap align-middle">Amount</th>
-                      <th className="py-3.5 px-4 text-center whitespace-nowrap align-middle">Payment URL</th>
+                      <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Tanggal</th>
+                      <th className="py-3.5 px-4 text-right whitespace-nowrap align-middle">Total</th>
                       <th className="py-3.5 px-4 text-center whitespace-nowrap align-middle">Status</th>
-                      <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Paid At</th>
-                      <th className="py-3.5 px-4 text-left whitespace-nowrap align-middle">Expired At</th>
-                      <th className="py-3.5 px-4 text-center whitespace-nowrap align-middle">Raw Response</th>
-                      <th className="py-3.5 px-4 text-center whitespace-nowrap align-middle">Aksi</th>
+                      <th className="py-3.5 px-4 text-center whitespace-nowrap align-middle w-16">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {payments.map((payment, index) => {
                       const rowNumber = (meta.current_page - 1) * meta.per_page + (index + 1);
-                      return (
-                        <tr
-                          key={payment.id}
-                          className="hover:bg-blue-50/40 transition-colors group"
-                        >
-                          {/* 0. No Urut */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap text-slate-400 font-mono text-[11px] font-bold">
-                            {rowNumber}
-                          </td>
+                      const isExpanded = expandedPaymentIds.has(payment.id);
 
-                          {/* 1. order_id = email, name, nama event */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-md bg-blue-50 border border-blue-200 text-blue-800 font-bold">
-                                  Order #{payment.order_id}
+                      return (
+                        <React.Fragment key={payment.id}>
+                          <tr
+                            className={cn(
+                              'hover:bg-blue-50/40 transition-colors group',
+                              isExpanded && 'bg-blue-50/20'
+                            )}
+                          >
+                            {/* # + Button Tambah */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="font-bold text-slate-400 text-[11px] min-w-[18px] text-right font-mono">
+                                  {rowNumber}
                                 </span>
-                                <span className="font-extrabold text-slate-900 block truncate max-w-[160px]" title={payment.buyer_name}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => toggleExpandRow(payment.id, e)}
+                                  className={cn(
+                                    'w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-2xs border',
+                                    isExpanded
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-blue-500/20'
+                                      : 'bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border-slate-200'
+                                  )}
+                                  title={
+                                    isExpanded
+                                      ? 'Tutup detail transaksi'
+                                      : 'Tampilkan data 1 baris lengkap ke bawah'
+                                  }
+                                >
+                                  {isExpanded ? (
+                                    <Minus className="w-3.5 h-3.5 stroke-[2.5]" />
+                                  ) : (
+                                    <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                                  )}
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Buyer */}
+                            <td className="py-3.5 px-4 align-middle">
+                              <div className="flex flex-col min-w-0 max-w-[180px]">
+                                <span className="font-extrabold text-slate-900 group-hover:text-blue-700 transition-colors truncate">
                                   {payment.buyer_name || '-'}
                                 </span>
-                              </div>
-                              <div className="text-[11px] text-slate-500 flex items-center gap-1 truncate max-w-[190px]" title={payment.buyer_email}>
-                                <Mail className="w-3 h-3 text-slate-400 shrink-0" />
-                                <span className="truncate">{payment.buyer_email || '-'}</span>
-                              </div>
-                              <div className="text-[10px] font-bold text-slate-700 flex items-center gap-1 truncate max-w-[190px]" title={payment.event_title}>
-                                <Calendar className="w-3 h-3 text-purple-500 shrink-0" />
-                                <span className="text-purple-700 truncate">{payment.event_title || '-'}</span>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* 2. Provider */}
-                          <td className="py-3.5 px-4 text-center whitespace-nowrap align-middle">
-                            <span className="px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-200">
-                              {payment.provider || 'DOKU'}
-                            </span>
-                          </td>
-
-                          {/* 3. Payment Method */}
-                          <td className="py-3.5 px-4 text-center whitespace-nowrap align-middle">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 font-bold text-[11px]">
-                              <CreditCard className="w-3 h-3 text-slate-500" />
-                              {payment.payment_method || '-'}
-                            </span>
-                          </td>
-
-                          {/* 4. Provider Transaction ID */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                            <span className="font-mono text-slate-700 font-bold text-[11px] block max-w-[150px] truncate" title={payment.provider_transaction_id}>
-                              {payment.provider_transaction_id || '-'}
-                            </span>
-                          </td>
-
-                          {/* 5. Invoice Number */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                            {payment.invoice_number && payment.invoice_number !== '-' ? (
-                              <button
-                                type="button"
-                                onClick={() => handleCopyInvoice(payment.invoice_number)}
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-mono text-[11px] font-bold border transition-all cursor-pointer group shadow-2xs ${
-                                  copiedInvoice === payment.invoice_number
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-400/20'
-                                    : 'bg-slate-50 hover:bg-blue-50 text-slate-800 hover:text-blue-700 border-slate-200 hover:border-blue-300'
-                                }`}
-                                title="Klik untuk salin invoice number"
-                              >
-                                <span>{payment.invoice_number}</span>
-                                {copiedInvoice === payment.invoice_number ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 animate-in zoom-in-75" />
-                                ) : (
-                                  <Copy className="w-3 h-3 text-slate-400 group-hover:text-blue-600 shrink-0 transition-colors" />
+                                <span className="text-[11px] text-slate-400 font-medium truncate" title={payment.buyer_email}>
+                                  {payment.buyer_email || '-'}
+                                </span>
+                                {payment.buyer_phone && (
+                                  <span className="text-[10px] text-slate-400 font-semibold truncate">
+                                    {payment.buyer_phone}
+                                  </span>
                                 )}
-                              </button>
-                            ) : (
-                              <span className="text-slate-400 italic text-[11px]">-</span>
-                            )}
-                          </td>
+                              </div>
+                            </td>
 
-                          {/* 6. Amount */}
-                          <td className="py-3.5 px-4 text-right font-black text-blue-600 whitespace-nowrap align-middle text-sm">
-                            {formatIDR(payment.amount)}
-                          </td>
-
-                          {/* 7. Payment URL */}
-                          <td className="py-3.5 px-4 text-center whitespace-nowrap align-middle">
-                            {payment.payment_url ? (
-                              <a
-                                href={payment.payment_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[11px] font-bold transition-colors cursor-pointer"
-                                title={payment.payment_url}
+                            {/* Event */}
+                            <td className="py-3.5 px-4 align-middle">
+                              <span
+                                className="font-bold text-slate-800 line-clamp-2 max-w-[200px] leading-snug"
+                                title={payment.event_title}
                               >
-                                <span>Buka Link</span>
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            ) : (
-                              <span className="text-slate-400 italic text-[11px]">-</span>
-                            )}
-                          </td>
-
-                          {/* 8. Status */}
-                          <td className="py-3.5 px-4 text-center whitespace-nowrap align-middle">
-                            {renderStatusBadge(payment.status)}
-                          </td>
-
-                          {/* 9. Paid At */}
-                          <td className="py-3.5 px-4 whitespace-nowrap text-slate-600 text-[11px] align-middle">
-                            {payment.paid_at ? (
-                              <span className="font-semibold text-slate-800">
-                                {formatDateTime(payment.paid_at)}
+                                {payment.event_title || '-'}
                               </span>
-                            ) : (
-                              <span className="text-slate-400 italic">-</span>
-                            )}
-                          </td>
+                            </td>
 
-                          {/* 10. Expired At */}
-                          <td className="py-3.5 px-4 whitespace-nowrap text-slate-500 text-[11px] align-middle">
-                            {payment.expired_at ? (
-                              <span>{formatDateTime(payment.expired_at)}</span>
-                            ) : (
-                              <span className="text-slate-400 italic">-</span>
-                            )}
-                          </td>
+                            {/* Invoice Number & Order ID */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <div className="space-y-1">
+                                {payment.invoice_number && payment.invoice_number !== '-' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyInvoice(payment.invoice_number)}
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl font-mono text-[11px] font-bold border transition-all cursor-pointer group shadow-2xs ${
+                                      copiedInvoice === payment.invoice_number
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-400/20'
+                                        : 'bg-slate-50 hover:bg-blue-50 text-slate-800 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                    }`}
+                                    title="Klik untuk salin invoice number"
+                                  >
+                                    <span>{payment.invoice_number}</span>
+                                    {copiedInvoice === payment.invoice_number ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 animate-in zoom-in-75" />
+                                    ) : (
+                                      <Copy className="w-3 h-3 text-slate-400 group-hover:text-blue-600 shrink-0 transition-colors" />
+                                    )}
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-400 italic text-[11px]">-</span>
+                                )}
+                                <div className="text-[10px] text-slate-400 font-mono font-medium">
+                                  Order #{payment.order_id}
+                                </div>
+                              </div>
+                            </td>
 
-                          {/* 11. Raw Response */}
-                          <td className="py-3.5 px-4 text-center whitespace-nowrap align-middle">
-                            {payment.raw_response ? (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedRawResponse({
-                                  paymentId: payment.id,
-                                  invoiceNumber: payment.invoice_number,
-                                  data: payment.raw_response,
-                                })}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-200 text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
-                                title="Lihat JSON Raw Response"
+                            {/* Tanggal */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <span className="text-xs font-semibold text-slate-700">
+                                {formatDateTime(payment.paid_at || payment.created_at)}
+                              </span>
+                            </td>
+
+                            {/* Total Amount */}
+                            <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap">
+                              <span className="font-black text-blue-700 text-xs">
+                                {formatIDR(payment.amount)}
+                              </span>
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
+                              {renderStatusBadge(payment.status)}
+                            </td>
+
+                            {/* Aksi: Menu Titik Tiga */}
+                            <td className="py-3.5 px-4 text-center whitespace-nowrap align-middle">
+                              <Popover
+                                open={actionMenuPaymentId === payment.id}
+                                onOpenChange={(open) => setActionMenuPaymentId(open ? payment.id : null)}
                               >
-                                <Code2 className="w-3.5 h-3.5 text-blue-600" />
-                                <span>Lihat JSON</span>
-                              </button>
-                            ) : (
-                              <span className="text-slate-400 italic text-[11px]">-</span>
-                            )}
-                          </td>
-
-                          {/* 12. Aksi (Titik 3) */}
-                          <td className="py-3.5 px-4 text-center whitespace-nowrap align-middle">
-                            <div className="relative inline-block text-left">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActionMenuPaymentId(actionMenuPaymentId === payment.id ? null : payment.id);
-                                }}
-                                className="p-1.5 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer border border-transparent hover:border-slate-200"
-                                title="Menu Pilihan"
-                              >
-                                <MoreVertical className="w-4 h-4" />
-                              </button>
-
-                              {actionMenuPaymentId === payment.id && (
-                                <>
-                                  <div
-                                    className="fixed inset-0 z-20 cursor-default"
-                                    onClick={() => setActionMenuPaymentId(null)}
-                                  />
-                                  <div className="absolute right-0 mt-1 w-44 rounded-2xl bg-white shadow-xl border border-slate-100 py-1.5 z-30 animate-in fade-in-0 zoom-in-95 duration-150">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenEdit(payment)}
-                                      className="w-full px-3.5 py-2 text-left text-xs font-semibold text-slate-700 hover:text-blue-700 hover:bg-blue-50 flex items-center gap-2 transition-colors cursor-pointer"
-                                    >
-                                      <Pencil className="w-3.5 h-3.5 text-blue-600" />
-                                      <span>Edit Transaksi</span>
-                                    </button>
-                                    <div className="h-px bg-slate-100 my-1" />
+                                <PopoverTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 hover:border-blue-200 transition-all inline-flex items-center justify-center cursor-pointer shadow-2xs focus:outline-none"
+                                    title="Menu Aksi Pembayaran"
+                                  >
+                                    <MoreVertical className="w-4 h-4" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  align="end"
+                                  className="w-56 p-1.5 rounded-2xl bg-white shadow-xl border border-slate-200 animate-in fade-in-0 zoom-in-95 z-50"
+                                >
+                                  <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                      Aksi #{payment.invoice_number || payment.id}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-col space-y-0.5">
+                                    {/* Edit Transaksi */}
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        setCancellingPayment(payment);
                                         setActionMenuPaymentId(null);
+                                        handleOpenEdit(payment);
                                       }}
-                                      className="w-full px-3.5 py-2 text-left text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer"
+                                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer text-left"
                                     >
-                                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                      <Pencil className="w-4 h-4 text-blue-600 shrink-0" />
+                                      <span>Edit Transaksi</span>
+                                    </button>
+
+                                    {/* Batalkan Transaksi */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActionMenuPaymentId(null);
+                                        setCancellingPayment(payment);
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer text-left"
+                                    >
+                                      <Trash2 className="w-4 h-4 text-rose-600 shrink-0" />
                                       <span>Batalkan Transaksi</span>
                                     </button>
+
+                                    {/* Payment URL Link */}
+                                    {payment.payment_url && (
+                                      <a
+                                        href={payment.payment_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={() => setActionMenuPaymentId(null)}
+                                        className="flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                                      >
+                                        <div className="flex items-center gap-2.5">
+                                          <ExternalLink className="w-4 h-4 text-blue-600 shrink-0" />
+                                          <span>Buka Payment Link</span>
+                                        </div>
+                                      </a>
+                                    )}
+
+                                    {/* Raw Response JSON */}
+                                    {payment.raw_response && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActionMenuPaymentId(null);
+                                          setSelectedRawResponse({
+                                            paymentId: payment.id,
+                                            invoiceNumber: payment.invoice_number,
+                                            data: payment.raw_response,
+                                          });
+                                        }}
+                                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer text-left"
+                                      >
+                                        <Code2 className="w-4 h-4 text-blue-600 shrink-0" />
+                                        <span>Lihat Raw JSON</span>
+                                      </button>
+                                    )}
+
+                                    <div className="h-px bg-slate-100 my-1" />
+
+                                    {/* Salin No Invoice */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActionMenuPaymentId(null);
+                                        handleCopyInvoice(payment.invoice_number);
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer text-left"
+                                    >
+                                      <Copy className="w-4 h-4 text-slate-500 shrink-0" />
+                                      <span>Salin No. Invoice</span>
+                                    </button>
                                   </div>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
+                                </PopoverContent>
+                              </Popover>
+                            </td>
+                          </tr>
+
+                          {/* Data 1 baris semua lengkap ke bawah saat button tambah di-click */}
+                          {isExpanded && (
+                            <tr className="bg-slate-50/70 border-b border-slate-200/80 animate-in fade-in-0 duration-150">
+                              <td colSpan={8} className="py-4 px-6">
+                                <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-3.5">
+                                  {/* Header Panel Detail */}
+                                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                                        <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+                                        Rincian Lengkap Transaksi Pembayaran
+                                      </span>
+                                      <span className="text-[11px] font-mono font-bold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
+                                        #{payment.invoice_number || payment.id}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      {/* Quick Link to Payment URL */}
+                                      {payment.payment_url && (
+                                        <a
+                                          href={payment.payment_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors inline-flex items-center gap-1.5 border border-blue-200"
+                                        >
+                                          <span>Buka Payment URL</span>
+                                          <ExternalLink className="w-3 h-3 text-blue-500" />
+                                        </a>
+                                      )}
+
+                                      {/* Quick Button Raw Response */}
+                                      {payment.raw_response && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setSelectedRawResponse({
+                                              paymentId: payment.id,
+                                              invoiceNumber: payment.invoice_number,
+                                              data: payment.raw_response,
+                                            })
+                                          }
+                                          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors inline-flex items-center gap-1.5 border border-slate-200 cursor-pointer"
+                                        >
+                                          <Code2 className="w-3.5 h-3.5 text-slate-600" />
+                                          <span>Lihat JSON</span>
+                                        </button>
+                                      )}
+
+                                      {/* Quick Button Edit */}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEdit(payment)}
+                                        className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition-colors inline-flex items-center gap-1.5 border border-emerald-200 cursor-pointer"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>Edit Transaksi</span>
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Grid Informasi Lengkap */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                                    {/* Kolom 1: Informasi Pembayaran & Gateway */}
+                                    <div className="space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                        Pembayaran & Gateway
+                                      </span>
+                                      <div className="pt-0.5 space-y-1.5">
+                                        <div className="flex justify-between items-center text-slate-600">
+                                          <span>Nominal:</span>
+                                          <span className="font-extrabold text-blue-700">{formatIDR(payment.amount)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-slate-600">
+                                          <span>Provider:</span>
+                                          <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-200">
+                                            {payment.provider || 'DOKU'}
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-slate-600">
+                                          <span>Metode:</span>
+                                          <span className="font-semibold text-slate-800">{payment.payment_method || '-'}</span>
+                                        </div>
+                                        <div className="pt-1 border-t border-slate-200 text-slate-600">
+                                          <span className="text-[10px] text-slate-400 block">Provider Trx ID:</span>
+                                          <span className="font-mono text-[11px] font-bold text-slate-800 break-all">
+                                            {payment.provider_transaction_id || '-'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Kolom 2: Order & Invoice */}
+                                    <div className="space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                        Order & Invoice
+                                      </span>
+                                      <div className="pt-0.5 space-y-1.5">
+                                        <div className="flex justify-between items-center text-slate-600">
+                                          <span>Order ID:</span>
+                                          <span className="font-mono font-bold text-blue-700">#{payment.order_id}</span>
+                                        </div>
+                                        {payment.order_number && (
+                                          <div className="flex justify-between items-center text-slate-600">
+                                            <span>No. Order:</span>
+                                            <span className="font-mono font-bold text-slate-800">{payment.order_number}</span>
+                                          </div>
+                                        )}
+                                        <div className="text-slate-600">
+                                          <span className="text-[10px] text-slate-400 block">No. Invoice:</span>
+                                          <span className="font-mono font-bold text-slate-800 break-all">{payment.invoice_number || '-'}</span>
+                                        </div>
+                                        <div className="text-slate-600">
+                                          <span className="text-[10px] text-slate-400 block">Event:</span>
+                                          <span className="font-bold text-slate-800 line-clamp-2" title={payment.event_title}>
+                                            {payment.event_title || '-'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Kolom 3: Informasi Pemesan */}
+                                    <div className="space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                        Informasi Pemesan
+                                      </span>
+                                      <div className="pt-0.5 space-y-1">
+                                        <div className="font-extrabold text-slate-900 truncate">
+                                          {payment.buyer_name || '-'}
+                                        </div>
+                                        <div className="text-slate-500 text-[11px] truncate flex items-center gap-1" title={payment.buyer_email}>
+                                          <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                                          <span className="truncate">{payment.buyer_email || '-'}</span>
+                                        </div>
+                                        <div className="text-slate-600 font-semibold text-[11px] flex items-center gap-1">
+                                          <User className="w-3 h-3 text-slate-400 shrink-0" />
+                                          <span className="truncate">{payment.buyer_phone || '-'}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Kolom 4: Status & Linimasa Waktu */}
+                                    <div className="space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                        Status & Waktu
+                                      </span>
+                                      <div className="pt-0.5 space-y-1.5">
+                                        <div>{renderStatusBadge(payment.status)}</div>
+                                        <div className="text-[11px] text-slate-600 flex items-center gap-1">
+                                          <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                                          <span>Dibuat: {payment.created_at ? formatDateTime(payment.created_at) : '-'}</span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-600 flex items-center gap-1">
+                                          <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                                          <span>Dibayar: {payment.paid_at ? formatDateTime(payment.paid_at) : 'Belum dibayar'}</span>
+                                        </div>
+                                        {payment.expired_at && (
+                                          <div className="text-[11px] text-slate-400 flex items-center gap-1">
+                                            <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                                            <span>Kedaluwarsa: {formatDateTime(payment.expired_at)}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>

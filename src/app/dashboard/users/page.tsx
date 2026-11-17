@@ -22,6 +22,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import {
   Users,
   Search,
   CheckCircle2,
@@ -49,6 +55,9 @@ import {
   RotateCcw,
   LogOut,
   KeyRound,
+  MoreVertical,
+  Plus,
+  Minus,
 } from 'lucide-react';
 
 interface EditFormData {
@@ -104,6 +113,22 @@ export default function MasterUserPage() {
 
   // Quick Status Toggle State
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
+
+  // Expandable Table Row State
+  const [expandedUserIds, setExpandedUserIds] = useState<Set<number>>(new Set());
+
+  const toggleExpandRow = (userId: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  };
 
   // Edit Modal State
   const [editingUser, setEditingUser] = useState<OwnerUserItem | null>(null);
@@ -771,22 +796,13 @@ export default function MasterUserPage() {
           ) : users.length > 0 ? (
             <div className="space-y-4">
               <div className="overflow-x-auto rounded-2xl border border-slate-200/80">
-                <table className="w-full text-left text-xs text-slate-700 min-w-[1050px]">
+                <table className="w-full text-left text-xs text-slate-700 min-w-[700px]">
                   <thead className="bg-slate-50/90 text-slate-600 text-[11px] font-black uppercase tracking-wider border-b border-slate-200/80">
                     <tr>
-                      <th className="py-3.5 px-4 w-12 text-center whitespace-nowrap align-middle">#</th>
+                      <th className="py-3.5 px-4 w-16 text-center whitespace-nowrap align-middle">#</th>
                       <th className="py-3.5 px-4 whitespace-nowrap align-middle">Pengguna</th>
-                      <th className="py-3.5 px-4 whitespace-nowrap align-middle">Kontak & NIK</th>
-                      <th className="py-3.5 px-4 whitespace-nowrap align-middle">Role</th>
-                      <th className="py-3.5 px-4 whitespace-nowrap align-middle text-center">Session</th>
-                      <th className="py-3.5 px-4 whitespace-nowrap align-middle">
-                        <div className="inline-flex items-center gap-1.5">
-                          <span>Status</span>
-                          <span className="text-[9px] text-slate-400 font-medium normal-case tracking-normal bg-slate-200/60 px-1.5 py-0.5 rounded-sm">klik ubah</span>
-                        </div>
-                      </th>
-                      <th className="py-3.5 px-4 whitespace-nowrap align-middle">Kota / Domisili</th>
-                      <th className="py-3.5 px-4 whitespace-nowrap align-middle">Bergabung</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap align-middle">Kontak</th>
+                      <th className="py-3.5 px-4 whitespace-nowrap align-middle">NIK</th>
                       <th className="py-3.5 px-4 text-right whitespace-nowrap align-middle">Aksi</th>
                     </tr>
                   </thead>
@@ -799,158 +815,278 @@ export default function MasterUserPage() {
                         .toUpperCase();
                       const rowNumber = (meta.current_page - 1) * meta.per_page + index + 1;
                       const nextStatus = getNextStatus(u.status);
+                      const isExpanded = expandedUserIds.has(u.id);
 
                       return (
-                        <tr
-                          key={u.id}
-                          className="hover:bg-blue-50/40 transition-colors group cursor-pointer"
-                          onClick={() => setSelectedUser(u)}
-                        >
-                          {/* Row Number */}
-                          <td className="py-3.5 px-4 text-center font-bold text-slate-400 text-[11px] align-middle whitespace-nowrap">
-                            {rowNumber}
-                          </td>
-
-                          {/* User Info (Photo + Name) */}
-                          <td className="py-3.5 px-4 align-middle">
-                            <div className="flex items-center gap-3">
-                              {photo ? (
-                                <img
-                                  src={photo}
-                                  alt={u.name}
-                                  className="w-10 h-10 rounded-xl object-cover border border-blue-200 shadow-2xs shrink-0"
-                                />
-                              ) : (
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-2xs">
-                                  {initials}
-                                </div>
-                              )}
-                              <div className="flex flex-col min-w-0 max-w-[220px]">
-                                <span className="font-extrabold text-slate-900 group-hover:text-blue-700 transition-colors truncate">
-                                  {u.name || 'Pengguna Metix'}
+                        <React.Fragment key={u.id}>
+                          <tr
+                            className={cn(
+                              'hover:bg-blue-50/40 transition-colors group cursor-pointer',
+                              isExpanded && 'bg-blue-50/20'
+                            )}
+                            onClick={() => setSelectedUser(u)}
+                          >
+                            {/* # + Button Tambah */}
+                            <td
+                              className="py-3.5 px-4 align-middle whitespace-nowrap"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="font-bold text-slate-400 text-[11px] min-w-[18px] text-right">
+                                  {rowNumber}
                                 </span>
-                                <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1 truncate">
-                                  <Mail className="w-3 h-3 text-slate-400 shrink-0" />
-                                  {u.email}
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => toggleExpandRow(u.id, e)}
+                                  className={cn(
+                                    'w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-2xs border',
+                                    isExpanded
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-blue-500/20'
+                                      : 'bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border-slate-200'
+                                  )}
+                                  title={
+                                    isExpanded
+                                      ? 'Tutup detail lengkap'
+                                      : 'Tampilkan data 1 baris lengkap ke bawah'
+                                  }
+                                >
+                                  {isExpanded ? (
+                                    <Minus className="w-3.5 h-3.5 stroke-[2.5]" />
+                                  ) : (
+                                    <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                                  )}
+                                </button>
                               </div>
-                            </div>
-                          </td>
+                            </td>
 
-                          {/* Contact & NIK */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                            <div className="flex flex-col text-[11px]">
-                              <span className="font-bold text-slate-800 flex items-center gap-1 truncate">
-                                <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                            {/* User Info (Photo + Name + Email) */}
+                            <td className="py-3.5 px-4 align-middle">
+                              <div className="flex items-center gap-3">
+                                {photo ? (
+                                  <img
+                                    src={photo}
+                                    alt={u.name}
+                                    className="w-10 h-10 rounded-xl object-cover border border-blue-200 shadow-2xs shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-2xs">
+                                    {initials}
+                                  </div>
+                                )}
+                                <div className="flex flex-col min-w-0 max-w-[240px]">
+                                  <span className="font-extrabold text-slate-900 group-hover:text-blue-700 transition-colors truncate">
+                                    {u.name || 'Pengguna Metix'}
+                                  </span>
+                                  <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1 truncate">
+                                    <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                                    {u.email}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Kontak (Phone) */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs truncate">
+                                <Phone className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                                 {u.phone || '-'}
                               </span>
-                              <span className="text-slate-400 font-medium flex items-center gap-1 truncate">
-                                <CreditCard className="w-3 h-3 text-slate-400 shrink-0" />
-                                {u.nik ? `NIK: ${u.nik}` : 'NIK: -'}
+                            </td>
+
+                            {/* NIK */}
+                            <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                              <span className="font-bold text-slate-700 flex items-center gap-1.5 text-xs truncate font-mono">
+                                <CreditCard className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                {u.nik || '-'}
                               </span>
-                            </div>
-                          </td>
+                            </td>
 
-                          {/* Role */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                            {renderRoleBadge(u.role)}
-                          </td>
-
-                          {/* Session Indicator (Online / Offline) */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
-                            {u.is_online ? (
-                              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 shadow-2xs">
-                                <span className="relative flex h-2 w-2">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                                </span>
-                                <span className="text-[11px] font-extrabold text-emerald-700 tracking-wide">
-                                  Online
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200/80 shadow-2xs">
-                                <span className="inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-                                <span className="text-[11px] font-extrabold text-rose-700 tracking-wide">
-                                  Offline
-                                </span>
-                              </div>
-                            )}
-                          </td>
-
-                          {/* Clickable Status Button:
-                              Active (Biru) -> Inactive (Kuning) -> Blocked (Merah) -> Active (Biru) */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              disabled={statusUpdatingId === u.id}
-                              onClick={(e) => handleToggleStatus(u, e)}
-                              className="group/btn relative transition-transform active:scale-95 cursor-pointer focus:outline-none"
-                              title={`Klik untuk ubah status ke ${nextStatus}`}
+                            {/* Action Menu (Titik Tiga Popover) */}
+                            <td
+                              className="py-3.5 px-4 text-right align-middle whitespace-nowrap"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              {renderStatusBadge(u.status, statusUpdatingId === u.id)}
-                            </button>
-                          </td>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 inline-flex items-center justify-center transition-colors cursor-pointer border border-slate-200/80 shadow-2xs"
+                                    title="Menu Aksi Pengguna"
+                                  >
+                                    <MoreVertical className="w-4 h-4" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  align="end"
+                                  className="w-48 p-1.5 rounded-2xl bg-white shadow-xl border border-slate-200 animate-in fade-in-0 zoom-in-95"
+                                >
+                                  <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                      Aksi Pengguna
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-col space-y-0.5">
+                                    {/* Edit */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleOpenEdit(u, e)}
+                                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 transition-colors text-left cursor-pointer"
+                                    >
+                                      <Pencil className="w-4 h-4 text-blue-600 shrink-0" />
+                                      <span>Edit Pengguna</span>
+                                    </button>
 
-                          {/* City / Province */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                            <div className="flex items-center gap-1.5 text-slate-600 font-medium">
-                              <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span className="truncate max-w-[150px]">
-                                {u.city || u.province || '-'}
-                              </span>
-                            </div>
-                          </td>
+                                    {/* Detail */}
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedUser(u)}
+                                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors text-left cursor-pointer"
+                                    >
+                                      <Eye className="w-4 h-4 text-slate-600 shrink-0" />
+                                      <span>Lihat Detail</span>
+                                    </button>
 
-                          {/* Registered Date */}
-                          <td className="py-3.5 px-4 align-middle whitespace-nowrap">
-                            <div className="flex items-center gap-1.5 text-slate-500 font-medium text-[11px]">
-                              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span>{formatDate(u.created_at)}</span>
-                            </div>
-                          </td>
+                                    <div className="h-px bg-slate-100 my-1" />
 
-                          {/* Action Buttons: Edit & Detail */}
-                          <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-end gap-1.5">
-                              {/* Edit Button */}
-                              <button
-                                type="button"
-                                onClick={(e) => handleOpenEdit(u, e)}
-                                className="px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer border border-blue-200 shadow-2xs"
-                                title="Edit Pengguna"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                                <span>Edit</span>
-                              </button>
+                                    {/* Hapus Sesi */}
+                                    <button
+                                      type="button"
+                                      onClick={() => setSessionRevokeUser(u)}
+                                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold text-amber-700 hover:text-amber-800 hover:bg-amber-50 transition-colors text-left cursor-pointer"
+                                    >
+                                      <LogOut className="w-4 h-4 text-amber-600 shrink-0" />
+                                      <span>Hapus Sesi</span>
+                                    </button>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            </td>
+                          </tr>
 
-                              {/* Detail Button */}
-                              <button
-                                type="button"
-                                onClick={() => setSelectedUser(u)}
-                                className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer border border-slate-200/80"
-                                title="Lihat Detail Profil"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                                <span>Detail</span>
-                              </button>
+                          {/* Detail Baris Lengkap Kebawah saat button tambah di-click */}
+                          {isExpanded && (
+                            <tr className="bg-slate-50/70 border-b border-slate-200/80 animate-in fade-in-0 duration-150">
+                              <td colSpan={5} className="py-4 px-6">
+                                <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-3.5">
+                                  {/* Header Panel Detail */}
+                                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                                        <UserIcon className="w-3.5 h-3.5 text-blue-600" />
+                                        Data Lengkap Pengguna
+                                      </span>
+                                      <span className="text-[11px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+                                        ID #{u.id}
+                                      </span>
+                                    </div>
+                                    <div
+                                      className="flex items-center gap-2"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {renderRoleBadge(u.role)}
+                                      <button
+                                        type="button"
+                                        disabled={statusUpdatingId === u.id}
+                                        onClick={(e) => handleToggleStatus(u, e)}
+                                        className="group/btn relative transition-transform active:scale-95 cursor-pointer focus:outline-none"
+                                        title={`Klik untuk ubah status ke ${nextStatus}`}
+                                      >
+                                        {renderStatusBadge(u.status, statusUpdatingId === u.id)}
+                                      </button>
+                                    </div>
+                                  </div>
 
-                              {/* Hapus Sesi / Force Logout Button */}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSessionRevokeUser(u);
-                                }}
-                                className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 hover:text-amber-800 font-bold text-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer border border-amber-200 shadow-2xs"
-                                title="Hapus Seluruh Sesi Aktif (Logout Paksa)"
-                              >
-                                <LogOut className="w-3.5 h-3.5" />
-                                <span>Hapus Sesi</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                                  {/* Grid Informasi Lengkap Kebawah */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                                    {/* Status Sesi & Online */}
+                                    <div className="space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                        Session & Status
+                                      </span>
+                                      <div className="flex items-center gap-2 pt-0.5">
+                                        {u.is_online ? (
+                                          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-extrabold text-[11px]">
+                                            <span className="relative flex h-2 w-2">
+                                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                            </span>
+                                            <span>Online</span>
+                                          </div>
+                                        ) : (
+                                          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 font-extrabold text-[11px]">
+                                            <span className="inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                                            <span>Offline</span>
+                                          </div>
+                                        )}
+                                        {typeof u.active_sessions_count === 'number' && (
+                                          <span className="text-[11px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                                            {u.active_sessions_count} Sesi Aktif
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Kota & Domisili */}
+                                    <div className="space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                        Kota / Domisili
+                                      </span>
+                                      <div className="font-extrabold text-slate-800 flex items-center gap-1.5 pt-0.5 truncate">
+                                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                        <span>{u.city || u.province || '-'}</span>
+                                      </div>
+                                      {u.address && (
+                                        <span
+                                          className="text-[11px] text-slate-500 font-medium block truncate"
+                                          title={u.address}
+                                        >
+                                          {u.address}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Profil & Identitas */}
+                                    <div className="space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                        Profil & Identitas
+                                      </span>
+                                      <div className="pt-0.5 space-y-0.5">
+                                        <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                                          <span className="text-slate-400 text-[11px] font-medium">
+                                            Gender:
+                                          </span>
+                                          <span>{u.gender || '-'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
+                                          <span className="text-slate-400">Lahir:</span>
+                                          <span>
+                                            {u.date_of_birth ? formatDate(u.date_of_birth) : '-'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Tanggal Bergabung */}
+                                    <div className="space-y-1 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                        Waktu Bergabung
+                                      </span>
+                                      <div className="font-extrabold text-slate-800 flex items-center gap-1.5 pt-0.5">
+                                        <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                        <span>{formatDate(u.created_at)}</span>
+                                      </div>
+                                      {u.updated_at && (
+                                        <span className="text-[10px] text-slate-400 font-medium block">
+                                          Update: {formatDate(u.updated_at)}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>

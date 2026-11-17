@@ -10,6 +10,17 @@ session — it records what the code cannot say for itself.
 
 ---
 
+## 2026-11-17 — Upgraded Next.js to 16.4.6 (Security Patch)
+
+**Did:**
+- Upgraded `next` from `16.4.1` to `16.4.6` in `package.json` and lockfile.
+- Ran TypeScript verification gate (`npx tsc --noEmit`) with 0 errors.
+
+**Why:**
+- To patch a known security advisory present in Next.js 16.4.1.
+
+---
+
 ## 2026-11-13 — Repo Hygiene Cleanup (/st-clean)
 
 **Did:**

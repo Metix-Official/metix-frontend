@@ -33,6 +33,56 @@ body {
   animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Animated Megaphone & Sound Wave Effect */
+@keyframes megaphoneShake {
+  0%, 100% {
+    transform: rotate(0deg) scale(1);
+  }
+  8% {
+    transform: rotate(-14deg) scale(1.1);
+  }
+  16% {
+    transform: rotate(12deg) scale(1.1);
+  }
+  24% {
+    transform: rotate(-10deg) scale(1.05);
+  }
+  32% {
+    transform: rotate(6deg) scale(1.02);
+  }
+  40% {
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@keyframes soundWaveEmit {
+  0% {
+    opacity: 0;
+    transform: scale(0.6) translate(-2px, 2px);
+  }
+  40% {
+    opacity: 1;
+  }
+  80%, 100% {
+    opacity: 0;
+    transform: scale(1.25) translate(2px, -2px);
+  }
+}
+
+.animate-megaphone {
+  animation: megaphoneShake 3s cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite;
+  transform-origin: 20% 80%;
+  display: inline-block;
+}
+
+.animate-soundwave-1 {
+  animation: soundWaveEmit 1.5s ease-out infinite;
+}
+
+.animate-soundwave-2 {
+  animation: soundWaveEmit 1.5s ease-out 0.3s infinite;
+}
+
 @keyframes heroProgress {
   0% {
     width: 0%;

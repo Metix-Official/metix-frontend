@@ -1,10 +1,15 @@
 'use client';
 
 import React from 'react';
-import { Ticket, Calendar, MapPin, Tag, ArrowRight, Building2, Clock } from 'lucide-react';
+import { MapPin, Calendar, Clock, Building2, ArrowRight } from 'lucide-react';
 import { PublicEvent } from '@/data/publicMockData';
 import { ApiEvent, getPhotoUrl } from '@/lib/api';
-import { computeEventPricing, getCountdownTimeLeft, formatCountdownString, EventTicketPricingResult } from '@/lib/ticketUtils';
+import {
+  computeEventPricing,
+  getCountdownTimeLeft,
+  formatCountdownString,
+  EventTicketPricingResult,
+} from '@/lib/ticketUtils';
 import Link from 'next/link';
 
 const DEFAULT_CONCERT_BANNERS = [
@@ -21,6 +26,7 @@ interface EventCardProps {
   customLink?: string;
   onClick?: (e: React.MouseEvent) => void;
   className?: string;
+  lang?: 'id' | 'en';
 }
 
 export const EventCard: React.FC<EventCardProps> = ({
@@ -31,6 +37,7 @@ export const EventCard: React.FC<EventCardProps> = ({
   customLink,
   onClick,
   className,
+  lang = 'id',
 }) => {
   const delay = animationDelayMs ?? index * 80;
   const fallbackUrl = DEFAULT_CONCERT_BANNERS[index % DEFAULT_CONCERT_BANNERS.length];
@@ -50,7 +57,11 @@ export const EventCard: React.FC<EventCardProps> = ({
   const organizerName = React.useMemo(() => {
     if (rawApiEvent?.organizer) {
       if (typeof rawApiEvent.organizer === 'object') {
-        return rawApiEvent.organizer.organization_name || rawApiEvent.organizer.name || 'Metix Organizer';
+        return (
+          rawApiEvent.organizer.organization_name ||
+          rawApiEvent.organizer.name ||
+          'Metix Organizer'
+        );
       }
       return String(rawApiEvent.organizer);
     }
@@ -60,18 +71,29 @@ export const EventCard: React.FC<EventCardProps> = ({
   // Real-time ticking state for live countdown
   const [now, setNow] = React.useState<Date>(() => new Date());
 
-  // Compute pricing considering ticket type status: ACTIVE vs SOLD_OUT, ignoring INACTIVE and respecting schedules
+  // Compute pricing considering ticket type status: ACTIVE vs SOLD_OUT
   const pricing: EventTicketPricingResult = React.useMemo(() => {
-    const types = rawApiEvent?.ticket_types || (event as any)?.rawApiEvent?.ticket_types || (event as any)?.ticket_types;
+    const types =
+      rawApiEvent?.ticket_types ||
+      (event as any)?.rawApiEvent?.ticket_types ||
+      (event as any)?.ticket_types;
     if (types && Array.isArray(types) && types.length > 0) {
-      return computeEventPricing(types, targetApiEvent?.status || (event.isSoldOut ? 'closed' : 'published'), now);
+      return computeEventPricing(
+        types,
+        targetApiEvent?.status || (event.isSoldOut ? 'closed' : 'published'),
+        now
+      );
     }
     return {
       priceStr: event.price || 'Coming Soon',
       isSoldOut: Boolean(event.isSoldOut),
       hasTickets: Boolean(event.price && event.price !== 'Coming Soon'),
       activeTicketsCount: event.isSoldOut ? 0 : 1,
-      saleState: event.isSoldOut ? 'SOLD_OUT' : (event.price && event.price !== 'Coming Soon' ? 'ON_SALE' : 'COMING_SOON'),
+      saleState: event.isSoldOut
+        ? 'SOLD_OUT'
+        : event.price && event.price !== 'Coming Soon'
+        ? 'ON_SALE'
+        : 'COMING_SOON',
       targetCountdownDate: null,
       countdownType: null,
       countdownString: null,
@@ -102,7 +124,11 @@ export const EventCard: React.FC<EventCardProps> = ({
   const isUpcomingSale = pricing.saleState === 'UPCOMING';
   const isSaleEnded = pricing.saleState === 'SALE_ENDED';
 
-  const rawBanner = rawApiEvent?.banner || (rawApiEvent as any)?.banner_url || (event as any)?.banner || (targetApiEvent as any)?.banner;
+  const rawBanner =
+    rawApiEvent?.banner ||
+    (rawApiEvent as any)?.banner_url ||
+    (event as any)?.banner ||
+    (targetApiEvent as any)?.banner;
   const eventId = rawApiEvent?.id || targetApiEvent?.id || event.id;
   const initialBannerUrl = getPhotoUrl(rawBanner, eventId) || fallbackUrl;
 
@@ -126,184 +152,149 @@ export const EventCard: React.FC<EventCardProps> = ({
       href={eventLink}
       onClick={onClick}
       style={{ animationDelay: `${delay}ms` }}
-      className={`group relative rounded-3xl bg-white border border-slate-200/90 hover:border-blue-500/60 shadow-sm hover:shadow-2xl hover:shadow-blue-600/15 transition-all duration-300 flex flex-col h-full hover:-translate-y-1.5 animate-fade-in-up opacity-0 cursor-pointer overflow-hidden ${className || ''}`}
+      className={`group relative w-full max-w-[290px] sm:max-w-[300px] mx-auto rounded-2xl bg-white border border-slate-200/80 hover:border-blue-400/60 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col h-full hover:-translate-y-1 animate-fade-in-up opacity-0 cursor-pointer overflow-hidden ${
+        className || ''
+      }`}
     >
-      {/* Top Banner & Image Thumbnail with Ticket Voucher Header */}
-      <div className="relative h-48 sm:h-52 w-full bg-slate-950 flex flex-col justify-between overflow-hidden shrink-0">
+      {/* Top Image Thumbnail (Gambar 2 Style) */}
+      <div className="relative w-full aspect-[4/3] bg-slate-900 overflow-hidden shrink-0">
         <img
           src={imgSrc}
           alt={event.title}
           onError={handleImageError}
-          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+          className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ease-out"
         />
-        {/* Subtle Dark Gradient Backdrop */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-black/30" />
 
-        {/* Decorative Top Ticket Strip / Voucher Header */}
-        <div className="relative z-10 px-3.5 pt-3.5 flex items-center justify-between gap-2">
-          {/* Category Pill */}
-          <span className="px-3 py-1 rounded-full bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border border-white/20 shadow-xs">
-            <Tag className="w-3 h-3 text-amber-400 shrink-0" /> {event.category}
-          </span>
-
-          {/* Date Ticket Stub Badge */}
-          <div className="px-3 py-1 rounded-2xl bg-gradient-to-b from-blue-600 to-blue-700 backdrop-blur-md text-white font-black text-center shadow-lg shadow-blue-600/40 border border-blue-400/40 shrink-0">
-            <div className="text-[9px] text-blue-200 font-extrabold uppercase tracking-widest leading-none">{event.dateBadge.month}</div>
-            <div className="text-xs sm:text-sm font-black leading-tight">{event.dateBadge.day}</div>
-          </div>
-        </div>
-
-        {/* Bottom Banner Ticket Badge Tag */}
-        <div className="relative z-10 px-3.5 pb-2.5 flex items-center justify-between">
-          <span className="px-2.5 py-0.5 rounded-md bg-white/10 backdrop-blur-md border border-white/15 text-[10px] font-bold text-white/90 tracking-wide flex items-center gap-1">
-            <Ticket className="w-3 h-3 text-amber-300" />
-            <span>OFFICIAL PASS</span>
-          </span>
+        {/* Top Right: Status or Date Badge */}
+        <div className="absolute top-2.5 right-2.5 z-10">
           {isEventSoldOut ? (
-            <span className="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-black uppercase tracking-wider shadow-sm">
+            <span className="px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-black uppercase tracking-wider shadow-sm">
               Sold Out
             </span>
           ) : isSaleEnded ? (
-            <span className="px-2 py-0.5 rounded-md bg-slate-700 text-white text-[10px] font-black uppercase tracking-wider shadow-sm">
-              Berakhir
+            <span className="px-2.5 py-0.5 rounded-full bg-slate-800/80 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-wider shadow-sm">
+              {lang === 'en' ? 'Ended' : 'Berakhir'}
             </span>
           ) : isUpcomingSale ? (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/90 backdrop-blur-md text-white text-[10px] font-bold shadow-xs">
+            <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/90 backdrop-blur-md text-white text-[10px] font-bold shadow-xs">
               <Clock className="w-3 h-3 text-white animate-pulse" />
-              Segera Dibuka
-            </span>
-          ) : displayedPrice === 'Coming Soon' ? (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/90 backdrop-blur-md text-white text-[10px] font-bold">
-              <span className="w-1.5 h-1.5 rounded-full bg-white" />
-              Segera Hadir
+              {lang === 'en' ? 'Soon' : 'Segera'}
             </span>
           ) : (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/80 backdrop-blur-md text-white text-[10px] font-bold">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              Tersedia
+            <span className="px-2.5 py-0.5 rounded-full bg-slate-950/70 backdrop-blur-md text-white text-[10px] font-bold border border-white/20 shadow-xs flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>{lang === 'en' ? 'Available' : 'Tersedia'}</span>
             </span>
           )}
         </div>
+
+        {/* Bottom Left: SPECIAL DISCOUNT % Tab Badge (Gambar 2 Style) */}
+        <div className="absolute bottom-2.5 left-0 z-10">
+          <div className="bg-blue-600 text-white pl-2.5 pr-3 py-1 rounded-r-xl shadow-md flex items-center gap-1.5 border-y border-r border-blue-400/40">
+            <div className="w-4 h-4 rounded-full bg-amber-400 text-blue-950 flex items-center justify-center font-black text-[9px] shrink-0 shadow-2xs">
+              %
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-wider leading-none truncate max-w-[190px]">
+              {event.category ? `${event.category} DISCOUNT` : 'SPECIAL DISCOUNT'}
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Main Ticket Body Info */}
-      <div className="p-5 flex-1 flex flex-col justify-between bg-white relative">
-        <div className="space-y-3">
-          <h3 className="text-base font-black text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug tracking-tight min-h-[2.5rem]">
+      {/* Card Body Info (BayFest, Tanggal, Lokasi, Penyelenggara) */}
+      <div className="p-3.5 sm:p-4 flex-1 flex flex-col justify-between bg-white">
+        <div className="space-y-2">
+          {/* Title */}
+          <h3
+            className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1 leading-snug tracking-tight"
+            title={event.title}
+          >
             {event.title}
           </h3>
 
-          <div className="space-y-1.5 text-xs text-slate-600 font-semibold">
+          {/* Event Metadata (Tanggal, Lokasi, Penyelenggara) */}
+          <div className="space-y-1.5 text-xs text-slate-600 font-medium">
             <div className="flex items-center gap-2 text-slate-700">
               <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
               <span className="truncate">{event.dateFull}</span>
             </div>
             <div className="flex items-center gap-2 text-slate-500">
               <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-              <span className="truncate">{event.venue}</span>
+              <span className="truncate" title={event.venue}>
+                {event.venue}
+              </span>
             </div>
-            <div className="flex items-center gap-2 text-slate-500 pt-0.5 border-t border-slate-100/80">
+            <div className="flex items-center gap-2 text-slate-500 pt-1 border-t border-slate-100">
               <Building2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
               <span className="truncate">
-                Oleh : <strong className="text-slate-800 font-bold">{organizerName}</strong>
+                {lang === 'en' ? 'By :' : 'Oleh :'} <strong className="text-slate-800 font-bold">{organizerName}</strong>
               </span>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Perforated Stub Line with Left & Right Circular Cutouts */}
-      <div className="relative bg-white px-3">
-        <div className="border-t-2 border-dashed border-slate-200 w-full" />
-        {/* Notch Left */}
-        <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-100 border-r border-slate-300/80 shadow-inner z-10" />
-        {/* Notch Right */}
-        <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-100 border-l border-slate-300/80 shadow-inner z-10" />
-      </div>
-
-      {/* Ticket Footer Stub (Price, Countdown & CTA Button) */}
-      <div className="p-4 sm:p-5 pt-3.5 bg-slate-50/70 group-hover:bg-blue-50/30 transition-colors flex items-center justify-between gap-3">
-        <div className="flex flex-col min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">
-              {displayedPrice === 'Coming Soon' ? 'Harga Tiket' : 'MULAI DARI'}
+        {/* Footer Area: MULAI DARI + Harga + Tombol Beli Tiket */}
+        <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+          {/* Sisi Kiri: Label MULAI DARI & Nominal Harga */}
+          <div className="flex flex-col min-w-0">
+            <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wider">
+              {displayedPrice === 'Coming Soon'
+                ? (lang === 'en' ? 'TICKET PRICE' : 'HARGA TIKET')
+                : (lang === 'en' ? 'STARTS FROM' : 'MULAI DARI')}
             </span>
-            {isEventSoldOut ? (
-              <span className="px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-700 text-[9px] font-black uppercase tracking-wider border border-rose-200 shadow-2xs">
-                Sold Out
+
+            <span
+              className={`text-base font-black tracking-tight leading-tight ${
+                isEventSoldOut
+                  ? 'line-through text-slate-400 decoration-rose-500 decoration-2'
+                  : displayedPrice === 'Coming Soon'
+                  ? 'text-amber-600'
+                  : 'text-blue-600 group-hover:text-blue-700'
+              }`}
+            >
+              {displayedPrice}
+            </span>
+
+            {/* Countdown jika penjualan segera dibuka */}
+            {isUpcomingSale && countdownInfo && (
+              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 mt-0.5 w-fit">
+                {lang === 'en' ? 'Opens' : 'Buka'} {countdownInfo.formatted}
               </span>
-            ) : isUpcomingSale ? (
-              <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[9px] font-black uppercase tracking-wider border border-amber-200/80 shadow-2xs flex items-center gap-1">
-                <Clock className="w-2.5 h-2.5 text-amber-600" />
-                Segera Dibuka
-              </span>
-            ) : isSaleEnded ? (
-              <span className="px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-700 text-[9px] font-black uppercase tracking-wider border border-slate-300 shadow-2xs">
-                Berakhir
-              </span>
-            ) : null}
+            )}
           </div>
 
-          <span
-            className={`text-base sm:text-lg font-black tracking-tight transition-colors ${isEventSoldOut
-                ? 'line-through text-slate-400 decoration-rose-500 decoration-2'
-                : displayedPrice === 'Coming Soon'
-                  ? 'text-amber-600'
-                  : isSaleEnded
-                    ? 'text-slate-400'
-                    : 'text-blue-600 group-hover:text-blue-700'
-              }`}
-          >
-            {displayedPrice}
-          </span>
-
-          {/* Countdown Waktu Mundur jika tiket belum dibuka */}
-          {isUpcomingSale && countdownInfo && (
-            <div className="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-lg border border-amber-300/80 mt-1 w-fit shadow-2xs">
-              <Clock className="w-3 h-3 text-amber-600 animate-pulse shrink-0" />
-              <span>Buka dlm {countdownInfo.formatted}</span>
-            </div>
-          )}
-
-          {/* Countdown FOMO jika penjualan hampir habis (< 24 jam) */}
-          {!isUpcomingSale && !isSaleEnded && !isEventSoldOut && countdownInfo?.type === 'ENDING_SOON' && (
-            <div className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 mt-1 w-fit shadow-2xs">
-              <Clock className="w-3 h-3 text-rose-600 animate-pulse shrink-0" />
-              <span>Sisa {countdownInfo.formatted}</span>
-            </div>
-          )}
-        </div>
-
-        {/* CTA Button */}
-        <div
-          className={`px-3.5 py-2 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 shrink-0 ${isEventSoldOut
-              ? 'bg-slate-200 text-slate-500 border border-slate-300/80 shadow-none cursor-not-allowed'
-              : isSaleEnded
+          {/* Sisi Kanan: Tombol Beli Tiket */}
+          <div
+            className={`px-3.5 py-1.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-1.5 shrink-0 shadow-xs ${
+              isEventSoldOut
+                ? 'bg-slate-200 text-slate-500 border border-slate-300/80 shadow-none cursor-not-allowed'
+                : isSaleEnded
                 ? 'bg-slate-200 text-slate-500 border border-slate-300/80 shadow-none cursor-not-allowed'
                 : isUpcomingSale
-                  ? 'bg-slate-100 text-slate-600 border border-slate-300/80 shadow-2xs cursor-not-allowed'
-                  : displayedPrice === 'Coming Soon'
-                    ? 'bg-amber-600 text-white group-hover:bg-amber-700 shadow-amber-600/20 group-hover:shadow-amber-600/40 group-hover:scale-105'
-                    : 'bg-blue-600 text-white group-hover:bg-blue-700 shadow-blue-600/20 group-hover:shadow-blue-600/40 group-hover:scale-105 shadow-md'
+                ? 'bg-slate-100 text-slate-600 border border-slate-300/80 shadow-2xs cursor-not-allowed'
+                : displayedPrice === 'Coming Soon'
+                ? 'bg-amber-600 text-white group-hover:bg-amber-700 shadow-amber-600/20 group-hover:scale-105'
+                : 'bg-blue-600 text-white group-hover:bg-blue-700 shadow-blue-600/25 group-hover:scale-105 active:scale-95'
             }`}
-        >
-          {isUpcomingSale ? (
-            <>
-              <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-              <span>Segera Dibuka</span>
-            </>
-          ) : isSaleEnded ? (
-            <span>Penjualan Berakhir</span>
-          ) : isEventSoldOut ? (
-            <span>Sold Out</span>
-          ) : displayedPrice === 'Coming Soon' ? (
-            <span>Coming Soon</span>
-          ) : (
-            <>
-              <span>Beli Tiket</span>
-              <ArrowRight className="w-3.5 h-3.5 text-white transition-transform group-hover:translate-x-0.5" />
-            </>
-          )}
+          >
+            {isUpcomingSale ? (
+              <>
+                <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>{lang === 'en' ? 'Soon' : 'Segera'}</span>
+              </>
+            ) : isSaleEnded ? (
+              <span>{lang === 'en' ? 'Ended' : 'Berakhir'}</span>
+            ) : isEventSoldOut ? (
+              <span>Sold Out</span>
+            ) : displayedPrice === 'Coming Soon' ? (
+              <span>Coming Soon</span>
+            ) : (
+              <>
+                <span>{lang === 'en' ? 'Buy Ticket' : 'Beli Tiket'}</span>
+                <ArrowRight className="w-3.5 h-3.5 text-white transition-transform group-hover:translate-x-0.5" />
+              </>
+            )}
+          </div>
         </div>
       </div>
     </Link>

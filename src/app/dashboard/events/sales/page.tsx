@@ -435,7 +435,7 @@ export default function EventSalesDetailPage() {
       );
       lines.push(
         escapeCsv(
-          `*** Hak Cipta © ${now.getFullYear()} METIX (PT Metix Indonesia). Seluruh data transaksi dilindungi sistem enkripsi platform. ***`
+          `*** Hak Cipta © ${now.getFullYear()} METIX. Seluruh data transaksi dilindungi sistem enkripsi platform. ***`
         )
       );
 

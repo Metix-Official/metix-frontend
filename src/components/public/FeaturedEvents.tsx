@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { ArrowRight, CalendarOff, Sparkles } from 'lucide-react';
+import React, { useRef, useCallback } from 'react';
+import { Megaphone, CalendarOff, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PublicEvent } from '@/data/publicMockData';
 import { EventCard } from './EventCard';
 import { ApiEvent } from '@/lib/api';
@@ -103,30 +103,70 @@ export const FeaturedEvents: React.FC<FeaturedEventsProps> = ({
     });
   }, [apiEvents]);
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const handlePrev = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    if (el.scrollLeft <= 20) {
+      // Loop to end
+      el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
+    } else {
+      const cardWidth = el.firstElementChild
+        ? (el.firstElementChild as HTMLElement).offsetWidth + 24
+        : 310;
+      el.scrollBy({ left: -cardWidth, behavior: 'smooth' });
+    }
+  }, []);
+
+  const handleNext = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    if (scrollLeft >= scrollWidth - clientWidth - 20) {
+      // Loop back to start
+      el.scrollTo({ left: 0, behavior: 'smooth' });
+    } else {
+      const cardWidth = el.firstElementChild
+        ? (el.firstElementChild as HTMLElement).offsetWidth + 24
+        : 310;
+      el.scrollBy({ left: cardWidth, behavior: 'smooth' });
+    }
+  }, []);
+
   return (
     <section id="events" className="py-12 lg:py-16 bg-blue-50/40 border-t border-slate-200/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
-        <div className="mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-in-up opacity-0">
-          <div className="space-y-1.5">
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              {lang === 'en' ? 'Popular Events' : 'Event'}
-              <ArrowRight className="w-6 h-6 text-blue-600 hidden sm:inline-block" />
+        {/* Section Header (Gambar 2 Style: Animated Megaphone + Event Seru Untukmu) */}
+        <div className="mb-6 sm:mb-8 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative inline-flex items-center justify-center select-none">
+              <Megaphone className="w-5 h-5 sm:w-6 sm:h-6 text-slate-900 shrink-0 animate-megaphone" />
+              {/* Emitted Sound Waves */}
+              <svg
+                className="absolute -top-1 -right-2.5 w-4 h-4 text-blue-600 pointer-events-none overflow-visible"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              >
+                <path
+                  d="M3 5 C 6 4, 8 6, 9 9"
+                  className="animate-soundwave-1"
+                />
+                <path
+                  d="M7 2 C 11 1, 13 4, 14 8"
+                  className="animate-soundwave-2"
+                />
+              </svg>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              {lang === 'en' ? 'Exciting Events For You' : 'Event Seru Untukmu'}
             </h2>
-            <p className="text-xs sm:text-sm text-slate-600 font-medium max-w-xl">
-              {lang === 'en'
-                ? 'Explore the most popular events near you and get your tickets easily'
-                : 'Jelajahi berbagai event terpopuler di sekitar kotamu dan pesan tiketnya secara instan'}
-            </p>
           </div>
-
-          <Link
-            href="/dashboard"
-            className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 font-extrabold text-xs border border-slate-200 shadow-xs hover:shadow-md transition-all shrink-0"
-          >
-            <span>{lang === 'en' ? 'View All Events' : 'Lihat Semua Event'}</span>
-            <ArrowRight className="w-4 h-4 text-blue-600" />
-          </Link>
         </div>
 
         {isLoading ? (
@@ -150,27 +190,59 @@ export const FeaturedEvents: React.FC<FeaturedEventsProps> = ({
             ))}
           </div>
         ) : eventsToDisplay.length > 0 ? (
-          <>
-            {/* Dynamic Centered Responsive Event Grid */}
+          <div className="relative group">
+            {/* Floating Left Arrow Navigation Button */}
+            {eventsToDisplay.length > 1 && (
+              <button
+                type="button"
+                onClick={handlePrev}
+                className="absolute -left-2.5 sm:-left-3.5 md:-left-4.5 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white shadow-lg hover:shadow-xl border border-slate-200/90 flex items-center justify-center text-slate-700 hover:text-blue-600 active:scale-95 transition-all cursor-pointer focus:outline-none"
+                aria-label={lang === 'en' ? 'Previous Events' : 'Event Sebelumnya'}
+              >
+                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+              </button>
+            )}
+
+            {/* Floating Right Arrow Navigation Button */}
+            {eventsToDisplay.length > 1 && (
+              <button
+                type="button"
+                onClick={handleNext}
+                className="absolute -right-2.5 sm:-right-3.5 md:-right-4.5 top-1/2 -translate-y-1/2 z-30 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white shadow-lg hover:shadow-xl border border-slate-200/90 flex items-center justify-center text-slate-700 hover:text-blue-600 active:scale-95 transition-all cursor-pointer focus:outline-none"
+                aria-label={lang === 'en' ? 'Next Events' : 'Event Selanjutnya'}
+              >
+                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+              </button>
+            )}
+
+            {/* Horizontal Scrollable Event Cards Track */}
             <div
-              className={`grid grid-cols-1 gap-6 ${eventsToDisplay.length === 1
-                ? 'max-w-md mx-auto'
-                : eventsToDisplay.length === 2
-                  ? 'max-w-3xl mx-auto md:grid-cols-2'
-                  : eventsToDisplay.length === 3
-                    ? 'max-w-5xl mx-auto md:grid-cols-2 lg:grid-cols-3'
-                    : 'md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-                }`}
+              ref={scrollContainerRef}
+              className="flex items-stretch gap-4 sm:gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory py-3 px-1 no-scrollbar select-none"
+              style={{
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+              }}
             >
               {eventsToDisplay.map((event, index) => {
                 const rawApi = apiEvents.find((x) => String(x.id) === event.id) || (event as any).rawApiEvent;
                 return (
-                  <EventCard key={event.id} event={event} rawApiEvent={rawApi} index={index} />
+                  <div
+                    key={event.id}
+                    className="w-[270px] sm:w-[285px] md:w-[295px] shrink-0 snap-start flex"
+                  >
+                    <EventCard
+                      event={event}
+                      rawApiEvent={rawApi}
+                      index={index}
+                      lang={lang}
+                      className="w-full"
+                    />
+                  </div>
                 );
               })}
             </div>
-
-          </>
+          </div>
         ) : (
           /* ================= PREMIUM NO EVENT EMPTY STATE ================= */
           <div className="bg-white rounded-3xl border border-slate-200/90 p-8 sm:p-12 text-center shadow-xs space-y-3 max-w-2xl mx-auto my-4">

@@ -627,7 +627,7 @@ export default function ReportsPage() {
       );
       lines.push(
         escapeCsv(
-          `*** Hak Cipta © ${now.getFullYear()} METIX (PT Metix Indonesia). Seluruh data transaksi dilindungi enkripsi platform. ***`
+          `*** Hak Cipta © ${now.getFullYear()} METIX. Seluruh data transaksi dilindungi enkripsi platform. ***`
         )
       );
 

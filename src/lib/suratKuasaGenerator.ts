@@ -128,7 +128,7 @@ export function generateSuratKuasaPdf(data: SuratKuasaData): void {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   doc.setTextColor(100, 116, 139);
-  doc.text('Portal Bantuan: support@metix.id | metix.id', rightX, 18, { align: 'right' });
+  doc.text('Portal Bantuan: https://www.instagram.com/metix.id/ | metix.id', rightX, 18, { align: 'right' });
 
   // Garis Pembatas Kop Surat
   doc.setDrawColor(30, 58, 138);

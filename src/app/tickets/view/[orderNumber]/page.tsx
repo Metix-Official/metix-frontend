@@ -328,7 +328,7 @@ export default function PublicTicketViewPage() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7);
     doc.setTextColor(30, 58, 138);
-    doc.text('LAYANAN BANTUAN METIX: support@metix.id | www.metix.id', cardX + 8, helpY + 7);
+    doc.text('LAYANAN BANTUAN METIX: https://www.instagram.com/metix.id/ | www.metix.id', cardX + 8, helpY + 7);
 
     doc.setFont('helvetica', 'black');
     doc.setFontSize(7);

@@ -173,8 +173,8 @@ export const FeaturedEvents: React.FC<FeaturedEventsProps> = ({
           /* Symmetrical EventCard Skeleton Loading Grid */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="rounded-3xl bg-white border border-slate-200/80 p-0 overflow-hidden shadow-xs space-y-4">
-                <Skeleton className="h-48 sm:h-52 w-full rounded-none" />
+              <div key={i} className="rounded-2xl bg-white border border-slate-200/80 p-0 overflow-hidden shadow-xs space-y-4">
+                <Skeleton className="aspect-[16/9] w-full rounded-none" />
                 <div className="p-5 pt-0 space-y-4">
                   <div className="space-y-2">
                     <Skeleton className="h-5 w-4/5 rounded-lg" />

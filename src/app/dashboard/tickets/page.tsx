@@ -725,9 +725,21 @@ export default function TicketsPage() {
     }
   };
 
-  // Reliable image to JPEG base64 converter (handles CORS, WebP, PNG, Next.js Proxy)
-  const urlToJpegBase64 = async (url: string): Promise<string | null> => {
+  // Reliable image to JPEG base64 converter (handles CORS, WebP, PNG, Next.js Proxy & prevents canvas memory limit)
+  const urlToJpegBase64 = async (url: string): Promise<{ data: string; aspect: number } | null> => {
     try {
+      if (url.startsWith('data:image')) {
+        return await new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const aspect = (img.naturalWidth || 16) / (img.naturalHeight || 9);
+            resolve({ data: url, aspect });
+          };
+          img.onerror = () => resolve(null);
+          img.src = url;
+        });
+      }
+
       let blob: Blob | null = null;
 
       // 1. Try direct fetch first
@@ -752,23 +764,74 @@ export default function TicketsPage() {
         }
       }
 
-      if (!blob) return null;
+      if (!blob) {
+        // Fallback: Try loading directly via Image tag with crossOrigin
+        return await new Promise((resolve) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              const MAX_DIM = 1200;
+              let targetW = img.naturalWidth || 600;
+              let targetH = img.naturalHeight || 338;
+              if (targetW > MAX_DIM || targetH > MAX_DIM) {
+                if (targetW >= targetH) {
+                  targetH = Math.round((targetH * MAX_DIM) / targetW);
+                  targetW = MAX_DIM;
+                } else {
+                  targetW = Math.round((targetW * MAX_DIM) / targetH);
+                  targetH = MAX_DIM;
+                }
+              }
+              canvas.width = targetW;
+              canvas.height = targetH;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, targetW, targetH);
+                const jpegData = canvas.toDataURL('image/jpeg', 0.85);
+                const aspect = (img.naturalWidth || targetW) / (img.naturalHeight || targetH);
+                resolve({ data: jpegData, aspect });
+                return;
+              }
+            } catch (e) {
+              console.warn('Image DOM canvas conversion error:', e);
+            }
+            resolve(null);
+          };
+          img.onerror = () => resolve(null);
+          img.src = url;
+        });
+      }
 
-      // 3. Convert blob into standard JPEG via HTML5 Canvas (ensures 100% jsPDF compatibility)
-      return await new Promise<string | null>((resolve) => {
+      // 3. Convert blob into standard JPEG via scaled HTML5 Canvas (ensures 100% jsPDF compatibility & no memory crash)
+      return await new Promise<{ data: string; aspect: number } | null>((resolve) => {
         const img = new Image();
-        const objectUrl = URL.createObjectURL(blob);
+        const objectUrl = URL.createObjectURL(blob!);
         img.onload = () => {
           try {
             const canvas = document.createElement('canvas');
-            canvas.width = img.naturalWidth || img.width || 400;
-            canvas.height = img.naturalHeight || img.height || 600;
+            const MAX_DIM = 1200;
+            let targetW = img.naturalWidth || 600;
+            let targetH = img.naturalHeight || 338;
+            if (targetW > MAX_DIM || targetH > MAX_DIM) {
+              if (targetW >= targetH) {
+                targetH = Math.round((targetH * MAX_DIM) / targetW);
+                targetW = MAX_DIM;
+              } else {
+                targetW = Math.round((targetW * MAX_DIM) / targetH);
+                targetH = MAX_DIM;
+              }
+            }
+            canvas.width = targetW;
+            canvas.height = targetH;
             const ctx = canvas.getContext('2d');
             if (ctx) {
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-              const jpegData = canvas.toDataURL('image/jpeg', 0.9);
+              ctx.drawImage(img, 0, 0, targetW, targetH);
+              const jpegData = canvas.toDataURL('image/jpeg', 0.85);
+              const aspect = (img.naturalWidth || targetW) / (img.naturalHeight || targetH);
               URL.revokeObjectURL(objectUrl);
-              resolve(jpegData);
+              resolve({ data: jpegData, aspect });
               return;
             }
           } catch (canvasErr) {
@@ -861,9 +924,9 @@ export default function TicketsPage() {
       // Fetch event banner image for left cover art
       const rawBanner = (ticket as any).event_banner_url || ticket.event?.banner || (ticket.event as any)?.banner_url || (ticket.event as any)?.image || (ticket.event as any)?.poster || (ticket.event as any)?.venue_photo;
       const eventBannerUrl = rawBanner ? (getPhotoUrl(rawBanner, ticket.event?.id) || rawBanner) : null;
-      let posterBase64: string | null = null;
+      let posterResult: { data: string; aspect: number } | null = null;
       if (eventBannerUrl) {
-        posterBase64 = await urlToJpegBase64(eventBannerUrl);
+        posterResult = await urlToJpegBase64(eventBannerUrl);
       }
 
       // Fetch QR Code base64
@@ -872,7 +935,8 @@ export default function TicketsPage() {
       )}`;
       let qrBase64: string | null = null;
       try {
-        qrBase64 = await urlToJpegBase64(qrUrl);
+        const qrResult = await urlToJpegBase64(qrUrl);
+        qrBase64 = qrResult?.data || null;
       } catch {
         // Fallback
       }
@@ -924,38 +988,58 @@ export default function TicketsPage() {
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 4, 4, 'FD');
 
-      // 2A. Left Cover Art (Width = 46mm, Height = 84mm)
-      if (posterBase64) {
+      // 2A. Left Cover Art (Width = 46mm, Height = 84mm) - Displays Full Proportional Poster Banner
+      const leftCoverWidth = 46;
+      if (posterResult?.data) {
         try {
-          doc.addImage(posterBase64, 'JPEG', cardX, cardY, 46, cardHeight, undefined, 'FAST');
+          doc.setFillColor(15, 23, 42); // Elegant slate-900 background container
+          doc.rect(cardX, cardY, leftCoverWidth, cardHeight, 'F');
+
+          // Calculate proportional dimensions to show full image without distortion or cropping
+          const imgAspect = posterResult.aspect || (16 / 9);
+          let drawW = leftCoverWidth - 3;
+          let drawH = drawW / imgAspect;
+          const maxAvailableH = cardHeight - 12; // leave 12mm at bottom for VIP strip
+          if (drawH > maxAvailableH) {
+            drawH = maxAvailableH;
+            drawW = maxAvailableH * imgAspect;
+          }
+          const drawX = cardX + (leftCoverWidth - drawW) / 2;
+          const drawY = cardY + 3 + (maxAvailableH - drawH) / 2;
+
+          doc.addImage(posterResult.data, 'JPEG', drawX, drawY, drawW, drawH, undefined, 'FAST');
         } catch {
           doc.setFillColor(241, 245, 249);
-          doc.rect(cardX, cardY, 46, cardHeight, 'F');
+          doc.rect(cardX, cardY, leftCoverWidth, cardHeight, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9);
+          doc.setTextColor(37, 99, 235);
+          doc.text('METIX PASS', cardX + leftCoverWidth / 2, cardY + 42, { align: 'center' });
         }
       } else {
         doc.setFillColor(241, 245, 249);
-        doc.rect(cardX, cardY, 46, cardHeight, 'F');
+        doc.rect(cardX, cardY, leftCoverWidth, cardHeight, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
         doc.setTextColor(37, 99, 235);
-        doc.text('METIX PASS', cardX + 23, cardY + 42, { align: 'center' });
+        doc.text('METIX PASS', cardX + leftCoverWidth / 2, cardY + 42, { align: 'center' });
       }
 
       // Left Cover Art Bottom Badge Strip
       doc.setFillColor(15, 23, 42);
-      doc.rect(cardX, cardY + 74, 46, 10, 'F');
+      doc.rect(cardX, cardY + cardHeight - 9, leftCoverWidth, 9, 'F');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(6.5);
       doc.setTextColor(255, 255, 255);
-      doc.text('LIVE PASS ★ VIP', cardX + 23, cardY + 80.5, { align: 'center' });
+      doc.text('LIVE PASS ★ VIP', cardX + leftCoverWidth / 2, cardY + cardHeight - 3.2, { align: 'center' });
 
       // Border between Cover Art and Body
       doc.setDrawColor(226, 232, 240);
       doc.setLineWidth(0.3);
-      doc.line(cardX + 46, cardY, cardX + 46, cardY + cardHeight);
+      doc.line(cardX + leftCoverWidth, cardY, cardX + leftCoverWidth, cardY + cardHeight);
 
       // 2B. Middle Ticket Body (Typography & Details, Width = 88mm)
-      const bodyX = cardX + 50;
+      const bodyX = cardX + leftCoverWidth + 4;
 
       // Line 1: Category & Authentic Ticket Code (Blue Mono)
       doc.setFont('courier', 'bold');
@@ -1237,7 +1321,7 @@ export default function TicketsPage() {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(7);
       doc.setTextColor(30, 58, 138);
-      doc.text('BUTUH BANTUAN TIKET? Hubungi Layanan Metix: support@metix.id | partnership.metix.id', cardX + 8, helpY + 7.5);
+      doc.text('BUTUH BANTUAN TIKET? Hubungi Layanan Metix: https://www.instagram.com/metix.id/', cardX + 8, helpY + 7.5);
 
       doc.setFont('helvetica', 'black');
       doc.setFontSize(7);
@@ -1558,26 +1642,42 @@ export default function TicketsPage() {
                       </>
                     )}
 
-                    {/* 1. Left Edge Cover Art / Poster (Spanning full ticket height like a VIP Pass) */}
+                    {/* 1. Left Edge Cover Art / Poster - Full-Bleed Edge-to-Edge (100% Full, No Black Box) */}
                     {eventBannerUrl ? (
-                      <div className="relative w-full h-44 md:h-auto md:w-44 lg:w-48 shrink-0 overflow-hidden border-b md:border-b-0 md:border-r border-slate-200/80 group/poster">
+                      <div className="relative w-full aspect-[16/9] md:aspect-auto md:w-[380px] lg:w-[420px] xl:w-[450px] shrink-0 overflow-hidden bg-slate-100 border-b md:border-b-0 md:border-r border-slate-200/80 group/poster">
                         <img
                           src={eventBannerUrl}
                           alt={eventTitle}
-                          className="w-full h-full object-cover group-hover/poster:scale-105 transition-transform duration-700 ease-out"
+                          className="w-full h-full object-cover object-center group-hover/poster:scale-105 transition-transform duration-700 ease-out"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
+                            const target = e.target as HTMLImageElement;
+                            target.onerror = null;
+                            target.src = '/hero/hero_concert_banner.png';
                           }}
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-black/40 via-transparent to-transparent pointer-events-none" />
-                        <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-white font-mono bg-black/60 backdrop-blur-md px-2 py-0.5 rounded border border-white/20 shadow-xs">
-                            LIVE PASS
-                          </span>
-                          <span className="text-[9px] font-bold text-white/90 font-mono drop-shadow-sm">
-                            ★ VIP
+
+                        {/* Subtle edge gradient to seamlessly bridge artwork and ticket body */}
+                        <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-transparent via-transparent to-slate-900/10 pointer-events-none" />
+
+                        {/* Minimalist Floating Badge (Pojok Atas, Bersih & Bebas Menghalangi Artwork) */}
+                        <div className="absolute top-3 left-3 z-10 pointer-events-none">
+                          <span className="px-2.5 py-1 rounded-full bg-slate-950/70 backdrop-blur-md text-[10px] font-black uppercase tracking-wider text-white border border-white/20 shadow-md flex items-center gap-1.5 font-mono">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span>LIVE PASS</span>
                           </span>
                         </div>
+
+                        {/* Full Artwork View Action on Hover */}
+                        <a
+                          href={eventBannerUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Buka poster resolusi penuh"
+                          className="absolute bottom-3 right-3 z-10 px-2.5 py-1 rounded-lg bg-slate-950/75 hover:bg-slate-950 text-white backdrop-blur-md text-[10px] font-bold border border-white/20 shadow-md opacity-0 group-hover/poster:opacity-100 transition-opacity flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>Full Poster</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
                       </div>
                     ) : (
                       <div className="relative w-full h-40 md:h-auto md:w-40 lg:w-44 shrink-0 bg-slate-50 flex flex-col items-center justify-center p-4 border-b md:border-b-0 md:border-r border-slate-200/80 text-slate-400">
@@ -1703,12 +1803,12 @@ export default function TicketsPage() {
                       <div className="w-full flex items-center justify-center">
                         <span
                           className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border shadow-2xs ${isRefundApproved
-                              ? 'bg-rose-50 text-rose-700 border-rose-300'
-                              : isUsed
-                                ? 'bg-slate-100 text-slate-600 border-slate-300'
-                                : isCancelled
-                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            ? 'bg-rose-50 text-rose-700 border-rose-300'
+                            : isUsed
+                              ? 'bg-slate-100 text-slate-600 border-slate-300'
+                              : isCancelled
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             }`}
                         >
                           {isRefundApproved

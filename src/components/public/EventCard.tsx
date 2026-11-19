@@ -156,8 +156,8 @@ export const EventCard: React.FC<EventCardProps> = ({
         className || ''
       }`}
     >
-      {/* Top Image Thumbnail (Gambar 2 Style) */}
-      <div className="relative w-full aspect-[4/3] bg-slate-900 overflow-hidden shrink-0">
+      {/* Top Image Thumbnail (16:9 Aspect Ratio to display full concert banners without cropping) */}
+      <div className="relative w-full aspect-[16/9] bg-slate-900 overflow-hidden shrink-0">
         <img
           src={imgSrc}
           alt={event.title}
@@ -187,23 +187,20 @@ export const EventCard: React.FC<EventCardProps> = ({
             </span>
           )}
         </div>
-
-        {/* Bottom Left: SPECIAL DISCOUNT % Tab Badge (Gambar 2 Style) */}
-        <div className="absolute bottom-2.5 left-0 z-10">
-          <div className="bg-blue-600 text-white pl-2.5 pr-3 py-1 rounded-r-xl shadow-md flex items-center gap-1.5 border-y border-r border-blue-400/40">
-            <div className="w-4 h-4 rounded-full bg-amber-400 text-blue-950 flex items-center justify-center font-black text-[9px] shrink-0 shadow-2xs">
-              %
-            </div>
-            <span className="text-[10px] font-black uppercase tracking-wider leading-none truncate max-w-[190px]">
-              {event.category ? `${event.category} DISCOUNT` : 'SPECIAL DISCOUNT'}
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* Card Body Info (BayFest, Tanggal, Lokasi, Penyelenggara) */}
       <div className="p-3.5 sm:p-4 flex-1 flex flex-col justify-between bg-white">
         <div className="space-y-2">
+          {/* Category Pill Tag (Bersih & Rapi di atas judul, tidak menutupi poster banner) */}
+          {event.category && (
+            <div className="flex items-center gap-1.5">
+              <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-wider border border-blue-100/80">
+                {event.category}
+              </span>
+            </div>
+          )}
+
           {/* Title */}
           <h3
             className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1 leading-snug tracking-tight"

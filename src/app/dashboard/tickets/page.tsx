@@ -1633,11 +1633,11 @@ export default function TicketsPage() {
 
                     {/* 1. Left Edge Cover Art / Poster - True 16:9 Aspect (100% Full Artwork, Never Cropped) */}
                     {eventBannerUrl ? (
-                      <div className="relative w-full aspect-[16/9] md:w-[340px] lg:w-[370px] xl:w-[390px] shrink-0 overflow-hidden bg-slate-950 border-b md:border-b-0 md:border-r border-slate-200/80 group/poster flex items-center justify-center">
+                      <div className="relative w-full aspect-[16/9] md:aspect-auto md:w-[336px] lg:w-[340px] shrink-0 overflow-hidden bg-slate-100 border-b md:border-b-0 md:border-r border-slate-200/80 group/poster flex items-center justify-center">
                         <img
                           src={eventBannerUrl}
                           alt={eventTitle}
-                          className="w-full h-full object-contain object-center group-hover/poster:scale-105 transition-transform duration-700 ease-out"
+                          className="w-full h-full object-cover object-center group-hover/poster:scale-105 transition-transform duration-700 ease-out"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.onerror = null;
@@ -1649,8 +1649,8 @@ export default function TicketsPage() {
                         <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-transparent via-transparent to-slate-900/10 pointer-events-none" />
 
                         {/* Minimalist Floating Badge (Pojok Atas, Bersih & Bebas Menghalangi Artwork) */}
-                        <div className="absolute top-3 left-3 z-10 pointer-events-none">
-                          <span className="px-2.5 py-1 rounded-full bg-slate-950/70 backdrop-blur-md text-[10px] font-black uppercase tracking-wider text-white border border-white/20 shadow-md flex items-center gap-1.5 font-mono">
+                        <div className="absolute top-2.5 left-2.5 z-10 pointer-events-none">
+                          <span className="px-2 py-0.5 rounded-full bg-slate-950/70 backdrop-blur-md text-[9px] font-black uppercase tracking-wider text-white border border-white/20 shadow-xs flex items-center gap-1.5 font-mono">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                             <span>LIVE PASS</span>
                           </span>
@@ -1662,7 +1662,7 @@ export default function TicketsPage() {
                           target="_blank"
                           rel="noopener noreferrer"
                           title="Buka poster resolusi penuh"
-                          className="absolute bottom-3 right-3 z-10 px-2.5 py-1 rounded-lg bg-slate-950/75 hover:bg-slate-950 text-white backdrop-blur-md text-[10px] font-bold border border-white/20 shadow-md opacity-0 group-hover/poster:opacity-100 transition-opacity flex items-center gap-1 cursor-pointer"
+                          className="absolute bottom-2.5 right-2.5 z-10 px-2 py-0.5 rounded-lg bg-slate-950/75 hover:bg-slate-950 text-white backdrop-blur-md text-[9px] font-bold border border-white/20 shadow-xs opacity-0 group-hover/poster:opacity-100 transition-opacity flex items-center gap-1 cursor-pointer"
                         >
                           <span>Full Poster</span>
                           <ExternalLink className="w-3 h-3" />
@@ -1678,7 +1678,7 @@ export default function TicketsPage() {
                     )}
 
                     {/* 2. Main Ticket Typography Body - Compact, Clean & Luxurious ("Rapi & Tidak Terpotong") */}
-                    <div className="relative p-3 sm:p-4 flex-1 min-w-0 flex flex-col justify-between space-y-2 bg-white z-10">
+                    <div className="relative py-2.5 px-3.5 sm:py-3 sm:px-4 flex-1 min-w-0 flex flex-col justify-between space-y-1.5 bg-white z-10">
                       {/* Top Section: Category, Ticket Code, Title, and Access Subtitle */}
                       <div className="space-y-0.5">
                         {/* Line 1: Category & Authentic Ticket Code (Satu Baris Rata) */}
@@ -1687,7 +1687,7 @@ export default function TicketsPage() {
                             {category || 'METIX CONCERT PASS'}
                           </span>
                           <span className="text-slate-300 font-mono">•</span>
-                          <span className="text-[11px] sm:text-xs font-mono font-bold tracking-wider text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200 whitespace-nowrap">
+                          <span className="text-[11px] sm:text-xs font-mono font-bold tracking-wider text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 whitespace-nowrap">
                             {displayTicketCode}
                           </span>
                           {promoCode && (
@@ -1702,7 +1702,7 @@ export default function TicketsPage() {
                         </div>
 
                         {/* Line 2: Headline Concert Title (Compact & Bold) */}
-                        <h3 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight leading-tight group-hover:text-blue-600 transition-colors">
+                        <h3 className="text-lg sm:text-xl font-black text-slate-900 uppercase tracking-tight leading-tight group-hover:text-blue-600 transition-colors">
                           {eventTitle}
                         </h3>
 
@@ -1713,7 +1713,7 @@ export default function TicketsPage() {
                       </div>
 
                       {/* Line 4: Date, Time & Venue Bar (Sama Rata, Simple & Bersih) */}
-                      <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                      <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                         <div className="flex items-center gap-1.5 font-bold text-slate-800 shrink-0">
                           <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                           <span>{dateStr}</span>
@@ -1733,8 +1733,8 @@ export default function TicketsPage() {
                       </div>
 
                       {/* Line 5: 4 Bottom Info Pillars (Entrance, Tipe, Row/Seat, Pemegang) */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-2 border-t border-slate-100">
-                        <div className="bg-slate-50 border border-slate-200/80 rounded-lg px-2 py-1 text-center">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1.5 border-t border-slate-100">
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-lg px-2 py-0.5 text-center">
                           <span className="block text-[8px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
                             ENTRANCE
                           </span>
@@ -1742,7 +1742,7 @@ export default function TicketsPage() {
                             GATE 01
                           </span>
                         </div>
-                        <div className="bg-slate-50 border border-slate-200/80 rounded-lg px-2 py-1 text-center">
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-lg px-2 py-0.5 text-center">
                           <span className="block text-[8px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
                             TIPE
                           </span>
@@ -1750,7 +1750,7 @@ export default function TicketsPage() {
                             {ticketType}
                           </span>
                         </div>
-                        <div className="bg-slate-50 border border-slate-200/80 rounded-lg px-2 py-1 text-center">
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-lg px-2 py-0.5 text-center">
                           <span className="block text-[8px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
                             ROW / SEAT
                           </span>
@@ -1758,7 +1758,7 @@ export default function TicketsPage() {
                             FESTIVAL
                           </span>
                         </div>
-                        <div className="bg-slate-50 border border-slate-200/80 rounded-lg px-2 py-1 text-center">
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-lg px-2 py-0.5 text-center">
                           <span className="block text-[8px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
                             PEMEGANG
                           </span>
@@ -1787,11 +1787,11 @@ export default function TicketsPage() {
                     </div>
 
                     {/* 3. Right Ticket Stub (QR Code & Action Section) - Compact & Simple */}
-                    <div className="relative p-3.5 sm:p-4 w-full md:w-48 lg:w-52 flex flex-col items-center justify-between bg-slate-50/70 border-t md:border-t-0 md:border-l border-slate-200/70 space-y-2.5 shrink-0 z-10">
+                    <div className="relative py-2.5 px-3 sm:py-3 sm:px-3.5 w-full md:w-44 lg:w-48 flex flex-col items-center justify-between bg-slate-50/70 border-t md:border-t-0 md:border-l border-slate-200/70 space-y-1.5 shrink-0 z-10">
                       {/* Stub Header: Status */}
                       <div className="w-full flex items-center justify-center">
                         <span
-                          className={`text-[9.5px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border shadow-2xs ${isRefundApproved
+                          className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border shadow-2xs ${isRefundApproved
                             ? 'bg-rose-50 text-rose-700 border-rose-300'
                             : isUsed
                               ? 'bg-slate-100 text-slate-600 border-slate-300'
@@ -1808,16 +1808,15 @@ export default function TicketsPage() {
                                 ? 'Dibatalkan'
                                 : 'Siap Check-In'}
                         </span>
-
                       </div>
 
                       {/* Official QR Code with Clean Frame */}
                       <div className="flex flex-col items-center space-y-1">
-                        <div className="relative p-1.5 bg-white rounded-xl border border-slate-200 shadow-xs group-hover:scale-105 transition-all">
+                        <div className="relative p-1 bg-white rounded-xl border border-slate-200 shadow-xs group-hover:scale-105 transition-all">
                           <img
                             src={item.qr_code_url || getTicketQrUrl(item.id)}
                             alt={`QR Code ${displayTicketCode}`}
-                            className={`w-20 h-20 sm:w-22 sm:h-22 object-contain transition-all duration-300 ${isUsed
+                            className={`w-18 h-18 sm:w-19 sm:h-19 object-contain transition-all duration-300 ${isUsed
                               ? 'filter blur-[3.5px] opacity-25 grayscale'
                               : isCancelled
                                 ? 'filter blur-[3px] opacity-25 grayscale'
@@ -1857,13 +1856,13 @@ export default function TicketsPage() {
                         </div>
 
                         {/* QR helper text */}
-                        <div className="space-y-1 text-center">
-                          <p className="text-[10px] text-slate-500 font-medium flex items-center justify-center gap-1.5">
-                            <QrCode className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <div className="space-y-0.5 text-center">
+                          <p className="text-[9.5px] text-slate-500 font-medium flex items-center justify-center gap-1">
+                            <QrCode className="w-3 h-3 text-blue-600 shrink-0" />
                             <span>{isUsed ? 'Tiket terverifikasi' : 'Scan di gerbang masuk'}</span>
                           </p>
                           {promoCode && (
-                            <p className="text-[9px] font-bold text-amber-900 bg-amber-50 py-0.5 px-2 rounded-md border border-amber-200/90 flex items-center justify-center gap-1">
+                            <p className="text-[8.5px] font-bold text-amber-900 bg-amber-50 py-0.5 px-1.5 rounded-md border border-amber-200/90 flex items-center justify-center gap-1">
                               <Coffee className="w-3 h-3 text-amber-600 shrink-0" />
                               <span>Kupon: {promoCode} ({benefitName || "1 Cup Kopi"})</span>
                             </p>
@@ -1872,14 +1871,14 @@ export default function TicketsPage() {
                       </div>
 
                       {/* Download & Refund Action Buttons */}
-                      <div className="w-full pt-1">
+                      <div className="w-full pt-0.5">
                         {isRefundApproved ? (
                           refundReq ? (
-                            <div className="space-y-1.5 w-full">
+                            <div className="space-y-1 w-full">
                               <button
                                 type="button"
                                 disabled
-                                className="w-full py-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-black flex items-center justify-center gap-1.5 cursor-not-allowed shadow-2xs"
+                                className="w-full py-1.5 sm:py-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-black flex items-center justify-center gap-1.5 cursor-not-allowed shadow-2xs"
                                 title="Pengajuan refund telah dicatat dan sedang diproses"
                               >
                                 <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse shrink-0" />
@@ -1888,17 +1887,17 @@ export default function TicketsPage() {
                               <button
                                 type="button"
                                 onClick={() => handlePrintTicketPdf({ ...item, ticket_code: displayTicketCode, event_banner_url: eventBannerUrl } as any)}
-                                className="w-full py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                                className="w-full py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
                               >
                                 <Download className="w-3 h-3" /> Unduh PDF
                               </button>
                             </div>
                           ) : (
-                            <div className="space-y-1.5 w-full">
+                            <div className="space-y-1 w-full">
                               <button
                                 type="button"
                                 onClick={() => handleOpenBuyerRefundModal(item)}
-                                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-600 hover:from-rose-700 hover:to-amber-700 active:scale-[0.98] text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/30 transition-all cursor-pointer animate-pulse"
+                                className="w-full py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-600 hover:from-rose-700 hover:to-amber-700 active:scale-[0.98] text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/30 transition-all cursor-pointer animate-pulse"
                                 title="Event resmi dibatalkan & disetujui Owner. Klik untuk mengajukan refund tiket Anda"
                               >
                                 <RotateCcw className="w-3.5 h-3.5 text-white" />
@@ -1907,7 +1906,7 @@ export default function TicketsPage() {
                               <button
                                 type="button"
                                 onClick={() => handlePrintTicketPdf({ ...item, ticket_code: displayTicketCode, event_banner_url: eventBannerUrl } as any)}
-                                className="w-full py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                                className="w-full py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
                               >
                                 <Download className="w-3 h-3" /> Unduh PDF
                               </button>
@@ -1917,7 +1916,7 @@ export default function TicketsPage() {
                           <button
                             type="button"
                             disabled
-                            className="w-full py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 text-xs font-black flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80"
+                            className="w-full py-1.5 sm:py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 text-xs font-black flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Checked-In
                           </button>
@@ -1925,7 +1924,7 @@ export default function TicketsPage() {
                           <button
                             type="button"
                             disabled
-                            className="w-full py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-500 text-xs font-black flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80"
+                            className="w-full py-1.5 sm:py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-500 text-xs font-black flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80"
                           >
                             <XCircle className="w-3.5 h-3.5 text-rose-500" /> Dibatalkan
                           </button>
@@ -1933,7 +1932,7 @@ export default function TicketsPage() {
                           <button
                             type="button"
                             onClick={() => handlePrintTicketPdf({ ...item, ticket_code: displayTicketCode, event_banner_url: eventBannerUrl } as any)}
-                            className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all cursor-pointer"
+                            className="w-full py-1.5 sm:py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all cursor-pointer"
                           >
                             <Download className="w-3.5 h-3.5" /> Unduh PDF
                           </button>

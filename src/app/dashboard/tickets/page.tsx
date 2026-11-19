@@ -944,7 +944,7 @@ export default function TicketsPage() {
       const cardX = 12;
       const cardY = 28;
       const cardWidth = 186;
-      const cardHeight = 84;
+      const cardHeight = 52; // Proportioned 16:9 Cinema Pass Height
 
       // =========================================================================
       // 1. TOP DOCUMENT HEADER (METIX OFFICIAL CLEARANCE)
@@ -981,40 +981,35 @@ export default function TicketsPage() {
       doc.line(cardX, 23, cardX + cardWidth, 23);
 
       // =========================================================================
-      // 2. HORIZONTAL VIP PASS (Exact Replica of On-Screen Ticket - Premium Edition)
+      // 2. HORIZONTAL VIP PASS (Exact Replica of On-Screen Dashboard Ticket)
       // =========================================================================
       // Outer Card Background & Border
       doc.setDrawColor(203, 213, 225);
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 4, 4, 'FD');
 
-      // 2A. Left Cover Art (Width = 46mm, Height = 84mm) - Displays Full Proportional Poster Banner
-      const leftCoverWidth = 46;
+      // 2A. Left Cover Art (Width = 92mm, Height = 52mm) - Edge-to-Edge 16:9 Banner (No Black Void)
+      const leftCoverWidth = 92;
       if (posterResult?.data) {
         try {
-          doc.setFillColor(15, 23, 42); // Elegant slate-900 background container
-          doc.rect(cardX, cardY, leftCoverWidth, cardHeight, 'F');
+          doc.addImage(posterResult.data, 'JPEG', cardX, cardY, leftCoverWidth, cardHeight, undefined, 'FAST');
 
-          // Calculate proportional dimensions to show full image without distortion or cropping
-          const imgAspect = posterResult.aspect || (16 / 9);
-          let drawW = leftCoverWidth - 3;
-          let drawH = drawW / imgAspect;
-          const maxAvailableH = cardHeight - 12; // leave 12mm at bottom for VIP strip
-          if (drawH > maxAvailableH) {
-            drawH = maxAvailableH;
-            drawW = maxAvailableH * imgAspect;
-          }
-          const drawX = cardX + (leftCoverWidth - drawW) / 2;
-          const drawY = cardY + 3 + (maxAvailableH - drawH) / 2;
-
-          doc.addImage(posterResult.data, 'JPEG', drawX, drawY, drawW, drawH, undefined, 'FAST');
+          // Sleek Minimalist LIVE PASS Pill (Pojok Kiri Atas seperti di layar)
+          doc.setFillColor(15, 23, 42);
+          doc.roundedRect(cardX + 3.5, cardY + 3.5, 20, 4.5, 2.25, 2.25, 'F');
+          doc.setFillColor(52, 211, 153);
+          doc.circle(cardX + 6, cardY + 5.75, 0.75, 'F');
+          doc.setFont('courier', 'bold');
+          doc.setFontSize(5);
+          doc.setTextColor(255, 255, 255);
+          doc.text('LIVE PASS', cardX + 8, cardY + 6.8);
         } catch {
           doc.setFillColor(241, 245, 249);
           doc.rect(cardX, cardY, leftCoverWidth, cardHeight, 'F');
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(9);
           doc.setTextColor(37, 99, 235);
-          doc.text('METIX PASS', cardX + leftCoverWidth / 2, cardY + 42, { align: 'center' });
+          doc.text('METIX PASS', cardX + leftCoverWidth / 2, cardY + 26, { align: 'center' });
         }
       } else {
         doc.setFillColor(241, 245, 249);
@@ -1022,43 +1017,35 @@ export default function TicketsPage() {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
         doc.setTextColor(37, 99, 235);
-        doc.text('METIX PASS', cardX + leftCoverWidth / 2, cardY + 42, { align: 'center' });
+        doc.text('METIX PASS', cardX + leftCoverWidth / 2, cardY + 26, { align: 'center' });
       }
-
-      // Left Cover Art Bottom Badge Strip
-      doc.setFillColor(15, 23, 42);
-      doc.rect(cardX, cardY + cardHeight - 9, leftCoverWidth, 9, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6.5);
-      doc.setTextColor(255, 255, 255);
-      doc.text('LIVE PASS ★ VIP', cardX + leftCoverWidth / 2, cardY + cardHeight - 3.2, { align: 'center' });
 
       // Border between Cover Art and Body
       doc.setDrawColor(226, 232, 240);
       doc.setLineWidth(0.3);
       doc.line(cardX + leftCoverWidth, cardY, cardX + leftCoverWidth, cardY + cardHeight);
 
-      // 2B. Middle Ticket Body (Typography & Details, Width = 88mm)
-      const bodyX = cardX + leftCoverWidth + 4;
+      // 2B. Middle Ticket Body (Typography & Details)
+      const bodyX = cardX + leftCoverWidth + 3.5;
 
       // Line 1: Category & Authentic Ticket Code (Blue Mono)
       doc.setFont('courier', 'bold');
-      doc.setFontSize(7.5);
+      doc.setFontSize(6.5);
       doc.setTextColor(37, 99, 235);
       const catText = (category ? category.toUpperCase() : 'CONCERT PASS') + ' • ' + ticketCode;
-      doc.text(catText.substring(0, 38), bodyX, cardY + 9);
+      doc.text(catText.substring(0, 32), bodyX, cardY + 5.5);
 
       // Line 2: Headline Event Title (Large, Bold, Dark Slate)
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(15);
+      doc.setFontSize(12.5);
       doc.setTextColor(15, 23, 42);
-      doc.text(eventTitle.substring(0, 24).toUpperCase(), bodyX, cardY + 18);
+      doc.text(eventTitle.substring(0, 18).toUpperCase(), bodyX, cardY + 12);
 
       // Line 3: Ticket Access Type
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
+      doc.setFontSize(6.5);
       doc.setTextColor(100, 116, 139);
-      doc.text(`${ticketType.toUpperCase()} ACCESS`, bodyX, cardY + 24);
+      doc.text(`${ticketType.toUpperCase()} ACCESS`, bodyX, cardY + 16.5);
 
       const pdfPromoCode = (ticket as any).promo_code || (ticket as any).order?.promo_code || (ticket as any).order?.promo?.code;
       const pdfBenefitName = (ticket as any).benefit_name || (ticket as any).order?.benefit_name || (ticket as any).order?.promo?.benefit_name;
@@ -1066,125 +1053,127 @@ export default function TicketsPage() {
       if (pdfPromoCode) {
         doc.setFillColor(254, 243, 199);
         doc.setDrawColor(245, 158, 11);
-        doc.roundedRect(bodyX + 38, cardY + 19.5, 52, 5.5, 1, 1, 'FD');
+        doc.roundedRect(bodyX + 27, cardY + 13.5, 23, 4, 1, 1, 'FD');
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(5);
+        doc.setFontSize(4.5);
         doc.setTextColor(146, 64, 14);
-        doc.text(`PROMO: ${pdfPromoCode} (${String(pdfBenefitName || 'FREE COFFEE').toUpperCase()})`, bodyX + 64, cardY + 23.3, { align: 'center' });
+        doc.text(`PROMO: ${pdfPromoCode}`, bodyX + 38.5, cardY + 16.2, { align: 'center' });
       }
 
       // Line 4: Date, Time & Venue Bar
       doc.setFillColor(248, 250, 252);
       doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(bodyX, cardY + 27, 82, 17, 2, 2, 'FD');
+      doc.roundedRect(bodyX, cardY + 18.5, 51, 12, 1.5, 1.5, 'FD');
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
+      doc.setFontSize(5.8);
       doc.setTextColor(15, 23, 42);
-      doc.text(`WAKTU  :  ${dateStr}${timeStr ? ' • ' + timeStr : ''}`, bodyX + 3, cardY + 33.5);
+      doc.text(`WAKTU  : ${dateStr}${timeStr ? ' • ' + timeStr : ''}`, bodyX + 2.5, cardY + 22.8);
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
+      doc.setFontSize(5.5);
       doc.setTextColor(71, 85, 105);
-      doc.text(`LOKASI :  ${venue.substring(0, 44)}`, bodyX + 3, cardY + 40);
+      doc.text(`LOKASI : ${venue.substring(0, 32)}`, bodyX + 2.5, cardY + 27.8);
 
-      // Line 5: 4 Bottom Info Capsules (ENTRANCE | TIPE | ROW/SEAT | PEMEGANG)
+      // Line 5: 4 Bottom Info Capsules (2x2 Grid for Perfect Proportional Alignment)
       const pillars = [
         { label: 'ENTRANCE', val: 'GATE 01' },
-        { label: 'TIPE', val: ticketType.substring(0, 9) },
+        { label: 'TIPE', val: ticketType.substring(0, 10) },
         { label: 'ROW / SEAT', val: 'FESTIVAL' },
-        { label: 'PEMEGANG', val: buyerName.substring(0, 14) },
+        { label: 'PEMEGANG', val: buyerName.substring(0, 13) },
       ];
 
-      const pWidth = 19.5;
-      const pHeight = 28;
-      const pGap = 1.3;
-
       pillars.forEach((p, idx) => {
-        const px = bodyX + idx * (pWidth + pGap);
+        const col = idx % 2;
+        const row = Math.floor(idx / 2);
+        const px = bodyX + col * 26;
+        const py = cardY + 32 + row * 9;
+        const pW = 24.5;
+        const pH = 7.8;
+
         doc.setFillColor(248, 250, 252);
         doc.setDrawColor(226, 232, 240);
-        doc.roundedRect(px, cardY + 48, pWidth, pHeight, 1.5, 1.5, 'FD');
+        doc.roundedRect(px, py, pW, pH, 1.2, 1.2, 'FD');
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(5);
+        doc.setFontSize(4);
         doc.setTextColor(148, 163, 184);
-        doc.text(p.label, px + (pWidth / 2), cardY + 55, { align: 'center' });
+        doc.text(p.label, px + 2.5, py + 2.8);
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(6.5);
+        doc.setFontSize(5.5);
         doc.setTextColor(15, 23, 42);
-        doc.text(p.val, px + (pWidth / 2), cardY + 65, { align: 'center' });
+        doc.text(p.val, px + 2.5, py + 6.3);
       });
 
       // 2C. Perforation Tear-Off Divider
-      const perfX = cardX + 135;
+      const perfX = cardX + 148;
       doc.setFillColor(255, 255, 255);
       doc.setDrawColor(203, 213, 225);
-      doc.circle(perfX, cardY, 3, 'FD'); // Top cutout notch
+      doc.circle(perfX, cardY, 2.5, 'FD'); // Top cutout notch
 
       doc.setLineDashPattern([1.5, 1.5], 0);
-      doc.line(perfX, cardY + 3, perfX, cardY + cardHeight - 3);
+      doc.line(perfX, cardY + 2.5, perfX, cardY + cardHeight - 2.5);
       doc.setLineDashPattern([], 0);
 
-      doc.circle(perfX, cardY + cardHeight, 3, 'FD'); // Bottom cutout notch
+      doc.circle(perfX, cardY + cardHeight, 2.5, 'FD'); // Bottom cutout notch
 
-      // 2D. Right Ticket Stub (Width = 51mm)
+      // 2D. Right Ticket Stub (Width = 38mm)
       doc.setFillColor(248, 250, 252);
-      doc.rect(perfX, cardY, 51, cardHeight, 'F');
+      doc.rect(perfX, cardY, 38, cardHeight, 'F');
 
       // Status Badge
       doc.setFillColor(236, 253, 245);
       doc.setDrawColor(167, 243, 208);
-      doc.roundedRect(cardX + 139, cardY + 5, 43, 6, 2, 2, 'FD');
+      doc.roundedRect(perfX + 4, cardY + 3, 30, 4.2, 1.5, 1.5, 'FD');
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6.5);
+      doc.setFontSize(5.5);
       doc.setTextColor(5, 150, 105);
-      doc.text('SIAP CHECK-IN', cardX + 160.5, cardY + 9.2, { align: 'center' });
+      doc.text('SIAP CHECK-IN', perfX + 19, cardY + 6, { align: 'center' });
 
       // QR Code
-      const qrBoxX = cardX + 144.5;
-      const qrBoxY = cardY + 13;
+      const qrBoxX = perfX + 7;
+      const qrBoxY = cardY + 8.5;
       doc.setFillColor(255, 255, 255);
       doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(qrBoxX - 1, qrBoxY - 1, 34, 34, 2, 2, 'FD');
+      doc.roundedRect(qrBoxX, qrBoxY, 24, 24, 1.5, 1.5, 'FD');
 
       if (qrBase64) {
-        doc.addImage(qrBase64, 'PNG', qrBoxX, qrBoxY, 32, 32);
+        doc.addImage(qrBase64, 'PNG', qrBoxX + 1, qrBoxY + 1, 22, 22);
       } else {
         doc.setFont('courier', 'bold');
-        doc.setFontSize(7);
+        doc.setFontSize(6.5);
         doc.setTextColor(37, 99, 235);
-        doc.text(ticketCode, cardX + 160.5, cardY + 30, { align: 'center' });
+        doc.text(ticketCode, perfX + 19, cardY + 21, { align: 'center' });
       }
 
       // QR Instruction
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(5.5);
+      doc.setFontSize(4.5);
       doc.setTextColor(100, 116, 139);
-      doc.text('Scan di gerbang masuk venue', cardX + 160.5, cardY + 51, { align: 'center' });
+      doc.text('Scan di gerbang masuk', perfX + 19, cardY + 35.5, { align: 'center' });
 
       // Ticket Code (Mono)
       doc.setFont('courier', 'bold');
-      doc.setFontSize(7.5);
+      doc.setFontSize(6);
       doc.setTextColor(15, 23, 42);
-      doc.text(ticketCode, cardX + 160.5, cardY + 58, { align: 'center' });
+      doc.text(ticketCode, perfX + 19, cardY + 40.5, { align: 'center' });
 
       if (pdfPromoCode) {
         doc.setFillColor(254, 243, 199);
         doc.setDrawColor(245, 158, 11);
-        doc.roundedRect(cardX + 138, cardY + 63, 45, 4.5, 1, 1, 'FD');
+        doc.roundedRect(perfX + 4, cardY + 42.5, 30, 3.5, 1, 1, 'FD');
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(4.8);
+        doc.setFontSize(4.2);
         doc.setTextColor(146, 64, 14);
-        doc.text(`KUPON: ${pdfPromoCode}`, cardX + 160.5, cardY + 66.2, { align: 'center' });
+        doc.text(`KUPON: ${pdfPromoCode}`, perfX + 19, cardY + 45, { align: 'center' });
       }
 
       // Metix Watermark Logo
       doc.setFont('helvetica', 'black');
-      doc.setFontSize(9.5);
+      doc.setFontSize(7.5);
       doc.setTextColor(30, 58, 138);
-      doc.text('METIX', cardX + 160.5, cardY + (pdfPromoCode ? 74 : 70), { align: 'center' });
+      doc.text('METIX', perfX + 19, cardY + (pdfPromoCode ? 49.5 : 47.5), { align: 'center' });
 
       // Re-stroke outer card border cleanly
       doc.setDrawColor(203, 213, 225);
@@ -1194,7 +1183,7 @@ export default function TicketsPage() {
       // =========================================================================
       // 3. FOLD & CUT PERFORATION INDICATOR
       // =========================================================================
-      const foldY = 120;
+      const foldY = cardY + cardHeight + 10;
       doc.setDrawColor(203, 213, 225);
       doc.setLineWidth(0.3);
       doc.setLineDashPattern([2, 2], 0);
@@ -1209,8 +1198,8 @@ export default function TicketsPage() {
       // =========================================================================
       // 4. TERMS & CONDITIONS SECTION (SYARAT & KETENTUAN RESMI)
       // =========================================================================
-      const tcY = 126;
-      const tcHeight = 156;
+      const tcY = foldY + 6;
+      const tcHeight = 104;
 
       doc.setDrawColor(226, 232, 240);
       doc.setFillColor(250, 250, 252);
@@ -1218,18 +1207,18 @@ export default function TicketsPage() {
 
       // T&C Header Strip
       doc.setFillColor(30, 41, 59);
-      doc.roundedRect(cardX, tcY, cardWidth, 12, 4, 4, 'F');
-      doc.rect(cardX, tcY + 7, cardWidth, 5, 'F');
+      doc.roundedRect(cardX, tcY, cardWidth, 11, 4, 4, 'F');
+      doc.rect(cardX, tcY + 6, cardWidth, 5, 'F');
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
+      doc.setFontSize(7.5);
       doc.setTextColor(255, 255, 255);
-      doc.text('TERMS & CONDITIONS  *  SYARAT & KETENTUAN MASUK ACARA', cardX + 8, tcY + 8);
+      doc.text('TERMS & CONDITIONS  *  SYARAT & KETENTUAN MASUK ACARA', cardX + 8, tcY + 7.5);
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(6.5);
       doc.setTextColor(253, 224, 71);
-      doc.text('METIX OFFICIAL POLICY', cardX + cardWidth - 8, tcY + 8, { align: 'right' });
+      doc.text('METIX OFFICIAL POLICY', cardX + cardWidth - 8, tcY + 7.5, { align: 'right' });
 
       // Two-Column T&C Grid
       const colWidth = 80;
@@ -1257,7 +1246,7 @@ export default function TicketsPage() {
       };
 
       // Column 1
-      let itemY = tcY + 18;
+      let itemY = tcY + 17;
       drawTcItem(
         leftColX,
         itemY,
@@ -1285,7 +1274,7 @@ export default function TicketsPage() {
       );
 
       // Column 2
-      itemY = tcY + 18;
+      itemY = tcY + 17;
       drawTcItem(
         rightColX,
         itemY,
@@ -1313,7 +1302,7 @@ export default function TicketsPage() {
       );
 
       // Support & Verification Banner
-      const helpY = tcY + 138;
+      const helpY = tcY + 86;
       doc.setFillColor(238, 242, 255);
       doc.setDrawColor(199, 210, 254);
       doc.roundedRect(cardX + 4, helpY, cardWidth - 8, 12, 2, 2, 'FD');

@@ -1631,13 +1631,13 @@ export default function TicketsPage() {
                       </>
                     )}
 
-                    {/* 1. Left Edge Cover Art / Poster - Full-Bleed Edge-to-Edge (100% Full, No Black Box) */}
+                    {/* 1. Left Edge Cover Art / Poster - True 16:9 Aspect (100% Full Artwork, Never Cropped) */}
                     {eventBannerUrl ? (
-                      <div className="relative w-full aspect-[16/9] md:aspect-auto md:w-[380px] lg:w-[420px] xl:w-[450px] shrink-0 overflow-hidden bg-slate-100 border-b md:border-b-0 md:border-r border-slate-200/80 group/poster">
+                      <div className="relative w-full aspect-[16/9] md:w-[340px] lg:w-[370px] xl:w-[390px] shrink-0 overflow-hidden bg-slate-950 border-b md:border-b-0 md:border-r border-slate-200/80 group/poster flex items-center justify-center">
                         <img
                           src={eventBannerUrl}
                           alt={eventTitle}
-                          className="w-full h-full object-cover object-center group-hover/poster:scale-105 transition-transform duration-700 ease-out"
+                          className="w-full h-full object-contain object-center group-hover/poster:scale-105 transition-transform duration-700 ease-out"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.onerror = null;
@@ -1669,7 +1669,7 @@ export default function TicketsPage() {
                         </a>
                       </div>
                     ) : (
-                      <div className="relative w-full h-40 md:h-auto md:w-40 lg:w-44 shrink-0 bg-slate-50 flex flex-col items-center justify-center p-4 border-b md:border-b-0 md:border-r border-slate-200/80 text-slate-400">
+                      <div className="relative w-full h-40 md:h-auto md:w-36 lg:w-40 shrink-0 bg-slate-50 flex flex-col items-center justify-center p-4 border-b md:border-b-0 md:border-r border-slate-200/80 text-slate-400">
                         <Ticket className="w-10 h-10 text-slate-400 mb-2" />
                         <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-mono text-center">
                           METIX PASS
@@ -1677,12 +1677,12 @@ export default function TicketsPage() {
                       </div>
                     )}
 
-                    {/* 2. Main Ticket Typography Body - Clean & Plain White ("Putih Polos & Simpel") */}
-                    <div className="relative p-5 sm:p-6 flex-1 min-w-0 flex flex-col justify-between space-y-4 bg-white z-10">
+                    {/* 2. Main Ticket Typography Body - Compact, Clean & Luxurious ("Rapi & Tidak Terpotong") */}
+                    <div className="relative p-3 sm:p-4 flex-1 min-w-0 flex flex-col justify-between space-y-2 bg-white z-10">
                       {/* Top Section: Category, Ticket Code, Title, and Access Subtitle */}
-                      <div className="space-y-2">
+                      <div className="space-y-0.5">
                         {/* Line 1: Category & Authentic Ticket Code (Satu Baris Rata) */}
-                        <div className="flex items-center gap-2.5 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-blue-600 font-mono">
                             {category || 'METIX CONCERT PASS'}
                           </span>
@@ -1691,7 +1691,7 @@ export default function TicketsPage() {
                             {displayTicketCode}
                           </span>
                           {promoCode && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-black bg-amber-50 text-amber-950 border border-amber-300 shadow-2xs">
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-black bg-amber-50 text-amber-950 border border-amber-300 shadow-2xs">
                               <Coffee className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                               <span>Promo: {promoCode}</span>
                               <span className="text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-amber-200/90 text-amber-900 border border-amber-300">
@@ -1701,68 +1701,68 @@ export default function TicketsPage() {
                           )}
                         </div>
 
-                        {/* Line 2: Headline Concert Title (UNGU) */}
-                        <h3 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 uppercase tracking-tight leading-tight group-hover:text-blue-600 transition-colors">
+                        {/* Line 2: Headline Concert Title (Compact & Bold) */}
+                        <h3 className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-tight leading-tight group-hover:text-blue-600 transition-colors">
                           {eventTitle}
                         </h3>
 
                         {/* Line 3: Ticket Type Subtitle */}
-                        <p className="text-xs sm:text-sm font-black tracking-widest uppercase text-slate-500">
+                        <p className="text-[10px] sm:text-[11px] font-black tracking-widest uppercase text-slate-500">
                           {ticketType} ACCESS
                         </p>
                       </div>
 
                       {/* Line 4: Date, Time & Venue Bar (Sama Rata, Simple & Bersih) */}
-                      <div className="bg-slate-50 border border-slate-200/80 rounded-2xl px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs sm:text-sm">
-                        <div className="flex items-center gap-2 font-bold text-slate-800 shrink-0">
-                          <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+                      <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                        <div className="flex items-center gap-1.5 font-bold text-slate-800 shrink-0">
+                          <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                           <span>{dateStr}</span>
                         </div>
                         {timeStr && (
-                          <div className="flex items-center gap-2 font-bold text-slate-700 shrink-0">
+                          <div className="flex items-center gap-1.5 font-bold text-slate-700 shrink-0">
                             <span className="text-slate-300">•</span>
-                            <Clock className="w-4 h-4 text-blue-600 shrink-0" />
+                            <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                             <span>{timeStr} WIB</span>
                           </div>
                         )}
-                        <div className="flex items-center gap-2 font-semibold text-slate-600 text-xs sm:text-sm min-w-0">
+                        <div className="flex items-center gap-1.5 font-semibold text-slate-600 text-xs min-w-0">
                           <span className="text-slate-300 hidden sm:inline">•</span>
-                          <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
+                          <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                           <span className="truncate">{venue}</span>
                         </div>
                       </div>
 
-                      {/* Line 5: 4 Bottom Info Pillars (ENTRANCE | TIPE | ROW/SEAT | PEMEGANG) */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pt-3 border-t border-slate-100">
-                        <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2 text-center">
-                          <span className="block text-[9px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
+                      {/* Line 5: 4 Bottom Info Pillars (Entrance, Tipe, Row/Seat, Pemegang) */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-2 border-t border-slate-100">
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-lg px-2 py-1 text-center">
+                          <span className="block text-[8px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
                             ENTRANCE
                           </span>
-                          <span className="block text-xs font-black text-slate-800 truncate mt-0.5">
+                          <span className="block text-[11px] font-black text-slate-800 truncate mt-0.5">
                             GATE 01
                           </span>
                         </div>
-                        <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2 text-center">
-                          <span className="block text-[9px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-lg px-2 py-1 text-center">
+                          <span className="block text-[8px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
                             TIPE
                           </span>
-                          <span className="block text-xs font-black text-blue-600 truncate mt-0.5">
+                          <span className="block text-[11px] font-black text-blue-600 truncate mt-0.5">
                             {ticketType}
                           </span>
                         </div>
-                        <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2 text-center">
-                          <span className="block text-[9px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-lg px-2 py-1 text-center">
+                          <span className="block text-[8px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
                             ROW / SEAT
                           </span>
-                          <span className="block text-xs font-black text-slate-800 truncate mt-0.5">
+                          <span className="block text-[11px] font-black text-slate-800 truncate mt-0.5">
                             FESTIVAL
                           </span>
                         </div>
-                        <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2 text-center">
-                          <span className="block text-[9px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-lg px-2 py-1 text-center">
+                          <span className="block text-[8px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">
                             PEMEGANG
                           </span>
-                          <span className="block text-xs font-black text-slate-800 truncate mt-0.5" title={holderName}>
+                          <span className="block text-[11px] font-black text-slate-800 truncate mt-0.5" title={holderName}>
                             {holderName}
                           </span>
                         </div>
@@ -1786,12 +1786,12 @@ export default function TicketsPage() {
                       <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200/60 -mr-3 shadow-inner" />
                     </div>
 
-                    {/* 3. Right Ticket Stub (QR Code & Action Section) - Simple & Clean */}
-                    <div className="relative p-5 sm:p-6 w-full md:w-56 lg:w-60 flex flex-col items-center justify-between bg-slate-50/70 border-t md:border-t-0 md:border-l border-slate-200/70 space-y-4 shrink-0 z-10">
+                    {/* 3. Right Ticket Stub (QR Code & Action Section) - Compact & Simple */}
+                    <div className="relative p-3.5 sm:p-4 w-full md:w-48 lg:w-52 flex flex-col items-center justify-between bg-slate-50/70 border-t md:border-t-0 md:border-l border-slate-200/70 space-y-2.5 shrink-0 z-10">
                       {/* Stub Header: Status */}
                       <div className="w-full flex items-center justify-center">
                         <span
-                          className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border shadow-2xs ${isRefundApproved
+                          className={`text-[9.5px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border shadow-2xs ${isRefundApproved
                             ? 'bg-rose-50 text-rose-700 border-rose-300'
                             : isUsed
                               ? 'bg-slate-100 text-slate-600 border-slate-300'
@@ -1812,12 +1812,12 @@ export default function TicketsPage() {
                       </div>
 
                       {/* Official QR Code with Clean Frame */}
-                      <div className="flex flex-col items-center space-y-2">
-                        <div className="relative p-2.5 bg-white rounded-2xl border border-slate-200 shadow-xs group-hover:scale-105 transition-all">
+                      <div className="flex flex-col items-center space-y-1">
+                        <div className="relative p-1.5 bg-white rounded-xl border border-slate-200 shadow-xs group-hover:scale-105 transition-all">
                           <img
                             src={item.qr_code_url || getTicketQrUrl(item.id)}
                             alt={`QR Code ${displayTicketCode}`}
-                            className={`w-28 h-28 sm:w-32 sm:h-32 object-contain transition-all duration-300 ${isUsed
+                            className={`w-20 h-20 sm:w-22 sm:h-22 object-contain transition-all duration-300 ${isUsed
                               ? 'filter blur-[3.5px] opacity-25 grayscale'
                               : isCancelled
                                 ? 'filter blur-[3px] opacity-25 grayscale'

@@ -51,6 +51,7 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
   const [canScrollRight, setCanScrollRight] = useState(true);
 
   const totalCards = 4;
+  const [totalDots, setTotalDots] = useState(2);
 
   const currentEvent = events && events.length > 0 ? events[0] : null;
 
@@ -84,7 +85,7 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
 
   const eventLink = currentEvent ? `/events/${currentEvent.slug || currentEvent.id}` : '#events';
 
-  // Check scroll position to update arrows and active index
+  // Check scroll position to update arrows, active index, and dynamic dots
   const updateScrollState = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
@@ -93,21 +94,32 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
     setCanScrollLeft(scrollLeft > 10);
     setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
 
-    const cardWidth = el.firstElementChild
-      ? (el.firstElementChild as HTMLElement).offsetWidth + 16
+    const firstCard = el.firstElementChild as HTMLElement | null;
+    const cardWidth = firstCard
+      ? firstCard.offsetWidth + 16
       : clientWidth / 3;
+
+    // Hitung total titik halaman yang nyata sesuai kapasitas lebar layar (responsif)
+    const maxScroll = Math.max(0, scrollWidth - clientWidth);
+    const calculatedDots = maxScroll > 10 ? Math.round(maxScroll / cardWidth) + 1 : 1;
+    setTotalDots(calculatedDots);
+
     const newIndex = Math.round(scrollLeft / cardWidth);
-    setActiveIndex(Math.min(Math.max(newIndex, 0), totalCards - 1));
-  }, [totalCards]);
+    setActiveIndex(Math.min(Math.max(newIndex, 0), calculatedDots - 1));
+  }, []);
 
   useEffect(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
 
     el.addEventListener('scroll', updateScrollState, { passive: true });
+    window.addEventListener('resize', updateScrollState);
     updateScrollState();
 
-    return () => el.removeEventListener('scroll', updateScrollState);
+    return () => {
+      el.removeEventListener('scroll', updateScrollState);
+      window.removeEventListener('resize', updateScrollState);
+    };
   }, [updateScrollState]);
 
   // Scroll to specific card index
@@ -115,8 +127,9 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
     const el = scrollContainerRef.current;
     if (!el) return;
 
-    const cardWidth = el.firstElementChild
-      ? (el.firstElementChild as HTMLElement).offsetWidth + 16
+    const firstCard = el.firstElementChild as HTMLElement | null;
+    const cardWidth = firstCard
+      ? firstCard.offsetWidth + 16
       : el.clientWidth / 3;
 
     el.scrollTo({
@@ -131,10 +144,11 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
 
     if (el.scrollLeft <= 20) {
       // Loop to end
-      scrollToIndex(totalCards - 1);
+      scrollToIndex(totalDots - 1);
     } else {
-      const cardWidth = el.firstElementChild
-        ? (el.firstElementChild as HTMLElement).offsetWidth + 16
+      const firstCard = el.firstElementChild as HTMLElement | null;
+      const cardWidth = firstCard
+        ? firstCard.offsetWidth + 16
         : 350;
       el.scrollBy({ left: -cardWidth, behavior: 'smooth' });
     }
@@ -321,10 +335,10 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
                     href="https://www.instagram.com/metix.id/"
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 hover:brightness-110 active:scale-95 text-white font-bold text-[11px] transition-all shadow-xs"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 hover:brightness-110 active:scale-95 text-white font-bold text-[11px] transition-all shadow-xs whitespace-nowrap shrink-0"
                   >
-                    <InstagramIcon className="w-3 h-3" />
-                    <span>{lang === 'en' ? 'Follow @metix.id' : 'Ikuti @metix.id'}</span>
+                    <InstagramIcon className="w-3.5 h-3.5 shrink-0" />
+                    <span>@metix.id</span>
                   </a>
                   <span className="text-[10px] text-slate-300 font-semibold hidden sm:inline truncate">
                     {lang === 'en' ? '15K+ Concert Goers' : '15K+ Penikmat Konser'}
@@ -385,9 +399,9 @@ export const Hero: React.FC<HeroProps> = ({ lang = 'id', events = [] }) => {
             </div>
           </div>
 
-          {/* Bottom Dot Indicators */}
+          {/* Bottom Dot Indicators - Dinamis sesuai kapasitas layar (di Desktop tepat 2 titik) */}
           <div className="flex items-center justify-center gap-1.5 pt-3">
-            {Array.from({ length: totalCards }).map((_, idx) => (
+            {Array.from({ length: totalDots }).map((_, idx) => (
               <button
                 key={idx}
                 type="button"

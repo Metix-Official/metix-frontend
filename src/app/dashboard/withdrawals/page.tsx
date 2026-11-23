@@ -61,6 +61,8 @@ import {
   Image as ImageIcon,
   MoreVertical,
   Receipt,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 const COMMON_BANKS = [
@@ -96,6 +98,7 @@ export default function WithdrawalManagementPage() {
   const [withdrawals, setWithdrawals] = useState<ApiWithdrawal[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [perPage, setPerPage] = useState<number>(10);
   const [withdrawalMeta, setWithdrawalMeta] = useState<{
     current_page: number;
     last_page: number;
@@ -207,15 +210,17 @@ export default function WithdrawalManagementPage() {
         const res = await fetchOwnerWithdrawals({
           status: statusFilter,
           page: currentPage,
+          per_page: perPage,
         });
-        setWithdrawals(Array.isArray(res.withdrawals) ? res.withdrawals : []);
-        if (res.meta) {
-          setWithdrawalMeta({
-            current_page: res.meta.current_page,
-            last_page: res.meta.last_page,
-            total: res.meta.total,
-          });
-        }
+        const list = Array.isArray(res.withdrawals) ? res.withdrawals : [];
+        setWithdrawals(list);
+        const total = res.meta?.total ?? list.length;
+        const lastPage = res.meta?.last_page ?? Math.max(1, Math.ceil(total / perPage));
+        setWithdrawalMeta({
+          current_page: res.meta?.current_page || currentPage,
+          last_page: lastPage,
+          total: total,
+        });
       } else {
         // EO View: Fetch Bank Accounts & Own Withdrawals
         const accounts = await fetchOrganizerBankAccounts();
@@ -229,16 +234,17 @@ export default function WithdrawalManagementPage() {
         const res = await fetchOrganizerWithdrawals({
           status: statusFilter,
           page: currentPage,
+          per_page: perPage,
         });
         const list = Array.isArray(res.withdrawals) ? res.withdrawals : [];
         setWithdrawals(list);
-        if (res.meta) {
-          setWithdrawalMeta({
-            current_page: res.meta.current_page,
-            last_page: res.meta.last_page,
-            total: res.meta.total,
-          });
-        }
+        const total = res.meta?.total ?? list.length;
+        const lastPage = res.meta?.last_page ?? Math.max(1, Math.ceil(total / perPage));
+        setWithdrawalMeta({
+          current_page: res.meta?.current_page || currentPage,
+          last_page: lastPage,
+          total: total,
+        });
 
         // Accurate synchronization: Saldo Siap Dicairkan = Total Revenue - (Completed + Processing + Pending Withdrawals)
         if (res.balance) {
@@ -259,7 +265,7 @@ export default function WithdrawalManagementPage() {
 
   useEffect(() => {
     loadData();
-  }, [statusFilter, currentPage]);
+  }, [statusFilter, currentPage, perPage]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -606,6 +612,27 @@ export default function WithdrawalManagementPage() {
     return list.find((a) => a.is_primary) || list[0] || null;
   }, [bankAccounts]);
 
+  // Pagination & Displayed Data Calculations
+  const totalItems = withdrawalMeta.total > 0 ? withdrawalMeta.total : (Array.isArray(withdrawals) ? withdrawals.length : 0);
+  const effectiveLastPage = Math.max(1, withdrawalMeta.last_page || Math.ceil(totalItems / perPage));
+
+  const displayedWithdrawals = React.useMemo(() => {
+    if (!Array.isArray(withdrawals)) return [];
+    // Jika backend sudah mengembalikan hasil paginasi server-side
+    if (withdrawalMeta.total > withdrawals.length && withdrawalMeta.last_page > 1) {
+      return withdrawals;
+    }
+    // Jika backend mengembalikan seluruh list data tanpa server pagination, potong di client
+    if (withdrawals.length > perPage) {
+      const start = (currentPage - 1) * perPage;
+      return withdrawals.slice(start, start + perPage);
+    }
+    return withdrawals;
+  }, [withdrawals, currentPage, perPage, withdrawalMeta]);
+
+  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * perPage + 1;
+  const endItem = totalItems === 0 ? 0 : Math.min(startItem + displayedWithdrawals.length - 1, totalItems);
+
   return (
     <DashboardLayout pageTitle="Penarikan Dana & Rekening Bank" activeNav="Penarikan Dana">
       <div className="w-full space-y-6">
@@ -942,7 +969,13 @@ export default function WithdrawalManagementPage() {
 
             {/* Status Filter Dropdown via Shadcn UI Select */}
             <div className="w-full sm:w-44">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select
+                value={statusFilter}
+                onValueChange={(val) => {
+                  setStatusFilter(val);
+                  setCurrentPage(1);
+                }}
+              >
                 <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-extrabold text-slate-900 focus:bg-white focus:border-blue-600">
                   <SelectValue placeholder="Filter Status" />
                 </SelectTrigger>
@@ -959,7 +992,7 @@ export default function WithdrawalManagementPage() {
 
           {isLoading ? (
             <Skeleton className="h-56 w-full rounded-xl" />
-          ) : withdrawals.length > 0 ? (
+          ) : displayedWithdrawals.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-slate-700 min-w-[750px]">
                 <thead className="bg-slate-50 text-slate-500 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200/80">
@@ -973,7 +1006,7 @@ export default function WithdrawalManagementPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {withdrawals.map((item) => {
+                  {displayedWithdrawals.map((item) => {
                     const reqDate = item.requested_at || item.created_at;
                     let formattedDate = '-';
                     if (reqDate) {
@@ -1094,24 +1127,63 @@ export default function WithdrawalManagementPage() {
             </div>
           )}
 
-          {/* Pagination Controls */}
-          {withdrawalMeta.last_page > 1 && (
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs font-semibold text-slate-600">
-              <span>Halaman {withdrawalMeta.current_page} dari {withdrawalMeta.last_page}</span>
-              <div className="flex items-center gap-2">
+          {/* Pagination Controls - Selalu tampil saat ada data */}
+          {withdrawals.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3.5 mt-2 border-t border-slate-200/80 text-xs font-semibold text-slate-600">
+              {/* Left Side: Summary and Per Page Selector */}
+              <div className="flex items-center gap-3">
+                <span className="text-slate-500 font-medium text-xs">
+                  Menampilkan <span className="font-extrabold text-slate-900">{startItem}</span> -{' '}
+                  <span className="font-extrabold text-slate-900">{endItem}</span> dari{' '}
+                  <span className="font-extrabold text-slate-900">{totalItems}</span> data penarikan
+                </span>
+
+                <div className="hidden sm:flex items-center gap-1.5 pl-2 border-l border-slate-200">
+                  <span className="text-slate-500 text-[11px]">Baris:</span>
+                  <Select
+                    value={String(perPage)}
+                    onValueChange={(val) => {
+                      setPerPage(Number(val));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-[70px] h-8 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:bg-white focus:border-blue-600">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Right Side: Page Navigation Buttons */}
+              <div className="flex items-center gap-1.5">
                 <button
-                  disabled={currentPage <= 1}
+                  type="button"
+                  disabled={currentPage <= 1 || isLoading}
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-700 font-bold"
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs active:scale-95"
                 >
-                  Previous
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Sebelumnya</span>
                 </button>
+
+                <div className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-black shadow-2xs">
+                  Halaman {currentPage} dari {effectiveLastPage}
+                </div>
+
                 <button
-                  disabled={currentPage >= withdrawalMeta.last_page}
-                  onClick={() => setCurrentPage((p) => p + 1)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-700 font-bold"
+                  type="button"
+                  disabled={currentPage >= effectiveLastPage || isLoading}
+                  onClick={() => setCurrentPage((p) => Math.min(effectiveLastPage, p + 1))}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs active:scale-95"
                 >
-                  Next
+                  <span>Berikutnya</span>
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>

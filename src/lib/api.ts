@@ -5028,6 +5028,7 @@ export async function setPrimaryOrganizerBankAccount(bankId: number): Promise<Ap
 export async function fetchOrganizerWithdrawals(params?: {
   status?: string;
   page?: number;
+  per_page?: number;
 }): Promise<{
   withdrawals: ApiWithdrawal[];
   meta?: {
@@ -5050,6 +5051,7 @@ export async function fetchOrganizerWithdrawals(params?: {
     const url = new URL(`${API_BASE_URL}/organizer/withdrawals`);
     if (params?.status && params.status !== 'all') url.searchParams.append('status', params.status);
     if (params?.page) url.searchParams.append('page', String(params.page));
+    if (params?.per_page) url.searchParams.append('per_page', String(params.per_page));
 
     const response = await fetch(url.toString(), {
       headers: getHeaders(token),
@@ -5205,6 +5207,7 @@ export async function updateEventSetting(
 export async function fetchOwnerWithdrawals(params?: {
   status?: string;
   page?: number;
+  per_page?: number;
 }): Promise<{
   withdrawals: ApiWithdrawal[];
   meta?: any;
@@ -5224,6 +5227,9 @@ export async function fetchOwnerWithdrawals(params?: {
     }
     if (params?.page) {
       url.searchParams.append('page', String(params.page));
+    }
+    if (params?.per_page) {
+      url.searchParams.append('per_page', String(params.per_page));
     }
 
     const response = await fetch(url.toString(), {

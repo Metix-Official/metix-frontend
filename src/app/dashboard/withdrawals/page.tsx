@@ -94,6 +94,17 @@ export default function WithdrawalManagementPage() {
 
   // Stats / Balance
   const [availableBalance, setAvailableBalance] = useState<number>(0);
+  const [balanceSummary, setBalanceSummary] = useState<{
+    total_revenue: number;
+    total_withdrawn: number;
+    pending_withdrawal: number;
+    available_balance: number;
+  } | null>(null);
+  const [ownerSummary, setOwnerSummary] = useState<{
+    total_completed_amount: number;
+    total_pending_amount: number;
+    total_count: number;
+  } | null>(null);
   const [bankAccounts, setBankAccounts] = useState<ApiBankAccount[]>([]);
   const [withdrawals, setWithdrawals] = useState<ApiWithdrawal[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -214,13 +225,16 @@ export default function WithdrawalManagementPage() {
         });
         const list = Array.isArray(res.withdrawals) ? res.withdrawals : [];
         setWithdrawals(list);
-        const total = res.meta?.total ?? list.length;
+        const total = res.meta?.total ?? (res.summary?.total_count ?? list.length);
         const lastPage = res.meta?.last_page ?? Math.max(1, Math.ceil(total / perPage));
         setWithdrawalMeta({
           current_page: res.meta?.current_page || currentPage,
           last_page: lastPage,
           total: total,
         });
+        if (res.summary) {
+          setOwnerSummary(res.summary);
+        }
       } else {
         // EO View: Fetch Bank Accounts & Own Withdrawals
         const accounts = await fetchOrganizerBankAccounts();
@@ -249,6 +263,7 @@ export default function WithdrawalManagementPage() {
         // Accurate synchronization: Saldo Siap Dicairkan = Total Revenue - (Completed + Processing + Pending Withdrawals)
         if (res.balance) {
           setAvailableBalance(res.balance.available_balance);
+          setBalanceSummary(res.balance);
         } else {
           const committedWithdrawn = list
             .filter((w) => w.status === 'COMPLETED' || w.status === 'PENDING' || w.status === 'PROCESSING')
@@ -576,13 +591,18 @@ export default function WithdrawalManagementPage() {
 
   // Computed Stat Metrics
   const totalCount = React.useMemo(() => {
-    return withdrawalMeta.total || (Array.isArray(withdrawals) ? withdrawals.length : 0);
-  }, [withdrawalMeta.total, withdrawals]);
+    return isOwnerRole && ownerSummary?.total_count !== undefined
+      ? ownerSummary.total_count
+      : withdrawalMeta.total || (Array.isArray(withdrawals) ? withdrawals.length : 0);
+  }, [isOwnerRole, ownerSummary, withdrawalMeta.total, withdrawals]);
 
   const allTotalNominal = React.useMemo(() => {
+    if (isOwnerRole && ownerSummary) {
+      return (ownerSummary.total_completed_amount || 0) + (ownerSummary.total_pending_amount || 0);
+    }
     const list = Array.isArray(withdrawals) ? withdrawals : [];
     return list.reduce((sum, w) => sum + (w.net_amount || w.amount || 0), 0);
-  }, [withdrawals]);
+  }, [isOwnerRole, ownerSummary, withdrawals]);
 
   const completedList = React.useMemo(() => {
     const list = Array.isArray(withdrawals) ? withdrawals : [];
@@ -590,10 +610,21 @@ export default function WithdrawalManagementPage() {
   }, [withdrawals]);
 
   const completedTotal = React.useMemo(() => {
+    if (isOwnerRole && ownerSummary?.total_completed_amount !== undefined) {
+      return ownerSummary.total_completed_amount;
+    }
+    if (!isOwnerRole && balanceSummary?.total_withdrawn !== undefined) {
+      return balanceSummary.total_withdrawn;
+    }
     return completedList.reduce((sum, w) => sum + (w.net_amount || w.amount || 0), 0);
-  }, [completedList]);
+  }, [isOwnerRole, ownerSummary, balanceSummary, completedList]);
 
-  const completedCount = completedList.length;
+  const completedCount = React.useMemo(() => {
+    if (statusFilter === 'COMPLETED' && withdrawalMeta.total) {
+      return withdrawalMeta.total;
+    }
+    return completedList.length;
+  }, [statusFilter, withdrawalMeta.total, completedList.length]);
 
   const pendingList = React.useMemo(() => {
     const list = Array.isArray(withdrawals) ? withdrawals : [];
@@ -801,9 +832,20 @@ export default function WithdrawalManagementPage() {
                 Pengajuan Dalam Proses
               </span>
               <div className="flex items-center justify-between">
-                <h4 className="text-xl font-black text-amber-600">
-                  {pendingAndProcessingCount} Transaksi
-                </h4>
+                <div>
+                  <h4 className="text-xl font-black text-amber-600">
+                    {pendingAndProcessingCount > 0
+                      ? `${pendingAndProcessingCount} Transaksi`
+                      : (balanceSummary?.pending_withdrawal ?? 0) > 0
+                      ? `Rp ${balanceSummary!.pending_withdrawal.toLocaleString('id-ID')}`
+                      : '0 Transaksi'}
+                  </h4>
+                  {pendingAndProcessingCount > 0 && (balanceSummary?.pending_withdrawal ?? 0) > 0 && (
+                    <p className="text-[10px] text-amber-700 font-semibold">
+                      Rp {balanceSummary!.pending_withdrawal.toLocaleString('id-ID')}
+                    </p>
+                  )}
+                </div>
                 <div className="p-1.5 rounded-xl bg-amber-50 text-amber-700">
                   <Clock className="w-4 h-4" />
                 </div>

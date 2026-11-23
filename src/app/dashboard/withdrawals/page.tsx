@@ -1036,10 +1036,11 @@ export default function WithdrawalManagementPage() {
             <Skeleton className="h-56 w-full rounded-xl" />
           ) : displayedWithdrawals.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-700 min-w-[750px]">
+              <table className="w-full text-left text-xs text-slate-700 min-w-[780px]">
                 <thead className="bg-slate-50 text-slate-500 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-200/80">
                   <tr>
-                    <th className="py-2.5 px-3 rounded-l-xl">No. Referensi & Waktu</th>
+                    <th className="py-2.5 px-3 rounded-l-xl w-12 text-center">No.</th>
+                    <th className="py-2.5 px-3">No. Referensi & Waktu</th>
                     <th className="py-2.5 px-3">Rekening Tujuan</th>
                     <th className="py-2.5 px-3">Nominal Penarikan (Rp)</th>
                     <th className="py-2.5 px-3">Status Pengajuan</th>
@@ -1048,7 +1049,7 @@ export default function WithdrawalManagementPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {displayedWithdrawals.map((item) => {
+                  {displayedWithdrawals.map((item, idx) => {
                     const reqDate = item.requested_at || item.created_at;
                     let formattedDate = '-';
                     if (reqDate) {
@@ -1067,6 +1068,9 @@ export default function WithdrawalManagementPage() {
 
                     return (
                       <tr key={item.id} className="hover:bg-blue-50/30 transition-colors group">
+                        <td className="py-2.5 px-3 text-center font-bold text-slate-500 text-xs">
+                          {(currentPage - 1) * perPage + idx + 1}
+                        </td>
                         <td className="py-2.5 px-3">
                           <div className="flex flex-col">
                             <span className="font-black text-slate-900 group-hover:text-blue-700 transition-colors text-xs">

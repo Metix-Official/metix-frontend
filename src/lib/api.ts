@@ -576,6 +576,8 @@ export interface CreateOfflineOrderPayload {
   buyer_email: string;
   buyer_phone: string;
   buyer_nik?: string;
+  buyer_identity_type?: 'KTP' | 'PASSPORT' | 'OTHER' | string;
+  buyer_identity_number?: string;
   date_of_birth?: string | null;
   gender?: 'MALE' | 'FEMALE' | string | null;
   promo_code?: string;

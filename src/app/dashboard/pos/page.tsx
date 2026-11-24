@@ -116,6 +116,29 @@ function resolveVenueName(eventObj: any): string {
   return '';
 }
 
+function getAvailableStock(type: ApiTicketType): number {
+  if (type.available !== undefined && type.available !== null) {
+    return Math.max(0, Number(type.available));
+  }
+  if (type.available_quota !== undefined && type.available_quota !== null) {
+    return Math.max(0, Number(type.available_quota));
+  }
+  const sold = Number(type.sold_count ?? type.sold_quantity ?? 0);
+  const quota = type.quota !== undefined && type.quota !== null ? Number(type.quota) : 0;
+  return Math.max(0, quota - sold);
+}
+
+function checkIsSaleEnded(type: ApiTicketType): boolean {
+  if (!type.sale_end_at) return false;
+  try {
+    const cleanStr = String(type.sale_end_at).trim().replace(' ', 'T');
+    const endDate = new Date(cleanStr);
+    return !isNaN(endDate.getTime()) && new Date() > endDate;
+  } catch {
+    return false;
+  }
+}
+
 export default function PosPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [events, setEvents] = useState<ApiEvent[]>([]);
@@ -132,9 +155,50 @@ export default function PosPage() {
   const [buyerName, setBuyerName] = useState('');
   const [buyerEmail, setBuyerEmail] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
+  const [buyerIdentityType, setBuyerIdentityType] = useState<'KTP' | 'PASSPORT' | 'OTHER'>('KTP');
+  const [buyerIdentityNumber, setBuyerIdentityNumber] = useState('');
   const [buyerNik, setBuyerNik] = useState('');
   const [buyerDateOfBirth, setBuyerDateOfBirth] = useState('');
   const [buyerGender, setBuyerGender] = useState<'MALE' | 'FEMALE' | ''>('');
+
+  // Validasi & Formatter Nomor WA (+62 dan minimal 12 digit)
+  const handlePhoneChange = (val: string) => {
+    let raw = val.trim();
+    if (!raw) {
+      setBuyerPhone('');
+      return;
+    }
+    if (raw === '+' || raw === '+6') {
+      setBuyerPhone('+62');
+      return;
+    }
+    if (raw.startsWith('0')) {
+      raw = '+62' + raw.slice(1);
+    } else if (raw.startsWith('62')) {
+      raw = '+' + raw;
+    } else if (raw.startsWith('8')) {
+      raw = '+62' + raw;
+    } else if (!raw.startsWith('+62')) {
+      const digits = raw.replace(/\D/g, '');
+      raw = digits ? (digits.startsWith('62') ? '+' + digits : '+62' + digits) : '';
+    }
+
+    const cleanDigits = raw.replace(/^\+62/, '').replace(/\D/g, '');
+    const formatted = '+62' + cleanDigits.slice(0, 13);
+    setBuyerPhone(formatted);
+  };
+
+  // Validasi & Formatter NIK (Hanya angka dan tepat maksimal 16 digit angka, tidak boleh lebih)
+  const handleNikChange = (val: string) => {
+    if (buyerIdentityType === 'KTP') {
+      const digitsOnly = val.replace(/\D/g, '').slice(0, 16);
+      setBuyerIdentityNumber(digitsOnly);
+      setBuyerNik(digitsOnly);
+    } else {
+      setBuyerIdentityNumber(val.slice(0, 30));
+      setBuyerNik(val.slice(0, 30));
+    }
+  };
 
   // Payment State: QRIS DOKU is default recommended
   const [paymentMethod, setPaymentMethod] = useState<'QRIS' | 'cash'>('QRIS');
@@ -188,9 +252,17 @@ export default function PosPage() {
   // Ticket Category Grouping & Filter State
   const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>('ALL');
 
-  // Filter out INACTIVE tickets completely from POS Catalog as requested
+  // Filter out INACTIVE, SOLD_OUT, or out-of-stock tickets completely from POS Catalog as requested
   const visibleTicketTypes = useMemo(() => {
-    return ticketTypes.filter((t) => (t.status || 'ACTIVE').toUpperCase() !== 'INACTIVE');
+    return ticketTypes.filter((t) => {
+      const status = String(t.status || 'ACTIVE').toUpperCase().trim().replace(/\s+/g, '_');
+      if (status === 'INACTIVE') return false;
+      if (status === 'SOLD_OUT' || status === 'SOLDOUT') return false;
+      if ((t as any).is_sold_out === true || (t as any).sold_out === true) return false;
+      const availableStock = getAvailableStock(t);
+      if (availableStock <= 0) return false;
+      return true;
+    });
   }, [ticketTypes]);
 
   const groupedTicketTypes = useMemo(() => {
@@ -209,6 +281,12 @@ export default function PosPage() {
   }, [visibleTicketTypes]);
 
   const categoryNames = useMemo(() => Object.keys(groupedTicketTypes), [groupedTicketTypes]);
+
+  useEffect(() => {
+    if (selectedCategoryTab !== 'ALL' && !categoryNames.includes(selectedCategoryTab)) {
+      setSelectedCategoryTab('ALL');
+    }
+  }, [categoryNames, selectedCategoryTab]);
 
   const handleAmountTenderedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/\D/g, '');
@@ -338,27 +416,12 @@ export default function PosPage() {
     const randomId = Math.floor(1000 + Math.random() * 9000);
     setBuyerName('Pembeli Walk-in (Kasir)');
     setBuyerEmail(`walkin.${randomId}@metix.id`);
-    setBuyerPhone('081234567890');
-    setBuyerNik('');
+    setBuyerPhone('+6281234567890');
+    setBuyerIdentityType('KTP');
+    setBuyerIdentityNumber('1234567890123456');
+    setBuyerNik('1234567890123456');
     setBuyerDateOfBirth('2000-01-01');
     setBuyerGender('MALE');
-  };
-
-  const getAvailableStock = (type: ApiTicketType) => {
-    if (type.available !== undefined) return type.available;
-    const sold = type.sold_count ?? type.sold_quantity ?? 0;
-    return Math.max(0, (type.quota || 100) - sold);
-  };
-
-  const checkIsSaleEnded = (type: ApiTicketType) => {
-    if (!type.sale_end_at) return false;
-    try {
-      const cleanStr = String(type.sale_end_at).trim().replace(' ', 'T');
-      const endDate = new Date(cleanStr);
-      return !isNaN(endDate.getTime()) && new Date() > endDate;
-    } catch {
-      return false;
-    }
   };
 
   // Cart operations
@@ -506,12 +569,16 @@ export default function PosPage() {
   const isFormComplete = useMemo(() => {
     if (!selectedEvent || cart.length === 0) return false;
     if (!buyerName.trim() || !buyerEmail.trim() || !buyerPhone.trim()) return false;
+    if (!buyerPhone.startsWith('+62') || buyerPhone.length < 12) return false;
+    if (buyerIdentityType === 'KTP' && buyerIdentityNumber.trim() && buyerIdentityNumber.trim().length !== 16) {
+      return false;
+    }
     if (paymentMethod === 'cash') {
       const tendered = Number(amountTendered) || 0;
       if (tendered < grandTotal) return false;
     }
     return true;
-  }, [selectedEvent, cart.length, buyerName, buyerEmail, buyerPhone, paymentMethod, amountTendered, grandTotal]);
+  }, [selectedEvent, cart.length, buyerName, buyerEmail, buyerPhone, buyerIdentityType, buyerIdentityNumber, paymentMethod, amountTendered, grandTotal]);
 
   const handleApplyPromo = () => {
     setPromoError(null);
@@ -548,7 +615,27 @@ export default function PosPage() {
     e.preventDefault();
     if (!selectedEvent) return;
     if (cart.length === 0) {
-      alert('Pilih minimal 1 tiket untuk dimasukkan ke keranjang kasir.');
+      toast.error('Pilih minimal 1 tiket untuk dimasukkan ke keranjang kasir.');
+      return;
+    }
+
+    if (!buyerName.trim()) {
+      toast.error('Nama lengkap pembeli wajib diisi.');
+      return;
+    }
+
+    if (!buyerEmail.trim()) {
+      toast.error('Email pembeli wajib diisi.');
+      return;
+    }
+
+    if (!buyerPhone.trim() || !buyerPhone.startsWith('+62') || buyerPhone.length < 12) {
+      toast.error('Nomor WA / HP wajib diisi, diawali +62, dan minimal 12 karakter (contoh: +6281234567890).');
+      return;
+    }
+
+    if (buyerIdentityType === 'KTP' && buyerIdentityNumber.trim() && buyerIdentityNumber.trim().length !== 16) {
+      toast.error('Nomor NIK KTP harus tepat 16 digit angka (tidak boleh kurang atau lebih).');
       return;
     }
 
@@ -568,7 +655,9 @@ export default function PosPage() {
         buyer_name: buyerName,
         buyer_email: buyerEmail,
         buyer_phone: buyerPhone,
-        buyer_nik: buyerNik || undefined,
+        buyer_identity_type: buyerIdentityType,
+        buyer_identity_number: buyerIdentityNumber || undefined,
+        buyer_nik: buyerIdentityNumber || buyerNik || undefined,
         date_of_birth: buyerDateOfBirth || null,
         gender: buyerGender || null,
         promo_code: appliedPromo?.code || (promoInput.trim() ? promoInput.trim().toUpperCase() : undefined),
@@ -651,6 +740,8 @@ export default function PosPage() {
       setBuyerName('');
       setBuyerEmail('');
       setBuyerPhone('');
+      setBuyerIdentityType('KTP');
+      setBuyerIdentityNumber('');
       setBuyerNik('');
       setBuyerDateOfBirth('');
       setBuyerGender('');
@@ -1893,7 +1984,7 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
               )}
 
               {/* Form Input Pembeli */}
-              <form onSubmit={handleCheckoutSubmit} className="space-y-4">
+              <form onSubmit={handleCheckoutSubmit} noValidate className="space-y-4">
                 <div className="space-y-3 p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
                   <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1">
                     <User className="w-3.5 h-3.5 text-blue-600" /> Data Pembeli Tiket
@@ -1903,7 +1994,6 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                     <div>
                       <input
                         type="text"
-                        required
                         value={buyerName}
                         onChange={(e) => setBuyerName(e.target.value)}
                         placeholder="Nama Lengkap Pembeli *"
@@ -1912,22 +2002,102 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <input
-                        type="email"
-                        required
-                        value={buyerEmail}
-                        onChange={(e) => setBuyerEmail(e.target.value)}
-                        placeholder="Email Pembeli *"
-                        className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                      />
-                      <input
-                        type="tel"
-                        required
-                        value={buyerPhone}
-                        onChange={(e) => setBuyerPhone(e.target.value)}
-                        placeholder="Nomor WA / HP *"
-                        className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
-                      />
+                      <div>
+                        <input
+                          type="email"
+                          value={buyerEmail}
+                          onChange={(e) => setBuyerEmail(e.target.value)}
+                          placeholder="Email Pembeli *"
+                          className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="tel"
+                          value={buyerPhone}
+                          onChange={(e) => handlePhoneChange(e.target.value)}
+                          onFocus={() => {
+                            if (!buyerPhone) {
+                              setBuyerPhone('+62');
+                            }
+                          }}
+                          placeholder="Nomor WA / HP (+62) *"
+                          className={`w-full px-3.5 py-2 bg-white border rounded-xl text-xs font-semibold text-slate-900 focus:outline-none transition-colors ${
+                            buyerPhone && (!buyerPhone.startsWith('+62') || buyerPhone.length < 12)
+                              ? 'border-amber-400 focus:border-amber-500 bg-amber-50/20'
+                              : buyerPhone && buyerPhone.startsWith('+62') && buyerPhone.length >= 12
+                              ? 'border-emerald-400 focus:border-emerald-500 bg-emerald-50/10'
+                              : 'border-slate-200 focus:border-blue-600'
+                          }`}
+                        />
+                        {buyerPhone && (!buyerPhone.startsWith('+62') || buyerPhone.length < 12) && (
+                          <span className="text-[10px] font-semibold text-amber-600 block mt-1 pl-1">
+                            Harus diawali +62 & min. 12 karakter (cth: +6281234567890)
+                          </span>
+                        )}
+                        {buyerPhone && buyerPhone.startsWith('+62') && buyerPhone.length >= 12 && (
+                          <span className="text-[10px] font-semibold text-emerald-600 block mt-1 pl-1 flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Nomor WA valid ({buyerPhone.length} karakter)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Tipe Identitas & Nomor Identitas (Default KTP) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="sm:col-span-1">
+                        <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1">
+                          Tipe Identitas
+                        </label>
+                        <select
+                          value={buyerIdentityType}
+                          onChange={(e) => setBuyerIdentityType(e.target.value as 'KTP' | 'PASSPORT' | 'OTHER')}
+                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none h-[34px] cursor-pointer shadow-2xs"
+                        >
+                          <option value="KTP">KTP (Default)</option>
+                          <option value="PASSPORT">PASSPORT</option>
+                          <option value="OTHER">LAINNYA</option>
+                        </select>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
+                            Nomor {buyerIdentityType === 'KTP' ? 'NIK / KTP' : buyerIdentityType === 'PASSPORT' ? 'Paspor' : 'Identitas'}
+                          </label>
+                          {buyerIdentityType === 'KTP' && (
+                            <span className={`text-[10px] font-bold ${
+                              buyerIdentityNumber.length === 16 ? 'text-emerald-600' : 'text-slate-400'
+                            }`}>
+                              {buyerIdentityNumber.length}/16 digit (maks. 16)
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          inputMode={buyerIdentityType === 'KTP' ? 'numeric' : 'text'}
+                          maxLength={buyerIdentityType === 'KTP' ? 16 : 30}
+                          value={buyerIdentityNumber}
+                          onChange={(e) => handleNikChange(e.target.value)}
+                          placeholder={buyerIdentityType === 'KTP' ? 'Nomor NIK / KTP Pembeli (16 digit angka)' : 'Nomor Identitas Pembeli'}
+                          className={`w-full px-3.5 py-1.5 bg-white border rounded-xl text-xs font-semibold text-slate-900 focus:outline-none h-[34px] shadow-2xs transition-colors ${
+                            buyerIdentityType === 'KTP' && buyerIdentityNumber && buyerIdentityNumber.length !== 16
+                              ? 'border-amber-400 focus:border-amber-500 bg-amber-50/20'
+                              : buyerIdentityType === 'KTP' && buyerIdentityNumber.length === 16
+                              ? 'border-emerald-400 focus:border-emerald-500 bg-emerald-50/10'
+                              : 'border-slate-200 focus:border-blue-600'
+                          }`}
+                        />
+                        {buyerIdentityType === 'KTP' && buyerIdentityNumber && buyerIdentityNumber.length !== 16 && (
+                          <span className="text-[10px] font-semibold text-amber-600 block mt-1 pl-1">
+                            NIK harus tepat 16 angka (saat ini: {buyerIdentityNumber.length} digit, tidak boleh lebih)
+                          </span>
+                        )}
+                        {buyerIdentityType === 'KTP' && buyerIdentityNumber.length === 16 && (
+                          <span className="text-[10px] font-semibold text-emerald-600 block mt-1 pl-1 flex items-center gap-1">
+                            <Check className="w-3 h-3" /> NIK KTP valid (16 digit)
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Tanggal Lahir (date_of_birth) & Gender (gender = FEMALE | MALE) untuk Analisa Demografi */}
@@ -2198,7 +2368,11 @@ _Tunjukkan pesan ini atau barcode tiket pada link di atas kepada petugas di pint
                     {cart.length === 0
                       ? 'Pilih minimal 1 tiket untuk dimasukkan ke keranjang kasir.'
                       : !buyerName.trim() || !buyerEmail.trim() || !buyerPhone.trim()
-                      ? 'Harap lengkapi semua data pembeli (Nama, Email, dan No. HP).'
+                      ? 'Harap lengkapi data pembeli (Nama, Email, dan No. HP).'
+                      : !buyerPhone.startsWith('+62') || buyerPhone.length < 12
+                      ? 'Nomor WA / HP harus diawali +62 dan minimal 12 karakter.'
+                      : buyerIdentityType === 'KTP' && buyerIdentityNumber.trim() && buyerIdentityNumber.trim().length !== 16
+                      ? 'Nomor NIK KTP harus tepat 16 digit angka (tidak boleh kurang atau lebih).'
                       : paymentMethod === 'cash' && (Number(amountTendered) || 0) < grandTotal
                       ? 'Uang tunai yang diterima masih kurang dari total tagihan.'
                       : ''}

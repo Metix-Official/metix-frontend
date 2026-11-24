@@ -481,6 +481,7 @@ export interface DashboardResponse {
   incomingTransfers?: any[];
   notifications?: any[];
   eventsList?: any[];
+  organizersList?: any[];
   orders?: {
     total?: number;
     paid?: number;
@@ -2008,6 +2009,8 @@ export async function fetchDashboardData(): Promise<DashboardResponse | null> {
         pendingMitraApprovals: rawData?.users?.pending_organizers ?? 0,
         activeOrganizers: rawData?.users?.active_organizers ?? rawData?.users?.organizers ?? 0,
         totalOrders: rawData?.orders?.total ?? normalizedStats?.totalOrders ?? 0,
+        totalTickets: rawData?.tickets?.total ?? (Number(rawData?.sales_channels?.online?.tickets_sold || 0) + Number(rawData?.sales_channels?.offline?.tickets_sold || 0)),
+        totalTicketsSold: rawData?.tickets?.total ?? (Number(rawData?.sales_channels?.online?.tickets_sold || 0) + Number(rawData?.sales_channels?.offline?.tickets_sold || 0)),
         commissionEarned: rawData?.revenue?.platform_commission ?? normalizedStats?.commissionEarned ?? Math.round((rawData?.revenue?.total_gross || 0) * 0.05),
         ...(normalizedStats || {}),
       };
@@ -2023,7 +2026,10 @@ export async function fetchDashboardData(): Promise<DashboardResponse | null> {
     }
 
     return {
+      ...rawData,
       ...data,
+      data: rawData,
+      ticket_types_by_event: rawData?.ticket_types_by_event || data?.ticket_types_by_event || [],
       stats: normalizedStats || data?.stats,
       role,
       roleLabel,
@@ -4795,6 +4801,7 @@ export async function fetchOwnerOrganizers(params?: {
   search?: string;
   status?: string;
   page?: number;
+  per_page?: number;
 }): Promise<{
   organizers: ApiOrganizerProfile[];
   meta?: {
@@ -4812,6 +4819,7 @@ export async function fetchOwnerOrganizers(params?: {
     if (params?.search) url.searchParams.append('search', params.search);
     if (params?.status) url.searchParams.append('status', params.status);
     if (params?.page) url.searchParams.append('page', String(params.page));
+    if (params?.per_page) url.searchParams.append('per_page', String(params.per_page));
 
     const response = await fetch(url.toString(), {
       headers: getHeaders(token),

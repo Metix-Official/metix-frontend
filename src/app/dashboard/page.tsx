@@ -39,6 +39,10 @@ import {
   RefreshCw,
   X,
   Loader2,
+  Building2,
+  Filter,
+  RotateCcw,
+  Calendar,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -53,6 +57,10 @@ export default function DashboardPage() {
   const [syncInvoice, setSyncInvoice] = useState('MTX-20260925-4GW9LD');
   const [isSyncing, setIsSyncing] = useState(false);
   const router = useRouter();
+
+  // Owner Multi-EO & Multi-Event Filter State
+  const [ownerSelectedEo, setOwnerSelectedEo] = useState<string>('all');
+  const [ownerSelectedEvent, setOwnerSelectedEvent] = useState<string>('all');
 
   const handleManualSync = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,16 +101,19 @@ export default function DashboardPage() {
       // 1. Akun OWNER (Super Admin Platform):
       // Panggil owner dashboard dan hitung pending organizer approvals
       if (role === 'OWNER') {
-        const [res, pendingRes, masterEventsRes] = await Promise.all([
+        const [res, pendingRes, masterEventsRes, allOrganizersRes] = await Promise.all([
           fetchDashboardData(),
           fetchOwnerOrganizers({ status: 'PENDING_APPROVAL' }).catch(() => ({ organizers: [], meta: { total: 0 } })),
           fetchMasterEvents({ per_page: 50 }).catch(() => ({ events: [] })),
+          fetchOwnerOrganizers({ status: 'ACTIVE', per_page: 100 }).catch(() => ({ organizers: [] })),
         ]);
         const pendingCount = (pendingRes as any)?.meta?.total ?? (pendingRes as any)?.organizers?.length ?? 0;
         const eventsList = (masterEventsRes as any)?.events || (masterEventsRes as any)?.data || [];
+        const organizersList = (allOrganizersRes as any)?.organizers || [];
         setDashboardData({
           ...res,
           eventsList: eventsList,
+          organizersList: organizersList,
           pendingMitraCount: pendingCount,
         } as any);
         setIsLoading(false);
@@ -290,6 +301,179 @@ export default function DashboardPage() {
     return rawEvents;
   }, [dashboardData]);
 
+  // Memoized unique organizers list for Owner cascading filter (Hanya Mitra EO yang sudah Disetujui / Aktif)
+  const ownerOrganizers = React.useMemo(() => {
+    if (currentRole !== 'owner') return [];
+    const orgMap = new Map<string, { id: string; name: string; eventsCount: number }>();
+
+    // 1. Dari organizersList (hanya yang statusnya ACTIVE atau APPROVED)
+    const rawOrgs: any[] = (dashboardData as any)?.organizersList || [];
+    rawOrgs.forEach((o: any) => {
+      const status = (o.status || '').toUpperCase();
+      if (status && status !== 'ACTIVE' && status !== 'APPROVED') {
+        return;
+      }
+      const id = String(o.id || o.user_id || '');
+      const name = o.organization_name || o.user?.name || (id ? `Mitra #${id}` : '');
+      if (id && !orgMap.has(id)) {
+        orgMap.set(id, { id, name, eventsCount: 0 });
+      }
+    });
+
+    // 2. Hitung jumlah event per organizer dari eventsList
+    const rawEvents: any[] = dashboardData?.eventsList || [];
+    rawEvents.forEach((ev: any) => {
+      const orgId = String(ev.organizer_id || ev.organizer?.id || ev.user_id || '');
+      const orgStatus = (ev.organizer?.status || '').toUpperCase();
+      const orgName = ev.organizer?.organization_name || ev.organizer?.name || ev.organizer_name || ev.eo_name || '';
+
+      if (orgId && orgMap.has(orgId)) {
+        const item = orgMap.get(orgId)!;
+        item.eventsCount += 1;
+        if (orgName && (item.name.startsWith('Mitra #') || !item.name)) {
+          item.name = orgName;
+        }
+      } else if (orgId && (orgStatus === 'ACTIVE' || orgStatus === 'APPROVED')) {
+        orgMap.set(orgId, { id: orgId, name: orgName || `Mitra #${orgId}`, eventsCount: 1 });
+      }
+    });
+
+    return Array.from(orgMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [dashboardData, currentRole]);
+
+  // Available events filtered by selected EO
+  const ownerAvailableEvents = React.useMemo(() => {
+    if (currentRole !== 'owner') return [];
+    const rawEvents: any[] = dashboardData?.eventsList || [];
+
+    if (ownerSelectedEo === 'all') {
+      return rawEvents;
+    }
+
+    return rawEvents.filter((ev: any) => {
+      const orgId = String(ev.organizer_id || ev.organizer?.id || ev.user_id || '');
+      return orgId === String(ownerSelectedEo);
+    });
+  }, [dashboardData, currentRole, ownerSelectedEo]);
+
+  // Sync event filter if selected EO changes
+  useEffect(() => {
+    if (ownerSelectedEvent !== 'all') {
+      const stillAvailable = ownerAvailableEvents.some((ev: any) => String(ev.id) === String(ownerSelectedEvent));
+      if (!stillAvailable) {
+        setOwnerSelectedEvent('all');
+      }
+    }
+  }, [ownerSelectedEo, ownerAvailableEvents, ownerSelectedEvent]);
+
+  // Master performance list of events for Owner breakdown table & reactive stat cards
+  const ownerEventPerformanceList = React.useMemo(() => {
+    if (currentRole !== 'owner') return [];
+    const rawData = (dashboardData as any)?.data || dashboardData;
+    const rawEvents: any[] = dashboardData?.eventsList || rawData?.eventsList || [];
+    const rawEventTypes: any[] = dashboardData?.ticket_types_by_event || rawData?.ticket_types_by_event || [];
+
+    const map = new Map<string, {
+      event_id: string;
+      title: string;
+      organizer_id: string;
+      organizer_name: string;
+      status: string;
+      start_at: string | null;
+      total_quota: number;
+      total_sold: number;
+      total_revenue: number;
+      commission: number;
+    }>();
+
+    // 1. Seed from ticket_types_by_event if returned from API
+    rawEventTypes.forEach((item: any) => {
+      const eId = String(item.event_id || item.id || '');
+      if (eId) {
+        const rev = Number(item.total_revenue || 0);
+        const comm = Number(item.commission ?? Math.round(rev * 0.05));
+        map.set(eId, {
+          event_id: eId,
+          title: item.event_title || item.title || `Event #${eId}`,
+          organizer_id: String(item.organizer_id || item.user_id || ''),
+          organizer_name: item.organizer_name || '',
+          status: item.event_status || item.status || 'PUBLISHED',
+          start_at: item.start_at || null,
+          total_quota: Number(item.total_quota || 0),
+          total_sold: Number(item.total_sold || 0),
+          total_revenue: rev,
+          commission: comm,
+        });
+      }
+    });
+
+    // 2. Merge with eventsList
+    rawEvents.forEach((ev: any) => {
+      const eId = String(ev.id);
+      const orgId = String(ev.organizer_id || ev.organizer?.id || ev.user_id || '');
+      const orgName = ev.organizer?.organization_name || ev.organizer?.name || ev.organizer_name || ev.eo_name || '';
+
+      const types: any[] = ev.ticket_types || [];
+      const evQuota = types.reduce((sum: number, tt: any) => sum + Number(tt.quota || 0), 0);
+      const evSold = types.reduce((sum: number, tt: any) => sum + Number(tt.sold_count ?? tt.sold_quantity ?? 0), 0);
+      const evRev = types.reduce((sum: number, tt: any) => {
+        const sold = Number(tt.sold_count ?? tt.sold_quantity ?? 0);
+        const price = Number(tt.price || 0);
+        return sum + (sold * price);
+      }, 0);
+
+      if (map.has(eId)) {
+        const existing = map.get(eId)!;
+        if (!existing.organizer_name && orgName) existing.organizer_name = orgName;
+        if (!existing.organizer_id && orgId) existing.organizer_id = orgId;
+        if (ev.status) existing.status = ev.status;
+        if (ev.start_at && !existing.start_at) existing.start_at = ev.start_at;
+        if (evQuota > 0 && existing.total_quota === 0) existing.total_quota = evQuota;
+        if (evSold > 0 && existing.total_sold === 0) existing.total_sold = evSold;
+        if (evRev > 0 && existing.total_revenue === 0) {
+          existing.total_revenue = evRev;
+          existing.commission = Math.round(evRev * 0.05);
+        }
+      } else {
+        map.set(eId, {
+          event_id: eId,
+          title: ev.title || `Event #${eId}`,
+          organizer_id: orgId,
+          organizer_name: orgName,
+          status: ev.status || 'PUBLISHED',
+          start_at: ev.start_at || null,
+          total_quota: evQuota,
+          total_sold: evSold,
+          total_revenue: evRev,
+          commission: Math.round(evRev * 0.05),
+        });
+      }
+    });
+
+    // 3. Resolve organizer name if still blank
+    return Array.from(map.values()).map((item) => {
+      if (!item.organizer_name && item.organizer_id) {
+        const found = ownerOrganizers.find((o) => o.id === item.organizer_id);
+        if (found) item.organizer_name = found.name;
+      }
+      if (!item.organizer_name) item.organizer_name = 'Mitra EO';
+      return item;
+    });
+  }, [dashboardData, currentRole, ownerOrganizers]);
+
+  // Filtered performance list for table display & filtered stats
+  const filteredOwnerEventPerformanceList = React.useMemo(() => {
+    return ownerEventPerformanceList.filter((item) => {
+      if (ownerSelectedEo !== 'all' && item.organizer_id !== String(ownerSelectedEo)) {
+        return false;
+      }
+      if (ownerSelectedEvent !== 'all' && item.event_id !== String(ownerSelectedEvent)) {
+        return false;
+      }
+      return true;
+    });
+  }, [ownerEventPerformanceList, ownerSelectedEo, ownerSelectedEvent]);
+
   // Compute stat cards values based on authenticated role
   const statsToDisplay: StatMetric[] = React.useMemo(() => {
     const rawData = (dashboardData as any)?.data || dashboardData;
@@ -375,10 +559,63 @@ export default function DashboardPage() {
       const rawData = (dashboardData as any)?.data || dashboardData;
       const sOwner = (dashboardData as any)?.stats || rawData?.stats;
 
-      const totalMitra =
-        rawData?.users?.organizers ??
-        (sOwner as any)?.totalOrganizers ??
-        1;
+      const isFiltered = ownerSelectedEo !== 'all' || ownerSelectedEvent !== 'all';
+
+      let totalRevenue = 0;
+      let commissionEarned = 0;
+      let totalTicketsSold = 0;
+      let totalEventsCount = 0;
+      let totalMitraCount = 0;
+
+      if (isFiltered) {
+        totalRevenue = filteredOwnerEventPerformanceList.reduce((sum, item) => sum + item.total_revenue, 0);
+        commissionEarned = filteredOwnerEventPerformanceList.reduce((sum, item) => sum + item.commission, 0);
+        totalTicketsSold = filteredOwnerEventPerformanceList.reduce((sum, item) => sum + item.total_sold, 0);
+        totalEventsCount = filteredOwnerEventPerformanceList.length;
+        const uniqueOrgs = new Set(filteredOwnerEventPerformanceList.map((i) => i.organizer_id).filter(Boolean));
+        totalMitraCount = uniqueOrgs.size;
+      } else {
+        totalRevenue =
+          rawData?.revenue?.total_gross ??
+          (sOwner as any)?.totalRevenue ??
+          (sOwner as any)?.total_revenue ??
+          0;
+
+        commissionEarned =
+          (sOwner as any)?.commissionEarned ??
+          (sOwner as any)?.commission_earned ??
+          (sOwner as any)?.platform_commission ??
+          rawData?.revenue?.platform_commission ??
+          rawData?.revenue?.commission_earned ??
+          Math.round(Number(totalRevenue || 0) * 0.05);
+
+        totalTicketsSold =
+          rawData?.tickets?.total ??
+          rawData?.tickets?.sold ??
+          (sOwner as any)?.totalTicketsSold ??
+          (sOwner as any)?.ticketsSold ??
+          (sOwner as any)?.totalTickets ??
+          ((Number(rawData?.sales_channels?.online?.tickets_sold || 0) + Number(rawData?.sales_channels?.offline?.tickets_sold || 0)) || undefined) ??
+          (ticketTypesByEventList.length > 0
+            ? ticketTypesByEventList.reduce((sum: number, ev: any) => {
+                const evSold = ev.total_sold ?? (ev.ticket_types
+                  ? ev.ticket_types.reduce((s: number, tt: any) => s + Number(tt.sold_count ?? tt.sold_quantity ?? 0), 0)
+                  : 0);
+                return sum + Number(evSold || 0);
+              }, 0)
+            : 0);
+
+        totalEventsCount =
+          rawData?.events?.total ??
+          (sOwner as any)?.totalEvents ??
+          (sOwner as any)?.total_events ??
+          0;
+
+        totalMitraCount =
+          rawData?.users?.organizers ??
+          (sOwner as any)?.totalOrganizers ??
+          1;
+      }
 
       const pendingMitra =
         (dashboardData as any)?.pendingMitraCount ??
@@ -389,39 +626,25 @@ export default function DashboardPage() {
 
       const activeMitra =
         rawData?.users?.active_organizers ??
-        Math.max(0, totalMitra - pendingMitra);
+        Math.max(0, totalMitraCount - pendingMitra);
 
-      const totalEvents =
-        rawData?.events?.total ??
-        (sOwner as any)?.totalEvents ??
-        (sOwner as any)?.total_events ??
-        0;
-
-      const totalRevenue =
-        rawData?.revenue?.total_gross ??
-        (sOwner as any)?.totalRevenue ??
-        (sOwner as any)?.total_revenue ??
-        0;
-
-      const commissionEarned =
-        (sOwner as any)?.commissionEarned ??
-        (sOwner as any)?.commission_earned ??
-        (sOwner as any)?.platform_commission ??
-        rawData?.revenue?.platform_commission ??
-        rawData?.revenue?.commission_earned ??
-        Math.round(Number(totalRevenue || 0) * 0.05);
-
+      const activeTicketsCount = isFiltered ? totalTicketsSold : (rawData?.tickets?.active ?? totalTicketsSold);
       const paidOrdersCount = rawData?.orders?.paid ?? rawData?.payments?.paid ?? 0;
       const publishedEventsCount = rawData?.events?.published ?? 0;
+
+      const selectedEoObj = ownerOrganizers.find((o) => o.id === ownerSelectedEo);
+      const selectedEventObj = ownerAvailableEvents.find((e: any) => String(e.id) === ownerSelectedEvent);
 
       return [
         {
           id: 's1',
-          title: 'Revenue Platform',
+          title: isFiltered ? 'Omzet Filter' : 'Revenue Platform',
           value: `Rp ${Number(totalRevenue || 0).toLocaleString('id-ID')}`,
-          change: paidOrdersCount > 0 ? `${paidOrdersCount} Transaksi Berhasil` : 'Gross Volume',
+          change: isFiltered
+            ? (selectedEventObj ? selectedEventObj.title : `${totalEventsCount} Event`)
+            : (paidOrdersCount > 0 ? `${paidOrdersCount} Transaksi Berhasil` : 'Gross Volume'),
           isPositive: true,
-          period: 'total transaksi platform',
+          period: isFiltered ? 'omzet filter terpilih' : 'total transaksi platform',
           iconName: 'DollarSign',
           href: '/dashboard/reports',
         },
@@ -429,7 +652,9 @@ export default function DashboardPage() {
           id: 's2',
           title: 'Komisi Platform',
           value: `Rp ${Number(commissionEarned || 0).toLocaleString('id-ID')}`,
-          change: rawData?.revenue?.platform_commission !== undefined ? 'Platform Fee Riil' : 'Estimasi Net Fee (5%)',
+          change: isFiltered
+            ? 'Estimasi Net (5%)'
+            : (rawData?.revenue?.platform_commission !== undefined ? 'Platform Fee Riil' : 'Estimasi Net Fee (5%)'),
           isPositive: true,
           period: 'pendapatan bersihan komisi',
           iconName: 'TrendingUp',
@@ -437,21 +662,31 @@ export default function DashboardPage() {
         },
         {
           id: 's3',
-          title: 'Total Event Platform',
-          value: Number(totalEvents || 0).toLocaleString('id-ID'),
-          change: publishedEventsCount > 0 ? `${publishedEventsCount} Event Aktif` : 'Semua Mitra',
+          title: 'Total Penjualan Tiket',
+          value: `${Number(totalTicketsSold || 0).toLocaleString('id-ID')} Tiket`,
+          change: isFiltered
+            ? `${totalTicketsSold.toLocaleString('id-ID')} Tiket Terjual`
+            : (activeTicketsCount > 0
+              ? `${activeTicketsCount.toLocaleString('id-ID')} Tiket Aktif`
+              : (publishedEventsCount > 0 ? `${publishedEventsCount} Event Aktif` : 'Semua Event')),
           isPositive: true,
-          period: 'event terdaftar di platform',
-          iconName: 'CalendarDays',
-          href: '/dashboard/events',
+          period: isFiltered ? 'akumulasi filter terpilih' : 'total tiket terjual di platform',
+          iconName: 'Ticket',
+          href: '/dashboard/reports/ticket-category',
         },
         {
           id: 's4',
-          title: 'Mitra Event Organizer',
-          value: `${totalMitra} Mitra`,
-          change: pendingMitra > 0 ? `${pendingMitra} Perlu Review` : `${activeMitra} Terverifikasi`,
+          title: isFiltered && selectedEoObj ? 'Mitra Terpilih' : 'Mitra Event Organizer',
+          value: isFiltered && selectedEoObj
+            ? selectedEoObj.name
+            : `${totalMitraCount} Mitra`,
+          change: isFiltered
+            ? `${totalEventsCount} Event Terdaftar`
+            : (pendingMitra > 0 ? `${pendingMitra} Perlu Review` : `${activeMitra} Terverifikasi`),
           isPositive: pendingMitra === 0,
-          period: pendingMitra > 0 ? `${pendingMitra} pengajuan butuh review` : 'semua akun mitra aktif',
+          period: isFiltered
+            ? 'filter mitra aktif'
+            : (pendingMitra > 0 ? `${pendingMitra} pengajuan butuh review` : 'semua akun mitra aktif'),
           iconName: 'ShieldCheck',
           href: '/dashboard/users',
         },
@@ -572,7 +807,16 @@ export default function DashboardPage() {
         href: '/dashboard/tickets',
       },
     ];
-  }, [dashboardData, currentRole]);
+  }, [
+    dashboardData,
+    currentRole,
+    ownerSelectedEo,
+    ownerSelectedEvent,
+    filteredOwnerEventPerformanceList,
+    ownerOrganizers,
+    ownerAvailableEvents,
+    ticketTypesByEventList,
+  ]);
 
   // Compute Recent Transactions list from real backend API orders only (EO Role Only)
   const transactionsToDisplay: Transaction[] = React.useMemo(() => {
@@ -1032,6 +1276,110 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* Platform Owner Multi-EO & Multi-Event Cascading Filter Bar */}
+          {currentRole === 'owner' && (
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-3.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold border border-blue-100 shadow-2xs shrink-0">
+                    <Filter className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                      Filter Monitoring Platform (Multi-EO & Multi-Event)
+                    </h4>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Saring omzet, komisi platform, dan total tiket terjual berdasarkan Mitra EO atau Event spesifik.
+                    </p>
+                  </div>
+                </div>
+
+                {(ownerSelectedEo !== 'all' || ownerSelectedEvent !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOwnerSelectedEo('all');
+                      setOwnerSelectedEvent('all');
+                    }}
+                    className="self-start sm:self-auto px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Reset Filter</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Filter 1: Mitra Event Organizer */}
+                <div className="space-y-1.5">
+                  <label className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                    Pilih Mitra Event Organizer (EO)
+                  </label>
+                  <select
+                    value={ownerSelectedEo}
+                    onChange={(e) => setOwnerSelectedEo(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-colors cursor-pointer shadow-2xs h-[38px]"
+                  >
+                    <option value="all">Semua Mitra EO (Global Platform)</option>
+                    {ownerOrganizers.map((org) => (
+                      <option key={org.id} value={org.id}>
+                        {org.name} {org.eventsCount > 0 ? `(${org.eventsCount} Event)` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Filter 2: Event (Cascading based on EO) */}
+                <div className="space-y-1.5">
+                  <label className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                    Pilih Event {ownerSelectedEo !== 'all' ? '(Sesuai Mitra Terpilih)' : '(Semua)'}
+                  </label>
+                  <select
+                    value={ownerSelectedEvent}
+                    onChange={(e) => setOwnerSelectedEvent(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-colors cursor-pointer shadow-2xs h-[38px]"
+                  >
+                    <option value="all">
+                      {ownerSelectedEo !== 'all'
+                        ? `Semua Event Mitra Terpilih (${ownerAvailableEvents.length} Event)`
+                        : `Semua Event Platform (${ownerAvailableEvents.length} Event)`}
+                    </option>
+                    {ownerAvailableEvents.map((ev: any) => (
+                      <option key={ev.id} value={ev.id}>
+                        {ev.title} {ev.status ? `[${ev.status}]` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Active Filter Helper Badge */}
+              {(ownerSelectedEo !== 'all' || ownerSelectedEvent !== 'all') && (
+                <div className="flex items-center gap-2 pt-1 text-[11px] font-bold text-blue-700 bg-blue-50/70 border border-blue-200/80 rounded-xl px-3 py-1.5">
+                  <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0"></span>
+                  <span className="truncate">
+                    Menampilkan data untuk:{' '}
+                    <strong className="text-blue-900 font-black">
+                      {ownerSelectedEo !== 'all'
+                        ? (ownerOrganizers.find((o) => o.id === ownerSelectedEo)?.name || 'Mitra Terpilih')
+                        : 'Semua Mitra EO'}
+                    </strong>
+                    {ownerSelectedEvent !== 'all' && (
+                      <>
+                        {' ➔ Event: '}
+                        <strong className="text-blue-900 font-black">
+                          {ownerAvailableEvents.find((e: any) => String(e.id) === ownerSelectedEvent)?.title || 'Event Terpilih'}
+                        </strong>
+                      </>
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Metric Stat Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-4">
             {isLoading
@@ -1043,6 +1391,121 @@ export default function DashboardPage() {
               ))}
           </div>
         </>
+      )}
+
+      {/* Platform Owner: Event & EO Performance Breakdown Table */}
+      {currentRole === 'owner' && (
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="space-y-0.5">
+              <h3 className="text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <Ticket className="w-5 h-5 text-blue-600" />
+                Rincian Penjualan Tiket per Event & Mitra EO
+              </h3>
+              <p className="text-xs text-slate-500 font-medium">
+                Distribusi tiket terjual, omzet kotor, dan estimasi bagi hasil komisi platform per masing-masing event.
+              </p>
+            </div>
+            <Link
+              href="/dashboard/reports/ticket-category"
+              className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+            >
+              <span>Laporan Lengkap Tiket</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+              <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3.5 py-2.5 rounded-l-xl">Nama Event</th>
+                    <th scope="col" className="px-3.5 py-2.5">Mitra EO</th>
+                    <th scope="col" className="px-3.5 py-2.5">Tiket Terjual / Kuota</th>
+                    <th scope="col" className="px-3.5 py-2.5">Gross Omzet</th>
+                    <th scope="col" className="px-3.5 py-2.5">Komisi Metix (5%)</th>
+                    <th scope="col" className="px-3.5 py-2.5">Status</th>
+                    <th scope="col" className="px-3.5 py-2.5 text-right rounded-r-xl">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {filteredOwnerEventPerformanceList.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-3.5 py-8 text-center text-slate-400 font-medium">
+                        Tidak ada event yang sesuai dengan filter yang dipilih.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredOwnerEventPerformanceList.map((item) => {
+                      const pct = item.total_quota > 0 ? Math.round((item.total_sold / item.total_quota) * 100) : 0;
+                      return (
+                        <tr key={item.event_id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="px-3.5 py-3">
+                            <span className="font-extrabold text-slate-900 block truncate max-w-[200px] sm:max-w-[260px]">
+                              {item.title}
+                            </span>
+                            <span className="text-[10.5px] text-slate-400 font-medium block">
+                              ID: #{item.event_id}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-3">
+                            <span className="font-bold text-slate-700 block truncate max-w-[160px]">
+                              {item.organizer_name}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-3 min-w-[150px]">
+                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-800 mb-1">
+                              <span>{item.total_sold.toLocaleString('id-ID')} Tiket</span>
+                              <span className="text-slate-400 font-semibold">{pct}%</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="bg-blue-600 h-1.5 rounded-full transition-all duration-500"
+                                style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">
+                              dari kuota {item.total_quota.toLocaleString('id-ID')} tiket
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-3">
+                            <span className="font-black text-slate-900 block">
+                              Rp {item.total_revenue.toLocaleString('id-ID')}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-3">
+                            <span className="font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md inline-block">
+                              +Rp {item.commission.toLocaleString('id-ID')}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider inline-block ${
+                              item.status === 'PUBLISHED' || item.status === 'ACTIVE'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-slate-100 text-slate-600 border border-slate-200'
+                            }`}>
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-3 text-right">
+                            <Link
+                              href="/dashboard/reports/ticket-category"
+                              className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-extrabold text-[11px] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                            >
+                              <span>Rincian</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Platform Owner Control Center */}

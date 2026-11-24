@@ -10,6 +10,25 @@ session — it records what the code cannot say for itself.
 
 ---
 
+## 2026-11-24 — Fix Owner Dashboard Multi-EO & Multi-Event Metrics & Filter Approval
+
+**Did:**
+- Investigated and resolved the root cause of "Organisasi Bayfest" showing 0 sold tickets and Rp 0 revenue in the Owner Dashboard breakdown table and filtered metrics cards.
+- Backend fix (`D:\metix-api`):
+  - In `OwnerEventController.php`, eager-loaded `ticketTypes` on `Event::query()` so `EventResource` serializes ticket categories for platform master events.
+  - In `OwnerDashboardService.php`, grouped paid orders by `event_id` to provide actual gross revenue (`$eventPaidOrders`), commission (5%), and organizer name in `ticket_types_by_event`.
+- Frontend fix (`d:\metix-frontend`):
+  - In `src/lib/api.ts`, preserved `ticket_types_by_event` on top-level `DashboardResponse` and added `per_page` query parameter handling to `fetchOwnerOrganizers`.
+  - In `src/app/dashboard/page.tsx`, updated Owner initial data fetch to request approved organizers (`status: 'ACTIVE', per_page: 100`).
+  - Restricted the "Pilih Mitra Event Organizer (EO)" select dropdown to only display active/approved organizers (`status === 'ACTIVE' || status === 'APPROVED'`), preventing unapproved or rejected organizers from appearing.
+  - Linked `ownerEventPerformanceList` and reactive stat cards to `ticket_types_by_event` and `eventsList`, accurately displaying BayFest (1.421 tickets sold, 10.700 quota, Rp 211.789.376 gross omzet, +Rp 10.589.469 platform commission).
+- Verified with TypeScript typecheck (`npx tsc --noEmit`) with 0 errors.
+
+**Why:**
+- Backend eager-loading was omitting ticket types, API payload wrapping caused frontend state to fall back to unpopulated arrays, and the organizer selector previously included all unapproved/rejected organizer records.
+
+---
+
 ## 2026-11-17 — Upgraded Next.js to 16.4.6 (Security Patch)
 
 **Did:**

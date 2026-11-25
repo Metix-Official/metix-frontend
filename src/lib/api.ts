@@ -505,6 +505,10 @@ export interface DashboardResponse {
   };
   revenue?: {
     total_gross?: number;
+    total_ticket_net?: number;
+    platform_commission?: number;
+    tax_collected?: number;
+    commission_earned?: number;
     online?: number;
     offline?: number;
   };
@@ -552,6 +556,12 @@ export interface DashboardResponse {
     total_quota: number;
     total_sold: number;
     total_revenue: number;
+    total_discount?: number;
+    total_bruto?: number;
+    commission?: number;
+    tax?: number;
+    organizer_id?: number | string;
+    organizer_name?: string;
     ticket_types: Array<{
       id: number;
       name: string;
@@ -2011,7 +2021,8 @@ export async function fetchDashboardData(): Promise<DashboardResponse | null> {
         totalOrders: rawData?.orders?.total ?? normalizedStats?.totalOrders ?? 0,
         totalTickets: rawData?.tickets?.total ?? (Number(rawData?.sales_channels?.online?.tickets_sold || 0) + Number(rawData?.sales_channels?.offline?.tickets_sold || 0)),
         totalTicketsSold: rawData?.tickets?.total ?? (Number(rawData?.sales_channels?.online?.tickets_sold || 0) + Number(rawData?.sales_channels?.offline?.tickets_sold || 0)),
-        commissionEarned: rawData?.revenue?.platform_commission ?? normalizedStats?.commissionEarned ?? Math.round((rawData?.revenue?.total_gross || 0) * 0.05),
+        commissionEarned: rawData?.revenue?.platform_commission ?? normalizedStats?.commissionEarned ?? 0,
+        taxCollected: rawData?.revenue?.tax_collected ?? Math.round((rawData?.revenue?.total_ticket_net || 0) * 0.05),
         ...(normalizedStats || {}),
       };
     } else if (role === 'EO') {
@@ -2058,7 +2069,7 @@ export async function fetchMyEvents(): Promise<{
   if (!token) return { events: [] };
 
   try {
-    const response = await fetch(`${API_BASE_URL}/organizer/events`, {
+    const response = await fetch(`${API_BASE_URL}/organizer/events?per_page=100`, {
       headers: getHeaders(token),
       cache: 'no-store',
     });
@@ -4099,6 +4110,7 @@ export interface ReportOrderItem {
   id: number;
   order_number: string;
   subtotal: number;
+  net_subtotal?: number;
   tax_amount?: number;
   platform_fee?: number;
   buyer_name: string;
@@ -4165,7 +4177,17 @@ export async function fetchSalesReportData(params?: {
       const rawOrders = payload.orders || [];
       const formattedOrders: ReportOrderItem[] = rawOrders.map((ord: any) => {
         const rawSubtotal = Number(ord.subtotal ?? 0);
+        const rawNetSubtotal = ord.net_subtotal !== undefined && ord.net_subtotal !== null ? Number(ord.net_subtotal) : undefined;
         const rawTotal = Number(ord.total_amount ?? 0);
+        const hasExplicitTax =
+          (ord.local_tax_amount !== undefined && ord.local_tax_amount !== null) ||
+          (ord.local_tax !== undefined && ord.local_tax !== null) ||
+          (ord.tax_amount !== undefined && ord.tax_amount !== null) ||
+          (ord.tax !== undefined && ord.tax !== null);
+        const hasExplicitFee =
+          (ord.platform_fee !== undefined && ord.platform_fee !== null) ||
+          (ord.fee_platform !== undefined && ord.fee_platform !== null);
+
         const rawTax = Number(ord.local_tax_amount ?? ord.local_tax ?? ord.tax_amount ?? ord.tax ?? 0);
         const rawFee = Number(ord.platform_fee ?? ord.fee_platform ?? 0);
         const rawDiscount = Number(ord.discount_amount ?? ord.discount ?? ord.promo_discount ?? 0);
@@ -4179,28 +4201,28 @@ export async function fetchSalesReportData(params?: {
         let tax = rawTax;
         let fee = rawFee;
 
-        // Fallbacks if backend only provided total_amount or subtotal
-        if (subtotal === 0 && rawTotal > 0) {
+        // Fallback calculation only when backend omits explicit breakdown fields
+        if (subtotal === 0 && rawTotal > 0 && !hasExplicitTax && !hasExplicitFee) {
           subtotal = Math.round(rawTotal / 1.12);
-        } else if (subtotal > 0 && rawTotal === subtotal && fee === 0 && tax === 0) {
-          tax = Math.round(subtotal * 0.05);
-          fee = Math.round(subtotal * 0.07);
         }
 
-        if (tax === 0 && subtotal > 0) {
-          tax = Math.round(subtotal * 0.05);
+        const effectiveNetSub = rawNetSubtotal !== undefined ? rawNetSubtotal : Math.max(0, subtotal - rawDiscount);
+
+        if (!hasExplicitTax && effectiveNetSub > 0) {
+          tax = Math.round(effectiveNetSub * 0.05);
         }
-        if (fee === 0 && subtotal > 0) {
-          fee = (rawTotal > subtotal + tax) ? (rawTotal - subtotal - tax) : Math.round(subtotal * 0.07);
+        if (!hasExplicitFee && rawTotal > effectiveNetSub + tax) {
+          fee = rawTotal - effectiveNetSub - tax;
         }
 
-        const totalAmount = rawTotal > 0 ? rawTotal : (subtotal + tax + fee);
+        const totalAmount = rawTotal > 0 ? rawTotal : (effectiveNetSub + tax + fee);
         const originalSubtotal = Number(ord.original_subtotal ?? subtotal);
 
         return {
           id: ord.id,
           order_number: ord.order_number || `ORD-${ord.id}`,
           subtotal: subtotal,
+          net_subtotal: effectiveNetSub,
           tax_amount: tax,
           platform_fee: fee,
           buyer_name: ord.buyer_name || 'Pembeli Metix',

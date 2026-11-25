@@ -84,30 +84,23 @@ export default function ReportsPage() {
     const storedUser = getStoredUser();
     setUser(storedUser);
 
-    if (selectedEventId === 'all') {
-      const [evData, cashiers] = await Promise.all([
-        fetchMyEvents(),
-        fetchEoPosCashiers(),
-      ]);
-      setEvents(evData.events || []);
-      setPosCashiers(cashiers || []);
-      setOrders([]);
-      setIsLoading(false);
-      return;
-    }
-
     const [repData, evData, cashiers] = await Promise.all([
       fetchSalesReportData({
         event_id: selectedEventId,
         month: 'all',
         year: 'all',
-        status: selectedStatus,
+        status: selectedStatus === 'all' ? 'PAID' : selectedStatus,
       }),
-      fetchMyEvents(),
-      fetchEoPosCashiers(),
+      fetchMyEvents().catch(() => ({ events: [] })),
+      fetchEoPosCashiers().catch(() => []),
     ]);
 
-    setEvents(evData.events || []);
+    const resolvedEvents =
+      (evData.events && evData.events.length > 0)
+        ? evData.events
+        : ((repData.events || []) as ApiEvent[]);
+
+    setEvents(resolvedEvents);
     setOrders(repData.orders || []);
     setPosCashiers(cashiers || []);
     setIsLoading(false);
@@ -121,6 +114,14 @@ export default function ReportsPage() {
   const publishedEvents = useMemo(() => {
     return events.filter((ev) => String(ev.status || '').toLowerCase() === 'published');
   }, [events]);
+
+  // Events visible in filter dropdown (OWNER can audit all platform events; EO sees published events)
+  const selectableEvents = useMemo(() => {
+    if (currentRole === ROLES.OWNER) {
+      return events;
+    }
+    return publishedEvents;
+  }, [currentRole, events, publishedEvents]);
 
   // Distinct cashiers list: from posCashiers API + any cashiers detected in orders (filtered by selected event if chosen)
   const availableCashiers = useMemo(() => {
@@ -208,22 +209,19 @@ export default function ReportsPage() {
     return Array.from(set);
   }, [orders]);
 
-  // Filtered Orders strictly matching logged-in EO's created events, Payment Method & Search Query
+  // Filtered Orders matching logged-in role, selected Event, Payment Method & Search Query
   const filteredOrders = useMemo(() => {
-    // Jika belum pilih event / opsi "Semua Event", table tetap kosong (null)
-    if (!selectedEventId || selectedEventId === 'all') {
-      return [];
-    }
-
     let result = orders;
 
-    // Strict filter by selected event ID or title
-    const selectedEv = events.find((e) => String(e.id) === String(selectedEventId));
-    result = result.filter(
-      (ord) =>
-        String(ord.event_id) === String(selectedEventId) ||
-        (selectedEv && ord.event_title && ord.event_title.toLowerCase() === selectedEv.title.toLowerCase())
-    );
+    // Strict filter by selected event ID or title when a specific event is selected
+    if (selectedEventId && selectedEventId !== 'all') {
+      const selectedEv = events.find((e) => String(e.id) === String(selectedEventId));
+      result = result.filter(
+        (ord) =>
+          String(ord.event_id) === String(selectedEventId) ||
+          (selectedEv && ord.event_title && ord.event_title.toLowerCase() === selectedEv.title.toLowerCase())
+      );
+    }
 
     // Filter by EO created events list if role is EO
     if (currentRole === ROLES.EO && publishedEvents.length > 0) {
@@ -330,38 +328,62 @@ export default function ReportsPage() {
     });
   }, [filteredOrders]);
 
-  // 1. Subtotal Penjualan Tiket (Harga Pokok Murni)
+  // Shared financial breakdown helper so KPI cards, CSV export, and table rows stay 100% consistent
+  const getOrderFinancials = (ord: ReportOrderItem) => {
+    const discount = Number(
+      ord.discount_amount || (ord as any).promo_usage?.discount_amount || 0
+    );
+    const grossSubtotal = Number(ord.original_subtotal || ord.subtotal || ord.total_amount || 0);
+    const netSubtotal =
+      ord.net_subtotal !== undefined && ord.net_subtotal !== null
+        ? Number(ord.net_subtotal)
+        : Math.max(0, grossSubtotal - discount);
+
+    const tax =
+      ord.tax_amount !== undefined && ord.tax_amount !== null
+        ? Number(ord.tax_amount)
+        : Math.round(netSubtotal * 0.05);
+
+    const fee =
+      ord.platform_fee !== undefined && ord.platform_fee !== null
+        ? Number(ord.platform_fee)
+        : (ord.total_amount && Number(ord.total_amount) > netSubtotal + tax
+          ? Number(ord.total_amount) - netSubtotal - tax
+          : 0);
+
+    const total = Number(ord.total_amount || netSubtotal + tax + fee);
+
+    return {
+      grossSubtotal,
+      discount,
+      netSubtotal,
+      tax,
+      fee,
+      total,
+    };
+  };
+
+  // 1. Subtotal Penjualan Tiket (Net Setelah Diskon)
   const totalSubtotal = useMemo(
-    () => paidOrders.reduce((sum, item) => {
-      const gross = Number(item.original_subtotal || item.subtotal || item.total_amount || 0);
-      const discount = Number(item.discount_amount || (item as any).promo_usage?.discount_amount || (item as any).promo?.discount_value || 0);
-      return sum + Math.max(0, gross - discount);
-    }, 0),
+    () => paidOrders.reduce((sum, item) => sum + getOrderFinancials(item).netSubtotal, 0),
     [paidOrders]
   );
 
-  // 2. Pajak Daerah (5%)
+  // 2. Pajak Daerah (5% Riil dari DB)
   const totalTaxAmount = useMemo(
-    () => paidOrders.reduce((sum, item) => sum + (item.tax_amount ?? Math.round((item.subtotal || 0) * 0.05)), 0),
+    () => paidOrders.reduce((sum, item) => sum + getOrderFinancials(item).tax, 0),
     [paidOrders]
   );
 
-  // 3. Fee Platform Metix
+  // 3. Fee Platform Metix (Riil Berjenjang dari DB)
   const totalPlatformFee = useMemo(
-    () => paidOrders.reduce((sum, item) => {
-      const sub = item.subtotal || 0;
-      const tax = item.tax_amount ?? Math.round(sub * 0.05);
-      const fee = (item.platform_fee !== undefined && item.platform_fee !== null && item.platform_fee > 0)
-        ? item.platform_fee
-        : ((item.total_amount && item.total_amount > (sub + tax)) ? (item.total_amount - sub - tax) : Math.round(sub * 0.07));
-      return sum + fee;
-    }, 0),
+    () => paidOrders.reduce((sum, item) => sum + getOrderFinancials(item).fee, 0),
     [paidOrders]
   );
 
-  // 4. Total Tagihan / Omzet Bruto (Subtotal + Pajak + Fee Platform)
+  // 4. Total Tagihan / Omzet Bruto (Net Subtotal + Pajak + Fee Platform)
   const totalGrossRevenue = useMemo(
-    () => paidOrders.reduce((sum, item) => sum + (item.total_amount || ((item.subtotal || 0) + (item.tax_amount || 0) + (item.platform_fee || 0))), 0),
+    () => paidOrders.reduce((sum, item) => sum + getOrderFinancials(item).total, 0),
     [paidOrders]
   );
 
@@ -384,12 +406,8 @@ export default function ReportsPage() {
 
   // Export CSV Function with Executive Corporate Header
   const handleExportCSV = () => {
-    if (!selectedEventId || selectedEventId === 'all') {
-      toast.warning('Silakan pilih salah satu event terlebih dahulu untuk mengekspor laporan');
-      return;
-    }
     if (filteredOrders.length === 0) {
-      toast.error('Tidak ada data transaksi penjualan pada event ini');
+      toast.error('Tidak ada data transaksi penjualan pada filter ini');
       return;
     }
 
@@ -501,7 +519,7 @@ export default function ReportsPage() {
         escapeCsv('Total Bruto (Tagihan Masuk):'),
         escapeCsv(`Rp ${totalGrossRevenue.toLocaleString('id-ID')}`),
         escapeCsv('Catatan Akuntansi:'),
-        escapeCsv('Pemisahan: Subtotal Tiket + Pajak 5% + Komisi Platform 7%'),
+        escapeCsv('Pemisahan: Subtotal Net Tiket + Pajak Daerah 5% + Fee Platform Riil'),
       ].join(','));
       lines.push('');
 
@@ -553,15 +571,13 @@ export default function ReportsPage() {
           })
           : '-';
 
-        const rowDiscount = Number(ord.discount_amount || (ord as any).promo_usage?.discount_amount || (ord as any).promo?.discount_value || 0);
-        const rowSubtotal = Math.max(0, Number(ord.original_subtotal || ord.subtotal || 0) - rowDiscount);
-        const rowTax = ord.tax_amount ?? Math.round(rowSubtotal * 0.05);
-        const rowFee = (ord.platform_fee !== undefined && ord.platform_fee !== null && ord.platform_fee > 0)
-          ? ord.platform_fee
-          : ((ord.total_amount && ord.total_amount > (rowSubtotal + rowTax))
-            ? (ord.total_amount - rowSubtotal - rowTax)
-            : Math.round(rowSubtotal * 0.07));
-        const rowTotal = ord.total_amount || (rowSubtotal + rowTax + rowFee);
+        const {
+          discount: rowDiscount,
+          netSubtotal: rowSubtotal,
+          tax: rowTax,
+          fee: rowFee,
+          total: rowTotal,
+        } = getOrderFinancials(ord);
 
         lines.push([
           rowNumber++,
@@ -594,10 +610,12 @@ export default function ReportsPage() {
         ].join(','));
       });
 
-      // 6. Grand Total Akumulasi Row
+      // 6. Grand Total Akumulasi Row (sejajar 21 kolom dengan tableHeaders)
       lines.push('');
       lines.push([
         escapeCsv('TOTAL AKUMULASI'),
+        escapeCsv(''),
+        escapeCsv(''),
         escapeCsv(''),
         escapeCsv(''),
         escapeCsv(''),
@@ -761,7 +779,7 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Separated 5 Stat Metric Cards (Omzet Tiket, Pajak 5%, Fee Platform 7%, Total Bruto, Tiket Terjual) */}
+        {/* Separated 5 Stat Metric Cards (Omzet Tiket, Pajak 5%, Fee Platform Riil, Total Bruto, Tiket Terjual) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
 
           {/* 1. Subtotal Tiket */}
@@ -880,7 +898,7 @@ export default function ReportsPage() {
             </span>
             <span className="text-slate-400 font-bold">+</span>
             <span className="px-2.5 py-1 rounded-lg bg-purple-500/20 border border-purple-400/30 text-purple-200 font-bold">
-              Fee Platform 7%: Rp {totalPlatformFee.toLocaleString('id-ID')}
+              Fee Platform (Riil): Rp {totalPlatformFee.toLocaleString('id-ID')}
             </span>
             <span className="text-slate-400 font-bold">=</span>
             <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 font-black">
@@ -972,7 +990,7 @@ export default function ReportsPage() {
             {/* Filter Dropdowns */}
             <div className="flex flex-wrap items-center gap-2.5">
 
-              {/* Event Filter (Published Only) */}
+              {/* Event Filter */}
               <div className="w-52 sm:w-60">
                 <Select
                   value={selectedEventId}
@@ -983,13 +1001,20 @@ export default function ReportsPage() {
                   }}
                 >
                   <SelectTrigger className="w-full h-8.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:bg-white">
-                    <SelectValue placeholder="Semua Event Published" />
+                    <SelectValue placeholder={currentRole === ROLES.OWNER ? 'Semua Event Platform' : 'Semua Event Published'} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">🌐 Semua Event Published ({publishedEvents.length})</SelectItem>
-                    {publishedEvents.map((ev) => (
+                    <SelectItem value="all">
+                      {currentRole === ROLES.OWNER
+                        ? `Semua Event Platform (${selectableEvents.length})`
+                        : `Semua Event Published (${selectableEvents.length})`}
+                    </SelectItem>
+                    {selectableEvents.map((ev) => (
                       <SelectItem key={ev.id} value={String(ev.id)}>
-                        🎫 {ev.title}
+                        {ev.title}
+                        {currentRole === ROLES.OWNER && ev.status && String(ev.status).toLowerCase() !== 'published'
+                          ? ` [${ev.status}]`
+                          : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1078,32 +1103,20 @@ export default function ReportsPage() {
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-                <FileText className="w-4 h-4 text-blue-700" /> Rincian Transaksi Penjualan {selectedEventId !== 'all' ? `(${filteredOrders.length})` : ''}
+                <FileText className="w-4 h-4 text-blue-700" /> Rincian Transaksi Penjualan ({filteredOrders.length})
               </h3>
               <p className="text-[11px] text-slate-500 font-medium">
                 {selectedEventId !== 'all'
                   ? 'Daftar lengkap transaksi tiket yang terverifikasi pada event terpilih.'
-                  : 'Pilih event pada dropdown filter di atas untuk memuat rincian transaksi.'}
+                  : (currentRole === ROLES.OWNER
+                    ? 'Daftar seluruh transaksi tiket terverifikasi dari semua Mitra EO di platform.'
+                    : 'Daftar seluruh transaksi tiket terverifikasi dari semua event aktif Anda.')}
               </p>
             </div>
           </div>
 
           {isLoading ? (
             <Skeleton className="h-56 w-full rounded-xl" />
-          ) : selectedEventId === 'all' ? (
-            <div className="py-14 px-4 text-center bg-slate-50/80 rounded-2xl border-2 border-dashed border-slate-200 space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-xs">
-                <Ticket className="w-6 h-6" />
-              </div>
-              <div className="space-y-1 max-w-md mx-auto">
-                <h4 className="text-sm font-black text-slate-800">
-                  Pilih Event Terlebih Dahulu
-                </h4>
-                <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                  Tabel saat ini kosong karena Anda berada pada opsi <strong>&ldquo;Semua Event Published&rdquo;</strong>. Silakan pilih salah satu event pada dropdown di atas untuk memuat rincian transaksi tiket, omzet, pajak, dan komisi platform.
-                </p>
-              </div>
-            </div>
           ) : filteredOrders.length > 0 ? (
             <div className="relative overflow-auto max-h-[calc(100vh-230px)] min-h-[420px] border border-slate-200/90 rounded-2xl bg-white shadow-xs">
               <table className="w-full text-left text-xs text-slate-700 min-w-[1100px] border-separate border-spacing-0">
@@ -1124,16 +1137,15 @@ export default function ReportsPage() {
                 </thead>
                 <tbody>
                   {filteredOrders.map((ord) => {
-                    const rowSubtotal = ord.subtotal || 0;
-                    const rowTax = ord.tax_amount ?? Math.round(rowSubtotal * 0.05);
-                    const rowFee = (ord.platform_fee !== undefined && ord.platform_fee !== null && ord.platform_fee > 0)
-                      ? ord.platform_fee
-                      : ((ord.total_amount && ord.total_amount > (rowSubtotal + rowTax))
-                        ? (ord.total_amount - rowSubtotal - rowTax)
-                        : Math.round(rowSubtotal * 0.07));
-                    const rowTotal = ord.total_amount || (rowSubtotal + rowTax + rowFee);
-
-                    const discountAmount = Number(ord.discount_amount || (ord as any).promo_usage?.discount_amount || (ord as any).promo?.discount_value || 0);
+                    const {
+                      grossSubtotal: originalSubtotal,
+                      discount: discountAmount,
+                      netSubtotal,
+                      tax: rowTax,
+                      fee: rowFee,
+                      total: rowTotal,
+                    } = getOrderFinancials(ord);
+                    const rowSubtotal = ord.subtotal || originalSubtotal;
                     const hasDiscount = discountAmount > 0;
 
                     // Benefit / Free Coffee detection
@@ -1154,8 +1166,6 @@ export default function ReportsPage() {
                     const isCoffeePromo = Boolean(isCoffeeBenefit || (ord.promo_code && !hasDiscount));
 
                     const hasAnyPromo = Boolean(ord.promo_code || isDiscountPromo || isCoffeePromo);
-                    const originalSubtotal = Number(ord.original_subtotal || rowSubtotal);
-                    const netSubtotal = Math.max(0, originalSubtotal - discountAmount);
                     const coffeeLabel = rawBenefitName.trim() || 'Free Coffee';
                     const hasTickets = Boolean((ord.tickets && ord.tickets.length > 0) || ord.quantity > 0);
                     const ticketsList = (ord.tickets && ord.tickets.length > 0)
@@ -1339,7 +1349,7 @@ export default function ReportsPage() {
                             </span>
                           </td>
 
-                          {/* 6. Fee Platform (7%) */}
+                          {/* 6. Fee Platform (Riil) */}
                           <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap border-b border-slate-100">
                             <span className="font-semibold text-purple-700 text-xs font-mono">
                               Rp {rowFee.toLocaleString('id-ID')}
@@ -1473,7 +1483,7 @@ export default function ReportsPage() {
                                             : Math.round(rowSubtotal / ticketCount);
                                         const tDiscount = isDiscountPromo ? Math.round(discountAmount / ticketCount) : 0;
                                         const tSubtotal = Math.max(0, tPrice - tDiscount);
-                                        const ratio = rowSubtotal > 0 ? (tSubtotal / rowSubtotal) : (1 / ticketCount);
+                                        const ratio = netSubtotal > 0 ? (tSubtotal / netSubtotal) : (1 / ticketCount);
                                         const tTax = Math.round(rowTax * ratio);
                                         const tFee = Math.round(rowFee * ratio);
                                         const tTotal = tSubtotal + tTax + tFee;
@@ -1548,7 +1558,7 @@ export default function ReportsPage() {
                                               </span>
                                             </td>
 
-                                            {/* 6. Fee Platform (7%) */}
+                                            {/* 6. Fee Platform (Riil) */}
                                             <td className="py-3 px-3.5 text-right align-middle whitespace-nowrap">
                                               <span className="font-semibold text-purple-700 text-xs font-mono">
                                                 Rp {tFee.toLocaleString('id-ID')}

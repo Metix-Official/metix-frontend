@@ -7,6 +7,13 @@ import { TicketCategoriesCard } from '@/components/dashboard/TicketCategoriesCar
 import { StatMetric, Transaction, EventItem } from '@/data/mockData';
 import { fetchDashboardData, fetchOwnerOrganizers, fetchEoAdmins, fetchMyEvents, fetchUserTickets, fetchSalesReportData, fetchScannerCheckIns, fetchEoPosCashiers, fetchMasterEvents, DashboardResponse, EoAdminUser, ApiPosCashierItem, getStoredUser, manualSyncPaidOrder } from '@/lib/api';
 import { Skeleton } from '@/components/ui/Skeleton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import {
   Plus,
@@ -383,7 +390,10 @@ export default function DashboardPage() {
       total_quota: number;
       total_sold: number;
       total_revenue: number;
+      total_discount: number;
+      total_bruto: number;
       commission: number;
+      tax: number;
     }>();
 
     // 1. Seed from ticket_types_by_event if returned from API
@@ -391,7 +401,8 @@ export default function DashboardPage() {
       const eId = String(item.event_id || item.id || '');
       if (eId) {
         const rev = Number(item.total_revenue || 0);
-        const comm = Number(item.commission ?? Math.round(rev * 0.05));
+        const comm = Number(item.commission ?? 0);
+        const tax = Number(item.tax ?? 0);
         map.set(eId, {
           event_id: eId,
           title: item.event_title || item.title || `Event #${eId}`,
@@ -402,7 +413,10 @@ export default function DashboardPage() {
           total_quota: Number(item.total_quota || 0),
           total_sold: Number(item.total_sold || 0),
           total_revenue: rev,
+          total_discount: Number(item.total_discount || 0),
+          total_bruto: Number(item.total_bruto ?? (rev + comm + tax)),
           commission: comm,
+          tax: tax,
         });
       }
     });
@@ -429,10 +443,11 @@ export default function DashboardPage() {
         if (ev.status) existing.status = ev.status;
         if (ev.start_at && !existing.start_at) existing.start_at = ev.start_at;
         if (evQuota > 0 && existing.total_quota === 0) existing.total_quota = evQuota;
-        if (evSold > 0 && existing.total_sold === 0) existing.total_sold = evSold;
-        if (evRev > 0 && existing.total_revenue === 0) {
+        if (evSold > existing.total_sold) {
+          existing.total_sold = evSold;
+        }
+        if (existing.total_revenue === 0 && evRev > 0) {
           existing.total_revenue = evRev;
-          existing.commission = Math.round(evRev * 0.05);
         }
       } else {
         map.set(eId, {
@@ -445,7 +460,10 @@ export default function DashboardPage() {
           total_quota: evQuota,
           total_sold: evSold,
           total_revenue: evRev,
-          commission: Math.round(evRev * 0.05),
+          total_discount: 0,
+          total_bruto: evRev + Math.round(evRev * 0.05),
+          commission: 0,
+          tax: Math.round(evRev * 0.05),
         });
       }
     });
@@ -563,6 +581,7 @@ export default function DashboardPage() {
 
       let totalRevenue = 0;
       let commissionEarned = 0;
+      let totalTaxCollected = 0;
       let totalTicketsSold = 0;
       let totalEventsCount = 0;
       let totalMitraCount = 0;
@@ -570,6 +589,7 @@ export default function DashboardPage() {
       if (isFiltered) {
         totalRevenue = filteredOwnerEventPerformanceList.reduce((sum, item) => sum + item.total_revenue, 0);
         commissionEarned = filteredOwnerEventPerformanceList.reduce((sum, item) => sum + item.commission, 0);
+        totalTaxCollected = filteredOwnerEventPerformanceList.reduce((sum, item) => sum + item.tax, 0);
         totalTicketsSold = filteredOwnerEventPerformanceList.reduce((sum, item) => sum + item.total_sold, 0);
         totalEventsCount = filteredOwnerEventPerformanceList.length;
         const uniqueOrgs = new Set(filteredOwnerEventPerformanceList.map((i) => i.organizer_id).filter(Boolean));
@@ -582,12 +602,15 @@ export default function DashboardPage() {
           0;
 
         commissionEarned =
+          rawData?.revenue?.platform_commission ??
           (sOwner as any)?.commissionEarned ??
           (sOwner as any)?.commission_earned ??
-          (sOwner as any)?.platform_commission ??
-          rawData?.revenue?.platform_commission ??
-          rawData?.revenue?.commission_earned ??
-          Math.round(Number(totalRevenue || 0) * 0.05);
+          0;
+
+        totalTaxCollected =
+          rawData?.revenue?.tax_collected ??
+          (sOwner as any)?.taxCollected ??
+          Math.round(Number(rawData?.revenue?.total_ticket_net || 0) * 0.05);
 
         totalTicketsSold =
           rawData?.tickets?.total ??
@@ -634,17 +657,24 @@ export default function DashboardPage() {
 
       const selectedEoObj = ownerOrganizers.find((o) => o.id === ownerSelectedEo);
       const selectedEventObj = ownerAvailableEvents.find((e: any) => String(e.id) === ownerSelectedEvent);
+      const totalFilteredDiscount = isFiltered
+        ? filteredOwnerEventPerformanceList.reduce((sum, item) => sum + item.total_discount, 0)
+        : 0;
 
       return [
         {
           id: 's1',
-          title: isFiltered ? 'Omzet Filter' : 'Revenue Platform',
+          title: isFiltered ? 'Omzet Tiket (Filter)' : 'Revenue Platform',
           value: `Rp ${Number(totalRevenue || 0).toLocaleString('id-ID')}`,
           change: isFiltered
             ? (selectedEventObj ? selectedEventObj.title : `${totalEventsCount} Event`)
             : (paidOrdersCount > 0 ? `${paidOrdersCount} Transaksi Berhasil` : 'Gross Volume'),
           isPositive: true,
-          period: isFiltered ? 'omzet filter terpilih' : 'total transaksi platform',
+          period: isFiltered
+            ? (totalFilteredDiscount > 0
+              ? `net stlh diskon Rp ${totalFilteredDiscount.toLocaleString('id-ID')}`
+              : 'omzet tiket bersih')
+            : 'total bruto (tiket + pajak + fee)',
           iconName: 'DollarSign',
           href: '/dashboard/reports',
         },
@@ -653,10 +683,14 @@ export default function DashboardPage() {
           title: 'Komisi Platform',
           value: `Rp ${Number(commissionEarned || 0).toLocaleString('id-ID')}`,
           change: isFiltered
-            ? 'Estimasi Net (5%)'
-            : (rawData?.revenue?.platform_commission !== undefined ? 'Platform Fee Riil' : 'Estimasi Net Fee (5%)'),
+            ? `Pajak (5%): Rp ${Number(totalTaxCollected || 0).toLocaleString('id-ID')}`
+            : 'Platform Fee Riil',
           isPositive: true,
-          period: 'pendapatan bersihan komisi',
+          period: isFiltered
+            ? 'fee riil platform'
+            : (totalTaxCollected > 0
+              ? `Pajak 5%: Rp ${Number(totalTaxCollected || 0).toLocaleString('id-ID')}`
+              : 'pendapatan bersih komisi'),
           iconName: 'TrendingUp',
           href: '/dashboard/reports',
         },
@@ -1316,18 +1350,19 @@ export default function DashboardPage() {
                     <Building2 className="w-3.5 h-3.5 text-blue-600" />
                     Pilih Mitra Event Organizer (EO)
                   </label>
-                  <select
-                    value={ownerSelectedEo}
-                    onChange={(e) => setOwnerSelectedEo(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-colors cursor-pointer shadow-2xs h-[38px]"
-                  >
-                    <option value="all">Semua Mitra EO (Global Platform)</option>
-                    {ownerOrganizers.map((org) => (
-                      <option key={org.id} value={org.id}>
-                        {org.name} {org.eventsCount > 0 ? `(${org.eventsCount} Event)` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={ownerSelectedEo} onValueChange={setOwnerSelectedEo}>
+                    <SelectTrigger className="w-full h-[38px] px-3.5 bg-slate-50 hover:bg-slate-100/80 border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white shadow-2xs">
+                      <SelectValue placeholder="Semua Mitra EO (Global Platform)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Mitra EO (Global Platform)</SelectItem>
+                      {ownerOrganizers.map((org) => (
+                        <SelectItem key={org.id} value={String(org.id)}>
+                          {org.name} {org.eventsCount > 0 ? `(${org.eventsCount} Event)` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Filter 2: Event (Cascading based on EO) */}
@@ -1336,22 +1371,29 @@ export default function DashboardPage() {
                     <Calendar className="w-3.5 h-3.5 text-blue-600" />
                     Pilih Event {ownerSelectedEo !== 'all' ? '(Sesuai Mitra Terpilih)' : '(Semua)'}
                   </label>
-                  <select
-                    value={ownerSelectedEvent}
-                    onChange={(e) => setOwnerSelectedEvent(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-colors cursor-pointer shadow-2xs h-[38px]"
-                  >
-                    <option value="all">
-                      {ownerSelectedEo !== 'all'
-                        ? `Semua Event Mitra Terpilih (${ownerAvailableEvents.length} Event)`
-                        : `Semua Event Platform (${ownerAvailableEvents.length} Event)`}
-                    </option>
-                    {ownerAvailableEvents.map((ev: any) => (
-                      <option key={ev.id} value={ev.id}>
-                        {ev.title} {ev.status ? `[${ev.status}]` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={ownerSelectedEvent} onValueChange={setOwnerSelectedEvent}>
+                    <SelectTrigger className="w-full h-[38px] px-3.5 bg-slate-50 hover:bg-slate-100/80 border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white shadow-2xs">
+                      <SelectValue
+                        placeholder={
+                          ownerSelectedEo !== 'all'
+                            ? `Semua Event Mitra Terpilih (${ownerAvailableEvents.length} Event)`
+                            : `Semua Event Platform (${ownerAvailableEvents.length} Event)`
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">
+                        {ownerSelectedEo !== 'all'
+                          ? `Semua Event Mitra Terpilih (${ownerAvailableEvents.length} Event)`
+                          : `Semua Event Platform (${ownerAvailableEvents.length} Event)`}
+                      </SelectItem>
+                      {ownerAvailableEvents.map((ev: any) => (
+                        <SelectItem key={ev.id} value={String(ev.id)}>
+                          {ev.title} {ev.status ? `[${ev.status}]` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -1403,7 +1445,7 @@ export default function DashboardPage() {
                 Rincian Penjualan Tiket per Event & Mitra EO
               </h3>
               <p className="text-xs text-slate-500 font-medium">
-                Distribusi tiket terjual, omzet kotor, dan estimasi bagi hasil komisi platform per masing-masing event.
+                Distribusi tiket terjual, omzet tiket net (setelah diskon promo), komisi platform riil, dan pajak daerah per event.
               </p>
             </div>
             <Link
@@ -1423,8 +1465,9 @@ export default function DashboardPage() {
                     <th scope="col" className="px-3.5 py-2.5 rounded-l-xl">Nama Event</th>
                     <th scope="col" className="px-3.5 py-2.5">Mitra EO</th>
                     <th scope="col" className="px-3.5 py-2.5">Tiket Terjual / Kuota</th>
-                    <th scope="col" className="px-3.5 py-2.5">Gross Omzet</th>
-                    <th scope="col" className="px-3.5 py-2.5">Komisi Metix (5%)</th>
+                    <th scope="col" className="px-3.5 py-2.5">Omzet Tiket (Net)</th>
+                    <th scope="col" className="px-3.5 py-2.5">Komisi Metix (Riil)</th>
+                    <th scope="col" className="px-3.5 py-2.5">Pajak Daerah (5%)</th>
                     <th scope="col" className="px-3.5 py-2.5">Status</th>
                     <th scope="col" className="px-3.5 py-2.5 text-right rounded-r-xl">Aksi</th>
                   </tr>
@@ -1432,7 +1475,7 @@ export default function DashboardPage() {
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {filteredOwnerEventPerformanceList.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-3.5 py-8 text-center text-slate-400 font-medium">
+                      <td colSpan={8} className="px-3.5 py-8 text-center text-slate-400 font-medium">
                         Tidak ada event yang sesuai dengan filter yang dipilih.
                       </td>
                     </tr>
@@ -1473,10 +1516,20 @@ export default function DashboardPage() {
                             <span className="font-black text-slate-900 block">
                               Rp {item.total_revenue.toLocaleString('id-ID')}
                             </span>
+                            {item.total_discount > 0 && (
+                              <span className="text-[10px] font-bold text-rose-600 block mt-0.5">
+                                Diskon: -Rp {item.total_discount.toLocaleString('id-ID')}
+                              </span>
+                            )}
                           </td>
                           <td className="px-3.5 py-3">
                             <span className="font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md inline-block">
                               +Rp {item.commission.toLocaleString('id-ID')}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-3">
+                            <span className="font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md inline-block">
+                              Rp {item.tax.toLocaleString('id-ID')}
                             </span>
                           </td>
                           <td className="px-3.5 py-3">
@@ -1490,7 +1543,7 @@ export default function DashboardPage() {
                           </td>
                           <td className="px-3.5 py-3 text-right">
                             <Link
-                              href="/dashboard/reports/ticket-category"
+                              href={`/dashboard/reports/ticket-category?event_id=${item.event_id}&event_title=${encodeURIComponent(item.title)}`}
                               className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-extrabold text-[11px] inline-flex items-center gap-1 transition-colors cursor-pointer"
                             >
                               <span>Rincian</span>

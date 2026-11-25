@@ -10,6 +10,54 @@ session — it records what the code cannot say for itself.
 
 ---
 
+## 2026-11-25 — Unify Net Ticket Omzet & Real Fees Across Dashboard, Reports & Ticket-Category
+
+**Did:**
+- Eliminated the `Rp 340.000` BayFest promo-discount discrepancy between `/dashboard` (`Rp 190.114.200` gross pre-discount) and `/dashboard/reports` (`Rp 189.774.200` net post-discount):
+  - Backend (`D:\metix-api`):
+    - Updated [OwnerDashboardService.php](file:///D:/metix-api/app/Services/Dashboard/OwnerDashboardService.php#L103-L130) `ticket_types_by_event` so `total_revenue` computes `orders.net_subtotal` (and added `total_discount`, `total_bruto`), matching `total_ticket_net` and `/dashboard/reports`.
+    - Updated [EoDashboardService.php](file:///D:/metix-api/app/Services/Dashboard/EoDashboardService.php#L244-L280) `ticket_types_by_event` to also reflect `orders.net_subtotal`.
+  - Frontend (`d:\metix-frontend`):
+    - Renamed the Owner breakdown column in [src/app/dashboard/page.tsx](file:///d:/metix-frontend/src/app/dashboard/page.tsx) to `Omzet Tiket (Net)` with promo discount indicator (`Diskon: -Rp ...`) and passed `?event_id=...` on the `Rincian` link.
+    - Updated [src/app/dashboard/reports/ticket-category/page.tsx](file:///d:/metix-frontend/src/app/dashboard/reports/ticket-category/page.tsx) to split `net_subtotal`, `tax_amount`, and real `platform_fee` across active tickets using integer remainder allocation, removing the forced 7% override.
+- Verified parity across `OwnerDashboardService`, `EoDashboardService`, `/dashboard/reports`, and `npx tsc --noEmit` (0 errors).
+
+**Why:**
+- `/dashboard` showed pre-discount gross subtotal while `/dashboard/reports` showed post-discount net subtotal, causing conflicting numbers for the same event. Now `/dashboard`, `/dashboard/reports`, and `/dashboard/reports/ticket-category` match to the exact Rupiah.
+
+---
+
+## 2026-11-25 — Fix /dashboard/reports Initial National Data Load, Real Fees & CSV Totals
+
+**Did:**
+- Updated [src/app/dashboard/reports/page.tsx](file:///d:/metix-frontend/src/app/dashboard/reports/page.tsx) and [src/lib/api.ts](file:///d:/metix-frontend/src/lib/api.ts):
+  - Removed the early empty-order guard when `selectedEventId === 'all'`, loading `PAID` orders for both `OWNER` (national platform summary across all events) and `EO` (all published EO events) on initial render so KPI cards and formula banner show real figures instead of `Rp 0` / `0 Pcs`.
+  - Updated `fetchSalesReportData` (`per_page=100` on `fetchMyEvents`) and extracted a shared `getOrderFinancials` helper preserving explicit `0` values for `local_tax_amount` and `platform_fee` without forcing fallback `0.07` / `0.05` math.
+  - Changed the accounting formula banner and CSV summary from `Fee Platform 7%` to `Fee Platform (Riil)` / `Fee Platform Riil`.
+  - Fixed the 2-column alignment shift on the CSV `TOTAL AKUMULASI` row (aligned all 21 columns with header) and corrected expanded ticket sub-row ratio to use `netSubtotal`.
+- Verified with `npx tsc --noEmit` (0 errors) and backend report verification.
+
+**Why:**
+- Initial `/dashboard/reports` load rendered `Rp 0` across all metrics, labels still referenced flat 7% fee instead of real tiered `orders.platform_fee`, and CSV export totals were misaligned by 2 columns.
+
+---
+
+## 2026-11-25 — Align Owner Dashboard Platform Commission & Tax with Real Order Data
+
+**Did:**
+- Switched platform commission and local tax metrics across backend and frontend from hardcoded percentages (`0.05` / `0.07`) to exact database aggregates from `PAID` orders (`orders.platform_fee` and `orders.local_tax_amount`).
+- Backend (`D:\metix-api`):
+  - In `OwnerDashboardService.php`, restored global `platform_commission` to `$paidOrders->sum('platform_fee')` and updated per-event `ticket_types_by_event` breakdown to sum actual `platform_fee` and `local_tax_amount` per event from paid orders (preserving tiered QRIS 5.9%–7%, VA 5%+Rp4.500, E-Wallet 9%, etc.).
+- Frontend (`d:\metix-frontend`):
+  - In `src/lib/api.ts`, removed the hardcoded 7% fallback on `commissionEarned` and aligned `taxCollected` with `revenue.tax_collected`.
+  - In `src/app/dashboard/page.tsx`, kept global `Revenue Platform` on `total_gross`, renamed card & column headers to "Komisi Platform" / "Komisi Metix (Riil)" alongside "Pajak Daerah (5%)", and prevented `eventsList` merge from overwriting real backend commission/tax values.
+- Verified backend `OwnerDashboardService` output and ran frontend TypeScript check (`npx tsc --noEmit`) with 0 errors.
+
+**Why:**
+- Metix platform revenue comes from tiered/method-specific checkout fees stored in `orders.platform_fee`, not a flat 7% or 5% rate. Using real DB sums guarantees consistency between global and per-event dashboard views.
+
+---
+
 ## 2026-11-24 — Fix Owner Dashboard Multi-EO & Multi-Event Metrics & Filter Approval
 
 **Did:**
@@ -84,4 +132,3 @@ session — it records what the code cannot say for itself.
 ## Consolidated history
 
 - **2026-11:** Ticket categories filtering, ticket category detail report page, checkout ticket priority sorting.
-

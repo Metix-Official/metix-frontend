@@ -153,87 +153,90 @@ function TicketCategoryDetailContent() {
         return;
       }
 
+      // Compute order net subtotal, tax, and real fee from DB
+      const orderDiscount = Number(ord.discount_amount || (ord as any).promo_usage?.discount_amount || 0);
+      const orderGrossSub = Number(ord.original_subtotal || ord.subtotal || ord.total_amount || 0);
+      const orderNetSub =
+        ord.net_subtotal !== undefined && ord.net_subtotal !== null
+          ? Number(ord.net_subtotal)
+          : Math.max(0, orderGrossSub - orderDiscount);
+      const orderTax =
+        ord.tax_amount !== undefined && ord.tax_amount !== null
+          ? Number(ord.tax_amount)
+          : Math.round(orderNetSub * 0.05);
+      const orderFee =
+        ord.platform_fee !== undefined && ord.platform_fee !== null
+          ? Number(ord.platform_fee)
+          : 0;
+
       // Check if order has individual ticket records
       const hasTicketsArray = Array.isArray(ord.tickets) && ord.tickets.length > 0;
 
       if (hasTicketsArray) {
-        let matchedInTickets = false;
-
-        ord.tickets!.forEach((t: any, idx: number) => {
-          // If ticket has individual status and is cancelled or refunded, skip
-          if (t.status) {
-            const tStatus = String(t.status || '').toLowerCase().trim();
-            if (tStatus === 'cancelled' || tStatus === 'refunded' || tStatus === 'expired') {
-              return;
-            }
-          }
-
-          const tCat = String(t.category || ord.category || ord.ticket_category || '').trim().toUpperCase();
-          const tTkt = String(t.ticket_type || ord.ticket_type_name || '').trim().toUpperCase();
-
-          const catMatches = !normTargetCat || tCat.includes(normTargetCat) || normTargetCat.includes(tCat);
-          const tktMatches = !normTargetTkt || tTkt.includes(normTargetTkt) || normTargetTkt.includes(tTkt);
-
-          if (catMatches && tktMatches) {
-            matchedInTickets = true;
-            // Hitung nilai murni per 1 item / 1 tiket
-            const orderTicketCount = Math.max(1, ord.tickets?.length || ord.quantity || 1);
-            const itemSubtotal = Number(t.price ?? (ord.subtotal ? Math.round(ord.subtotal / orderTicketCount) : 0));
-
-            // Local Tax per item (proporsional 5% / dibagi jumlah tiket)
-            let itemTax = 0;
-            if (ord.tax_amount && orderTicketCount > 1) {
-              itemTax = Math.round(Number(ord.tax_amount) / orderTicketCount);
-            } else if (ord.tax_amount) {
-              itemTax = Number(ord.tax_amount);
-            } else {
-              itemTax = Math.round(itemSubtotal * 0.05);
-            }
-            const standardTax = Math.round(itemSubtotal * 0.05);
-            if (itemTax === 0 || Math.abs(itemTax - standardTax) <= 100) {
-              itemTax = standardTax;
-            }
-
-            // Platform Fee per item (proporsional 7% / dibagi jumlah tiket)
-            let itemFee = 0;
-            if (ord.platform_fee && orderTicketCount > 1) {
-              itemFee = Math.round(Number(ord.platform_fee) / orderTicketCount);
-            } else if (ord.platform_fee) {
-              itemFee = Number(ord.platform_fee);
-            } else {
-              itemFee = Math.round(itemSubtotal * 0.07);
-            }
-            const standardFee = Math.round(itemSubtotal * 0.07);
-            if (itemFee === 0 || Math.abs(itemFee - standardFee) <= 600) {
-              itemFee = standardFee;
-            }
-
-            const itemTotal = itemSubtotal + itemTax + itemFee;
-
-            list.push({
-              id: `${ord.id}-${t.id || idx}`,
-              order_id: ord.id,
-              order_number: ord.order_number,
-              buyer_name: t.full_name || ord.buyer_name || ord.full_name || 'Pembeli Metix',
-              buyer_email: t.email || ord.buyer_email || 'buyer@metix.id',
-              buyer_phone: t.phone || ord.buyer_phone,
-              event_title: ord.event_title || eventTitle || 'Event Metix',
-              event_id: ord.event_id,
-              subtotal: itemSubtotal,
-              local_tax: itemTax,
-              platform_fee: itemFee,
-              payment_method: ord.payment_method || 'Midtrans QRIS / VA',
-              total_amount: itemTotal,
-              category: t.category || ord.category || ord.ticket_category || categoryParam || 'Reguler',
-              ticket_name: t.ticket_type || ord.ticket_type_name || ticketParam || 'Tiket Pass',
-              quantity: 1,
-              status: 'PAID',
-              created_at: ord.created_at,
-            });
-          }
+        const activeTickets = ord.tickets!.filter((t: any) => {
+          if (!t.status) return true;
+          const tStatus = String(t.status || '').toLowerCase().trim();
+          return tStatus !== 'cancelled' && tStatus !== 'refunded' && tStatus !== 'expired';
         });
 
-        if (matchedInTickets) return;
+        const totalActive = activeTickets.length;
+        if (totalActive > 0) {
+          let remSub = orderNetSub;
+          let remTax = orderTax;
+          let remFee = orderFee;
+          let matchedInTickets = false;
+
+          const totalTicketPrices = activeTickets.reduce((sum: number, tk: any) => {
+            return sum + Number(tk.price ?? (orderGrossSub ? orderGrossSub / totalActive : 0));
+          }, 0);
+
+          activeTickets.forEach((t: any, idx: number) => {
+            const isLast = idx === totalActive - 1;
+            const rawPrice = Number(t.price ?? (orderGrossSub ? orderGrossSub / totalActive : 0));
+            const share = totalTicketPrices > 0 ? (rawPrice / totalTicketPrices) : (1 / totalActive);
+
+            const itemSubtotal = isLast ? Math.max(0, remSub) : Math.round(orderNetSub * share);
+            const itemTax = isLast ? Math.max(0, remTax) : Math.round(orderTax * share);
+            const itemFee = isLast ? Math.max(0, remFee) : Math.round(orderFee * share);
+            remSub -= itemSubtotal;
+            remTax -= itemTax;
+            remFee -= itemFee;
+
+            const tCat = String(t.category || ord.category || ord.ticket_category || '').trim().toUpperCase();
+            const tTkt = String(t.ticket_type || ord.ticket_type_name || '').trim().toUpperCase();
+
+            const catMatches = !normTargetCat || tCat.includes(normTargetCat) || normTargetCat.includes(tCat);
+            const tktMatches = !normTargetTkt || tTkt.includes(normTargetTkt) || normTargetTkt.includes(tTkt);
+
+            if (catMatches && tktMatches) {
+              matchedInTickets = true;
+              const itemTotal = itemSubtotal + itemTax + itemFee;
+
+              list.push({
+                id: `${ord.id}-${t.id || idx}`,
+                order_id: ord.id,
+                order_number: ord.order_number,
+                buyer_name: t.full_name || ord.buyer_name || ord.full_name || 'Pembeli Metix',
+                buyer_email: t.email || ord.buyer_email || 'buyer@metix.id',
+                buyer_phone: t.phone || ord.buyer_phone,
+                event_title: ord.event_title || eventTitle || 'Event Metix',
+                event_id: ord.event_id,
+                subtotal: itemSubtotal,
+                local_tax: itemTax,
+                platform_fee: itemFee,
+                payment_method: ord.payment_method || 'Midtrans QRIS / VA',
+                total_amount: itemTotal,
+                category: t.category || ord.category || ord.ticket_category || categoryParam || 'Reguler',
+                ticket_name: t.ticket_type || ord.ticket_type_name || ticketParam || 'Tiket Pass',
+                quantity: 1,
+                status: 'PAID',
+                created_at: ord.created_at,
+              });
+            }
+          });
+
+          if (matchedInTickets) return;
+        }
       }
 
       // Fallback: Check top-level order properties
@@ -244,21 +247,7 @@ function TicketCategoryDetailContent() {
       const topTktMatch = !normTargetTkt || ordTkt.includes(normTargetTkt) || normTargetTkt.includes(ordTkt);
 
       if (topCatMatch && topTktMatch) {
-        const orderTicketCount = Math.max(1, ord.quantity || 1);
-        const itemSubtotal = Number(
-          ord.subtotal
-            ? Math.round(ord.subtotal / orderTicketCount)
-            : (ord.total_amount ? Math.round(ord.total_amount / orderTicketCount) : 0)
-        );
-
-        let itemTax = Math.round(Number(ord.tax_amount ?? 0) / orderTicketCount);
-        let itemFee = Math.round(Number(ord.platform_fee ?? 0) / orderTicketCount);
-        const standardTax = Math.round(itemSubtotal * 0.05);
-        const standardFee = Math.round(itemSubtotal * 0.07);
-        if (itemTax === 0 || Math.abs(itemTax - standardTax) <= 100) itemTax = standardTax;
-        if (itemFee === 0 || Math.abs(itemFee - standardFee) <= 600) itemFee = standardFee;
-
-        const itemTotal = itemSubtotal + itemTax + itemFee;
+        const itemTotal = Number(ord.total_amount || (orderNetSub + orderTax + orderFee));
 
         list.push({
           id: String(ord.id),
@@ -269,14 +258,14 @@ function TicketCategoryDetailContent() {
           buyer_phone: ord.buyer_phone,
           event_title: ord.event_title || eventTitle || 'Event Metix',
           event_id: ord.event_id,
-          subtotal: itemSubtotal,
-          local_tax: itemTax,
-          platform_fee: itemFee,
+          subtotal: orderNetSub,
+          local_tax: orderTax,
+          platform_fee: orderFee,
           payment_method: ord.payment_method || 'Midtrans QRIS / VA',
           total_amount: itemTotal,
           category: ord.category || ord.ticket_category || categoryParam || 'Reguler',
           ticket_name: ord.ticket_type_name || ticketParam || 'Tiket Pass',
-          quantity: 1,
+          quantity: Math.max(1, ord.quantity || 1),
           status: 'PAID',
           created_at: ord.created_at,
         });
